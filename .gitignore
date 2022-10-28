@@ -1,2 +1,9 @@
 *.class
 *.log
+out
+.ammonite
+.bloop
+.metals
+
+*.~undo-tree~
+.#*
