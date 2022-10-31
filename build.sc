@@ -48,6 +48,7 @@ trait CommonModule extends ScalaModule with ScalafmtModule {
   )
 
   override def ivyDeps = Agg(
+    // most of the FP dependencies are pulled in by JJM
     ivy"org.julianmichael::jjm-core::$jjmVersion",
     ivy"org.julianmichael::jjm-io::$jjmVersion",
     ivy"io.suzaku::boopickle::$boopickleVersion",

@@ -24,3 +24,17 @@ Java entry points:
 
 JS entry point:
 * [App.scala](debate/src-js/App.scala)
+
+## Background
+
+The code in this repository is written in Scala in functional style.
+
+On Scala and FP:
+* [Why Scala?](http://www.lihaoyi.com/post/FromFirstPrinciplesWhyScala.html) By Li Haoyi
+* [What's Functional Programming All About?](https://www.lihaoyi.com/post/WhatsFunctionalProgrammingAllAbout.html) By Li Haoyi
+
+Relevant libraries to reference:
+* [cats](https://typelevel.org/cats/): Basic functional programming abstractions
+* [monocle](https://www.optics.dev/Monocle/): Optics for accessing/transforming immutable data
+* [scalajs-react](https://github.com/japgolly/scalajs-react): React facade for Scala
+* [jjm](https://github.com/julianmichael/jjm): My personal library of utilities on top of these tools
