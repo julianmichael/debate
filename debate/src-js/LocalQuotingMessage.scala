@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
@@ -7,6 +7,14 @@ import jjm.ling.ESpan
 
 import cats.implicits._
 
+/** Local state HOC for the speech a debater is currently constructing.
+  * This exists to keep in sync the overlying `spans` state (of currently highlighted spans in
+  * the story) and the underlying message state (of the text being written by the debater),
+  * without requiring the full message state to be above the `spans` state in the VDOM tree.
+  * My thinking was that that should help prevent the story VDOM from being recomputed with each
+  * character being typed. But... not sure if that actually was an issue; was just throwing things
+  * at the wall. This can probably be removed at some point.
+  */
 object LocalQuotingMessage {
   type State = String
   type Context = String => Callback
@@ -27,7 +35,7 @@ object LocalQuotingMessage {
             $.nextProps.shouldRefresh($.state)) {
         $.setState($.nextProps.initialValue)
       } else  {
-        val messageSpans: Set[ESpan] = DebateSpeech.getSegmentsFromString($.state)
+        val messageSpans: Set[ESpan] = SpeechSegment.getSegmentsFromString($.state)
           .collect { case SpeechSegment.Quote(span) => span }.toSet
         val newSpans = $.nextProps.spans.value -- messageSpans
         if(newSpans.nonEmpty) {
@@ -37,7 +45,7 @@ object LocalQuotingMessage {
     }
     .componentDidUpdate { $ =>
 
-      val messageSpans = DebateSpeech.getSegmentsFromString($.currentState)
+      val messageSpans = SpeechSegment.getSegmentsFromString($.currentState)
         .collect { case SpeechSegment.Quote(span) => span }.toSet
 
       val spanCb = if(messageSpans != $.currentProps.spans.value) {

@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import scalajs.js.typedarray.ArrayBuffer
 
@@ -12,6 +12,13 @@ import org.scalajs.dom.raw.FileReader
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
+/**
+  * HOC for websocket connections.
+  * I can't remember why I (apparently) modified this from the jjm.ui version.
+  *
+  * @param sendRequest
+  * @param readResponse
+  */
 class WebSocketConnection2[Request, Response](
   sendRequest: (WebSocket, Request) => Callback,
   readResponse: ArrayBuffer => Response) {

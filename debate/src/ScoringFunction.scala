@@ -1,13 +1,18 @@
-package livechat
+package debate
 
 import cats.implicits._
 import monocle.macros.Lenses
 import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism
 
-// scoring function for the judge at a turn in the debate
-// constraint: must be nonnegative and bounded above (at `max`)
-
+/** Scoring function for the judge (currently, logically applies at the end of the debate).
+  * These are based on proper scoring rules to elicit calibrated probabilities.
+  * https://en.wikipedia.org/wiki/Scoring_rule#Proper_scoring_rules
+  *
+  * We also apply a penalty that is roughly linear in the length of the debate,
+  * to incentivize efficient information-gathering and encourage the judge to end the debate
+  * when they believe it is no longer useful to continue.
+  */
 @JsonCodec sealed trait ScoringFunction {
   def max: Double
   def eval(turnNumber: Int, distribution: Vector[Double], outcome: Int): Double
@@ -38,7 +43,7 @@ object ScoringFunction {
 
   @Lenses @JsonCodec case class LogScoreWithLinearPenalty(
     baseCoefficient: Double,
-    constant: Double,
+    constant: Double, // in order to make it a bit nicer since log score is always negative.
     logBase: Double,
     perTurnPenalty: Double
   ) extends ScoringFunction {

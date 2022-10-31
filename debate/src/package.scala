@@ -5,7 +5,7 @@ import jjm.ling.ESpan
 
 import cats.implicits._
 
-package object livechat extends PackagePlatformExtensions {
+package object debate extends PackagePlatformExtensions {
   def makePageTitle(x: String) = {
     (if(x.isEmpty) "" else s"$x | ") + "Debate"
   }
@@ -22,8 +22,6 @@ package object livechat extends PackagePlatformExtensions {
     val res = x.split("\n").toVector.map(Vector(_)).intercalate(Vector("\n")).filter(_.nonEmpty).flatMap(
       _.split(" +").toVector
     )
-    // println(x.split("\n").toVector.map(Vector(_)).intercalate(Vector("\n")).filter(_.nonEmpty))
-    // println(res)
     res
   }
 
@@ -36,15 +34,11 @@ package object livechat extends PackagePlatformExtensions {
 
   def biggTokenize(x: String): Vector[String] = {
     val res = x.split("\n").toVector.map(Vector(_)).intercalate(Vector("\n")).filter(_.nonEmpty)
-    // println(x.split("\n").toVector.map(Vector(_)).intercalate(Vector("\n")).filter(_.nonEmpty))
-    // println(res)
     res
   }
 
   def bigggTokenize(x: String): Vector[String] = {
       val res = x.split("\n\n").toVector.map(Vector(_)).intercalate(Vector("\n\n")).filter(_.nonEmpty)
-      // println(x.split("\n").toVector.map(Vector(_)).intercalate(Vector("\n")).filter(_.nonEmpty))
-      // println(res)
       res
     }
 

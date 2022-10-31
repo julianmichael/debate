@@ -64,15 +64,14 @@ trait JvmPlatform extends CommonModule {
   def platformSegment = "jvm"
 }
 
-// import $file.`build-scripts`.ScalatexBuild, ScalatexBuild.ScalatexModule
 import $file.`build-scripts`.SimpleJSDepsBuild, SimpleJSDepsBuild.SimpleJSDeps
 
-object livechat extends Module {
-  trait LivechatModule extends CommonModule {
-    def millSourcePath = build.millSourcePath / "livechat"
+object debate extends Module {
+  trait DebateModule extends CommonModule {
+    def millSourcePath = build.millSourcePath / "debate"
   }
 
-  trait JvmBase extends LivechatModule with JvmPlatform {
+  trait JvmBase extends DebateModule with JvmPlatform {
 
     // resolvers += Resolver.sonatypeRepo("snapshots"),
 
@@ -88,8 +87,8 @@ object livechat extends Module {
 
     def resources = T.sources(
       millSourcePath / "resources",
-      livechat.js.fastOpt().path / RelPath.up,
-      livechat.js.aggregatedJSDeps().path / RelPath.up
+      debate.js.fastOpt().path / RelPath.up,
+      debate.js.aggregatedJSDeps().path / RelPath.up
     )
   }
 
@@ -98,14 +97,14 @@ object livechat extends Module {
   object prod extends JvmBase {
     override def resources = T.sources(
       millSourcePath / "resources",
-      livechat.js.fullOpt().path / RelPath.up,
-      livechat.js.aggregatedJSDeps().path / RelPath.up
+      debate.js.fullOpt().path / RelPath.up,
+      debate.js.aggregatedJSDeps().path / RelPath.up
     )
   }
 
-  object js extends LivechatModule with JsPlatform with SimpleJSDeps {
+  object js extends DebateModule with JsPlatform with SimpleJSDeps {
 
-    def mainClass = T(Some("livechat.App"))
+    def mainClass = T(Some("debate.App"))
 
     def ivyDeps = super.ivyDeps() ++ Agg(
       ivy"org.julianmichael::jjm-ui::$jjmVersion",

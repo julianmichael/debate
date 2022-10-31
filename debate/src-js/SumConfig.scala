@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
@@ -15,9 +15,14 @@ import jjm.implicits._
 import monocle.Prism
 import jjm.ui.LocalState
 
+/**
+  * HOC middleman for sum types producing a config panel controlled with a drop-down.
+  * You need to provide a list of prisms to correspond to the drop-down options.
+  * (So I guess this may be more general than just sum types actually, as the prisms can overlap.)
+  */
 case class SumConfig[A]() {
 
-  val S = livechat.Styles
+  val S = debate.Styles
   val V = new jjm.ui.View(S)
   val LocalString = new LocalState[String]
 

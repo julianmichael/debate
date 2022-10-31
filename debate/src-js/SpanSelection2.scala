@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import jjm.ling.ISpan
 
@@ -8,6 +8,10 @@ import japgolly.scalajs.react._
 import monocle.Lens
 import monocle.Prism
 
+/**
+  * HOC for span selection modified from the original jjm.ui.SpanSelection just to add spans to a
+  * span state controlled by the caller.
+  */
 object SpanSelection2 {
 
   sealed trait Status

@@ -1,3 +1,0 @@
-package livechat
-
-trait PackagePlatformExtensions

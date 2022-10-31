@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import scalacss.DevDefaults._
 import scala.language.postfixOps
@@ -13,6 +13,9 @@ import scalacss.internal.ValueT
 //   user-select: none;
 // }
 
+/** Stylesheet for the webapp.
+  * Inherits default styles for the default view components; these can be overridden.
+  */
 object Styles extends jjm.ui.View.Styles {
   import dsl._
 

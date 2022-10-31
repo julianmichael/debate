@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
@@ -15,6 +15,10 @@ import jjm.implicits._
 import monocle.Prism
 import jjm.ui.LocalState
 
+/**
+  * HOC for probability sliders, where each outcome gets a slider and they're constrained to
+  * constitute a probability distribution
+  */
 object ProbabilitySliders {
 
   def normalize(probs: Vector[Double]) = {
@@ -27,7 +31,7 @@ object ProbabilitySliders {
     normalize(dist.map(x => if(prob == 1.0) (1.0 - newProb)/((dist.size - 1)) else x * (1 - newProb) / (1 - prob)).updated(index, newProb))
   }
 
-  val S = livechat.Styles
+  val S = debate.Styles
   val V = new jjm.ui.View(S)
   val LocalString = new LocalState[String]
 

@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import java.io.InputStream
 import java.security.{ SecureRandom, KeyStore }
@@ -25,8 +25,12 @@ import java.nio.file.{Path => NIOPath}
 import jjm.io.HttpUtil
 import jjm.DotKleisli
 
+/**
+  * Main object for running the debate webserver.
+  * Uses the decline-effect package for command line arg processing / app entry point.
+  */
 object Serve extends CommandIOApp(
-  name = "mill -i livechat.jvm.runMain livechat.jitsi.Serve",
+  name = "mill -i debate.jvm.runMain debate.Serve",
   header = "Serve the live chat app.") {
 
   val portO = Opts.option[Int](
@@ -41,6 +45,11 @@ object Serve extends CommandIOApp(
     "ssl", help = "Whether to use SSL encryption/host over HTTPS."
   ).orFalse
 
+  /**
+    * Main function. Runs the server. Stop with ^C.
+    *
+    * @return the process's exit code.
+    */
   def main: Opts[IO[ExitCode]] = {
     (portO, saveO, sslO).mapN { (port, save, ssl) =>
       for {
@@ -89,6 +98,12 @@ object Serve extends CommandIOApp(
   import monocle.std.{all => StdOptics}
   import monocle.macros._
 
+  /**
+    * The server state for a debate room.
+    *
+    * @param debate the full contents of a debate and current set of participants on the page.
+    * @param channel the channel on which to send debate state updates to all participants
+    */
   @Lenses case class DebateRoom(
     debate: DebateState,
     channel: Topic[IO, DebateState])
@@ -103,6 +118,13 @@ object Serve extends CommandIOApp(
       .map(_._1)
   }
 
+  /**
+    * Initialize the server state and make the HTTP server
+    *
+    * @param saveDir the directory to save the debate JSON files
+    * @param blocker synchronous execution context for running server operations
+    * @return the full HTTP app
+    */
   def makeHttpApp(saveDir: NIOPath, blocker: Blocker) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
@@ -145,13 +167,11 @@ object Serve extends CommandIOApp(
       case _ => true
     }
 
-  // def sendWebSocketMessage[A: Pickler](message: A, queue: Queue[IO, WebSocketFrame]) = {
-  //   queue.enqueue1(pickleToWSFrame(message))
-  // }
-
   // val timeUpdateStream: Stream[IO, AdminMessage] = Stream
   //   .awakeEvery[IO](60.seconds)
   //   .map(d => GeneralAdminMessage(s"The time is now ${new java.util.Date()}"): AdminMessage)
+
+  // Optics for debate state fields
 
   def roomMembersL(roomName: String) = Optics.at[Map[String, DebateRoom], String, Option[DebateRoom]](roomName)
     .composePrism(StdOptics.some[DebateRoom])
@@ -164,72 +184,60 @@ object Serve extends CommandIOApp(
 
   import org.http4s.dsl.io._
 
-  sealed trait DebateApiRequest { type Out }
-  object DebateApiRequest {
-    case object ListRooms extends DebateApiRequest {
-      type Out = Vector[String]
-    }
-  }
-
-  // def api(
-  //   rooms: Ref[IO, Map[String, DebateRoom]]
-  // ): DotKleisli[IO, DebateApiRequest] = new DotKleisli[IO, DebateApiRequest] {
-  //   import DebateApiRequest._
-  //   override def apply(req: DebateApiRequest): IO[req.Out] = req match {
-  //     case ListRooms => rooms.get.map(
-  //       _.toVector.sortBy(_._2.debate.debate.turns.view.flatMap(_.timestamp).lastOption.fold(1L)(-_)).map(_._1)
-  //     ).asInstanceOf[IO[req.Out]]
-  //   }
-  // }
-
   object NameParam extends QueryParamDecoderMatcher[String]("name")
   object ParticipantIdParam extends QueryParamDecoderMatcher[String]("participantId")
+
+  /** Build the HTTP service (i.e., request -> IO[response]) running the webapp's functionality.
+    */
   def service(
-    saveDir: NIOPath,
-    mainChannel: Topic[IO, Vector[String]],
+    saveDir: NIOPath, // where to save the debates as JSON
+    mainChannel: Topic[IO, Vector[String]], // channel for updates to 
     rooms: Ref[IO, Map[String, DebateRoom]],
     blocker: Blocker
   ) = {
-    // TODO make this concurrency-safe
-    def ensureChat(roomName: String) = for {
+
+    // Operations executed by the server
+
+    // Ensure a debate room is present (initialize if necessary)
+    def ensureDebate(roomName: String) = for {
       roomOpt <- rooms.get.map(_.get(roomName))
       _ <- if(roomOpt.nonEmpty) IO.unit else DebateRoom.create().flatMap(room =>
         rooms.update(rooms =>
           if(rooms.contains(roomName)) rooms else rooms + (roomName -> room)
-        ) >> getRoomList.flatMap(mainChannel.publish1)
+        ) >> getRoomList.flatMap(mainChannel.publish1) // update all clients on the list of rooms
       )
     } yield ()
 
     def addParticipant(roomName: String, participantId: String) = for {
-      _ <- ensureChat(roomName)
+      _ <- ensureDebate(roomName)
       _ <- rooms.update(
-        roomStateL(roomName).modify(_.addRole(ParticipantId(participantId, Observer)))
+        roomStateL(roomName).modify(_.addParticipant(ParticipantId(participantId, Observer)))
       )
       room <- rooms.get.map(_.apply(roomName))
       _ <- room.channel.publish1(room.debate)
     } yield ()
 
-    def exitChat(roomName: String, participantId: String) = for {
+    def removeParticipant(roomName: String, participantId: String) = for {
       _ <- rooms.update(roomMembersL(roomName).modify(_.filter(_.name != participantId)))
       room <- rooms.get.map(_.apply(roomName))
       _ <- room.channel.publish1(room.debate)
     } yield ()
 
     def processUpdate(roomName: String, debateState: DebateState) = for {
-      _ <- rooms.update(roomStateL(roomName).set(debateState))
-      _ <- FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(debateState)
-      // room <- rooms.get.map(_.apply(roomName))
+      _ <- rooms.update(roomStateL(roomName).set(debateState)) // update state
+      _ <- FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(debateState) // save after every change
+      // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
+      // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
     } yield debateState
 
     def getRoomList = rooms.get.map(sortedRoomList)
 
     HttpRoutes.of[IO] {
+      // Land on the actual webapp.
       case req @ GET -> Root =>
-        Ok(livechat.Page().render, Header("Content-Type", "text/html"))
+        Ok(debate.Page().render, Header("Content-Type", "text/html"))
 
-      // case req @ GET -> Root / roomName =>
-      //   Ok(livechat.Page(roomName).render, Header("Content-Type", "text/html"))
-
+      // Download the JSON for a debate.
       case req @ GET -> Root / "download" / roomName =>
         rooms.get.map(_.get(roomName)).flatMap { 
           case None => NotFound()
@@ -239,36 +247,32 @@ object Serve extends CommandIOApp(
           )
         }
         
+      // Connect via websocket to the 'main' channel which sends updates to everyone.
+      // This is still WIP.
       case req @ GET -> Root / "main-ws" =>
         for {
-          messageQueue <- Queue.bounded[IO, Unit](100)
+          // messageQueue <- Queue.bounded[IO, Unit](100)
           rooms <- getRoomList
           outStream = (
-            Stream.emit[IO, Vector[String]](rooms)
-              .merge(messageQueue.dequeue.evalMap(_ => getRoomList))
-              .merge(mainChannel.subscribe(100))
+            Stream.emit[IO, Vector[String]](rooms) // send the current set of rooms on connect
+              // .merge(messageQueue.dequeue.evalMap(_ => getRoomList)) // send any further updates
+              .merge(mainChannel.subscribe(100)) // and subscribe to the main channel
               .map(pickleToWSFrame(_))
-              .through(filterCloseFrames)
-              // .merge(timeUpdateStream)
+              .through(filterCloseFrames) // I'm not entirely sure why I remove the close frames.
           )
           res <- WebSocketBuilder[IO].build(
             send = outStream,
             receive = x => {
               x.through(filterCloseFrames)
-                .map(unpickleFromWSFrame[Unit])
-                .through(messageQueue.enqueue)
+                .map(unpickleFromWSFrame[Unit]) // clients can only 'ping' this websocket. does nothing.
+                // .through(messageQueue.enqueue) // -> triggers everyone to refresh the rooms (currently unused).
             },
-            onClose = IO.unit // exitChat(roomName, participantId)
+            onClose = IO.unit
           )
         } yield res
 
-      // case req @ GET -> Root / "chat" :? NameParam(name) =>
-
-      //   enterChat(name) >> WebSocketBuilder[IO].build(
-      //     send = chatChannel.subscribe(100).through(filterCloseFrames),
-      //     receive = chatChannel.publish,
-      //     onClose = exitChat(name))
-
+      // Connect via websocket to the messaging channel for the given debate.
+      // The participant is added to the debate state and then removed when the websocket closes.
       case req @ GET -> Root / "ws" / roomName :? ParticipantIdParam(participantId) =>
         for {
           _ <- addParticipant(roomName, participantId)
@@ -287,22 +291,19 @@ object Serve extends CommandIOApp(
                 .map(unpickleFromWSFrame[DebateState])
                 .evalMap(processUpdate(roomName, _))
             ),
-            onClose = exitChat(roomName, participantId)
+            onClose = removeParticipant(roomName, participantId)
           )
         } yield res
 
-      // case req @ GET -> Root / "chat" :? NameParam(name) =>
-
-      //   enterChat(name) >> WebSocketBuilder[IO].build(
-      //     send = chatChannel.subscribe(100).through(filterCloseFrames),
-      //     receive = chatChannel.publish,
-      //     onClose = exitChat(name))
-
-      case req @ GET -> Root / "file" / path =>
+      // serve static files. Used for serving the JS to the client.
+      case req @ GET -> Root / staticFilePrefix / path =>
         StaticFile.fromResource("/" + path, blocker, Some(req)).getOrElseF(NotFound())
     }
   }
 
+  /** Get the info necessary to host using HTTPS. Looks for `keystore.jks` and `password` files in
+    * the JVM resources. (Probably better to redirect from an HTTPS reverse proxy instead)
+    */
   val getSslContext = for {
     password <- IO(
       new java.util.Scanner(

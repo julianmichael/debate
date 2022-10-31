@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
@@ -13,9 +13,12 @@ import monocle.function.{all => Optics}
 
 import jjm.implicits._
 
+/** HOC middleman for easily rendering a config panel for a list of things.
+  * Gives add/remove buttons and list format while letting the caller render the list items.
+  */
 case class ListConfig[A](defaultItem: A) {
 
-  val S = livechat.Styles
+  val S = debate.Styles
 
   def mod(
     listDiv: TagMod = S.listConfigListDiv,

@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import scala.scalajs.js
 

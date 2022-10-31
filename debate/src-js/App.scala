@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import jjm.implicits._
 
@@ -51,6 +51,7 @@ import io.circe.generic.JsonCodec
 //   def makeHtml(text: String): String = js.native
 // }
 
+/** This exists to handle pre-tokenized source material. */
 @Lenses @JsonCodec case class DebateSetupRaw(
   rules: DebateRules,
   sourceMaterial: String,
@@ -59,23 +60,31 @@ import io.circe.generic.JsonCodec
 )
 object DebateSetupRaw {
   def init = DebateSetupRaw(
-    rules = DebateRules.init,
+    rules = DebateRules.default,
     sourceMaterial = "Source material.",
     question = "Question?",
     answers = Vector("Answer 1", "Answer 2")
   )
 }
 
+/** The main webapp. */
 object App {
 
-  case class ColorLayering(rgba: Rgba, add: Boolean) // false == remove
-
-
+  /**
+    * Render a list of tokens into HTML, highlighting subspans of that list with various colors.
+    *
+    * @param tokens
+    * @param highlights
+    * @param getRenderer
+    * @return a VdomArray of token spans
+    */
   def renderHighlightedTokens(
     tokens: Vector[String],
     highlights: Vector[(Span, Rgba)],
     getRenderer: Int => (VdomTag => VdomTag) = Map()
   ) = {
+    case class ColorLayering(rgba: Rgba, add: Boolean) // false == remove
+
     val colorLayerings = highlights.flatMap { case (span, color) =>
       Vector(span.begin -> ColorLayering(color, true), span.endExclusive -> ColorLayering(color, false))
     }.sortBy(_._1) :+ (tokens.length -> ColorLayering(Rgba.transparent, true)) // final fake color stack to get it to render out the full content
@@ -124,10 +133,6 @@ object App {
     }.spans.toVdomArray
   }
 
-
-  val dangerouslySetInnerHTML = VdomAttr("dangerouslySetInnerHTML")
-  // val markdownConverter = new Converter()
-
   val wsProtocol = {
     if (dom.document.location.protocol == "https:") "wss" else "ws"
   }
@@ -158,16 +163,22 @@ object App {
   )
 
   import jjm.ui.LocalState
-  import jjm.ui.Mounting
 
   case class ConnectionSpec(
     roomName: String,
     participantName: String
   )
 
+  val defaultRoomName: String = jQuery("#defaultRoomName").attr("value").toOption.getOrElse("")
+
+  // Shortcuts for styles and view elements
+
+  val S = Styles
+  val V = new jjm.ui.View(S)
+
+  // instantiate the HOCs we need
 
   val LocalString = new LocalState[String]
-  // val LocalString2 = new LocalState2[String]
   val LocalDouble = new LocalState[Double]
   val LocalProbs = new LocalState[Vector[Double]]
   val LocalBool = new LocalState[Boolean]
@@ -176,20 +187,6 @@ object App {
   val LocalSpans = new LocalState[Set[ESpan]]
   val DebateRoomLocal = new LocalState[DebateState]
   val DebateSetupRawLocal = new LocalState[DebateSetupRaw]
-
-  // def liveTextInput(
-  //   text: StateSnapshot[String],
-  //   onChange: String => Callback = _ => Callback.empty
-  // ) = <.input(
-  //   ^.onKeyDown ==> ((e: ReactEventFromInput) => e.stopPropagationCB),
-  //   ^.onChange ==> ((e: ReactEventFromInput) => text.setState(e.target.value) >> onChange(e.target.value)),
-  //   ^.value := text.value
-  // )
-
-  val defaultRoomName: String = jQuery("#defaultRoomName").attr("value").toOption.getOrElse("")
-
-  val S = Styles
-  val V = new jjm.ui.View(S)
 
   val RoundTypeList = ListConfig[DebateRoundType](DebateRoundType.SequentialSpeechesRound(500))
   val RoundTypeConfig = SumConfig[DebateRoundType]()
@@ -207,6 +204,7 @@ object App {
   // val TurnTypeSpecSelect = V.Select[DebateRoundTypeSpec](_.toString)
 
 
+  /** Shows the user's ID. */
   def userInfoRow(name: String, idOpt: Option[ParticipantId]) = {
     <.div(S.userInfoRow)(
       <.span(S.userInfoMessage)(
@@ -219,6 +217,7 @@ object App {
     )
   }
 
+  /** Top row showing non-debating roles (user can click one to change roles). */
   def roleChoiceRow(
     roomName: String,
     userName: String,
@@ -228,7 +227,7 @@ object App {
   ) = {
 
     def assumeRole(role: Role): Callback = {
-      sendState(debate.addRole(ParticipantId(userName, role)))
+      sendState(debate.addParticipant(ParticipantId(userName, role)))
     }
     def facilitatorsDiv = {
       val facilitators = debate.participants.collect {
@@ -271,6 +270,7 @@ object App {
     )
   }
 
+  /** Config panel for setting a list of round types. */
   def roundTypeSelect(
     roundTypes: StateSnapshot[Vector[DebateRoundType]],
     minItems: Int,
@@ -311,6 +311,7 @@ object App {
     }
   }
 
+  /** Config panel for facilitator to set the rules of the debate. */
   def facilitatorSetup(
     debate: DebateState,
     sendState: DebateState => Callback
@@ -440,6 +441,7 @@ object App {
     case Debater(index) => spanColorsByDebaterIndex(index)
   }
 
+  /** Show whose turn it is. */
   def turnDisplay(
     roleOpt: Option[Role],
     turnOpt: Option[DebateTurnType]
@@ -468,6 +470,7 @@ object App {
     }
   )
 
+  /** Show the debate. */
   def debatePanel(
     userId: Option[ParticipantId],
     setup: DebateSetup,
@@ -618,7 +621,7 @@ object App {
           didUpdate = msg => scrollDebateToBottom
         ) { currentMessage =>
 
-          val currentMessageSpeechSegments = DebateSpeech.getSegmentsFromString(currentMessage.value)
+          val currentMessageSpeechSegments = SpeechSegment.getSegmentsFromString(currentMessage.value)
 
           val speechLength = getSpeechLength(currentMessageSpeechSegments)
           val speechIsTooLong = charLimit > 0 && speechLength > charLimit
@@ -894,6 +897,7 @@ object App {
 
   class Backend(scope: BackendScope[Unit, Unit]) {
 
+    /** Main render method. */
     def render(props: Unit, state: Unit) = {
       <.div(S.app)(
         LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
@@ -966,7 +970,7 @@ object App {
                         }
                         case Some(setup) =>
                           def assumeRole(role: Role): Callback = {
-                            sendState(debate.value.addRole(ParticipantId(userName, role)))
+                            sendState(debate.value.addParticipant(ParticipantId(userName, role)))
                           }
                           val isCurrentJudge = userId.map(_.role).collect { case Judge => true }.nonEmpty
                           val questionBoxStyle = if(isCurrentJudge) S.questionBoxCurrent else S.questionBox

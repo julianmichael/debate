@@ -1,4 +1,4 @@
-package livechat
+package debate
 
 import java.nio.ByteBuffer
 import scala.language.implicitConversions
