@@ -10,7 +10,7 @@ val thisScalaJSVersion = "1.6.0"
 
 val kindProjectorVersion = "0.13.2"
 
-val jjmVersion = "0.2.1-SNAPSHOT"
+val jjmVersion = "0.2.1"
 val declineVersion = "1.0.0"
 val boopickleVersion  = "1.4.0"
 val logbackVersion = "1.2.3"
