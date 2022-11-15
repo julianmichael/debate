@@ -1,5 +1,7 @@
 package debate
 
+import annotation.unused
+
 import jjm.implicits._
 
 import scalajs.js
@@ -638,6 +640,13 @@ object App {
         .toVdomArray
     }
 
+    def minSecTime(millis: Long): String = {
+      val secs = millis / 1000
+      val mins = secs / 60
+      val secsRem = secs % 60
+      s"${mins}m ${secsRem}s"
+    }
+
     def speechToHTML(speech: DebateSpeech) = {
       val roleString = speech.speaker.role.toString
       <.div(S.speechHeader)(
@@ -775,7 +784,7 @@ object App {
 
           def speechInputPanel(
               submit: Callback,
-              cmdEnterToSubmit: Boolean = true
+              @unused cmdEnterToSubmit: Boolean = true
           ) = {
             <.div(S.speechInputPanel)(
               V.LiveTextArea.String.mod(
@@ -1181,10 +1190,10 @@ object App {
     }
   }
 
-  class Backend(scope: BackendScope[Unit, Unit]) {
+  class Backend(@unused scope: BackendScope[Unit, Unit]) {
 
     /** Main render method. */
-    def render(props: Unit, state: Unit) = {
+    def render(@unused props: Unit, @unused state: Unit) = {
       <.div(S.app)(
         LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
           connectionSpecOpt.value match {
