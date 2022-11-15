@@ -3,19 +3,15 @@ package debate
 import jjm.implicits._
 
 import scalajs.js
-import scalajs.js.typedarray.ArrayBuffer
 import scalajs.js.typedarray.TypedArrayBuffer
 
 import org.scalajs.dom
-import org.scalajs.dom.html
 
 import org.scalajs.jquery.jQuery
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.vdom.all.svg
 import japgolly.scalajs.react.extra.StateSnapshot
-import japgolly.scalajs.react.CatsReact._
 import japgolly.scalajs.react.MonocleReact._
 
 import scalacss.DevDefaults._
@@ -23,18 +19,12 @@ import scalacss.ScalaCssReact._
 
 import monocle.macros._
 
-import cats.Monoid
 import cats.implicits._
 
 import boopickle.Default._
 
-import monocle.function.{all => Optics}
-import monocle.std.{all => StdOptics}
 import org.scalajs.dom.ext.KeyCode
-import org.scalajs.dom.ext.KeyCode
-import java.{util => ju}
 
-import js.annotation.JSGlobal
 import jjm.ling.Span
 import cats.data.NonEmptyList
 import jjm.ui.Rgba
@@ -324,7 +314,7 @@ object App {
       roundTypes: StateSnapshot[Vector[DebateRoundType]],
       minItems: Int
   ) = {
-    RoundTypeList(roundTypes, minItems) { (remove, roundType, index) =>
+    RoundTypeList(roundTypes, minItems) { (remove, roundType, _) =>
       <.div( // (S.labeledInputRow)
         <.span(S.inputRowItem)(remove, " "),
         RoundTypeConfig(roundType)(
@@ -622,7 +612,7 @@ object App {
     }
     val charLimit = currentTurnOpt.fold(-1)(_.charLimit)
 
-    val shouldShowInputField = isUsersTurn && (
+    isUsersTurn && (
       role match {
         case None | Some(Observer) => false
         case _                     => true
@@ -784,7 +774,7 @@ object App {
         LocalQuotingMessage.make(
           curMessageSpans,
           "",
-          didUpdate = msg => scrollDebateToBottom
+          didUpdate = _ => scrollDebateToBottom
         ) { currentMessage =>
           val currentMessageSpeechSegments =
             SpeechSegment.getSegmentsFromString(currentMessage.value)
@@ -903,8 +893,8 @@ object App {
             turnDisplay(role, currentTurnOpt),
             currentTurnOpt.filter(_ => isUsersTurn).whenDefined {
               case DebateTurnType.SimultaneousSpeechesTurn(
-                    remainingDebaters: Set[Int],
-                    charLimit: Int
+                    _: Set[Int],
+                    _: Int
                   ) =>
                 val submit =
                   (
@@ -952,7 +942,7 @@ object App {
                 )
 
               case DebateTurnType
-                    .DebaterSpeechTurn(debater: Int, charLimit: Int) =>
+                    .DebaterSpeechTurn(_: Int, _: Int) =>
                 val submit =
                   (
                     if (!isUsersTurn || speechIsTooLong) Callback.empty
@@ -985,8 +975,8 @@ object App {
                 )
 
               case DebateTurnType.JudgeFeedbackTurn(
-                    reportBeliefs: Boolean,
-                    charLimit: Int
+                    _: Boolean,
+                    _: Int
                   ) =>
                 val turnNum = debate.turns.collect { case JudgeFeedback(_, _) =>
                   1
@@ -1113,7 +1103,7 @@ object App {
                           <.div(S.col, S.grow)(
                             <.div(S.row)(
                               setup.answers.indices.zip(scores).toVdomArray {
-                                case (index, score) =>
+                                case (index, _) =>
                                   <.div(S.col, ^.width := s"${barWidthPx}px")(
                                     reqdProbs(index).whenDefined(delta =>
                                       <.span(f"+${delta * 100}%.0f%%")
@@ -1253,7 +1243,7 @@ object App {
                     debate.setState(msg)
                   }
                 ) {
-                  case DebateWebSocket.Disconnected(reconnect, reason) =>
+                  case DebateWebSocket.Disconnected(_, reason) =>
                     <.div(S.loading)(
                       """You've been disconnected. In all likelihood this is because I'm
                          updating/restarting the server. Please refresh in a minute or two.

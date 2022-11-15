@@ -55,7 +55,7 @@ class WebSocketConnection2[Request, Response](
         scope.setState(Connecting) >> Callback {
           val socket = new WebSocket(props.websocketURI)
           val send = (r: Request) => sendRequest(socket, r)
-          socket.onopen = { (event: Event) =>
+          socket.onopen = { (_: Event) =>
             (scope.setState(ConnectedState(socket)) >> props.onOpen(send))
               .runNow()
           }
@@ -71,7 +71,7 @@ class WebSocketConnection2[Request, Response](
             var reader = new FileReader();
             reader.addEventListener(
               "loadend",
-              (e: Event) => {
+              (_: Event) => {
                 // reader.result contains the contents of blob as an ArrayBuffer
                 // println(reader.result) // XXX
                 val message =
@@ -109,8 +109,8 @@ class WebSocketConnection2[Request, Response](
       props.render(
         s match {
           case x @ Disconnected(_, _) => (x: Context)
-          case x @ Connecting         => Connecting
-          case x @ ConnectedState(socket) =>
+          case Connecting         => Connecting
+          case ConnectedState(socket) =>
             Connected(
               (req: Request) => sendRequest(socket, req),
               (cb: (Response => Callback)) =>

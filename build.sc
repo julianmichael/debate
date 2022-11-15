@@ -1,3 +1,5 @@
+import $ivy.`com.goyeau::mill-scalafix::0.2.11`
+import com.goyeau.mill.scalafix.ScalafixModule
 import mill._, mill.scalalib._, mill.scalalib.publish._, mill.scalajslib._
 import mill.scalalib.scalafmt._
 import coursier.maven.MavenRepository
@@ -12,7 +14,7 @@ val kindProjectorVersion = "0.13.2"
 
 val jjmVersion = "0.2.1"
 val declineVersion = "1.0.0"
-val boopickleVersion  = "1.4.0"
+val boopickleVersion = "1.4.0"
 val logbackVersion = "1.2.3"
 val osLibVersion = "0.8.0"
 
@@ -23,7 +25,7 @@ val scalacssVersion = "0.7.0"
 val jqueryVersion = "2.1.4"
 val reactVersion = "15.6.1"
 
-trait CommonModule extends ScalaModule with ScalafmtModule {
+trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
 
   def scalaVersion = thisScalaVersion
 
@@ -39,19 +41,20 @@ trait CommonModule extends ScalaModule with ScalafmtModule {
     "-deprecation",
     "-feature",
     "-language:higherKinds",
-    "-Ymacro-annotations"
+    "-Ymacro-annotations",
+    "-Ywarn-unused"
   )
 
   override def scalacPluginIvyDeps = super.scalacPluginIvyDeps() ++ Agg(
     // ivy"io.tryp:::splain:$splainVersion",
-    ivy"org.typelevel:::kind-projector:$kindProjectorVersion",
+    ivy"org.typelevel:::kind-projector:$kindProjectorVersion"
   )
 
   override def ivyDeps = Agg(
     // most of the FP dependencies are pulled in by JJM
     ivy"org.julianmichael::jjm-core::$jjmVersion",
     ivy"org.julianmichael::jjm-io::$jjmVersion",
-    ivy"io.suzaku::boopickle::$boopickleVersion",
+    ivy"io.suzaku::boopickle::$boopickleVersion"
     // ivy"org.typelevel::kittens::$kittensVersion",
   )
 }
@@ -83,7 +86,7 @@ object debate extends Module {
       ivy"com.monovore::decline::$declineVersion",
       ivy"com.monovore::decline-effect::$declineVersion",
       // java dependencies
-      ivy"ch.qos.logback:logback-classic:$logbackVersion",
+      ivy"ch.qos.logback:logback-classic:$logbackVersion"
     )
 
     def resources = T.sources(
@@ -112,13 +115,13 @@ object debate extends Module {
       ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
       ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
       ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
+      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion"
     )
 
     def jsDeps = Agg(
       s"https://code.jquery.com/jquery-$jqueryVersion.min.js",
       s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react.js",
-      s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react-dom.js",
+      s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react-dom.js"
     )
   }
 }

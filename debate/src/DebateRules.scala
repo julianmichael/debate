@@ -1,7 +1,5 @@
 package debate
 
-import monocle.function.{all => Optics}
-import monocle.std.{all => StdOptics}
 import monocle.macros.Lenses
 import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism

@@ -114,9 +114,6 @@ object Styles extends jjm.ui.View.Styles {
     flexGrow(1)
   )
 
-  import scalacss.internal.ValueT.TypedAttrT1
-  import scalacss.internal.ValueT.ZeroLit
-  import scalacss.internal.ValueT.Len
   import scalacss.internal.Attr
   // object rowGap extends TypedAttrT1[Len] with ZeroLit {
   //   override val attr = Attr.real("row-gap")

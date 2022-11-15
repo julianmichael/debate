@@ -1,5 +1,7 @@
+/** Cross-platform code used by both the JVM and JS packages.
+  */
+
 import monocle.Lens
-import monocle.macros._
 
 import jjm.ling.ESpan
 
