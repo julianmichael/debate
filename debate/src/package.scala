@@ -65,11 +65,4 @@ package object debate extends PackagePlatformExtensions {
       .filter(_.nonEmpty)
     res
   }
-
-  def minSecTime(millis: Long): String = {
-    val secs = millis / 1000
-    val mins = secs / 60
-    val secsRem = secs % 60
-    s"${mins}m ${secsRem}s"
-  }
 }
