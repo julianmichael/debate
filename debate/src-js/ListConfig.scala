@@ -29,7 +29,6 @@ case class ListConfig[A](defaultItem: A) {
     values.value.zipWithIndex.toVdomArray { case (_, index) =>
       // safe since we're in zipWithIndex
       val itemSnapshot = values.zoomStateO(Optics.index(index)).get
-      (i: Int) => values.modState(_.remove(i))
       val removeItemElement = <.span(removeItemSpan)(
         "(-)",
         ^.onClick --> values.modState(_.remove(index))
