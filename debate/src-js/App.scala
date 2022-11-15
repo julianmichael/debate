@@ -36,6 +36,8 @@ import scala.util.Try
 
 import io.circe.generic.JsonCodec
 
+import java.time.{Instant, ZoneId}
+
 // @js.native
 // @JSGlobal("showdown.Converter")
 // class Converter extends js.Object {
@@ -653,7 +655,18 @@ object App {
         speech.speaker.name,
         s" ($roleString) ",
         <.span(S.speechTimestamp)(
-          minSecTime(speech.timestamp - setup.startTime)
+          minSecTime(speech.timestamp - setup.startTime),
+          " into the debate at ",
+            {
+              val base = {
+                Instant
+                  .ofEpochMilli(speech.timestamp)
+                  // TODO this should perhaps display it in the client's timezone
+                  .atZone(ZoneId.of("Z")) // see "time zones" on http://cquiroz.github.io/scala-java-time/
+                  .toLocalTime
+                  .toString }
+            base + " UTC"
+            }
         ).when(speech.timestamp > 0)
       )
     }

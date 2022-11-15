@@ -34,6 +34,16 @@ JS entry point:
 - Use `scalafix` somewhat-often. Check out e.g. `mill debate.jvm.fix`.
  - TODO make this run automatically
  - TODO add the todo -> github issue thing
+- For a nice loop in case metals is slow, check out `mill -w -i debate.jvm.run  --port 8080 --save save`
+
+### A Simple Loop
+
+- Start the server
+- Load the site and join a new debate as a facilitator.
+  - You can change roles between the participants and the judge.
+  - TODO can we make this easier- load an example debate?
+  - TODO should the example be shared between the debaters?
+- You can also see what observers see by clicking `Observer`
 
 ## Background
 
