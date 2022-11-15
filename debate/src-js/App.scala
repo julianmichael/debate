@@ -638,6 +638,26 @@ object App {
         .toVdomArray
     }
 
+    def speechToHTML(speech: DebateSpeech) = {
+      val roleString = speech.speaker.role.toString
+      <.div(S.speechHeader)(
+        speech.speaker.name,
+        s" ($roleString) ",
+        <.span(S.speechTimestamp)(
+          minSecTime(speech.timestamp - setup.startTime)
+        ).when(speech.timestamp > 0)
+      )
+    }
+
+    def quoteToHTML(span: ESpan) = {
+      <.span(
+        <.span(S.quoteText)(
+          breakNewlines(ling.Text.renderSpan(setup.sourceMaterial, span))
+        ),
+        <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
+      )
+    }
+
     def makeSimultaneousSpeechesHtml(
         speeches: Map[Int, DebateSpeech],
         speechIndex: Int
@@ -646,28 +666,12 @@ object App {
         ^.key := s"speech-$speechIndex",
         speeches.toVector.sortBy(_._1).toVdomArray {
           case (debaterIndex, speech) =>
-            val roleString = speech.speaker.role.toString
-
             <.div(S.speechBox, S.answerBg(debaterIndex))(
               ^.key := s"speech-$speechIndex-$debaterIndex",
-              <.div(S.speechHeader)(
-                speech.speaker.name,
-                s" ($roleString) ",
-                <.span(S.speechTimestamp)(
-                  minSecTime(speech.timestamp - setup.startTime)
-                ).when(speech.timestamp > 0)
-              ),
+              speechToHTML(speech),
               speech.content.toVdomArray {
-                case SpeechSegment.Text(text) => makeSimpleVdomFromText(text)
-                case SpeechSegment.Quote(span) =>
-                  <.span(
-                    <.span(S.quoteText)(
-                      breakNewlines(
-                        ling.Text.renderSpan(setup.sourceMaterial, span)
-                      )
-                    ),
-                    <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
-                  )
+                case SpeechSegment.Text(text)  => makeSimpleVdomFromText(text)
+                case SpeechSegment.Quote(span) => quoteToHTML(span)
               }
             )
         }
@@ -679,25 +683,12 @@ object App {
         style: TagMod,
         speechIndex: Int
     ) = {
-      val roleString = speech.speaker.role.toString
       <.div(S.speechBox, style)(
         ^.key := s"speech-$speechIndex",
-        <.div(S.speechHeader)(
-          speech.speaker.name,
-          s" ($roleString) ",
-          <.span(S.speechTimestamp)(
-            minSecTime(speech.timestamp - setup.startTime)
-          ).when(speech.timestamp > 0)
-        ),
+        speechToHTML(speech),
         speech.content.toVdomArray {
-          case SpeechSegment.Text(text) => makeSimpleVdomFromText(text)
-          case SpeechSegment.Quote(span) =>
-            <.span(
-              <.span(S.quoteText)(
-                breakNewlines(ling.Text.renderSpan(setup.sourceMaterial, span))
-              ),
-              <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
-            )
+          case SpeechSegment.Text(text)  => makeSimpleVdomFromText(text)
+          case SpeechSegment.Quote(span) => quoteToHTML(span)
         }
       )
     }
