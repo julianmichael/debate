@@ -1,17 +1,12 @@
 package debate
 
 import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
-import japgolly.scalajs.react.CatsReact._
 import japgolly.scalajs.react.MonocleReact._
 
-import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
-import monocle.function.{all => Optics}
 
-import jjm.implicits._
 import monocle.Prism
 import jjm.ui.LocalState
 

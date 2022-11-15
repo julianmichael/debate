@@ -1,16 +1,9 @@
 package debate
 
-import monocle.function.{all => Optics}
-import monocle.std.{all => StdOptics}
 import monocle.macros.Lenses
 
-import jjm.Dot
-import jjm.ling.TokenText
-import jjm.ling.ESpan
 
 import io.circe.generic.JsonCodec
-import cats.data.NonEmptyList
-import monocle.macros.GenPrism
 
 /** The full data object maintained on the server for each debate. Sent to the
   * client in full each time there's a change to the debate.

@@ -12,7 +12,6 @@ import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.implicits._
 
-import scala.util.{Try, Success, Failure}
 
 import com.monovore.decline._
 import com.monovore.decline.effect._
@@ -22,8 +21,6 @@ import io.circe.syntax._
 
 import jjm.io.FileUtil
 import java.nio.file.{Path => NIOPath}
-import jjm.io.HttpUtil
-import jjm.DotKleisli
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -96,16 +93,11 @@ object Serve
     }
   }
 
-  import scala.concurrent.duration._
-  import scala.language.postfixOps
 
   import fs2._
-  import fs2.concurrent.Queue
   import fs2.concurrent.Topic
 
   import org.http4s._
-  import org.http4s.headers._
-  import org.http4s.server.staticcontent._
   // import org.http4s.circe._
   import org.http4s.server.websocket._
   import org.http4s.websocket.WebSocketFrame
@@ -287,11 +279,11 @@ object Serve
 
     HttpRoutes.of[IO] {
       // Land on the actual webapp.
-      case req @ GET -> Root =>
+      case GET -> Root =>
         Ok(debate.Page().render, Header("Content-Type", "text/html"))
 
       // Download the JSON for a debate.
-      case req @ GET -> Root / "download" / roomName =>
+      case GET -> Root / "download" / roomName =>
         rooms.get.map(_.get(roomName)).flatMap {
           case None => NotFound()
           case Some(room) =>
@@ -303,7 +295,7 @@ object Serve
 
       // Connect via websocket to the 'main' channel which sends updates to everyone.
       // This is still WIP.
-      case req @ GET -> Root / "main-ws" =>
+      case GET -> Root / "main-ws" =>
         for {
           // messageQueue <- Queue.bounded[IO, Unit](100)
           rooms <- getRoomList
@@ -336,7 +328,7 @@ object Serve
 
       // Connect via websocket to the messaging channel for the given debate.
       // The participant is added to the debate state and then removed when the websocket closes.
-      case req @ GET -> Root / "ws" / roomName :? ParticipantIdParam(
+      case GET -> Root / "ws" / roomName :? ParticipantIdParam(
             participantId
           ) =>
         for {
@@ -363,7 +355,7 @@ object Serve
         } yield res
 
       // serve static files. Used for serving the JS to the client.
-      case req @ GET -> Root / staticFilePrefix / path =>
+      case req @ GET -> Root / _ / path =>
         StaticFile
           .fromResource("/" + path, blocker, Some(req))
           .getOrElseF(NotFound())

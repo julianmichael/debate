@@ -21,10 +21,8 @@ object SpanSelection2 {
     // in order for the lenses to actually compile. something is messed up
     // private[this] val indexSet: (Index => Selecting => Selecting) =
     //   (i: Index) => (s: Selecting) => s.copy(index = i)
-    private[this] val anchorSet: (Int => Selecting => Selecting) =
-      (a: Int) => (s: Selecting) => s.copy(anchor = a)
-    private[this] val endpointSet: (Int => Selecting => Selecting) =
-      (e: Int) => (s: Selecting) => s.copy(endpoint = e)
+    (a: Int) => (s: Selecting) => s.copy(anchor = a)
+    (e: Int) => (s: Selecting) => s.copy(endpoint = e)
     // val index = Lens[Selecting, Index](_.index)(i => s => s.copy(index = i))
     val anchor = Lens[Selecting, Int](_.anchor)(a => s => s.copy(anchor = a))
     val endpoint =

@@ -1,12 +1,9 @@
 package debate
 
 import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
-import japgolly.scalajs.react.CatsReact._
 import japgolly.scalajs.react.MonocleReact._
 
-import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
 import monocle.function.{all => Optics}
@@ -29,10 +26,10 @@ case class ListConfig[A](defaultItem: A) {
   )(values: StateSnapshot[Vector[A]], minItems: Int = 0)(
       renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
   ) = <.div(listDiv)(
-    values.value.zipWithIndex.toVdomArray { case (item, index) =>
+    values.value.zipWithIndex.toVdomArray { case (_, index) =>
       // safe since we're in zipWithIndex
       val itemSnapshot = values.zoomStateO(Optics.index(index)).get
-      val removeItem = (i: Int) => values.modState(_.remove(i))
+      (i: Int) => values.modState(_.remove(i))
       val removeItemElement = <.span(removeItemSpan)(
         "(-)",
         ^.onClick --> values.modState(_.remove(index))
