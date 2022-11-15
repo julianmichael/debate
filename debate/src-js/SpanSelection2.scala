@@ -8,9 +8,8 @@ import japgolly.scalajs.react._
 import monocle.Lens
 import monocle.Prism
 
-/**
-  * HOC for span selection modified from the original jjm.ui.SpanSelection just to add spans to a
-  * span state controlled by the caller.
+/** HOC for span selection modified from the original jjm.ui.SpanSelection just
+  * to add spans to a span state controlled by the caller.
   */
 object SpanSelection2 {
 
@@ -28,14 +27,15 @@ object SpanSelection2 {
       (e: Int) => (s: Selecting) => s.copy(endpoint = e)
     // val index = Lens[Selecting, Index](_.index)(i => s => s.copy(index = i))
     val anchor = Lens[Selecting, Int](_.anchor)(a => s => s.copy(anchor = a))
-    val endpoint = Lens[Selecting, Int](_.endpoint)(e => s => s.copy(endpoint = e))
+    val endpoint =
+      Lens[Selecting, Int](_.endpoint)(e => s => s.copy(endpoint = e))
   }
   object Status {
-    val noSpan = Prism[Status, NoSpan.type](
-      s => s match { case NoSpan => Some(NoSpan); case _ => None }
+    val noSpan = Prism[Status, NoSpan.type](s =>
+      s match { case NoSpan => Some(NoSpan); case _ => None }
     )(identity)
-    val selecting = Prism[Status, Selecting](
-      s => s match { case s @ Selecting(_, _) => Some(s); case _ => None }
+    val selecting = Prism[Status, Selecting](s =>
+      s match { case s @ Selecting(_, _) => Some(s); case _ => None }
     )(identity)
   }
 
@@ -45,19 +45,19 @@ object SpanSelection2 {
   // )
 
   case class Context(
-    // setSpan: Map[Index, List[ISpan]] => Callback,
-    hover: Int => Callback,
-    touch: Int => Callback,
-    cancel: Callback
+      // setSpan: Map[Index, List[ISpan]] => Callback,
+      hover: Int => Callback,
+      touch: Int => Callback,
+      cancel: Callback
   )
 
   case class Props(
-    // spans: Map[Index, List[ISpan]],
-    isEnabled: Boolean,
-    // enableSpanOverlap: Boolean = true,
-    addSpan: ISpan => Callback,
-    // update: State => Callback,
-    render: (Status, Context) => VdomElement
+      // spans: Map[Index, List[ISpan]],
+      isEnabled: Boolean,
+      // enableSpanOverlap: Boolean = true,
+      addSpan: ISpan => Callback,
+      // update: State => Callback,
+      render: (Status, Context) => VdomElement
   )
 
   class Backend(scope: BackendScope[Props, Status]) {
@@ -65,7 +65,7 @@ object SpanSelection2 {
     def hover(props: Props, state: Status)(endpoint: Int) =
       scope.modState {
         case Selecting(anchor, _) => Selecting(anchor, endpoint)
-        case x => x
+        case x                    => x
       }
 
     def touch(props: Props, state: Status)(wordIndex: Int): Callback =
@@ -97,10 +97,8 @@ object SpanSelection2 {
     .renderBackend[Backend]
     .build
 
-  def make(
-    isEnabled: Boolean,
-    addSpan: ISpan => Callback)(
-    render: (Status, Context) => VdomElement
+  def make(isEnabled: Boolean, addSpan: ISpan => Callback)(
+      render: (Status, Context) => VdomElement
   ) = {
     Component(Props(isEnabled, addSpan, render))
   }

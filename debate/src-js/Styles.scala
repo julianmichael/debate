@@ -13,8 +13,8 @@ import scalacss.internal.ValueT
 //   user-select: none;
 // }
 
-/** Stylesheet for the webapp.
-  * Inherits default styles for the default view components; these can be overridden.
+/** Stylesheet for the webapp. Inherits default styles for the default view
+  * components; these can be overridden.
   */
 object Styles extends jjm.ui.View.Styles {
   import dsl._
@@ -22,7 +22,7 @@ object Styles extends jjm.ui.View.Styles {
   // overrides
 
   override val textFieldSpan = style(
-    flexGrow(1),
+    flexGrow(1)
     // width(100 %%)
   )
 
@@ -67,10 +67,18 @@ object Styles extends jjm.ui.View.Styles {
     unsafeRoot("body")(
       margin(0 px),
       fontFamily :=! quotedSeparatedStrings(
-        "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+        "-apple-system",
+        "BlinkMacSystemFont",
+        "Segoe UI",
+        "Roboto",
+        "Oxygen",
+        "Ubuntu",
+        "Cantarell",
+        "Fira Sans",
+        "Droid Sans",
+        "Helvetica Neue",
         "sans-serif"
-      ),
+      )
       // fontSize(12 pt)
       // -webkit-font-smoothing: antialiased;
       // -moz-osx-font-smoothing: grayscale;
@@ -80,14 +88,17 @@ object Styles extends jjm.ui.View.Styles {
   style(
     unsafeRoot("code")(
       fontFamily :=! quotedSeparatedStrings(
-        "source-code-pro", "Menlo", "Monaco", "Consolas", "Courier New",
+        "source-code-pro",
+        "Menlo",
+        "Monaco",
+        "Consolas",
+        "Courier New",
         "monospace"
       )
     )
   )
 
   // App
-
 
   val row = style(
     display.flex,
@@ -143,7 +154,6 @@ object Styles extends jjm.ui.View.Styles {
     paddingTop(40 px),
     display.flex,
     flexDirection.column,
-
     unsafeChild("div")(
       margin(10 px)
     )
@@ -156,7 +166,6 @@ object Styles extends jjm.ui.View.Styles {
     justifyContent.center,
     alignItems.center
   )
-
 
   val roomMainColumn = style(
     position.relative,
@@ -172,22 +181,21 @@ object Styles extends jjm.ui.View.Styles {
     margin.auto
   )
 
-
   val commonBorderRadius = 5 px
   val mainHalfPadding = 3 px
   val hoverBgColor = c"#eee"
 
   val roomRolesRow = style(
-      // flexGrow(1),
+    // flexGrow(1),
     width(100 %%),
     display.flex,
-    flexDirection.row,
+    flexDirection.row
     // padding(mainHalfPadding),
   )
 
   val disconnectButton = style(
     margin(mainHalfPadding),
-    padding(2 px),
+    padding(2 px)
   )
 
   val roleBox = style(
@@ -204,7 +212,6 @@ object Styles extends jjm.ui.View.Styles {
     )
   )
 
-
   val roleBoxNonCurrent = style(
     roleBox,
     backgroundColor.white
@@ -214,7 +221,6 @@ object Styles extends jjm.ui.View.Styles {
     roleBox,
     backgroundColor(c"#ddd")
   )
-
 
   val roleTitle = style(
     margin(2 px),
@@ -232,7 +238,7 @@ object Styles extends jjm.ui.View.Styles {
   val debateWidthOffset = styleF.int(0 to 4)(i =>
     styleS(
       width(75 %%),
-      if(i % 2 == 0) alignSelf.start else alignSelf.end
+      if (i % 2 == 0) alignSelf.start else alignSelf.end
     )
   )
 
@@ -319,13 +325,13 @@ object Styles extends jjm.ui.View.Styles {
     // flexDirection.row,
   )
   val questionBoxCurrent = style(
-      inDebateRoleBox,
-      color.white,
-      backgroundColor.darkgreen
-      // flexGrow(1),
-      // display.flex,
-      // flexDirection.row,
-    )
+    inDebateRoleBox,
+    color.white,
+    backgroundColor.darkgreen
+    // flexGrow(1),
+    // display.flex,
+    // flexDirection.row,
+  )
 
   val questionTitle = style(
   )
@@ -349,7 +355,7 @@ object Styles extends jjm.ui.View.Styles {
     styleS(
       flexGrow(1),
       inDebateRoleBox,
-      color(answerColors(i)),
+      color(answerColors(i))
     )
   )
 
@@ -362,7 +368,6 @@ object Styles extends jjm.ui.View.Styles {
       answerBg(i)
     )
   )
-
 
   val answerTitle = style(
     fontWeight.bold
@@ -385,8 +390,8 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val speechTimestamp = style(
-      fontStyle.italic
-    )
+    fontStyle.italic
+  )
 
   val quoteText = style(
     backgroundColor.yellow,
@@ -403,21 +408,21 @@ object Styles extends jjm.ui.View.Styles {
   val roomMainRow = style(
     flexGrow(1),
     display.flex,
-    flexDirection.row,
+    flexDirection.row
     // padding(mainHalfPadding)
   )
 
   val userInfoRow = style(
     // flexGrow(1),
     width(100 %%),
-    margin(mainHalfPadding),
+    margin(mainHalfPadding)
     // padding(mainHalfPadding)
   )
 
   val labeledInputRow = style(
     // flexGrow(1),
     display.flex,
-    flexDirection.row,
+    flexDirection.row
     // padding(mainHalfPadding)
   )
 
@@ -425,7 +430,7 @@ object Styles extends jjm.ui.View.Styles {
     width(120 px),
     textAlign.right,
     margin(mainHalfPadding)
-      // flexGrow(1),
+    // flexGrow(1),
   )
 
   val inputRowItem = style(
@@ -440,10 +445,10 @@ object Styles extends jjm.ui.View.Styles {
       //   answerBg(i)
       // )
     )
-    // styleS(
-    //   width(75 %%),
-    //   if(i % 2 == 0) alignSelf.start else alignSelf.end
-    // )
+  // styleS(
+  //   width(75 %%),
+  //   if(i % 2 == 0) alignSelf.start else alignSelf.end
+  // )
   )
 
   val answerProbLabel = styleF.int(0 to 4)(i =>
@@ -454,27 +459,27 @@ object Styles extends jjm.ui.View.Styles {
       minWidth(80 px),
       textAlign.right
     )
-    // styleS(
-    //   width(75 %%),
-    //   if(i % 2 == 0) alignSelf.start else alignSelf.end
-    // )
+  // styleS(
+  //   width(75 %%),
+  //   if(i % 2 == 0) alignSelf.start else alignSelf.end
+  // )
   )
 
   val answerLabel = style(
-    inputRowItem,
+    inputRowItem
     // width(50 px),
     // textAlign.right
-      // margin(mainHalfPadding)
-        // flexGrow(1),
-    )
+    // margin(mainHalfPadding)
+    // flexGrow(1),
+  )
 
   val inputLabelDeleteButton = style(
-      color(c"#888"),
-      &.hover(
-        fontWeight.bold,
-        color.black
-      )
+    color(c"#888"),
+    &.hover(
+      fontWeight.bold,
+      color.black
     )
+  )
 
   val tentativeInputLabel = style(
     inputLabel,
@@ -491,7 +496,7 @@ object Styles extends jjm.ui.View.Styles {
     flexDirection.row,
     // height(100 %%),
     textAlign.left,
-    overflow.hidden,
+    overflow.hidden
   )
 
   val debateSubpanel = style(
@@ -518,7 +523,7 @@ object Styles extends jjm.ui.View.Styles {
     display.flex,
     flexDirection.column,
     height.auto,
-    overflowY.auto,
+    overflowY.auto
     // justifyContent.end
   )
 
