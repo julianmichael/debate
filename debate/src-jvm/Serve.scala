@@ -12,7 +12,6 @@ import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.implicits._
 
-
 import com.monovore.decline._
 import com.monovore.decline.effect._
 import _root_.org.http4s.server.middleware.HttpsRedirect
@@ -50,6 +49,27 @@ object Serve
     )
     .orFalse
 
+  def getBuilder(ssl: Boolean) = {
+    if (!ssl) IO.pure(BlazeServerBuilder[IO])
+    else {
+      getSslContext.attempt >>= {
+        case Right(sslContext) =>
+          IO.pure(
+            BlazeServerBuilder[IO]
+              .withSslContext(sslContext)
+          )
+        case Left(e) =>
+          IO(
+            System.err.println(
+              s"HTTPS Configuration failed: ${e.getMessage}"
+            )
+          ).as(
+            BlazeServerBuilder[IO]
+          )
+      }
+    }
+  }
+
   /** Main function. Runs the server. Stop with ^C.
     *
     * @return
@@ -58,27 +78,7 @@ object Serve
   def main: Opts[IO[ExitCode]] = {
     (portO, saveO, sslO).mapN { (port, save, ssl) =>
       for {
-        builder <-
-          (
-            if (!ssl) IO.pure(BlazeServerBuilder[IO])
-            else {
-              getSslContext.attempt >>= {
-                case Right(sslContext) =>
-                  IO.pure(
-                    BlazeServerBuilder[IO]
-                      .withSslContext(sslContext)
-                  )
-                case Left(e) =>
-                  IO(
-                    System.err.println(
-                      s"HTTPS Configuration failed: ${e.getMessage}"
-                    )
-                  ).as(
-                    BlazeServerBuilder[IO]
-                  )
-              }
-            }
-          )
+        builder <- getBuilder(ssl)
         _ <- Blocker[IO].use { blocker =>
           makeHttpApp(save, blocker).flatMap(app =>
             builder
@@ -92,7 +92,6 @@ object Serve
       } yield ExitCode.Success
     }
   }
-
 
   import fs2._
   import fs2.concurrent.Topic
@@ -135,16 +134,7 @@ object Serve
       .map(_._1)
   }
 
-  /** Initialize the server state and make the HTTP server
-    *
-    * @param saveDir
-    *   the directory to save the debate JSON files
-    * @param blocker
-    *   synchronous execution context for running server operations
-    * @return
-    *   the full HTTP app
-    */
-  def makeHttpApp(saveDir: NIOPath, blocker: Blocker) = {
+  def loadRooms(saveDir: NIOPath) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
       _ <- IO(os.makeDir.all(saveDirOs))
@@ -154,8 +144,7 @@ object Serve
           .filter(_.toString.endsWith(".json"))
           .toVector
       )
-      // chatChannel <- Topic[IO, WebSocketFrame](Ping())
-      rooms <- files
+      loaded <- files
         .traverse(path =>
           FileUtil
             .readJson[DebateState](path)
@@ -166,13 +155,27 @@ object Serve
             }
         )
         .map(_.toMap)
+    } yield loaded
+  }
+
+  /** Initialize the server state and make the HTTP server
+    *
+    * @param saveDir
+    *   the directory to save the debate JSON files
+    * @param blocker
+    *   synchronous execution context for running server operations
+    * @return
+    *   the full HTTP app
+    */
+  def makeHttpApp(saveDir: NIOPath, blocker: Blocker) = {
+    for {
+      rooms <- loadRooms(saveDir)
       _ <- IO(println(s"load: $rooms"))
       mainChannel <- Topic[IO, Vector[String]](sortedRoomList(rooms))
       roomsRef <- Ref[IO].of(rooms)
     } yield {
       HttpsRedirect(
         Router(
-          // "/api" -> HttpUtil.makeHttpPostServer(api(roomsRef)),
           "/" -> service(saveDir, mainChannel, roomsRef, blocker)
         )
       ).orNotFound
@@ -193,10 +196,6 @@ object Serve
       case Close(_) => false
       case _        => true
     }
-
-  // val timeUpdateStream: Stream[IO, AdminMessage] = Stream
-  //   .awakeEvery[IO](60.seconds)
-  //   .map(d => GeneralAdminMessage(s"The time is now ${new java.util.Date()}"): AdminMessage)
 
   // Optics for debate state fields
 

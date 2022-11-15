@@ -25,6 +25,16 @@ Java entry points:
 JS entry point:
 * [App.scala](debate/src-js/App.scala)
 
+### Suggestions for using VSCode
+
+- Install the Scala Metals extension.
+  - Why? This gives you nice stuff like type-at-point.
+  - Check out the button on the left-hand-side of vscode. It has a lot of useful stuff.
+- Use `bloop` as the build server.
+- Use `scalafix` somewhat-often. Check out e.g. `mill debate.jvm.fix`.
+ - TODO make this run automatically
+ - TODO add the todo -> github issue thing
+
 ## Background
 
 The code in this repository is written in Scala in functional style.
