@@ -26,7 +26,7 @@ import java.nio.file.{Path => NIOPath}
   */
 object Serve
     extends CommandIOApp(
-      name = "mill -i debate.jvm.runMain debate.Serve",
+      name = "mill -i debate.jvm.run",
       header = "Serve the live chat app."
     ) {
 

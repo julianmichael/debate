@@ -1,4 +1,4 @@
-import $ivy.`com.goyeau::mill-scalafix::0.2.11`
+import $ivy.`com.goyeau::mill-scalafix::0.2.11` // TODO refactor where this is
 import com.goyeau.mill.scalafix.ScalafixModule
 import mill._, mill.scalalib._, mill.scalalib.publish._, mill.scalajslib._
 import mill.scalalib.scalafmt._
@@ -54,8 +54,9 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     // most of the FP dependencies are pulled in by JJM
     ivy"org.julianmichael::jjm-core::$jjmVersion",
     ivy"org.julianmichael::jjm-io::$jjmVersion",
-    ivy"io.suzaku::boopickle::$boopickleVersion"
+    ivy"io.suzaku::boopickle::$boopickleVersion",
     // ivy"org.typelevel::kittens::$kittensVersion",
+    ivy"io.github.cquiroz::scala-java-time::2.0.0" // TODO probably not the right version
   )
 }
 
