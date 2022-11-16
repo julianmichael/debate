@@ -18,6 +18,10 @@ import monocle.macros.GenPrism
   def max: Double
   def eval(turnNumber: Int, distribution: Vector[Double], outcome: Int): Double
   def perTurnPenalty: Double
+
+  def expectedValue(turnNumber: Int, distribution: Vector[Double]): Double = {
+    distribution.zipWithIndex.foldMap { case (p, i) => p * eval(turnNumber, distribution, i) }
+  }
 }
 object ScoringFunction {
   @Lenses @JsonCodec case class SphericalScoreWithLinearPenalty(
@@ -78,4 +82,52 @@ object ScoringFunction {
     GenPrism[ScoringFunction, QuadraticScoreWithLinearPenalty]
   val logScoreWithLinearPenalty =
     GenPrism[ScoringFunction, LogScoreWithLinearPenalty]
+
+
+  /**
+    * Return a vector of the absolute increase in probability of each option that would be required
+    * to justify (in expectation) the cost of taking another turn.
+    *
+    * @param scoringFunction
+    * @param probs
+    * @param turnNum
+    * @return vector of increase in probability for each answer, aligned with probs; None if impossible
+    */
+  def deltasForNextTurnToBeWorthwhile(
+    scoringFunction: ScoringFunction,
+    probs: Vector[Double],
+    turnNum: Int
+  ): Vector[Option[Double]] = {
+    val currentScores = probs.indices.map(index =>
+      scoringFunction
+        .eval(turnNum, probs, index)
+    )
+    val hypotheticalScores = probs.indices.map(index =>
+      scoringFunction
+        .eval(turnNum + 1, probs, index)
+    )
+
+    // just do it by guess and check starting low
+    val reqdProbDeltas =
+      probs.indices.map { answerIndex =>
+        val scoresNextTurnAfterDeltaIncrease = LazyList
+          .from(0 to 100)
+          .map(_.toDouble / 100.0)
+          .map { delta =>
+            delta -> scoringFunction.expectedValue(
+              turnNum + 1,
+              Utils.adjustProbability(
+                probs,
+                answerIndex,
+                probs(answerIndex) + delta
+              )
+            )
+          }
+        scoresNextTurnAfterDeltaIncrease
+          .find(_._2 >= currentScores(answerIndex))
+          .map(_._1)
+      }.toVector
+
+    reqdProbDeltas
+  }
 }

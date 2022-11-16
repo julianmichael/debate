@@ -14,27 +14,6 @@ import jjm.ui.LocalState
   */
 object ProbabilitySliders {
 
-  def normalize(probs: Vector[Double]) = {
-    val sum = probs.sum
-    probs.map(_ / sum)
-  }
-
-  def setProb(
-      dist: Vector[Double],
-      index: Int,
-      newProb: Double
-  ): Vector[Double] = {
-    val prob = dist(index)
-    normalize(
-      dist
-        .map(x =>
-          if (prob == 1.0) (1.0 - newProb) / ((dist.size - 1))
-          else x * (1 - newProb) / (1 - prob)
-        )
-        .updated(index, newProb)
-    )
-  }
-
   val S = debate.Styles
   val V = new jjm.ui.View(S)
   val LocalString = new LocalState[String]
@@ -49,7 +28,7 @@ object ProbabilitySliders {
   )
 
   def mod(div: TagMod = S.probSlidersDiv)(probs: StateSnapshot[Vector[Double]])(
-      render: Context => VdomElement
+    render: Context => VdomElement
   ) = {
     <.div(div)(
       probs.value.zipWithIndex.toVdomArray { case (prob, index) =>
@@ -58,7 +37,7 @@ object ProbabilitySliders {
           Context(
             index,
             prob,
-            p => probs.setState(setProb(probs.value, index, p))
+            p => probs.setState(Utils.adjustProbability(probs.value, index, p))
           )
         )
       }
