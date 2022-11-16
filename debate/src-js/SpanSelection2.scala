@@ -1,7 +1,5 @@
 package debate
 
-import annotation.unused
-
 import jjm.ling.ISpan
 
 import japgolly.scalajs.react.vdom.html_<^._
@@ -19,10 +17,6 @@ object SpanSelection2 {
   case object NoSpan extends Status
   case class Selecting(anchor: Int, endpoint: Int) extends Status
   object Selecting {
-    // For some reason, macros don't work, and I have to define these members
-    // in order for the lenses to actually compile. something is messed up
-    // private[this] val indexSet: (Index => Selecting => Selecting) =
-    //   (i: Index) => (s: Selecting) => s.copy(index = i)
     val anchor = Lens[Selecting, Int](_.anchor)(a => s => s.copy(anchor = a))
     val endpoint =
       Lens[Selecting, Int](_.endpoint)(e => s => s.copy(endpoint = e))
@@ -59,7 +53,7 @@ object SpanSelection2 {
 
   class Backend(scope: BackendScope[Props, Status]) {
 
-    def hover(@unused props: Props, @unused state: Status)(endpoint: Int) =
+    def hover(endpoint: Int) =
       scope.modState {
         case Selecting(anchor, _) => Selecting(anchor, endpoint)
         case x                    => x
@@ -81,7 +75,7 @@ object SpanSelection2 {
       props.render(
         state,
         Context(
-          hover(props, state),
+          hover,
           touch(props, state),
           cancel
         )

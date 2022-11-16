@@ -68,7 +68,7 @@ class WebSocketConnection2[Request, Response](
           //   props.onMessage(send, responseFromString(event.data.toString)).runNow()
           // }
           socket.onmessage = { (event: MessageEvent) =>
-            var reader = new FileReader();
+            val reader = new FileReader();
             reader.addEventListener(
               "loadend",
               (_: Event) => {
