@@ -19,7 +19,7 @@ import monocle.macros.GenPrism
   def eval(turnNumber: Int, distribution: Vector[Double], outcome: Int): Double
   def perTurnPenalty: Double
 
-  def expectedValue(turnNumber: Int, distribution: Vector[Double]): Double = {
+  def expectedValue(distribution: Vector[Double], turnNumber: Int): Double = {
     distribution.zipWithIndex.foldMap { case (p, i) => p * eval(turnNumber, distribution, i) }
   }
 }
@@ -98,10 +98,7 @@ object ScoringFunction {
     probs: Vector[Double],
     turnNum: Int
   ): Vector[Option[Double]] = {
-    val currentScores = probs.indices.map(index =>
-      scoringFunction
-        .eval(turnNum, probs, index)
-    )
+    val currentEV = scoringFunction.expectedValue(probs, turnNum)
     val hypotheticalScores = probs.indices.map(index =>
       scoringFunction
         .eval(turnNum + 1, probs, index)
@@ -115,16 +112,16 @@ object ScoringFunction {
           .map(_.toDouble / 100.0)
           .map { delta =>
             delta -> scoringFunction.expectedValue(
-              turnNum + 1,
               Utils.adjustProbability(
                 probs,
                 answerIndex,
                 probs(answerIndex) + delta
-              )
+              ),
+              turnNum + 1
             )
           }
         scoresNextTurnAfterDeltaIncrease
-          .find(_._2 >= currentScores(answerIndex))
+          .find(_._2 >= currentEV)
           .map(_._1)
       }.toVector
 

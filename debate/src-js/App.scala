@@ -656,17 +656,19 @@ object App {
         s" ($roleString) ",
         <.span(S.speechTimestamp)(
           minSecTime(speech.timestamp - setup.startTime),
-          " into the debate at ",
-            {
-              val base = {
-                Instant
-                  .ofEpochMilli(speech.timestamp)
-                  // TODO this should perhaps display it in the client's timezone
-                  .atZone(ZoneId.of("Z")) // see "time zones" on http://cquiroz.github.io/scala-java-time/
-                  .toLocalTime
-                  .toString }
-            base + " UTC"
+          " into the debate at ", {
+            val base = {
+              Instant
+                .ofEpochMilli(speech.timestamp)
+                // TODO this should perhaps display it in the client's timezone
+                .atZone(
+                  ZoneId.of("Z")
+                ) // see "time zones" on http://cquiroz.github.io/scala-java-time/
+                .toLocalTime
+                .toString
             }
+            base + " UTC"
+          }
         ).when(speech.timestamp > 0)
       )
     }
@@ -797,7 +799,7 @@ object App {
 
           def speechInputPanel(
               submit: Callback,
-              @unused cmdEnterToSubmit: Boolean = true
+              cmdEnterToSubmit: Boolean = true
           ) = {
             <.div(S.speechInputPanel)(
               V.LiveTextArea.String.mod(
@@ -807,6 +809,7 @@ object App {
                   ^.onKeyDown ==> ((e: ReactKeyboardEvent) => {
                     val submitCB =
                       if (
+                        cmdEnterToSubmit &&
                         e.keyCode == KeyCode.Enter && (e.metaKey || e.ctrlKey)
                       ) {
                         submit
@@ -1078,27 +1081,12 @@ object App {
                               .eval(turnNum + 1, probs.value, index)
                           )
 
-                        val reqdProbs =
-                          setup.answers.indices.map { answerIndex =>
-                            val scoresNextTurnAfterDeltaIncrease = LazyList
-                              .from(0 to 100)
-                              .map(_.toDouble / 100.0)
-                              .map { delta =>
-                                delta -> setup.rules.scoringFunction.eval(
-                                  turnNum + 1,
-                                  ProbabilitySliders.setProb(
-                                    probs.value,
-                                    answerIndex,
-                                    probs.value(answerIndex) + delta
-                                  ),
-                                  answerIndex
-                                )
-                              }
-                            scoresNextTurnAfterDeltaIncrease
-                              .find(_._2 >= currentScores(answerIndex))
-                              .map(_._1)
-                          }.toVector
-                        // Stream.from(0).map(_.toDouble / 100.0).
+                        val reqdDeltas =
+                          ScoringFunction.deltasForNextTurnToBeWorthwhile(
+                            setup.rules.scoringFunction,
+                            probs.value,
+                            turnNum
+                          )
 
                         val scores =
                           if (consideringContinue.value) hypotheticalScores
@@ -1118,7 +1106,7 @@ object App {
                               setup.answers.indices.zip(scores).toVdomArray {
                                 case (index, _) =>
                                   <.div(S.col, ^.width := s"${barWidthPx}px")(
-                                    reqdProbs(index).whenDefined(delta =>
+                                    reqdDeltas(index).whenDefined(delta =>
                                       <.span(f"+${delta * 100}%.0f%%")
                                     )
                                   )
@@ -1235,7 +1223,6 @@ object App {
                         V.LiveTextField.String(participantNameLive)
                       ),
                       <.div("Room: ", StringField(roomNameLive)),
-                      // <.div("Name: ", liveTextInput(name)),
                       <.div(
                         <.button(
                           "Join",
