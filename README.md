@@ -3,12 +3,19 @@ Web interface for information-asymmetric debates.
 
 ## Usage
 
-* Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
-* Run with e.g. `mill -i debate.jvm.run --port 8080 --save save`.
+Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
+
+You can run the server in one of two ways:
+* For development, run with e.g. `mill -i debate.jvm.run --port 8080 --save save`.
+* For production, run with e.g. `mill -i debate.prod.run --port 8080 --save save`.
 
 This will host your server by HTTP on port 8080.
 To run HTTPS, there is also an `--ssl` flag which has the server look for a `keystore.jks` and
 `password` under `debate/resources`, but I normally run behind a proxy which takes care of this.
+The difference between development and production is that production mode uses fully-optimized JS
+compilation, which takes longer but produces a much smaller and faster-running JS file.
+
+To run all unit tests, do `mill __.test`.
 
 ## Contents
 
@@ -55,6 +62,8 @@ On Scala and FP:
 
 Relevant libraries to reference:
 * [cats](https://typelevel.org/cats/): Basic functional programming abstractions
+* [cats-effect](https://typelevel.org/cats-effect/): Basic functional programming abstractions
 * [monocle](https://www.optics.dev/Monocle/): Optics for accessing/transforming immutable data
 * [scalajs-react](https://github.com/japgolly/scalajs-react): React facade for Scala
 * [jjm](https://github.com/julianmichael/jjm): My personal library of utilities on top of these tools
+* [munit](https://scalameta.org/munit/): Unit testing
