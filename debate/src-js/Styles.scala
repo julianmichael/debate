@@ -100,6 +100,8 @@ object Styles extends jjm.ui.View.Styles {
 
   // App
 
+  // generic arrangement styles
+
   val row = style(
     display.flex,
     flexDirection.row
@@ -112,6 +114,22 @@ object Styles extends jjm.ui.View.Styles {
 
   val grow = style(
     flexGrow(1)
+  )
+
+  // generic coloring/appearance styles
+
+  val simpleUnselectable = style(
+    opacity(0.5)
+  )
+
+  val simpleSelectable = style(
+    &.hover(
+      filter := "brightness(85%)"
+    )
+  )
+
+  val simpleSelected = style(
+    backgroundColor(c"#ddd")
   )
 
   import scalacss.internal.Attr
@@ -195,7 +213,7 @@ object Styles extends jjm.ui.View.Styles {
     padding(2 px)
   )
 
-  val roleBox = style(
+  val optionBox = style(
     flexGrow(1),
     height(50 px),
     margin(mainHalfPadding),
@@ -204,22 +222,9 @@ object Styles extends jjm.ui.View.Styles {
     borderWidth(1 px),
     borderColor(c"#ddd"),
     borderRadius(commonBorderRadius),
-    &.hover(
-      filter := "brightness(85%)"
-    )
   )
 
-  val roleBoxNonCurrent = style(
-    roleBox,
-    backgroundColor.white
-  )
-
-  val roleBoxCurrent = style(
-    roleBox,
-    backgroundColor(c"#ddd")
-  )
-
-  val roleTitle = style(
+  val optionTitle = style(
     margin(2 px),
     fontWeight.bold
   )

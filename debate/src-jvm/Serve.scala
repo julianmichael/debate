@@ -20,6 +20,7 @@ import io.circe.syntax._
 
 import jjm.io.FileUtil
 import java.nio.file.{Path => NIOPath}
+import debate.RoomMetadata
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -131,7 +132,9 @@ object Serve
           .lastOption
           .fold(1L)(-_)
       )
-      .map(_._1)
+      .map { case (roomName, room) =>
+        RoomMetadata(roomName, room.debate.participants.map(_.name))
+      }
   }
 
   def loadRooms(saveDir: NIOPath) = {
@@ -171,7 +174,7 @@ object Serve
     for {
       rooms <- loadRooms(saveDir)
       _ <- IO(println(s"load: $rooms"))
-      mainChannel <- Topic[IO, Vector[String]](sortedRoomList(rooms))
+      mainChannel <- Topic[IO, Vector[RoomMetadata]](sortedRoomList(rooms))
       roomsRef <- Ref[IO].of(rooms)
     } yield {
       HttpsRedirect(
@@ -221,7 +224,7 @@ object Serve
     */
   def service(
       saveDir: NIOPath, // where to save the debates as JSON
-      mainChannel: Topic[IO, Vector[String]], // channel for updates to
+      mainChannel: Topic[IO, Vector[RoomMetadata]], // channel for updates to
       rooms: Ref[IO, Map[String, DebateRoom]],
       blocker: Blocker
   ) = {
@@ -300,7 +303,7 @@ object Serve
           rooms <- getRoomList
           outStream = (
             Stream
-              .emit[IO, Vector[String]](
+              .emit[IO, Vector[RoomMetadata]](
                 rooms
               ) // send the current set of rooms on connect
               // .merge(messageQueue.dequeue.evalMap(_ => getRoomList)) // send any further updates

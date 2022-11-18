@@ -2,12 +2,21 @@
   */
 
 import monocle.Lens
+import monocle.macros.Lenses
+
+import io.circe.generic.JsonCodec
 
 import jjm.ling.ESpan
 
 import cats.implicits._
 
 package object debate extends PackagePlatformExtensions {
+  @Lenses @JsonCodec case class RoomMetadata(
+    name: String,
+    currentParticipants: Set[String],
+    // latestUpdateTime: Long, // TODO
+  ) // TODO isComplete
+
   def makePageTitle(x: String) = {
     (if (x.isEmpty) "" else s"$x | ") + "Debate"
   }

@@ -186,6 +186,11 @@ object App {
     s"$wsProtocol://${dom.document.location.host}/ws/$roomName?participantId=$participantId"
   }
 
+  val MainWebSocket = boopickleWebsocket[Unit, Vector[RoomMetadata]]
+  val mainWebsocketUri: String = {
+    s"$wsProtocol://${dom.document.location.host}/main-ws"
+  }
+
   val helpContents = <.div(
     <.h2("Debate")
   )
@@ -214,6 +219,7 @@ object App {
   val LocalStringOpt = new LocalState[Option[String]]
   val LocalConnectionSpecOpt = new LocalState[Option[ConnectionSpec]]
   val LocalSpans = new LocalState[Set[ESpan]]
+  val LocalRoomMetadatas = new LocalState[Vector[RoomMetadata]]
   val DebateRoomLocal = new LocalState[DebateState]
   val DebateSetupRawLocal = new LocalState[DebateSetupRaw]
 
@@ -272,10 +278,9 @@ object App {
         case ParticipantId(name, Facilitator) => name
       }
       val isCurrent = facilitators.contains(userName)
-      val roleBoxStyle =
-        if (isCurrent) S.roleBoxCurrent else S.roleBoxNonCurrent
-      <.div(roleBoxStyle)(
-        <.div(S.roleTitle)("Facilitators"),
+
+      <.div(S.optionBox, S.simpleSelectable, S.simpleSelected.when(isCurrent))(
+        <.div(S.optionTitle)("Facilitators"),
         facilitators.toVdomArray(<.span(_)),
         ^.onClick --> assumeRole(Facilitator)
       )
@@ -285,10 +290,8 @@ object App {
         case ParticipantId(name, Observer) => name
       }
       val isCurrent = observers.contains(userName)
-      val roleBoxStyle =
-        if (isCurrent) S.roleBoxCurrent else S.roleBoxNonCurrent
-      <.div(roleBoxStyle)(
-        <.div(S.roleTitle)("Observers"),
+      <.div(S.optionBox, S.simpleSelectable, S.simpleSelected.when(isCurrent))(
+        <.div(S.optionTitle)("Observers"),
         observers.toVdomArray(<.span(_)),
         ^.onClick --> assumeRole(Observer)
       )
@@ -1199,39 +1202,70 @@ object App {
         LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
           connectionSpecOpt.value match {
             case None =>
-              LocalString.make("") { roomNameLive =>
-                LocalString.make("") { participantNameLive =>
-                  <.div(S.connectDialog)(
-                    <.form(
-                      ^.onSubmit ==> ((e: ReactEvent) => {
-                        val roomName = roomNameLive.value
-                        e.preventDefault()
-                        connectionSpecOpt.setState(
-                          Some(
-                            ConnectionSpec(
-                              roomName,
-                              participantNameLive.value
+              LocalRoomMetadatas.make(Vector()) { roomMetadatas =>
+                MainWebSocket.make(
+                  mainWebsocketUri,
+                  onOpen = _ => Callback(println("Main socket opened.")),
+                  onMessage = (_, msg) => {
+                    roomMetadatas.setState(msg)
+                  }
+                ) {
+                  case MainWebSocket.Disconnected(_, reason) =>
+                    <.div(S.loading)(
+                      """You've been disconnected. In all likelihood this is because I'm
+                          updating/restarting the server. Please refresh in a minute or two.
+                          Sorry about that, lol. Error details:
+                      """ + reason
+                    )
+                  case MainWebSocket.Connecting =>
+                    <.div(S.loading)("Connecting to metadata server...")
+                  case MainWebSocket.Connected(_, _) =>
+                    def enterRoom(roomName: String, participantName: String) = connectionSpecOpt.setState(
+                      Some(ConnectionSpec(roomName, participantName))
+                    )
+                    // TODO change page title? maybe do this on mount for the debate room component instead
+                    // >> Callback(dom.window.document.title = makePageTitle(roomName)) >>
+                    // Callback(dom.window.history.replaceState("", makePageTitle(roomName), roomName))
+                    // roomName.setState(roomNameLive.value)
+
+                    LocalString.make("") { roomNameLive =>
+                      LocalString.make("") { participantNameLive =>
+                        <.div(
+                          <.div(S.connectDialog)(
+                            <.form(
+                              ^.onSubmit ==> ((e: ReactEvent) => {
+                                e.preventDefault(); enterRoom(roomNameLive.value, participantNameLive.value)
+                              }),
+                              <.div(
+                                "Name: ",
+                                V.LiveTextField.String(participantNameLive)
+                              ),
+                              <.div("Room: ", StringField(roomNameLive)),
+                              <.div(
+                                <.button(
+                                  "Join",
+                                  ^.`type` := "submit",
+                                  ^.disabled := roomNameLive.value.isEmpty || participantNameLive.value.isEmpty
+                                )
+                              ),
                             )
+                          ),
+                          <.div(
+                            <.h2("Free Rooms"),
+                            roomMetadatas.value.toVdomArray { case RoomMetadata(roomName, participants) =>
+                              val participantName = participantNameLive.value
+                              val canEnterRoom = participantName.nonEmpty && !participants.contains(participantName)
+                              val selectableStyle = if(canEnterRoom) S.simpleSelectable else S.simpleUnselectable
+                              <.div(S.optionBox, selectableStyle)(
+                                <.div(S.optionTitle)(roomName),
+                                participants.toVdomArray(<.span(_)),
+                                (^.onClick --> enterRoom(roomName, participantName)).when(canEnterRoom)
+                              )
+                            }
                           )
                         )
-                        // >> Callback(dom.window.document.title = makePageTitle(roomName)) >>
-                        // Callback(dom.window.history.replaceState("", makePageTitle(roomName), roomName))
-                        // roomName.setState(roomNameLive.value)
-                      }),
-                      <.div(
-                        "Name: ",
-                        V.LiveTextField.String(participantNameLive)
-                      ),
-                      <.div("Room: ", StringField(roomNameLive)),
-                      <.div(
-                        <.button(
-                          "Join",
-                          ^.`type` := "submit",
-                          ^.disabled := roomNameLive.value.isEmpty || participantNameLive.value.isEmpty
-                        )
-                      )
-                    )
-                  )
+                      }
+                    }
                 }
               }
             case Some(ConnectionSpec(roomName, userName)) =>
