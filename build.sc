@@ -14,7 +14,7 @@ val thisScalaJSVersion = "1.6.0"
 val kindProjectorVersion = "0.13.2"
 
 // scala deps
-val jjmVersion = "0.2.1"
+val jjmVersion = "0.2.2-SNAPSHOT"
 val declineVersion = "1.0.0"
 val boopickleVersion = "1.4.0"
 // testing
@@ -35,6 +35,10 @@ val jqueryVersion = "2.1.4"
 val reactVersion = "15.6.1"
 
 trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
+
+  def repositoriesTask = T.task { super.repositoriesTask() ++ Seq(
+    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
+  ) }
 
   def scalaVersion = thisScalaVersion
 
@@ -105,8 +109,6 @@ object debate extends Module {
   }
 
   trait JvmBase extends DebateModule with JvmPlatform {
-
-    // resolvers += Resolver.sonatypeRepo("snapshots"),
 
     def ivyDeps = super.ivyDeps() ++ Agg(
       ivy"com.lihaoyi::os-lib:$osLibVersion",
