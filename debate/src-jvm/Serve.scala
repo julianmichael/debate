@@ -150,8 +150,8 @@ object Serve
       loaded <- files
         .traverse(path =>
           FileUtil
-            .readJson[DebateState](path)
-            .flatMap(DebateRoom.create)
+            .readJson[Debate](path)
+            .flatMap(debate => DebateRoom.create(DebateState(debate, Set())))
             .map { room =>
               val roomName = path.getFileName.toString.dropRight(".json".length)
               roomName -> room
@@ -271,7 +271,7 @@ object Serve
     def processUpdate(roomName: String, debateState: DebateState) = for {
       _ <- rooms.update(roomStateL(roomName).set(debateState)) // update state
       _ <- FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(
-        debateState
+        debateState.debate
       ) // save after every change
       // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
       // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
