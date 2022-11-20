@@ -18,6 +18,13 @@ import cats.implicits._
     participants: Set[ParticipantId]
 ) {
 
+  def status: RoomStatus = debate match {
+    case None => RoomStatus.SettingUp
+    case Some(debate) => debate.currentTurn.fold(
+      _ => RoomStatus.Complete, _ => RoomStatus.InProgress
+    )
+  }
+
   /** Add a participant. If the participant is already present, potentially
     * change their role.
     */

@@ -11,10 +11,26 @@ import jjm.ling.ESpan
 import cats.implicits._
 
 package object debate extends PackagePlatformExtensions {
+
+  @JsonCodec sealed trait RoomStatus {
+    import RoomStatus._
+    override def toString = this match {
+      case SettingUp => "setting up"
+      case InProgress => "in progress"
+      case Complete => "complete"
+    }
+  }
+  object RoomStatus {
+    case object SettingUp extends RoomStatus
+    case object InProgress extends RoomStatus
+    case object Complete extends RoomStatus
+  }
+
   @Lenses @JsonCodec case class RoomMetadata(
     name: String,
     currentParticipants: Set[String],
     // latestUpdateTime: Long, // TODO
+    status: RoomStatus
   ) // TODO isComplete
 
   def makePageTitle(x: String) = {

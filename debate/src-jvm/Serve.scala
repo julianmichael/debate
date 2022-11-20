@@ -142,7 +142,7 @@ object Serve
   def sortedRoomList(rooms: Map[String, DebateRoom]) = {
     rooms.toVector.sortBy(t => getDebateRoomSortKey(t._2))
       .map { case (roomName, room) =>
-        RoomMetadata(roomName, room.debate.participants.map(_.name))
+        RoomMetadata(roomName, room.debate.participants.map(_.name), room.debate.status)
       }
   }
 
@@ -240,6 +240,13 @@ object Serve
 
     // Operations executed by the server
 
+    def getRoomList = rooms.get.map(sortedRoomList)
+
+    // update all clients on the list of rooms
+    def publishRoomList = getRoomList.flatMap(
+      mainChannel.publish1
+    )
+
     // Ensure a debate room is present (initialize if necessary)
     def ensureDebate(roomName: String) = for {
       roomOpt <- rooms.get.map(_.get(roomName))
@@ -252,9 +259,7 @@ object Serve
               rooms.update(rooms =>
                 if (rooms.contains(roomName)) rooms
                 else rooms + (roomName -> room)
-              ) >> getRoomList.flatMap(
-                mainChannel.publish1
-              ) // update all clients on the list of rooms
+              ) >> publishRoomList
             )
     } yield ()
 
@@ -275,6 +280,9 @@ object Serve
       )
       room <- rooms.get.map(_.apply(roomName))
       _ <- room.channel.publish1(room.debate)
+      _ <- IO(room.debate.participants.isEmpty && room.debate.debate.isEmpty).ifM(
+        rooms.update(_ - roomName) >> publishRoomList, IO.unit
+      )
     } yield ()
 
     def processUpdate(roomName: String, debateState: DebateState) = for {
@@ -285,8 +293,6 @@ object Serve
       // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
       // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
     } yield debateState
-
-    def getRoomList = rooms.get.map(sortedRoomList)
 
     HttpRoutes.of[IO] {
       // Land on the actual webapp.

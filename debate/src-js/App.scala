@@ -1270,12 +1270,20 @@ object App {
                           ),
                           <.div(
                             <.h2("Open Rooms"),
-                            roomMetadatas.value.toVdomArray { case RoomMetadata(roomName, participants) =>
+                            roomMetadatas.value.toVdomArray { case RoomMetadata(roomName, participants, status) =>
                               val participantName = participantNameLive.value
                               val canEnterRoom = participantName.nonEmpty && !participants.contains(participantName)
+                              val statusStyle = {
+                                import RoomStatus._
+                                status match {
+                                  case SettingUp  => S.settingUpStatusLabel
+                                  case InProgress => S.inProgressStatusLabel
+                                  case Complete   => S.completeStatusLabel
+                                }
+                              }
                               val selectableStyle = if(canEnterRoom) S.simpleSelectable else S.simpleUnselectable
                               <.div(S.optionBox, selectableStyle)(
-                                <.div(S.optionTitle)(roomName),
+                                <.div(S.optionTitle)(roomName, " ", <.span(statusStyle)(s"($status)")),
                                 participants.toVdomArray(<.span(_)),
                                 (^.onClick --> enterRoom(roomName, participantName)).when(canEnterRoom)
                               )
