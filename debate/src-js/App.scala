@@ -37,6 +37,8 @@ import scala.util.Try
 import io.circe.generic.JsonCodec
 
 import java.time.{Instant, ZoneId}
+import cats.Foldable
+import cats.Functor
 
 // @js.native
 // @JSGlobal("showdown.Converter")
@@ -64,6 +66,10 @@ object DebateSetupRaw {
 
 /** The main webapp. */
 object App {
+
+  def commaSeparatedSpans[F[_] : Foldable : Functor](fa: F[String]) = {
+    fa.map(x => Vector(<.span(x))).intercalate(Vector(<.span(", ")))
+  }
 
   /** Render a list of tokens into HTML, highlighting subspans of that list with
     * various colors.
@@ -283,7 +289,7 @@ object App {
 
       <.div(S.optionBox, S.simpleSelectable, S.simpleSelected.when(isCurrent))(
         <.div(S.optionTitle)("Facilitators"),
-        facilitators.toVdomArray(<.span(_)),
+        commaSeparatedSpans(facilitators.toList.sorted).toVdomArray,
         ^.onClick --> assumeRole(Facilitator)
       )
     }
@@ -294,7 +300,7 @@ object App {
       val isCurrent = observers.contains(userName)
       <.div(S.optionBox, S.simpleSelectable, S.simpleSelected.when(isCurrent))(
         <.div(S.optionTitle)("Observers"),
-        observers.toVdomArray(<.span(_)),
+        commaSeparatedSpans(observers.toList.sorted).toVdomArray,
         ^.onClick --> assumeRole(Observer)
       )
     }
@@ -1284,7 +1290,7 @@ object App {
                               val selectableStyle = if(canEnterRoom) S.simpleSelectable else S.simpleUnselectable
                               <.div(S.optionBox, selectableStyle)(
                                 <.div(S.optionTitle)(roomName, " ", <.span(statusStyle)(s"($status)")),
-                                participants.toVdomArray(<.span(_)),
+                                commaSeparatedSpans(participants.toList.sorted).toVdomArray,
                                 (^.onClick --> enterRoom(roomName, participantName)).when(canEnterRoom)
                               )
                             }

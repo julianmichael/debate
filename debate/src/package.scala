@@ -30,8 +30,8 @@ package object debate extends PackagePlatformExtensions {
     name: String,
     currentParticipants: Set[String],
     // latestUpdateTime: Long, // TODO
-    status: RoomStatus
-  ) // TODO isComplete
+    status: RoomStatus,
+  )
 
   def makePageTitle(x: String) = {
     (if (x.isEmpty) "" else s"$x | ") + "Debate"

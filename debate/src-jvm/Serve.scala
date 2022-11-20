@@ -142,7 +142,10 @@ object Serve
   def sortedRoomList(rooms: Map[String, DebateRoom]) = {
     rooms.toVector.sortBy(t => getDebateRoomSortKey(t._2))
       .map { case (roomName, room) =>
-        RoomMetadata(roomName, room.debate.participants.map(_.name), room.debate.status)
+        RoomMetadata(
+          roomName,
+          room.debate.participants.map(_.name),
+          room.debate.status)
       }
   }
 
@@ -272,6 +275,7 @@ object Serve
       )
       room <- rooms.get.map(_.apply(roomName))
       _ <- room.channel.publish1(room.debate)
+      _ <- publishRoomList
     } yield ()
 
     def removeParticipant(roomName: String, participantId: String) = for {
@@ -281,8 +285,9 @@ object Serve
       room <- rooms.get.map(_.apply(roomName))
       _ <- room.channel.publish1(room.debate)
       _ <- IO(room.debate.participants.isEmpty && room.debate.debate.isEmpty).ifM(
-        rooms.update(_ - roomName) >> publishRoomList, IO.unit
+        rooms.update(_ - roomName), IO.unit
       )
+      _ <- publishRoomList
     } yield ()
 
     def processUpdate(roomName: String, debateState: DebateState) = for {
