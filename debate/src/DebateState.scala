@@ -1,9 +1,9 @@
 package debate
 
 import monocle.macros.Lenses
-
-
 import io.circe.generic.JsonCodec
+
+import cats.implicits._
 
 /** The full data object maintained on the server for each debate. Sent to the
   * client in full each time there's a change to the debate.
@@ -14,7 +14,7 @@ import io.circe.generic.JsonCodec
   *   the people currently on the page (w/roles)
   */
 @Lenses @JsonCodec case class DebateState(
-    debate: Debate,
+    debate: Option[Debate],
     participants: Set[ParticipantId]
 ) {
 
@@ -26,8 +26,16 @@ import io.circe.generic.JsonCodec
   }
 }
 object DebateState {
-  def init = DebateState(Debate.init, Set())
+  def init = DebateState(None, Set())
 }
+
+@Lenses @JsonCodec case class DebateResult(
+  correctAnswerIndex: Int,
+  numTurns: Int,
+  finalJudgment: Vector[Double],
+  judgeReward: Double
+)
+object DebateResult
 
 /** The state of a debate. Persists when people leave; this is the saveable data
   * object.
@@ -38,15 +46,25 @@ object DebateState {
   *   the sequence of arguments, feedback or other info exchanged in the debate.
   */
 @Lenses @JsonCodec case class Debate(
-    setup: Option[DebateSetup],
+    setup: DebateSetup,
     turns: Vector[DebateTurn]
 ) {
 
+  def result: Option[DebateResult] = currentTurn.left.toOption
+  def isOver: Boolean = result.nonEmpty
+  def finalJudgment: Option[Vector[Double]] = result.map(_.finalJudgment)
+
+  def numContinues = turns.foldMap {
+    case JudgeFeedback(_, _, false) => 1
+    case _ => 0
+  }
+
   /** Whose turn it is and what they need to submit. */
-  def currentTurn: Option[DebateTurnType] = setup.map { setup =>
+  def currentTurn: Either[DebateResult, DebateTurnType] = {
     // TODO: validate that the debate follows the specified structure?
+    // turn sequence is always nonempty
     val turnSequence = setup.rules.turnTypes(setup.answers.size)
-    if (turns.isEmpty) turnSequence.head
+    if (turns.isEmpty) Right(turnSequence.head)
     else {
       val lastTurnTypeAndRest = turnSequence.drop(turns.size - 1)
       val lastTurn = turns.last
@@ -55,17 +73,32 @@ object DebateState {
               DebateTurnType.SimultaneousSpeechesTurn(debaters, charLimit),
               SimultaneousSpeeches(speeches)
             ) if speeches.size < debaters.size =>
-          DebateTurnType.SimultaneousSpeechesTurn(
-            debaters -- speeches.keySet,
-            charLimit
+          Right(
+            DebateTurnType.SimultaneousSpeechesTurn(
+              debaters -- speeches.keySet,
+              charLimit
+            )
           )
-        case _ => lastTurnTypeAndRest.tail.head
+        case (_, JudgeFeedback(finalJudgment, _, true)) =>
+          val numTurns = numContinues
+          val judgeReward = setup.rules.scoringFunction.eval(
+            numTurns, finalJudgment, setup.correctAnswerIndex
+          )
+          Left(
+            DebateResult(
+              correctAnswerIndex = setup.correctAnswerIndex,
+              numTurns = numTurns,
+              finalJudgment = finalJudgment,
+              judgeReward = judgeReward
+            )
+          )
+        case _ => Right(lastTurnTypeAndRest.tail.head) // should always be nonempty
       }
     }
   }
 }
 object Debate {
-  def init: Debate = Debate(None, Vector())
+  def init(setup: DebateSetup): Debate = Debate(setup, Vector())
 }
 
 /** Outcome of a debate turn after some/all relevant parties have submitted
@@ -88,7 +121,8 @@ object SimultaneousSpeeches
 object DebaterSpeech
 @Lenses @JsonCodec case class JudgeFeedback(
     distribution: Vector[Double], // probability distribution
-    feedback: DebateSpeech
+    feedback: DebateSpeech,
+    endDebate: Boolean
 ) extends DebateTurn {
   def timestamp = Some(feedback.timestamp)
 }
@@ -129,6 +163,7 @@ object DebateTurnType {
     sourceMaterial: Vector[String],
     question: String,
     answers: Vector[String],
+    correctAnswerIndex: Int,
     startTime: Long
 )
 object DebateSetup

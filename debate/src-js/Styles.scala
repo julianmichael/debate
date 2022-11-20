@@ -116,6 +116,10 @@ object Styles extends jjm.ui.View.Styles {
     flexGrow(1)
   )
 
+  val hidden = style(
+    visibility.hidden
+  )
+
   // generic coloring/appearance styles
 
   val simpleUnselectable = style(
@@ -268,10 +272,15 @@ object Styles extends jjm.ui.View.Styles {
     backgroundColor.green,
     color.white
   )
+  val judgeDecision = style(
+    borderStyle.solid,
+    borderWidth(2 px),
+    borderColor.red
+  )
 
   val answerOutline = styleF.int(0 to 4)(i =>
     styleS(
-      border.solid,
+      borderStyle.solid,
       borderColor(answerColors(i)),
       color(answerColors(i))
     )
@@ -279,17 +288,17 @@ object Styles extends jjm.ui.View.Styles {
 
   val noRoleOutline = style()
   val facilitatorOutline = style(
-    border.solid,
+    borderStyle.solid,
     borderColor.aliceblue,
     color.black
   )
   val observerOutline = style(
-    border.solid,
+    borderStyle.solid,
     borderColor(c"#eee"),
     color.black
   )
   val judgeOutline = style(
-    border.solid,
+    borderStyle.solid,
     borderColor.darkgreen,
     color.darkgreen
   )
@@ -473,6 +482,13 @@ object Styles extends jjm.ui.View.Styles {
     // textAlign.right
     // margin(mainHalfPadding)
     // flexGrow(1),
+  )
+
+  val correctAnswerRadio = style(
+    inputRowItem,
+    margin.auto.important,
+    marginLeft(0.5 em).important,
+    marginRight(0.5 em).important
   )
 
   val inputLabelDeleteButton = style(

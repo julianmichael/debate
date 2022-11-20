@@ -124,14 +124,23 @@ object Serve
       Topic[IO, DebateState](debate).map(DebateRoom(debate, _))
   }
 
-  def sortedRoomList(rooms: Map[String, DebateRoom]) = {
-    rooms.toVector
-      .sortBy(
-        _._2.debate.debate.turns.view
+  /** Desired order:
+    * 1) new uninitialized rooms, 
+    * 2) latest turns taken
+    */
+  def getDebateRoomSortKey(room: DebateRoom): Long = {
+    room.debate.debate match {
+      case None => 0L
+      case Some(debate) =>
+        debate.turns.view
           .flatMap(_.timestamp)
           .lastOption
           .fold(1L)(-_)
-      )
+    }
+  }
+
+  def sortedRoomList(rooms: Map[String, DebateRoom]) = {
+    rooms.toVector.sortBy(t => getDebateRoomSortKey(t._2))
       .map { case (roomName, room) =>
         RoomMetadata(roomName, room.debate.participants.map(_.name))
       }
@@ -151,7 +160,7 @@ object Serve
         .traverse(path =>
           FileUtil
             .readJson[Debate](path)
-            .flatMap(debate => DebateRoom.create(DebateState(debate, Set())))
+            .flatMap(debate => DebateRoom.create(DebateState(Some(debate), Set())))
             .map { room =>
               val roomName = path.getFileName.toString.dropRight(".json".length)
               roomName -> room

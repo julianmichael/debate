@@ -49,14 +49,16 @@ import java.time.{Instant, ZoneId}
     rules: DebateRules,
     sourceMaterial: String,
     question: String,
-    answers: Vector[String]
+    answers: Vector[String],
+    correctAnswerIndex: Int
 )
 object DebateSetupRaw {
   def init = DebateSetupRaw(
     rules = DebateRules.default,
     sourceMaterial = "Source material.",
     question = "Question?",
-    answers = Vector("Answer 1", "Answer 2")
+    answers = Vector("Answer 1", "Answer 2"),
+    correctAnswerIndex = 0
   )
 }
 
@@ -392,12 +394,12 @@ object App {
             bigTokenize(setupRaw.value.sourceMaterial),
             setupRaw.value.question,
             setupRaw.value.answers.filter(_.nonEmpty),
+            setupRaw.value.correctAnswerIndex,
             System.currentTimeMillis()
           )
           sendState(
             DebateState.debate
-              .composeLens(Debate.setup)
-              .set(Some(setup))(debate)
+              .set(Some(Debate(setup, Vector())))(debate)
           )
         }),
         <.div(S.labeledInputRow)(
@@ -517,7 +519,18 @@ object App {
             (remove, answer, index) =>
               <.div(S.labeledInputRow)(
                 <.span(S.answerLabel)(remove, " ", s"${answerLetter(index)}. "),
-                V.LiveTextField.String.mod(input = S.fullWidthInput)(answer)
+                V.LiveTextField.String.mod(input = S.fullWidthInput)(answer),
+                <.input(S.correctAnswerRadio)(
+                  ^.`type` := "radio",
+                  ^.name := "correctAnswerIndex",
+                  ^.value := index,
+                  ^.checked := setupRaw.value.correctAnswerIndex == index,
+                  ^.onChange --> setupRaw.zoomStateL(DebateSetupRaw.correctAnswerIndex).setState(index)
+                ),
+                <.span(S.inputRowItem)(
+                  "Correct answer",
+                  S.hidden.when(setupRaw.value.correctAnswerIndex != index)
+                )
               )
           }
         ),
@@ -549,11 +562,15 @@ object App {
   /** Show whose turn it is. */
   def turnDisplay(
       roleOpt: Option[Role],
-      turnOpt: Option[DebateTurnType]
+      turnOrResult: Either[DebateResult, DebateTurnType]
   ) = <.div(
-    turnOpt match {
-      case None => <.span("The debate is over.")
-      case Some(turn) =>
+    turnOrResult match {
+      case Left(result) =>
+        <.span(
+          s"The debate is over! The correct answer was ${answerLetter(result.correctAnswerIndex)}. ",
+          s"The judge has earned a reward of ${result.judgeReward}."
+        )
+      case Right(turn) =>
         turn match {
           case DebateTurnType.SimultaneousSpeechesTurn(remainingDebaters, _) =>
             roleOpt match {
@@ -608,8 +625,8 @@ object App {
         TagMod(S.answerOutline(index), S.debateWidthOffset(index))
     }
 
-    val currentTurnOpt = debate.currentTurn
-    val isUsersTurn = currentTurnOpt.exists {
+    val currentTurnOrResult = debate.currentTurn
+    val isUsersTurn = currentTurnOrResult.exists {
       case DebateTurnType.SimultaneousSpeechesTurn(_, _) =>
         role.collect { case Debater(_) => () }.nonEmpty
       case DebateTurnType.DebaterSpeechTurn(curSpeaker, _) =>
@@ -617,7 +634,7 @@ object App {
       case DebateTurnType.JudgeFeedbackTurn(_, _) =>
         role.collect { case Judge => () }.nonEmpty
     }
-    val charLimit = currentTurnOpt.fold(-1)(_.charLimit)
+    val charLimit = currentTurnOrResult.fold(_ => -1, _.charLimit)
 
     isUsersTurn && (
       role match {
@@ -750,7 +767,7 @@ object App {
         )
       case DebaterSpeech(speech) =>
         speech.allQuotes.map(speech.speaker -> _)
-      case JudgeFeedback(_, _) => Vector()
+      case JudgeFeedback(_, _, _) => Vector()
     }
 
     LocalSpans.make(Set.empty[ESpan]) { curMessageSpans =>
@@ -801,8 +818,8 @@ object App {
           val speechIsTooLong = charLimit > 0 && speechLength > charLimit
 
           def speechInputPanel(
-              submit: Callback,
-              cmdEnterToSubmit: Boolean = true
+              submit: Boolean => Callback,
+              cmdEnterToSubmit: Boolean 
           ) = {
             <.div(S.speechInputPanel)(
               V.LiveTextArea.String.mod(
@@ -815,7 +832,7 @@ object App {
                         cmdEnterToSubmit &&
                         e.keyCode == KeyCode.Enter && (e.metaKey || e.ctrlKey)
                       ) {
-                        submit
+                        submit(false)
                       } else Callback.empty
                     submitCB
                   })
@@ -871,11 +888,11 @@ object App {
                         TagMod(S.answerBg(index), S.debateWidthOffset(index))
                     }
                     Vector(makeSpeechHtml(speech, speechStyle, speechIndex))
-                  case JudgeFeedback(probabilities, speech) =>
+                  case JudgeFeedback(probabilities, speech, endsDebate) =>
                     val speechStyle = speech.speaker.role match {
                       case Facilitator => TagMod(S.facilitatorBg)
                       case Observer    => TagMod(S.observerBg)
-                      case Judge       => TagMod(S.judgeBg)
+                      case Judge       => TagMod(S.judgeBg, S.judgeDecision.when(endsDebate))
                       case Debater(index) =>
                         TagMod(S.answerBg(index), S.debateWidthOffset(index))
                     }
@@ -909,8 +926,8 @@ object App {
                 ).when(currentMessage.value.size > 0)
               }
             ),
-            turnDisplay(role, currentTurnOpt),
-            currentTurnOpt.filter(_ => isUsersTurn).whenDefined {
+            turnDisplay(role, currentTurnOrResult),
+            currentTurnOrResult.toOption.filter(_ => isUsersTurn).whenDefined {
               case DebateTurnType.SimultaneousSpeechesTurn(
                     _: Set[Int],
                     _: Int
@@ -946,13 +963,13 @@ object App {
                               }
                             case _ => turns
                           }
-                          sendDebate(Debate(Some(setup), newTurns))
+                          sendDebate(Debate(setup, newTurns))
                         } >> currentMessage.setState("")
                       )
                   )
 
                 <.div(S.col)(
-                  speechInputPanel(submit),
+                  speechInputPanel(_ => submit, true),
                   <.button(
                     "Submit",
                     ^.disabled := !isUsersTurn || speechIsTooLong,
@@ -970,7 +987,7 @@ object App {
                         CallbackTo(System.currentTimeMillis()).flatMap(time =>
                           sendDebate(
                             Debate(
-                              Some(setup),
+                              setup,
                               turns :+ DebaterSpeech(
                                 DebateSpeech(
                                   userId,
@@ -985,7 +1002,7 @@ object App {
                   )
 
                 <.div(S.col)(
-                  speechInputPanel(submit),
+                  speechInputPanel(_ => submit, true),
                   <.button(
                     "Submit",
                     ^.disabled := !isUsersTurn || speechIsTooLong,
@@ -997,13 +1014,13 @@ object App {
                     _: Boolean,
                     _: Int
                   ) =>
-                val turnNum = debate.turns.collect { case JudgeFeedback(_, _) =>
+                val turnNum = debate.turns.collect { case JudgeFeedback(_, _, _) =>
                   1
                 }.sum
                 LocalProbs.make(
                   Vector.fill(setup.answers.size)(1.0 / setup.answers.size)
                 ) { probs =>
-                  val submit =
+                  def submit(endDebate: Boolean) =
                     (
                       if (!isUsersTurn || speechIsTooLong) Callback.empty
                       else
@@ -1011,7 +1028,7 @@ object App {
                           CallbackTo(System.currentTimeMillis()).flatMap(time =>
                             sendDebate(
                               Debate(
-                                Some(setup),
+                                setup,
                                 turns :+ JudgeFeedback(
                                   probs.value,
                                   DebateSpeech(
@@ -1020,7 +1037,8 @@ object App {
                                     Vector(
                                       SpeechSegment.Text(currentMessage.value)
                                     )
-                                  )
+                                  ),
+                                  endDebate
                                 )
                               )
                             )
@@ -1057,7 +1075,7 @@ object App {
                           <.button(S.grow)(
                             "End debate & collect reward",
                             ^.disabled := !isUsersTurn || speechIsTooLong,
-                            ^.onClick --> submit
+                            ^.onClick --> submit(endDebate = true)
                           ),
                           <.button(S.grow)(
                             f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
@@ -1066,7 +1084,7 @@ object App {
                               .setState(true),
                             ^.onMouseLeave --> consideringContinue
                               .setState(false),
-                            ^.onClick --> submit
+                            ^.onClick --> submit(endDebate = false)
                           )
                         )
                       ),
@@ -1251,7 +1269,7 @@ object App {
                             )
                           ),
                           <.div(
-                            <.h2("Free Rooms"),
+                            <.h2("Open Rooms"),
                             roomMetadatas.value.toVdomArray { case RoomMetadata(roomName, participants) =>
                               val participantName = participantNameLive.value
                               val canEnterRoom = participantName.nonEmpty && !participants.contains(participantName)
@@ -1269,12 +1287,12 @@ object App {
                 }
               }
             case Some(ConnectionSpec(roomName, userName)) =>
-              DebateRoomLocal.make(DebateState.init) { debate =>
+              DebateRoomLocal.make(DebateState.init) { debateState =>
                 DebateWebSocket.make(
                   getDebateWebsocketUri(roomName, userName),
                   onOpen = _ => Callback(println("Chat socket opened.")),
                   onMessage = (_, msg) => {
-                    debate.setState(msg)
+                    debateState.setState(msg)
                   }
                 ) {
                   case DebateWebSocket.Disconnected(_, reason) =>
@@ -1288,32 +1306,33 @@ object App {
                     <.div(S.loading)("Connecting to metadata server...")
                   case DebateWebSocket.Connected(sendState, _) =>
                     val userId =
-                      debate.value.participants.find(_.name == userName)
+                      debateState.value.participants.find(_.name == userName)
                     val backgroundStyle = S.observerBg
 
                     <.div(S.roomMainColumn)(
                       roleChoiceRow(
                         roomName,
                         userName,
-                        debate.value,
+                        debateState.value,
                         sendState,
                         disconnect = connectionSpecOpt.setState(None)
                       ),
                       userInfoRow(userName, userId),
-                      debate.value.debate.setup match {
+                      debateState.value.debate match {
                         case None =>
                           userId.map(_.role) match {
                             case Some(Facilitator) =>
-                              facilitatorSetup(debate.value, sendState)
+                              facilitatorSetup(debateState.value, sendState)
                             case _ =>
                               <.div(S.debateColumn)(
                                 "Waiting for a facilitator to set up the debate."
                               )
                           }
-                        case Some(setup) =>
+                        case Some(debate) =>
+                          val setup = debate.setup
                           def assumeRole(role: Role): Callback = {
                             sendState(
-                              debate.value.addParticipant(
+                              debateState.value.addParticipant(
                                 ParticipantId(userName, role)
                               )
                             )
@@ -1333,7 +1352,7 @@ object App {
                               ),
                               <.div(S.judgesList)(
                                 "Judges: ",
-                                debate.value.participants.collect {
+                                debateState.value.participants.collect {
                                   case ParticipantId(name, Judge) =>
                                     <.span(name)
                                 }.toVdomArray
@@ -1358,7 +1377,7 @@ object App {
                                     ),
                                     <.div(S.debatersList)(
                                       "Debaters: ",
-                                      debate.value.participants.collect {
+                                      debateState.value.participants.collect {
                                         case ParticipantId(
                                               name,
                                               Debater(`answerIndex`)
@@ -1375,10 +1394,10 @@ object App {
                             debatePanel(
                               userId,
                               setup,
-                              debate.value.debate,
+                              debate,
                               (d: Debate) =>
                                 sendState(
-                                  DebateState.debate.set(d)(debate.value)
+                                  DebateState.debate.set(Some(d))(debateState.value)
                                 )
                             )
                           )

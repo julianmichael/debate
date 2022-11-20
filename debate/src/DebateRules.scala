@@ -25,10 +25,13 @@ import monocle.macros.GenPrism
     * SequentialSpeechesRound) needs to be expanded to its sequence of 'turns'
     * (eg sequence of DebaterSpeechTurn).
     *
+    * Must always be nonempty.
+    *
     * @param numDebaters
     *   the number of different answers being argued for / debaters arguing
     */
   def turnTypes(numDebaters: Int): LazyList[DebateTurnType] = {
+    // TODO change return type to some kind of infinite lazy list, it should always be that
     LazyList.from(fixedOpening.flatMap(_.getTurns(numDebaters))) #:::
       LazyList
         .continually(repeatingStructure.flatMap(_.getTurns(numDebaters)))
