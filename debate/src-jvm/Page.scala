@@ -3,7 +3,11 @@ package debate
 import scalatags.Text.all._
 
 object Page {
-  def apply(roomName: String = "") = {
+  def apply(
+    jsDepsLocation: String,
+    jsLocation: String,
+    roomName: String = "",
+  ) = {
     html(
       head(
         meta(charset := "utf-8"),
@@ -26,11 +30,14 @@ object Page {
         // the filenames here match the outputs of the Mill build artifacts from JS build steps,
         // which we're including in the resource path in the Mill build.
         script(
-          src := s"$staticFilePrefix/jsdeps.js"
+          src := s"$staticFilePrefix/$jsDepsLocation"
         ), // from SimpleJSDepsBuild#aggregatedJSDeps
         script(
-          src := s"$staticFilePrefix/out.js"
-        ) // from fastOptJS / fullOptJS -- the JS 'main'
+          src := s"$staticFilePrefix/$jsLocation"
+        ), // from fastOptJS / fullOptJS -- the JS 'main'
+        script(
+          src := s"$staticFilePrefix/$jsLocation.map"
+        ) // source map
       )
     )
   }

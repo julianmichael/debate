@@ -6,10 +6,11 @@ Web interface for information-asymmetric debates.
 Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
 
 You can run the server in one of two ways:
-* For development, run with e.g. `mill -i debate.jvm.run --port 8080 --save save`.
-* For production, run with e.g. `mill -i debate.prod.run --port 8080 --save save`.
+* For development, run with e.g. `mill -i debate.dev.serve --port 8080 --save save`.
+* For production, run with e.g. `mill -i debate.prod.serve --port 8080 --save save`.
 
-This will host your server by HTTP on port 8080.
+This will host your server by HTTP on port 8080 and save all of the relevant server state under
+`save/`.
 To run HTTPS, there is also an `--ssl` flag which has the server look for a `keystore.jks` and
 `password` under `debate/resources`, but I normally run behind a proxy which takes care of this.
 The difference between development and production is that production mode uses fully-optimized JS

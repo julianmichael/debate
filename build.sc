@@ -3,7 +3,6 @@ import com.goyeau.mill.scalafix.ScalafixModule
 import mill._, mill.scalalib._, mill.scalalib.publish._, mill.scalajslib._
 import mill.scalalib.scalafmt._
 import coursier.maven.MavenRepository
-// import ammonite.ops._
 import os._
 
 // val thisPublishVersion = "0.1.0-SNAPSHOT"
@@ -120,24 +119,55 @@ object debate extends Module {
       ivy"ch.qos.logback:logback-classic:$logbackVersion"
     )
 
-    def resources = T.sources(
-      millSourcePath / "resources",
-      debate.js.fastOpt().path / RelPath.up,
-      debate.js.aggregatedJSDeps().path / RelPath.up
-    )
+    def runMainFn = T.task { (mainClass: String, args: Seq[String]) =>
+      import mill.api.Result
+      import mill.modules.Jvm
+      try Result.Success(
+        Jvm.runSubprocess(
+          mainClass,
+          runClasspath().map(_.path),
+          forkArgs(),
+          forkEnv(),
+          args,
+          workingDir = forkWorkingDir(),
+          useCpPassingJar = runUseArgsFile()
+        )
+      ) catch {
+        case e: Exception =>
+          Result.Failure("subprocess failed")
+      }
+    }
+
   }
 
   object jvm extends JvmBase {
     object test extends Tests
   }
 
+  object dev extends Module {
+    def serve(args: String*) = T.command {
+      val runMain = jvm.runMainFn()
+      runMain(
+        "debate.Serve",
+        (Seq(
+          "--js",        js.fastOpt().path.toString,
+          "--jsDeps",    js.aggregatedJSDeps().path.toString
+        ) ++ args)
+      )
+    }
+  }
+
   // deploy using fullOpt JS, it's MUCH more compact
-  object prod extends JvmBase {
-    override def resources = T.sources(
-      millSourcePath / "resources",
-      debate.js.fullOpt().path / RelPath.up,
-      debate.js.aggregatedJSDeps().path / RelPath.up
-    )
+  object prod {
+    def serve(args: String*) = T.command {
+      val runMain = jvm.runMainFn()
+      runMain(
+        "debate.Serve", Seq(
+          "--js",        js.fullOpt().path.toString,
+          "--jsDeps",    js.aggregatedJSDeps().path.toString
+        ) ++ args
+      )
+    }
   }
 
   object js extends DebateModule with JsPlatform with SimpleJSDeps {

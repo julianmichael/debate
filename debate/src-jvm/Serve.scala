@@ -37,6 +37,14 @@ object Serve
       header = "Serve the live chat app."
     ) {
 
+  val jsDepsPathO = Opts.option[NIOPath](
+    "jsDeps", metavar = "path", help = "Where to get the JS deps file."
+  )
+
+  val jsPathO = Opts.option[NIOPath](
+    "js", metavar = "path", help = "Where to get the JS main file."
+  )
+
   val portO = Opts.option[Int](
     "port",
     metavar = "<port number>",
@@ -83,11 +91,11 @@ object Serve
     *   the process's exit code.
     */
   def main: Opts[IO[ExitCode]] = {
-    (portO, saveO, sslO).mapN { (port, save, ssl) =>
+    (jsPathO, jsDepsPathO, portO, saveO, sslO).mapN { (jsPath, jsDepsPath, port, save, ssl) =>
       for {
         builder <- getBuilder(ssl)
         _ <- Blocker[IO].use { blocker =>
-          makeHttpApp(save, blocker).flatMap(app =>
+          makeHttpApp(jsPath, jsDepsPath, save, blocker).flatMap(app =>
             builder
               .bindHttp(port, "0.0.0.0")
               .withHttpApp(app)
@@ -191,7 +199,12 @@ object Serve
     * @return
     *   the full HTTP app
     */
-  def makeHttpApp(saveDir: NIOPath, blocker: Blocker) = {
+  def makeHttpApp(
+    jsPath: NIOPath,
+    jsDepsPath: NIOPath,
+    saveDir: NIOPath,
+    blocker: Blocker
+  ) = {
     for {
       trackedDebaters <- FileUtil.readJson[Set[String]](debatersSavePath(saveDir)).recoverWith {
         case e: Throwable => IO {
@@ -209,7 +222,7 @@ object Serve
     } yield {
       HttpsRedirect(
         Router(
-          "/" -> service(saveDir, mainChannel, trackedDebatersRef, roomsRef, blocker)
+          "/" -> service(jsPath, jsDepsPath, saveDir, mainChannel, trackedDebatersRef, roomsRef, blocker)
         )
       ).orNotFound
     }
@@ -266,6 +279,8 @@ object Serve
     * webapp's functionality.
     */
   def service(
+      jsPath: NIOPath,
+      jsDepsPath: NIOPath,
       saveDir: NIOPath, // where to save the debates as JSON
       mainChannel: Topic[IO, Lobby], // channel for updates to
       trackedDebaters: Ref[IO, Set[String]],
@@ -340,10 +355,14 @@ object Serve
       // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
     } yield debateState
 
+    val jsDepsLocation = "deps.js"
+    val jsLocation = "out.js"
+    val jsMapLocation = jsLocation + ".map"
+
     HttpRoutes.of[IO] {
       // Land on the actual webapp.
       case GET -> Root =>
-        Ok(debate.Page().render, Header("Content-Type", "text/html"))
+        Ok(debate.Page(jsDepsLocation = jsDepsLocation, jsLocation = jsLocation).render, Header("Content-Type", "text/html"))
 
       // Download the JSON for a debate.
       case GET -> Root / "download" / roomName =>
@@ -416,10 +435,14 @@ object Serve
           )
         } yield res
 
-      // serve static files. Used for serving the JS to the client.
-      case req @ GET -> Root / _ / path =>
-        StaticFile
-          .fromResource("/" + path, blocker, Some(req))
+      case req @ GET -> Root / `staticFilePrefix` / `jsDepsLocation` =>
+        StaticFile.fromString(jsDepsPath.toString, blocker, Some(req))
+          .getOrElseF(NotFound())
+      case req @ GET -> Root / `staticFilePrefix` / `jsLocation` =>
+        StaticFile.fromString(jsPath.toString, blocker, Some(req))
+          .getOrElseF(NotFound())
+      case req @ GET -> Root / `staticFilePrefix` / `jsMapLocation` =>
+        StaticFile.fromString(jsPath.toString + ".map", blocker, Some(req))
           .getOrElseF(NotFound())
     }
   }
