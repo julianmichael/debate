@@ -57,12 +57,12 @@ object Serve
     .orFalse
 
   def getBuilder(ssl: Boolean) = {
-    if (!ssl) IO.pure(BlazeServerBuilder[IO])
+    if (!ssl) IO.pure(BlazeServerBuilder[IO](executionContext))
     else {
       getSslContext.attempt >>= {
         case Right(sslContext) =>
           IO.pure(
-            BlazeServerBuilder[IO]
+            BlazeServerBuilder[IO](executionContext)
               .withSslContext(sslContext)
           )
         case Left(e) =>
@@ -71,7 +71,7 @@ object Serve
               s"HTTPS Configuration failed: ${e.getMessage}"
             )
           ).as(
-            BlazeServerBuilder[IO]
+            BlazeServerBuilder[IO](executionContext)
           )
       }
     }

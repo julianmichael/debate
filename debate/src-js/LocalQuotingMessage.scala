@@ -6,6 +6,7 @@ import japgolly.scalajs.react.extra.StateSnapshot
 import jjm.ling.ESpan
 
 import cats.implicits._
+import scala.annotation.nowarn
 
 /** Local state HOC for the speech a debater is currently constructing. This
   * exists to keep in sync the overlying `spans` state (of currently highlighted
@@ -27,14 +28,14 @@ object LocalQuotingMessage {
       render: StateSnapshot[String] => VdomElement
   )
 
-  val Component = ScalaComponent
+  @nowarn val Component = ScalaComponent
     .builder[Props]("Local Quoting Message")
     .initialStateFromProps(_.initialValue)
     .render { $ => $.props.render(StateSnapshot.of($)) }
     .componentWillReceiveProps { $ =>
       if (
         $.currentProps.initialValue != $.nextProps.initialValue &&
-        $.nextProps.shouldRefresh($.state)
+          $.nextProps.shouldRefresh($.state)
       ) {
         $.setState($.nextProps.initialValue)
       } else {
