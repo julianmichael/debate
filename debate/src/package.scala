@@ -12,6 +12,13 @@ import cats.implicits._
 
 package object debate extends PackagePlatformExtensions {
 
+  sealed trait MainChannelUpdate
+  case class RoomsUpdate(metadata: Vector[RoomMetadata]) extends MainChannelUpdate
+  case class DebatersUpdate(debaters: Set[String]) extends MainChannelUpdate
+
+  sealed trait MainChannelRequest
+  case class RegisterDebater(debaterName: String) extends MainChannelRequest
+
   @JsonCodec sealed trait RoomStatus {
     import RoomStatus._
     override def toString = this match {

@@ -39,6 +39,7 @@ import io.circe.generic.JsonCodec
 import java.time.{Instant, ZoneId}
 import cats.Foldable
 import cats.Functor
+import debate.MainChannelRequest
 
 // @js.native
 // @JSGlobal("showdown.Converter")
@@ -67,7 +68,7 @@ object DebateSetupRaw {
 /** The main webapp. */
 object App {
 
-  def commaSeparatedSpans[F[_] : Foldable : Functor](fa: F[String]) = {
+  def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = {
     fa.map(x => Vector(<.span(x))).intercalate(Vector(<.span(", ")))
   }
 
@@ -194,7 +195,7 @@ object App {
     s"$wsProtocol://${dom.document.location.host}/ws/$roomName?participantId=$participantId"
   }
 
-  val MainWebSocket = boopickleWebsocket[Unit, Vector[RoomMetadata]]
+  val MainWebSocket = boopickleWebsocket[MainChannelRequest, MainChannelUpdate]
   val mainWebsocketUri: String = {
     s"$wsProtocol://${dom.document.location.host}/main-ws"
   }
@@ -531,7 +532,9 @@ object App {
                   ^.name := "correctAnswerIndex",
                   ^.value := index,
                   ^.checked := setupRaw.value.correctAnswerIndex == index,
-                  ^.onChange --> setupRaw.zoomStateL(DebateSetupRaw.correctAnswerIndex).setState(index)
+                  ^.onChange --> setupRaw
+                    .zoomStateL(DebateSetupRaw.correctAnswerIndex)
+                    .setState(index)
                 ),
                 <.span(S.inputRowItem)(
                   "Correct answer",
@@ -825,7 +828,7 @@ object App {
 
           def speechInputPanel(
               submit: Boolean => Callback,
-              cmdEnterToSubmit: Boolean 
+              cmdEnterToSubmit: Boolean
           ) = {
             <.div(S.speechInputPanel)(
               V.LiveTextArea.String.mod(
@@ -898,7 +901,8 @@ object App {
                     val speechStyle = speech.speaker.role match {
                       case Facilitator => TagMod(S.facilitatorBg)
                       case Observer    => TagMod(S.observerBg)
-                      case Judge       => TagMod(S.judgeBg, S.judgeDecision.when(endsDebate))
+                      case Judge =>
+                        TagMod(S.judgeBg, S.judgeDecision.when(endsDebate))
                       case Debater(index) =>
                         TagMod(S.answerBg(index), S.debateWidthOffset(index))
                     }
@@ -1020,9 +1024,10 @@ object App {
                     _: Boolean,
                     _: Int
                   ) =>
-                val turnNum = debate.turns.collect { case JudgeFeedback(_, _, _) =>
-                  1
-                }.sum
+                val turnNum =
+                  debate.turns.collect { case JudgeFeedback(_, _, _) =>
+                    1
+                  }.sum
                 LocalProbs.make(
                   Vector.fill(setup.answers.size)(1.0 / setup.answers.size)
                 ) { probs =>
@@ -1218,6 +1223,17 @@ object App {
     }
   }
 
+  @Lenses case class LobbyState(
+      trackedDebaters: Set[String],
+      roomMetadatas: Vector[RoomMetadata],
+      userName: String
+  )
+  object LobbyState {
+    def init = LobbyState(Set(), Vector(), "")
+  }
+
+  val LocalLobbyState = new LocalState[LobbyState]
+
   class Backend(@unused scope: BackendScope[Unit, Unit]) {
 
     /** Main render method. */
@@ -1226,13 +1242,22 @@ object App {
         LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
           connectionSpecOpt.value match {
             case None =>
-              LocalRoomMetadatas.make(Vector()) { roomMetadatas =>
+              LocalLobbyState.make(LobbyState.init) { lobbyState =>
+                println(lobbyState.value)
                 MainWebSocket.make(
                   mainWebsocketUri,
                   onOpen = _ => Callback(println("Main socket opened.")),
-                  onMessage = (_, msg) => {
-                    roomMetadatas.setState(msg)
-                  }
+                  onMessage = (_, msg) =>
+                    msg match {
+                      case RoomsUpdate(roomMetadatas) =>
+                        lobbyState
+                          .zoomStateL(LobbyState.roomMetadatas)
+                          .setState(roomMetadatas)
+                      case DebatersUpdate(debaters) =>
+                        lobbyState
+                          .zoomStateL(LobbyState.trackedDebaters)
+                          .setState(debaters)
+                    }
                 ) {
                   case MainWebSocket.Disconnected(_, reason) =>
                     <.div(S.loading)(
@@ -1243,42 +1268,77 @@ object App {
                     )
                   case MainWebSocket.Connecting =>
                     <.div(S.loading)("Connecting to metadata server...")
-                  case MainWebSocket.Connected(_, _) =>
-                    def enterRoom(roomName: String, participantName: String) = connectionSpecOpt.setState(
-                      Some(ConnectionSpec(roomName, participantName))
-                    )
+                  case MainWebSocket.Connected(sendToMainChannel, _) =>
+                    def enterRoom(roomName: String, participantName: String) =
+                      connectionSpecOpt.setState(
+                        Some(ConnectionSpec(roomName, participantName))
+                      )
                     // TODO change page title? maybe do this on mount for the debate room component instead
                     // >> Callback(dom.window.document.title = makePageTitle(roomName)) >>
                     // Callback(dom.window.history.replaceState("", makePageTitle(roomName), roomName))
                     // roomName.setState(roomNameLive.value)
 
                     LocalString.make("") { roomNameLive =>
-                      LocalString.make("") { participantNameLive =>
-                        <.div(
-                          <.div(S.connectDialog)(
-                            <.form(
-                              ^.onSubmit ==> ((e: ReactEvent) => {
-                                e.preventDefault(); enterRoom(roomNameLive.value, participantNameLive.value)
-                              }),
-                              <.div(
-                                "Name: ",
-                                V.LiveTextField.String(participantNameLive)
-                              ),
-                              <.div("Room: ", StringField(roomNameLive)),
-                              <.div(
-                                <.button(
-                                  "Join",
-                                  ^.`type` := "submit",
-                                  ^.disabled := roomNameLive.value.isEmpty || participantNameLive.value.isEmpty
-                                )
-                              ),
+                      <.div(
+                        <.div(S.connectDialog)(
+                          <.div(
+                            "Profile: ",
+                            V.Select.String(
+                              choices =
+                                lobbyState.value.trackedDebaters.toList.sorted :+ "(no profile)",
+                              curChoice =
+                                if (
+                                  lobbyState.value.trackedDebaters
+                                    .contains(lobbyState.value.userName)
+                                ) {
+                                  lobbyState.value.userName
+                                } else "(no profile)",
+                              setChoice = (name: String) => {
+                                val adjustedName = if(name == "(no profile)") "" else name
+                                lobbyState
+                                  .zoomStateL(LobbyState.userName)
+                                  .setState(adjustedName)
+                              }
                             )
                           ),
                           <.div(
-                            <.h2("Open Rooms"),
-                            roomMetadatas.value.toVdomArray { case RoomMetadata(roomName, participants, status) =>
-                              val participantName = participantNameLive.value
-                              val canEnterRoom = participantName.nonEmpty && !participants.contains(participantName)
+                            "Name: ",
+                            V.LiveTextField.String(
+                              lobbyState.zoomStateL(LobbyState.userName)
+                            )
+                          ),
+                          <.div {
+                            val name = lobbyState.value.userName
+                            val isDisabled = (lobbyState.value.trackedDebaters + "" + "(no profile)").contains(name)
+                            <.button(
+                              "Create profile",
+                              ^.disabled := isDisabled,
+                              (^.onClick --> sendToMainChannel(
+                                RegisterDebater(lobbyState.value.userName)
+                              )).when(!isDisabled),
+                              ^.display.none
+                            )
+                          },
+                        ),
+                        <.div(
+                          <.h2("Open Rooms"),
+                          <.div("Room: ", StringField(roomNameLive)),
+                          <.div {
+                            val isDisabled = roomNameLive.value.isEmpty || lobbyState.value.userName.isEmpty
+                              <.button(
+                                // if(lobbyState.value.roomMetadatas)
+                                "Join",
+                                ^.`type` := "submit",
+                                ^.disabled := isDisabled,
+                                (^.onClick --> enterRoom(roomNameLive.value, lobbyState.value.userName)).when(!isDisabled)
+                              )
+                          },
+                          lobbyState.value.roomMetadatas.toVdomArray {
+                            case RoomMetadata(roomName, participants, status) =>
+                              val participantName = lobbyState.value.userName
+                              val canEnterRoom =
+                                participantName.nonEmpty && !participants
+                                  .contains(participantName)
                               val statusStyle = {
                                 import RoomStatus._
                                 status match {
@@ -1287,16 +1347,26 @@ object App {
                                   case Complete   => S.completeStatusLabel
                                 }
                               }
-                              val selectableStyle = if(canEnterRoom) S.simpleSelectable else S.simpleUnselectable
+                              val selectableStyle =
+                                if (canEnterRoom) S.simpleSelectable
+                                else S.simpleUnselectable
                               <.div(S.optionBox, selectableStyle)(
-                                <.div(S.optionTitle)(roomName, " ", <.span(statusStyle)(s"($status)")),
-                                commaSeparatedSpans(participants.toList.sorted).toVdomArray,
-                                (^.onClick --> enterRoom(roomName, participantName)).when(canEnterRoom)
+                                <.div(S.optionTitle)(
+                                  roomName,
+                                  " ",
+                                  <.span(statusStyle)(s"($status)")
+                                ),
+                                commaSeparatedSpans(
+                                  participants.toList.sorted
+                                ).toVdomArray,
+                                (^.onClick --> enterRoom(
+                                  roomName,
+                                  participantName
+                                )).when(canEnterRoom)
                               )
-                            }
-                          )
+                          }
                         )
-                      }
+                      )
                     }
                 }
               }
@@ -1411,7 +1481,9 @@ object App {
                               debate,
                               (d: Debate) =>
                                 sendState(
-                                  DebateState.debate.set(Some(d))(debateState.value)
+                                  DebateState.debate.set(Some(d))(
+                                    debateState.value
+                                  )
                                 )
                             )
                           )

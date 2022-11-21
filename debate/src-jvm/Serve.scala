@@ -21,6 +21,14 @@ import io.circe.syntax._
 import jjm.io.FileUtil
 import java.nio.file.{Path => NIOPath}
 import debate.RoomMetadata
+import debate.MainChannelUpdate
+import debate.DebatersUpdate
+import debate.RegisterDebater
+
+// NOTE: for json encode/decode if we end up wanting it
+// import _root_.io.circe.parser.{decode => circeDecode}
+// import _root_.io.circe.Encoder
+// import _root_.io.circe.Decoder
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -124,8 +132,8 @@ object Serve
       Topic[IO, DebateState](debate).map(DebateRoom(debate, _))
   }
 
-  /** Desired order:
-    * 1) new uninitialized rooms, 
+  /** Order:
+    * 1) new uninitialized rooms,
     * 2) latest turns taken
     */
   def getDebateRoomSortKey(room: DebateRoom): Long = {
@@ -173,6 +181,9 @@ object Serve
     } yield loaded
   }
 
+
+  def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
+
   /** Initialize the server state and make the HTTP server
     *
     * @param saveDir
@@ -184,18 +195,35 @@ object Serve
     */
   def makeHttpApp(saveDir: NIOPath, blocker: Blocker) = {
     for {
-      rooms <- loadRooms(saveDir)
+      trackedDebaters <- FileUtil.readJson[Set[String]](debatersSavePath(saveDir)).recover {
+        case _ => Set.empty[String] // start with empty if none already exists
+      }
+      rooms <- loadRooms(saveDir.resolve("open"))
       _ <- IO(println(s"load: $rooms"))
-      mainChannel <- Topic[IO, Vector[RoomMetadata]](sortedRoomList(rooms))
+      mainChannel <- Topic[IO, MainChannelUpdate](RoomsUpdate(sortedRoomList(rooms)))
+      trackedDebatersRef <- Ref[IO].of(trackedDebaters)
       roomsRef <- Ref[IO].of(rooms)
     } yield {
       HttpsRedirect(
         Router(
-          "/" -> service(saveDir, mainChannel, roomsRef, blocker)
+          "/" -> service(saveDir, mainChannel, trackedDebatersRef, roomsRef, blocker)
         )
       ).orNotFound
     }
   }
+
+  // NOTE: maybe change to json pickling later if reading network message is a pain.
+  // haven't bothered with this yet because not sure if it will break something.
+
+  // def jsonPickleToWSFrame[A: Encoder](message: A): WebSocketFrame = {
+  //     Text(message.asJson.noSpaces)
+  //   }
+  // def jsonUnpickleFromWSFrame[A: Decoder](frame: WebSocketFrame): IO[A] = {
+  //   for {
+  //     str <- IO.fromEither(frame.data.decodeUtf8)
+  //     res <- IO.fromEither(circeDecode[A](str))
+  //   } yield res
+  // }
 
   import boopickle.Default._
 
@@ -236,19 +264,25 @@ object Serve
     */
   def service(
       saveDir: NIOPath, // where to save the debates as JSON
-      mainChannel: Topic[IO, Vector[RoomMetadata]], // channel for updates to
+      mainChannel: Topic[IO, MainChannelUpdate], // channel for updates to
+      trackedDebaters: Ref[IO, Set[String]],
       rooms: Ref[IO, Map[String, DebateRoom]],
       blocker: Blocker
   ) = {
 
     // Operations executed by the server
 
+    def registerDebater(name: String) = for {
+      _ <- trackedDebaters.update(_ + name)
+      debaters <- trackedDebaters.get
+      _ <- mainChannel.publish1(DebatersUpdate(debaters))
+      _ <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
+    } yield ()
+
     def getRoomList = rooms.get.map(sortedRoomList)
 
     // update all clients on the list of rooms
-    def publishRoomList = getRoomList.flatMap(
-      mainChannel.publish1
-    )
+    def publishRoomList = getRoomList.flatMap(rooms => mainChannel.publish1(RoomsUpdate(rooms)))
 
     // Ensure a debate room is present (initialize if necessary)
     def ensureDebate(roomName: String) = for {
@@ -319,14 +353,13 @@ object Serve
       // This is still WIP.
       case GET -> Root / "main-ws" =>
         for {
-          // messageQueue <- Queue.bounded[IO, Unit](100)
+          debaters <- trackedDebaters.get
           rooms <- getRoomList
           outStream = (
             Stream
-              .emit[IO, Vector[RoomMetadata]](
-                rooms
-              ) // send the current set of rooms on connect
-              // .merge(messageQueue.dequeue.evalMap(_ => getRoomList)) // send any further updates
+              .emits[IO, MainChannelUpdate](
+                Seq(DebatersUpdate(debaters), RoomsUpdate(rooms))
+              ) // send the current set of debaters and rooms on connect
               .merge(
                 mainChannel.subscribe(100)
               ) // and subscribe to the main channel
@@ -339,10 +372,10 @@ object Serve
             send = outStream,
             receive = x => {
               x.through(filterCloseFrames)
-                .map(
-                  unpickleFromWSFrame[Unit]
-                ) // clients can only 'ping' this websocket. does nothing.
-              // .through(messageQueue.enqueue) // -> triggers everyone to refresh the rooms (currently unused).
+                .map(unpickleFromWSFrame[MainChannelRequest])
+                .evalMap {
+                  case RegisterDebater(name) => registerDebater(name)
+                }
             },
             onClose = IO.unit
           )
