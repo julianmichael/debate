@@ -195,7 +195,7 @@ object App {
     s"$wsProtocol://${dom.document.location.host}/ws/$roomName?participantId=$participantId"
   }
 
-  val MainWebSocket = boopickleWebsocket[MainChannelRequest, MainChannelUpdate]
+  val MainWebSocket = boopickleWebsocket[MainChannelRequest, Lobby]
   val mainWebsocketUri: String = {
     s"$wsProtocol://${dom.document.location.host}/main-ws"
   }
@@ -228,7 +228,7 @@ object App {
   val LocalStringOpt = new LocalState[Option[String]]
   val LocalConnectionSpecOpt = new LocalState[Option[ConnectionSpec]]
   val LocalSpans = new LocalState[Set[ESpan]]
-  val LocalRoomMetadatas = new LocalState[Vector[RoomMetadata]]
+  val LocalLobby = new LocalState[Lobby]
   val DebateRoomLocal = new LocalState[DebateState]
   val DebateSetupRawLocal = new LocalState[DebateSetupRaw]
 
@@ -1223,17 +1223,6 @@ object App {
     }
   }
 
-  @Lenses case class LobbyState(
-      trackedDebaters: Set[String],
-      roomMetadatas: Vector[RoomMetadata],
-      userName: String
-  )
-  object LobbyState {
-    def init = LobbyState(Set(), Vector(), "")
-  }
-
-  val LocalLobbyState = new LocalState[LobbyState]
-
   class Backend(@unused scope: BackendScope[Unit, Unit]) {
 
     /** Main render method. */
@@ -1242,22 +1231,13 @@ object App {
         LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
           connectionSpecOpt.value match {
             case None =>
-              LocalLobbyState.make(LobbyState.init) { lobbyState =>
-                println(lobbyState.value)
+              LocalLobby.make(Lobby.init) { lobby =>
+                println("Rendering:")
+                println(lobby.value)
                 MainWebSocket.make(
                   mainWebsocketUri,
                   onOpen = _ => Callback(println("Main socket opened.")),
-                  onMessage = (_, msg) =>
-                    msg match {
-                      case RoomsUpdate(roomMetadatas) =>
-                        lobbyState
-                          .zoomStateL(LobbyState.roomMetadatas)
-                          .setState(roomMetadatas)
-                      case DebatersUpdate(debaters) =>
-                        lobbyState
-                          .zoomStateL(LobbyState.trackedDebaters)
-                          .setState(debaters)
-                    }
+                  onMessage = (_, msg) => lobby.setState(msg)
                 ) {
                   case MainWebSocket.Disconnected(_, reason) =>
                     <.div(S.loading)(
@@ -1278,95 +1258,93 @@ object App {
                     // Callback(dom.window.history.replaceState("", makePageTitle(roomName), roomName))
                     // roomName.setState(roomNameLive.value)
 
-                    LocalString.make("") { roomNameLive =>
-                      <.div(
-                        <.div(S.connectDialog)(
-                          <.div(
-                            "Profile: ",
-                            V.Select.String(
-                              choices =
-                                lobbyState.value.trackedDebaters.toList.sorted :+ "(no profile)",
-                              curChoice =
-                                if (
-                                  lobbyState.value.trackedDebaters
-                                    .contains(lobbyState.value.userName)
-                                ) {
-                                  lobbyState.value.userName
-                                } else "(no profile)",
-                              setChoice = (name: String) => {
-                                val adjustedName = if(name == "(no profile)") "" else name
-                                lobbyState
-                                  .zoomStateL(LobbyState.userName)
-                                  .setState(adjustedName)
-                              }
-                            )
-                          ),
-                          <.div(
-                            "Name: ",
-                            V.LiveTextField.String(
-                              lobbyState.zoomStateL(LobbyState.userName)
-                            )
-                          ),
-                          <.div {
-                            val name = lobbyState.value.userName
-                            val isDisabled = (lobbyState.value.trackedDebaters + "" + "(no profile)").contains(name)
-                            <.button(
-                              "Create profile",
-                              ^.disabled := isDisabled,
-                              (^.onClick --> sendToMainChannel(
-                                RegisterDebater(lobbyState.value.userName)
-                              )).when(!isDisabled),
-                              ^.display.none
-                            )
-                          },
-                        ),
+                    LocalString.make("") { userName =>
+                      LocalString.make("") { roomNameLive =>
                         <.div(
-                          <.h2("Open Rooms"),
-                          <.div("Room: ", StringField(roomNameLive)),
-                          <.div {
-                            val isDisabled = roomNameLive.value.isEmpty || lobbyState.value.userName.isEmpty
-                              <.button(
-                                // if(lobbyState.value.roomMetadatas)
-                                "Join",
-                                ^.`type` := "submit",
-                                ^.disabled := isDisabled,
-                                (^.onClick --> enterRoom(roomNameLive.value, lobbyState.value.userName)).when(!isDisabled)
-                              )
-                          },
-                          lobbyState.value.roomMetadatas.toVdomArray {
-                            case RoomMetadata(roomName, participants, status) =>
-                              val participantName = lobbyState.value.userName
-                              val canEnterRoom =
-                                participantName.nonEmpty && !participants
-                                  .contains(participantName)
-                              val statusStyle = {
-                                import RoomStatus._
-                                status match {
-                                  case SettingUp  => S.settingUpStatusLabel
-                                  case InProgress => S.inProgressStatusLabel
-                                  case Complete   => S.completeStatusLabel
+                          <.div(S.connectDialog)(
+                            <.div(
+                              "Profile: ",
+                              V.Select.String(
+                                choices =
+                                  lobby.value.trackedDebaters.toList.sorted :+ "(no profile)",
+                                curChoice =
+                                  if (
+                                    lobby.value.trackedDebaters
+                                      .contains(userName.value)
+                                  ) {
+                                    userName.value
+                                  } else "(no profile)",
+                                setChoice = (name: String) => {
+                                  val adjustedName = if(name == "(no profile)") "" else name
+                                  userName.setState(adjustedName)
                                 }
-                              }
-                              val selectableStyle =
-                                if (canEnterRoom) S.simpleSelectable
-                                else S.simpleUnselectable
-                              <.div(S.optionBox, selectableStyle)(
-                                <.div(S.optionTitle)(
-                                  roomName,
-                                  " ",
-                                  <.span(statusStyle)(s"($status)")
-                                ),
-                                commaSeparatedSpans(
-                                  participants.toList.sorted
-                                ).toVdomArray,
-                                (^.onClick --> enterRoom(
-                                  roomName,
-                                  participantName
-                                )).when(canEnterRoom)
                               )
-                          }
+                            ),
+                            <.div(
+                              "Name: ",
+                              V.LiveTextField.String(userName)
+                            ),
+                            <.div {
+                              val name = userName.value
+                              val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
+                              <.button(
+                                "Create profile",
+                                ^.disabled := isDisabled,
+                                (^.onClick --> sendToMainChannel(
+                                  RegisterDebater(userName.value)
+                                )).when(!isDisabled),
+                                ^.display.none
+                              )
+                            },
+                          ),
+                          <.div(
+                            <.h2("Open Rooms"),
+                            <.div("Room: ", StringField(roomNameLive)),
+                            <.div {
+                              val isDisabled = roomNameLive.value.isEmpty || userName.value.isEmpty
+                                <.button(
+                                  // if(lobby.value.roomMetadatas)
+                                  "Join",
+                                  ^.`type` := "submit",
+                                  ^.disabled := isDisabled,
+                                  (^.onClick --> enterRoom(roomNameLive.value, userName.value)).when(!isDisabled)
+                                )
+                            },
+                            lobby.value.roomMetadatas.toVdomArray {
+                              case RoomMetadata(roomName, participants, status) =>
+                                val participantName = userName.value
+                                val canEnterRoom =
+                                  participantName.nonEmpty && !participants
+                                    .contains(participantName)
+                                val statusStyle = {
+                                  import RoomStatus._
+                                  status match {
+                                    case SettingUp  => S.settingUpStatusLabel
+                                    case InProgress => S.inProgressStatusLabel
+                                    case Complete   => S.completeStatusLabel
+                                  }
+                                }
+                                val selectableStyle =
+                                  if (canEnterRoom) S.simpleSelectable
+                                  else S.simpleUnselectable
+                                <.div(S.optionBox, selectableStyle)(
+                                  <.div(S.optionTitle)(
+                                    roomName,
+                                    " ",
+                                    <.span(statusStyle)(s"($status)")
+                                  ),
+                                  commaSeparatedSpans(
+                                    participants.toList.sorted
+                                  ).toVdomArray,
+                                  (^.onClick --> enterRoom(
+                                    roomName,
+                                    participantName
+                                  )).when(canEnterRoom)
+                                )
+                            }
+                          )
                         )
-                      )
+                      }
                     }
                 }
               }

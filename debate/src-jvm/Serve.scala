@@ -21,8 +21,6 @@ import io.circe.syntax._
 import jjm.io.FileUtil
 import java.nio.file.{Path => NIOPath}
 import debate.RoomMetadata
-import debate.MainChannelUpdate
-import debate.DebatersUpdate
 import debate.RegisterDebater
 
 // NOTE: for json encode/decode if we end up wanting it
@@ -195,12 +193,17 @@ object Serve
     */
   def makeHttpApp(saveDir: NIOPath, blocker: Blocker) = {
     for {
-      trackedDebaters <- FileUtil.readJson[Set[String]](debatersSavePath(saveDir)).recover {
-        case _ => Set.empty[String] // start with empty if none already exists
+      trackedDebaters <- FileUtil.readJson[Set[String]](debatersSavePath(saveDir)).recoverWith {
+        case e: Throwable => IO {
+          println("Error reading debaters JSON. Initializing to empty JSON.")
+          e.printStackTrace()
+          Set.empty[String] // start with empty if none already exists
+        }
       }
       rooms <- loadRooms(saveDir.resolve("open"))
       _ <- IO(println(s"load: $rooms"))
-      mainChannel <- Topic[IO, MainChannelUpdate](RoomsUpdate(sortedRoomList(rooms)))
+      mainChannel <- Topic[IO, Lobby](Lobby(trackedDebaters, sortedRoomList(rooms)))
+      // _ <- mainChannel.publish1(RoomsUpdate(sortedRoomList(rooms)))
       trackedDebatersRef <- Ref[IO].of(trackedDebaters)
       roomsRef <- Ref[IO].of(rooms)
     } yield {
@@ -264,7 +267,7 @@ object Serve
     */
   def service(
       saveDir: NIOPath, // where to save the debates as JSON
-      mainChannel: Topic[IO, MainChannelUpdate], // channel for updates to
+      mainChannel: Topic[IO, Lobby], // channel for updates to
       trackedDebaters: Ref[IO, Set[String]],
       rooms: Ref[IO, Map[String, DebateRoom]],
       blocker: Blocker
@@ -272,32 +275,36 @@ object Serve
 
     // Operations executed by the server
 
-    def registerDebater(name: String) = for {
-      _ <- trackedDebaters.update(_ + name)
-      debaters <- trackedDebaters.get
-      _ <- mainChannel.publish1(DebatersUpdate(debaters))
-      _ <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
-    } yield ()
-
     def getRoomList = rooms.get.map(sortedRoomList)
 
-    // update all clients on the list of rooms
-    def publishRoomList = getRoomList.flatMap(rooms => mainChannel.publish1(RoomsUpdate(rooms)))
+    // update all clients on the lobby state
+    def publishLobbyState = for {
+      debaters <- trackedDebaters.get
+      roomList <- getRoomList
+      _ <- mainChannel.publish1(Lobby(debaters, roomList))
+    } yield ()
+
+    def registerDebater(name: String) = for {
+      _ <- trackedDebaters.update(_ + name)
+      _ <- publishLobbyState
+      debaters <- trackedDebaters.get
+      _ <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
+    } yield ()
 
     // Ensure a debate room is present (initialize if necessary)
     def ensureDebate(roomName: String) = for {
       roomOpt <- rooms.get.map(_.get(roomName))
-      _ <-
-        if (roomOpt.nonEmpty) IO.unit
-        else
-          DebateRoom
-            .create()
-            .flatMap(room =>
-              rooms.update(rooms =>
-                if (rooms.contains(roomName)) rooms
-                else rooms + (roomName -> room)
-              ) >> publishRoomList
-            )
+      _ <- IO(roomOpt.nonEmpty).ifM(
+        ifTrue = IO.unit,
+        ifFalse = DebateRoom
+          .create()
+          .flatMap(room =>
+            rooms.update(rooms =>
+              if (rooms.contains(roomName)) rooms
+              else rooms + (roomName -> room)
+            ) >> publishLobbyState
+          )
+      )
     } yield ()
 
     def addParticipant(roomName: String, participantId: String) = for {
@@ -309,7 +316,7 @@ object Serve
       )
       room <- rooms.get.map(_.apply(roomName))
       _ <- room.channel.publish1(room.debate)
-      _ <- publishRoomList
+      _ <- publishLobbyState
     } yield ()
 
     def removeParticipant(roomName: String, participantId: String) = for {
@@ -321,15 +328,15 @@ object Serve
       _ <- IO(room.debate.participants.isEmpty && room.debate.debate.isEmpty).ifM(
         rooms.update(_ - roomName), IO.unit
       )
-      _ <- publishRoomList
+      _ <- publishLobbyState
     } yield ()
 
     def processUpdate(roomName: String, debateState: DebateState) = for {
       _ <- rooms.update(roomStateL(roomName).set(debateState)) // update state
-      _ <- FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(
-        debateState.debate
+      _ <- debateState.debate.traverse(
+        FileUtil.writeJson(saveDir.resolve("open").resolve(roomName + ".json"))
       ) // save after every change
-      // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
+        // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
       // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
     } yield debateState
 
@@ -357,8 +364,8 @@ object Serve
           rooms <- getRoomList
           outStream = (
             Stream
-              .emits[IO, MainChannelUpdate](
-                Seq(DebatersUpdate(debaters), RoomsUpdate(rooms))
+              .emit[IO, Lobby](
+                Lobby(debaters, rooms)
               ) // send the current set of debaters and rooms on connect
               .merge(
                 mainChannel.subscribe(100)
