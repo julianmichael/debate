@@ -171,6 +171,11 @@ object DebateTurnType {
     question: String,
     answers: Vector[String],
     correctAnswerIndex: Int,
+    roles: Map[DebateRole, String],
     startTime: Long
-)
+) {
+  def areAllRolesAssigned = {
+    roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
+  }
+}
 object DebateSetup

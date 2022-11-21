@@ -22,25 +22,32 @@ case object Observer extends Role {
 case object Facilitator extends Role {
   override def toString = "Facilitator"
 }
-@JsonCodec case class Debater(answerIndex: Int) extends Role {
+@JsonCodec sealed trait DebateRole extends Role
+@JsonCodec case class Debater(answerIndex: Int) extends DebateRole {
   override def toString = s"Debater ${answerLetter(answerIndex)}"
 }
-case object Judge extends Role {
+case object Judge extends DebateRole {
   override def toString = "Judge"
 }
-object Role {
+object DebateRole {
   object DebaterIndex {
     def unapply(x: String) = if(x.length == 1 && x.charAt(0).isLetter) {
       Some(x.charAt(0) - 'A')
     } else None
   }
 
+  implicit val debateRoleKeyEncoder = KeyEncoder.instance[DebateRole](_.toString)
+  implicit val debateRoleKeyDecoder = KeyDecoder.instance[DebateRole] {
+    case "Judge" => Some(Judge)
+    case s"Debater ${DebaterIndex(index)}" => Some(Debater(index))
+    case _ => None
+  }
+}
+object Role {
   implicit val roleKeyEncoder = KeyEncoder.instance[Role](_.toString)
   implicit val roleKeyDecoder = KeyDecoder.instance[Role] {
     case "Observer" => Some(Observer)
     case "Facilitator" => Some(Facilitator)
-    case "Judge" => Some(Judge)
-    case s"Debater ${DebaterIndex(index)}" => Some(Debater(index))
-    case _ => None
+    case x => DebateRole.debateRoleKeyDecoder(x)
   }
 }

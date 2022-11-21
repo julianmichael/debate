@@ -53,14 +53,20 @@ import debate.MainChannelRequest
     sourceMaterial: String,
     question: String,
     answers: Vector[String],
+    roles: Map[DebateRole, String],
     correctAnswerIndex: Int
-)
+) {
+  def areAllRolesAssigned = {
+    roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
+  }
+}
 object DebateSetupRaw {
   def init = DebateSetupRaw(
     rules = DebateRules.default,
     sourceMaterial = "Source material.",
     question = "Question?",
     answers = Vector("Answer 1", "Answer 2"),
+    roles = Map(),
     correctAnswerIndex = 0
   )
 }
@@ -192,7 +198,7 @@ object App {
 
   val DebateWebSocket = boopickleWebsocket[DebateState, DebateState]
   def getDebateWebsocketUri(roomName: String, participantId: String): String = {
-    s"$wsProtocol://${dom.document.location.host}/ws/$roomName?participantId=$participantId"
+    s"$wsProtocol://${dom.document.location.host}/open-ws/$roomName?name=$participantId"
   }
 
   val MainWebSocket = boopickleWebsocket[MainChannelRequest, Lobby]
@@ -402,6 +408,7 @@ object App {
             setupRaw.value.question,
             setupRaw.value.answers.filter(_.nonEmpty),
             setupRaw.value.correctAnswerIndex,
+            setupRaw.value.roles,
             System.currentTimeMillis()
           )
           sendState(
