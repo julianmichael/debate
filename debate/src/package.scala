@@ -14,10 +14,11 @@ package object debate extends PackagePlatformExtensions {
 
   @Lenses case class Lobby(
     trackedDebaters: Set[String],
-    roomMetadatas: Vector[RoomMetadata]
+    scheduledRooms: Vector[RoomMetadata],
+    openRooms: Vector[RoomMetadata]
   )
   object Lobby {
-    def init = Lobby(Set(), Vector())
+    def init = Lobby(Set(), Vector(), Vector())
   }
 
   sealed trait MainChannelRequest
@@ -39,6 +40,7 @@ package object debate extends PackagePlatformExtensions {
 
   @Lenses @JsonCodec case class RoomMetadata(
     name: String,
+    assignedParticipants: Set[String],
     currentParticipants: Set[String],
     // latestUpdateTime: Long, // TODO
     status: RoomStatus,

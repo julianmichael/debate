@@ -258,16 +258,18 @@ object App {
   // val TurnTypeSpecSelect = V.Select[DebateRoundTypeSpec](_.toString)
 
   /** Shows the user's ID. */
-  def userInfoRow(name: String, idOpt: Option[ParticipantId]) = {
+  def userInfoRow(roomName: String, name: String, idOpt: Option[ParticipantId]) = {
     <.div(S.userInfoRow)(
       <.span(S.userInfoMessage)(
-        "Your name is ",
+        "You are in room ",
+        <.strong(roomName),
+        ", your name is ",
         <.em(name),
         idOpt.map(_.role) match {
-          case None => <.span(" and you have no role!")
+          case None => <.span(", and you have no role!")
           case Some(role) =>
             <.span(
-              " and your role is ",
+              ", and your role is ",
               <.strong(role.toString)
             ) // TODO stylize role
         }
@@ -278,7 +280,6 @@ object App {
   /** Top row showing non-debating roles (user can click one to change roles).
     */
   def roleChoiceRow(
-      roomName: String,
       userName: String,
       debate: DebateState,
       sendState: DebateState => Callback,
@@ -311,11 +312,11 @@ object App {
         ^.onClick --> assumeRole(Observer)
       )
     }
-    def downloadButton = <.a(
-      ^.href := s"/download/$roomName",
-      ^.target := "_blank",
-      <.button(S.disconnectButton)("Download")
-    )
+    // def downloadButton = <.a(
+    //   ^.href := s"/download/$roomName",
+    //   ^.target := "_blank",
+    //   <.button(S.disconnectButton)("Download")
+    // )
     def disconnectButton = <.button(S.disconnectButton)(
       "Disconnect",
       ^.onClick --> disconnect
@@ -325,7 +326,7 @@ object App {
       <.div(S.roomRolesRow)(
         facilitatorsDiv,
         observersDiv,
-        downloadButton,
+        // downloadButton,
         disconnectButton
       )
     )
@@ -1273,7 +1274,7 @@ object App {
                               "Profile: ",
                               V.Select.String(
                                 choices =
-                                  lobby.value.trackedDebaters.toList.sorted :+ "(no profile)",
+                                  "(no profile)" +: lobby.value.trackedDebaters.toList.sorted,
                                 curChoice =
                                   if (
                                     lobby.value.trackedDebaters
@@ -1317,11 +1318,11 @@ object App {
                                   (^.onClick --> enterRoom(roomNameLive.value, userName.value)).when(!isDisabled)
                                 )
                             },
-                            lobby.value.roomMetadatas.toVdomArray {
-                              case RoomMetadata(roomName, participants, status) =>
+                            lobby.value.openRooms.toVdomArray {
+                              case RoomMetadata(roomName, assignedParticipants, currentParticipants, status) =>
                                 val participantName = userName.value
                                 val canEnterRoom =
-                                  participantName.nonEmpty && !participants
+                                  participantName.nonEmpty && !currentParticipants
                                     .contains(participantName)
                                 val statusStyle = {
                                   import RoomStatus._
@@ -1340,9 +1341,18 @@ object App {
                                     " ",
                                     <.span(statusStyle)(s"($status)")
                                   ),
-                                  commaSeparatedSpans(
-                                    participants.toList.sorted
-                                  ).toVdomArray,
+                                  <.div(
+                                    <.strong("Assigned: "),
+                                    commaSeparatedSpans(
+                                      assignedParticipants.toList.sorted
+                                    ).toVdomArray
+                                  ).when(assignedParticipants.nonEmpty),
+                                  <.div(
+                                    <.strong("Present: "),
+                                    commaSeparatedSpans(
+                                      currentParticipants.toList.sorted
+                                    ).toVdomArray
+                                  ).when(currentParticipants.nonEmpty),
                                   (^.onClick --> enterRoom(
                                     roomName,
                                     participantName
@@ -1380,13 +1390,12 @@ object App {
 
                     <.div(S.roomMainColumn)(
                       roleChoiceRow(
-                        roomName,
                         userName,
                         debateState.value,
                         sendState,
                         disconnect = connectionSpecOpt.setState(None)
                       ),
-                      userInfoRow(userName, userId),
+                      userInfoRow(roomName, userName, userId),
                       debateState.value.debate match {
                         case None =>
                           userId.map(_.role) match {
