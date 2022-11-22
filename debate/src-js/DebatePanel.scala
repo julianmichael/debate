@@ -189,7 +189,8 @@ class DebatePanel(
             roleOpt match {
               case Some(Debater(`index`)) =>
                 <.span("It is YOUR TURN to make a speech.")
-              case _ => <.span(s"It is Debater ${answerLetter(index)}'s turn.")
+              case _ => <.span(s"Debaters are writing their speeches.")
+              // case _ => <.span(s"It is Debater ${answerLetter(index)}'s turn.")
             }
           case DebateTurnType.JudgeFeedbackTurn(_, _) =>
             roleOpt match {
@@ -339,7 +340,13 @@ class DebatePanel(
               ).toVdomArray
             }
           case SequentialSpeeches(speeches) =>
-            speeches.values.toVector.toVdomArray { case speech =>
+            val speechesToShow = if (speeches.size < setup.answers.size) {
+              if(role.collect { case Facilitator | Debater(_) => () }.nonEmpty) {
+                speeches.toVector.sortBy(_._1).map(_._2)
+              } else Vector()
+            } else speeches.values.toVector
+
+            speechesToShow.toVdomArray { case speech =>
               val speechStyle = speech.speaker.role match {
                 case Facilitator => TagMod(S.facilitatorBg)
                 case Observer    => TagMod(S.observerBg)
