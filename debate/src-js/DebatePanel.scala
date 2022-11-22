@@ -209,7 +209,7 @@ class DebatePanel(
     debate: Debate,
     sendDebate: Debate => Callback
   ) = {
-    val turns = debate.turns
+    val rounds = debate.rounds
     val role = userId.map(_.role)
     val shouldShowSourceMaterial = role match {
       case Some(Facilitator | Debater(_)) => true
@@ -262,10 +262,29 @@ class DebatePanel(
     }
 
     def minSecTime(millis: Long): String = {
-      val secs = millis / 1000
-      val mins = secs / 60
-      val secsRem = secs % 60
-      s"${mins}m ${secsRem}s"
+          val secs = millis / 1000
+          val mins = secs / 60
+          val secsRem = secs % 60
+          s"${mins}m ${secsRem}s"
+        }
+
+    def timestampHTML(timestamp: Long) = {
+      <.span(S.speechTimestamp)(
+        minSecTime(timestamp - setup.startTime),
+        " into the debate at ", {
+          val base = {
+            Instant
+              .ofEpochMilli(timestamp)
+              // TODO this should perhaps display it in the client's timezone
+              .atZone(
+                ZoneId.of("Z")
+              ) // see "time zones" on http://cquiroz.github.io/scala-java-time/
+              .toLocalTime
+              .toString
+          }
+          base + " UTC"
+        }
+      ).when(timestamp > 0)
     }
 
     def speechToHTML(speech: DebateSpeech) = {
@@ -273,22 +292,9 @@ class DebatePanel(
       <.div(S.speechHeader)(
         speech.speaker.name,
         s" ($roleString) ",
-        <.span(S.speechTimestamp)(
-          minSecTime(speech.timestamp - setup.startTime),
-          " into the debate at ", {
-            val base = {
-              Instant
-                .ofEpochMilli(speech.timestamp)
-                // TODO this should perhaps display it in the client's timezone
-                .atZone(
-                  ZoneId.of("Z")
-                ) // see "time zones" on http://cquiroz.github.io/scala-java-time/
-                .toLocalTime
-                .toString
-            }
-            base + " UTC"
-          }
-        ).when(speech.timestamp > 0)
+        timestampHTML(speech.timestamp).when(
+          userId.map(_.role).collect { case Facilitator | Debater(_) => () }.nonEmpty
+        )
       )
     }
 
@@ -301,16 +307,91 @@ class DebatePanel(
       )
     }
 
+    def makeRoundHtml(
+      round: DebateRound,
+      roundIndex: Int
+    ) = {
+      <.div(
+        ^.key := s"round-$roundIndex",
+        round.timestamp.whenDefined(timestampHTML).when(
+          userId.map(_.role).collect { case Facilitator | Debater(_) => () }.isEmpty
+        ),
+        round match {
+          case SimultaneousSpeeches(speeches) =>
+            if (speeches.size < setup.answers.size) {
+              role
+                .collect { case Debater(index) =>
+                  speeches.get(index).map { speech =>
+                    val speechStyle = TagMod(
+                      S.answerOutline(index),
+                      S.pendingBg,
+                      S.debateWidthOffset(index)
+                    )
+                    makeSpeechHtml(speech, speechStyle)
+                  }
+                }
+                .flatten
+                .toVector
+                .toVdomArray
+            } else {
+              Vector(
+                makeSimultaneousSpeechesHtml(speeches)
+              ).toVdomArray
+            }
+          case SequentialSpeeches(speeches) =>
+            speeches.values.toVector.toVdomArray { case speech =>
+              val speechStyle = speech.speaker.role match {
+                case Facilitator => TagMod(S.facilitatorBg)
+                case Observer    => TagMod(S.observerBg)
+                case Judge       => TagMod(S.judgeBg)
+                case Debater(index) =>
+                  TagMod(S.answerBg(index), S.debateWidthOffset(index))
+              }
+              makeSpeechHtml(speech, speechStyle)
+            }
+          case JudgeFeedback(probabilities, speech, endsDebate) =>
+            val speechStyle = speech.speaker.role match {
+              case Facilitator => TagMod(S.facilitatorBg)
+              case Observer    => TagMod(S.observerBg)
+              case Judge =>
+                TagMod(S.judgeBg, S.judgeDecision.when(endsDebate))
+              case Debater(index) =>
+                TagMod(S.answerBg(index), S.debateWidthOffset(index))
+            }
+            Vector(
+              Option(makeSpeechHtml(speech, speechStyle)),
+              Option(
+                <.div(
+                  ^.display := "flex",
+                  ^.flexDirection := "row",
+                  probabilities.zipWithIndex.toVdomArray {
+                    case (prob, index) =>
+                      val pct = f"${prob * 100.0}%.0f%%"
+                      <.div(
+                        S.answerBg(index),
+                        ^.width := pct,
+                        ^.color := "white",
+                        ^.fontWeight := "bold",
+                        ^.flexGrow := "1"
+                      )(pct)
+                  }
+                )
+              ).filter(_ => probabilities.size > 1)
+            ).flatten.toVdomArray
+        }
+      )
+
+    }
+
     def makeSimultaneousSpeechesHtml(
-        speeches: Map[Int, DebateSpeech],
-        speechIndex: Int
+        speeches: Map[Int, DebateSpeech]
     ) = {
       <.div(S.speechRow)(
-        ^.key := s"speech-$speechIndex",
+        // ^.key := s"speech-$speechIndex",
         speeches.toVector.sortBy(_._1).toVdomArray {
           case (debaterIndex, speech) =>
             <.div(S.speechBox, S.answerBg(debaterIndex))(
-              ^.key := s"speech-$speechIndex-$debaterIndex",
+              ^.key := s"speech-$debaterIndex",
               speechToHTML(speech),
               speech.content.toVdomArray {
                 case SpeechSegment.Text(text)  => makeSimpleVdomFromText(text)
@@ -324,10 +405,10 @@ class DebatePanel(
     def makeSpeechHtml(
         speech: DebateSpeech,
         style: TagMod,
-        speechIndex: Int
+        // speechIndex: Int
     ) = {
       <.div(S.speechBox, style)(
-        ^.key := s"speech-$speechIndex",
+        // ^.key := s"speech-$speechIndex",
         speechToHTML(speech),
         speech.content.toVdomArray {
           case SpeechSegment.Text(text)  => makeSimpleVdomFromText(text)
@@ -359,13 +440,15 @@ class DebatePanel(
       if (isScrolledToBottom) scrollDebateToBottom else Callback.empty
     }
 
-    val debateSpansWithSpeaker = turns.flatMap {
+    val debateSpansWithSpeaker = rounds.flatMap {
       case SimultaneousSpeeches(speeches) =>
         speeches.values.toVector.flatMap(speech =>
           speech.allQuotes.map(speech.speaker -> _)
         )
-      case DebaterSpeech(speech) =>
-        speech.allQuotes.map(speech.speaker -> _)
+      case SequentialSpeeches(speeches) =>
+        speeches.values.toVector.flatMap(speech =>
+          speech.allQuotes.map(speech.speaker -> _)
+        )
       case JudgeFeedback(_, _, _) => Vector()
     }
 
@@ -456,73 +539,13 @@ class DebatePanel(
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
               ^.id := "speeches",
-              turns.zipWithIndex.flatMap { case (turn, speechIndex) =>
-                turn match {
-                  case SimultaneousSpeeches(speeches) =>
-                    if (speeches.size < setup.answers.size) {
-                      role
-                        .collect { case Debater(index) =>
-                          speeches.get(index).map { speech =>
-                            val speechStyle = TagMod(
-                              S.answerOutline(index),
-                              S.pendingBg,
-                              S.debateWidthOffset(index)
-                            )
-                            makeSpeechHtml(speech, speechStyle, speechIndex)
-                          }
-                        }
-                        .flatten
-                        .toVector
-                    } else {
-                      Vector(
-                        makeSimultaneousSpeechesHtml(speeches, speechIndex)
-                      )
-                    }
-                  case DebaterSpeech(speech) =>
-                    val speechStyle = speech.speaker.role match {
-                      case Facilitator => TagMod(S.facilitatorBg)
-                      case Observer    => TagMod(S.observerBg)
-                      case Judge       => TagMod(S.judgeBg)
-                      case Debater(index) =>
-                        TagMod(S.answerBg(index), S.debateWidthOffset(index))
-                    }
-                    Vector(makeSpeechHtml(speech, speechStyle, speechIndex))
-                  case JudgeFeedback(probabilities, speech, endsDebate) =>
-                    val speechStyle = speech.speaker.role match {
-                      case Facilitator => TagMod(S.facilitatorBg)
-                      case Observer    => TagMod(S.observerBg)
-                      case Judge =>
-                        TagMod(S.judgeBg, S.judgeDecision.when(endsDebate))
-                      case Debater(index) =>
-                        TagMod(S.answerBg(index), S.debateWidthOffset(index))
-                    }
-                    Vector(
-                      Option(makeSpeechHtml(speech, speechStyle, speechIndex)),
-                      Option(
-                        <.div(
-                          ^.display := "flex",
-                          ^.flexDirection := "row",
-                          probabilities.zipWithIndex.toVdomArray {
-                            case (prob, index) =>
-                              val pct = f"${prob * 100.0}%.0f%%"
-                              <.div(
-                                S.answerBg(index),
-                                ^.width := pct,
-                                ^.color := "white",
-                                ^.fontWeight := "bold",
-                                ^.flexGrow := "1"
-                              )(pct)
-                          }
-                        )
-                      ).filter(_ => probabilities.size > 1)
-                    ).flatten
-                }
+              rounds.zipWithIndex.map { case (round, roundIndex) =>
+                makeRoundHtml(round, roundIndex)
               }.toVdomArray,
               userId.whenDefined { userId =>
                 makeSpeechHtml(
                   DebateSpeech(userId, -1L, currentMessageSpeechSegments),
                   inProgressSpeechStyle,
-                  -1
                 ).when(currentMessage.value.size > 0)
               }
             ),
@@ -543,27 +566,27 @@ class DebatePanel(
                             time,
                             currentMessageSpeechSegments
                           )
-                          val newTurns = role match {
+                          val newRounds = role match {
                             case Some(Debater(debaterIndex)) =>
-                              turns.lastOption match {
+                              rounds.lastOption match {
                                 // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
                                 case Some(SimultaneousSpeeches(speeches))
                                     if speeches.size < setup.answers.size =>
-                                  turns.updated(
-                                    turns.size - 1,
+                                  rounds.updated(
+                                    rounds.size - 1,
                                     SimultaneousSpeeches(
                                       speeches + (debaterIndex -> speech)
                                     )
                                   )
                                 // otherwise, create the record for the turn with our new speech.
                                 case _ =>
-                                  turns :+ SimultaneousSpeeches(
+                                  rounds :+ SimultaneousSpeeches(
                                     Map(debaterIndex -> speech)
                                   )
                               }
-                            case _ => turns
+                            case _ => rounds // TODO should we error here?
                           }
-                          sendDebate(Debate(setup, newTurns))
+                          sendDebate(Debate(setup, newRounds))
                         } >> currentMessage.setState("")
                       )
                   )
@@ -579,25 +602,40 @@ class DebatePanel(
 
               case DebateTurnType
                     .DebaterSpeechTurn(_: Int, _: Int) =>
+
                 val submit =
                   (
                     if (!isUsersTurn || speechIsTooLong) Callback.empty
                     else
                       userId.foldMap(userId =>
-                        CallbackTo(System.currentTimeMillis()).flatMap(time =>
-                          sendDebate(
-                            Debate(
-                              setup,
-                              turns :+ DebaterSpeech(
-                                DebateSpeech(
-                                  userId,
-                                  time,
-                                  currentMessageSpeechSegments
-                                )
-                              )
-                            )
+                        CallbackTo(System.currentTimeMillis()).flatMap { time =>
+                          val speech = DebateSpeech(
+                            userId,
+                            time,
+                            currentMessageSpeechSegments
                           )
-                        ) >> currentMessage.setState("")
+                          val newRounds = role match {
+                            case Some(Debater(debaterIndex)) =>
+                              rounds.lastOption match {
+                                // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
+                                case Some(SequentialSpeeches(speeches))
+                                    if speeches.size < setup.answers.size =>
+                                  rounds.updated(
+                                    rounds.size - 1,
+                                    SequentialSpeeches(
+                                      speeches + (debaterIndex -> speech)
+                                    )
+                                  )
+                                // otherwise, create the record for the turn with our new speech.
+                                case _ =>
+                                  rounds :+ SequentialSpeeches(
+                                    Map(debaterIndex -> speech)
+                                  )
+                              }
+                            case _ => rounds // TODO should we error here?
+                          }
+                          sendDebate(Debate(setup, newRounds))
+                        } >> currentMessage.setState("")
                       )
                   )
 
@@ -615,7 +653,7 @@ class DebatePanel(
                     _: Int
                   ) =>
                 val turnNum =
-                  debate.turns.collect { case JudgeFeedback(_, _, _) =>
+                  debate.rounds.collect { case JudgeFeedback(_, _, _) =>
                     1
                   }.sum
                 LocalProbs.make(
@@ -630,7 +668,7 @@ class DebatePanel(
                             sendDebate(
                               Debate(
                                 setup,
-                                turns :+ JudgeFeedback(
+                                rounds :+ JudgeFeedback(
                                   probs.value,
                                   DebateSpeech(
                                     userId,

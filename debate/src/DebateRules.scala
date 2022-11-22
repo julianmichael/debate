@@ -20,23 +20,30 @@ import monocle.macros.GenPrism
     scoringFunction: ScoringFunction
 ) {
 
-  /** Schematic for the turns that the debate will follow. This will be compared
-    * to the actual turn sequence to decide whose turn it is. Each 'round' (eg
-    * SequentialSpeechesRound) needs to be expanded to its sequence of 'turns'
-    * (eg sequence of DebaterSpeechTurn).
-    *
-    * Must always be nonempty.
-    *
-    * @param numDebaters
-    *   the number of different answers being argued for / debaters arguing
-    */
-  def turnTypes(numDebaters: Int): LazyList[DebateTurnType] = {
-    // TODO change return type to some kind of infinite lazy list, it should always be that
-    LazyList.from(fixedOpening.flatMap(_.getTurns(numDebaters))) #:::
-      LazyList
-        .continually(repeatingStructure.flatMap(_.getTurns(numDebaters)))
-        .flatten
-  }
+    def roundTypes: LazyList[DebateRoundType] = {
+      // TODO change return type to some kind of infinite lazy list, it should always be that
+      LazyList.from(fixedOpening) #:::
+        LazyList.continually(repeatingStructure)
+          .flatten
+    }
+
+  // /** Schematic for the turns that the debate will follow. This will be compared
+  //   * to the actual turn sequence to decide whose turn it is. Each 'round' (eg
+  //   * SequentialSpeechesRound) needs to be expanded to its sequence of 'turns'
+  //   * (eg sequence of DebaterSpeechTurn).
+  //   *
+  //   * Must always be nonempty.
+  //   *
+  //   * @param numDebaters
+  //   *   the number of different answers being argued for / debaters arguing
+  //   */
+  // def turnTypes(numDebaters: Int): LazyList[DebateTurnType] = {
+  //   // TODO change return type to some kind of infinite lazy list, it should always be that
+  //   LazyList.from(fixedOpening.flatMap(_.getTurns(numDebaters))) #:::
+  //     LazyList
+  //       .continually(repeatingStructure.flatMap(_.getTurns(numDebaters)))
+  //       .flatten
+  // }
 }
 object DebateRules {
 
@@ -55,23 +62,53 @@ object DebateRules {
   )
 }
 
+sealed trait DebateTurnTypeResult extends Product with Serializable
+object DebateTurnTypeResult {
+  case class Turn(turn: DebateTurnType) extends DebateTurnTypeResult
+  case object Next extends DebateTurnTypeResult
+  case class End(finalJudgment: Vector[Double]) extends DebateTurnTypeResult
+  case object Mismatch extends DebateTurnTypeResult
+}
+
 /** Schema for round types used to set up the debate. */
 @JsonCodec sealed trait DebateRoundType {
   import DebateRoundType._
-  def getTurns(numDebaters: Int): Vector[DebateTurnType] = this match {
-    case SimultaneousSpeechesRound(charLimit) =>
-      Vector(
-        DebateTurnType.SimultaneousSpeechesTurn(
-          (0 until numDebaters).toSet,
-          charLimit
+  def getFirstTurn(numDebaters: Int): DebateTurnType = {
+    require(numDebaters > 0)
+    this match {
+        case SimultaneousSpeechesRound(charLimit) =>
+          DebateTurnType.SimultaneousSpeechesTurn(
+            (0 until numDebaters).toSet,
+            charLimit
+          )
+        case SequentialSpeechesRound(charLimit) =>
+          DebateTurnType.DebaterSpeechTurn(0, charLimit)
+        case JudgeFeedbackRound(reportBeliefs, charLimit) =>
+          DebateTurnType.JudgeFeedbackTurn(reportBeliefs, charLimit)
+      }
+  }
+
+  // returns None if round type and round are incompatible
+  def getTurn(round: DebateRound, numDebaters: Int): DebateTurnTypeResult = (this, round) match {
+    case (SimultaneousSpeechesRound(charLimit), SimultaneousSpeeches(speeches)) =>
+      if(speeches.size == numDebaters) DebateTurnTypeResult.Next else {
+        DebateTurnTypeResult.Turn(
+          DebateTurnType.SimultaneousSpeechesTurn(
+            (0 until numDebaters).toSet -- speeches.keySet,
+            charLimit
+          )
         )
-      )
-    case SequentialSpeechesRound(charLimit) =>
-      (0 until numDebaters)
-        .map(i => DebateTurnType.DebaterSpeechTurn(i, charLimit))
-        .toVector
-    case JudgeFeedbackRound(reportBeliefs, charLimit) =>
-      Vector(DebateTurnType.JudgeFeedbackTurn(reportBeliefs, charLimit))
+      }
+    case (SequentialSpeechesRound(charLimit), SequentialSpeeches(speeches)) =>
+      val remainingDebaters = (0 until numDebaters).toSet -- speeches.keySet
+      remainingDebaters.minOption.fold(DebateTurnTypeResult.Next: DebateTurnTypeResult) { nextDebater =>
+        DebateTurnTypeResult.Turn(
+          DebateTurnType.DebaterSpeechTurn(nextDebater, charLimit)
+        )
+      }
+    case (JudgeFeedbackRound(_, _), JudgeFeedback(judgment, _, endDebate)) =>
+      if(!endDebate) DebateTurnTypeResult.Next else DebateTurnTypeResult.End(judgment)
+    case _ => DebateTurnTypeResult.Mismatch
   }
 }
 object DebateRoundType {

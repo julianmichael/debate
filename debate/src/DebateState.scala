@@ -54,14 +54,14 @@ object DebateResult
   */
 @Lenses @JsonCodec case class Debate(
     setup: DebateSetup,
-    turns: Vector[DebateTurn]
+    rounds: Vector[DebateRound]
 ) {
 
   def result: Option[DebateResult] = currentTurn.left.toOption
   def isOver: Boolean = result.nonEmpty
   def finalJudgment: Option[Vector[Double]] = result.map(_.finalJudgment)
 
-  def numContinues = turns.foldMap {
+  def numContinues = rounds.foldMap {
     case JudgeFeedback(_, _, false) => 1
     case _ => 0
   }
@@ -70,23 +70,18 @@ object DebateResult
   def currentTurn: Either[DebateResult, DebateTurnType] = {
     // TODO: validate that the debate follows the specified structure?
     // turn sequence is always nonempty
-    val turnSequence = setup.rules.turnTypes(setup.answers.size)
-    if (turns.isEmpty) Right(turnSequence.head)
+    val numDebaters = setup.answers.size
+    val roundSequence = setup.rules.roundTypes//(setup.answers.size)
+    if (rounds.isEmpty) Right(roundSequence.head.getFirstTurn(numDebaters))
     else {
-      val lastTurnTypeAndRest = turnSequence.drop(turns.size - 1)
-      val lastTurn = turns.last
-      (lastTurnTypeAndRest.head, lastTurn) match {
-        case (
-              DebateTurnType.SimultaneousSpeechesTurn(debaters, charLimit),
-              SimultaneousSpeeches(speeches)
-            ) if speeches.size < debaters.size =>
-          Right(
-            DebateTurnType.SimultaneousSpeechesTurn(
-              debaters -- speeches.keySet,
-              charLimit
-            )
-          )
-        case (_, JudgeFeedback(finalJudgment, _, true)) =>
+      val lastRoundTypeAndRest = roundSequence.drop(rounds.size - 1)
+      val lastRound = rounds.last
+      lastRoundTypeAndRest.head.getTurn(lastRound, numDebaters) match {
+        case DebateTurnTypeResult.Next => Right(
+          lastRoundTypeAndRest.tail.head.getFirstTurn(numDebaters) // there should always be more turns
+        )
+        case DebateTurnTypeResult.Turn(turn) => Right(turn)
+        case DebateTurnTypeResult.End(finalJudgment) =>
           val numTurns = numContinues
           val judgeReward = setup.rules.scoringFunction.eval(
             numTurns, finalJudgment, setup.correctAnswerIndex
@@ -99,7 +94,7 @@ object DebateResult
               judgeReward = judgeReward
             )
           )
-        case _ => Right(lastTurnTypeAndRest.tail.head) // should always be nonempty
+        case DebateTurnTypeResult.Mismatch => ??? // TODO fail gracefully
       }
     }
   }
@@ -111,30 +106,31 @@ object Debate {
 /** Outcome of a debate turn after some/all relevant parties have submitted
   * their arguments / info
   */
-@JsonCodec sealed trait DebateTurn {
+@JsonCodec sealed trait DebateRound {
   def timestamp: Option[Long]
 }
 @Lenses @JsonCodec case class SimultaneousSpeeches(
-    statements: Map[Int, DebateSpeech] // map from answer index -> statement
-) extends DebateTurn {
-  def timestamp = statements.values.toVector.map(_.timestamp).maxOption
+    speeches: Map[Int, DebateSpeech] // map from answer index -> statement
+) extends DebateRound {
+  def timestamp = speeches.values.view.map(_.timestamp).maxOption
 }
 object SimultaneousSpeeches
-@Lenses @JsonCodec case class DebaterSpeech(
-    speech: DebateSpeech
-) extends DebateTurn {
-  def timestamp = Some(speech.timestamp)
+@Lenses @JsonCodec case class SequentialSpeeches(
+    speeches: Map[Int, DebateSpeech]
+) extends DebateRound {
+  def timestamp = speeches.values.view.map(_.timestamp).maxOption
 }
+object SequentialSpeeches
 object DebaterSpeech
 @Lenses @JsonCodec case class JudgeFeedback(
     distribution: Vector[Double], // probability distribution
     feedback: DebateSpeech,
     endDebate: Boolean
-) extends DebateTurn {
+) extends DebateRound {
   def timestamp = Some(feedback.timestamp)
 }
 object JudgeFeedback
-object DebateTurn
+object DebateRound
 
 /** Specifies who gets to speak next and what kind of input they should provide.
   */

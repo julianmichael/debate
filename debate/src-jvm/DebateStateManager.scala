@@ -45,7 +45,7 @@ object DebateRoom {
     _.debate.debate match {
         case None => 0L
         case Some(debate) =>
-          debate.turns.view
+          debate.rounds.view
             .flatMap(_.timestamp)
             .lastOption
             .fold(1L)(-_)
