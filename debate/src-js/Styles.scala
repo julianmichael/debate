@@ -136,6 +136,14 @@ object Styles extends jjm.ui.View.Styles {
     backgroundColor(c"#ddd")
   )
 
+  val spaceyPadding = 6 px
+  val spaceyContainer = style(
+    padding(spaceyPadding / 2),
+    unsafeChild("> *") {
+      margin(spaceyPadding)
+    }
+  )
+
   import scalacss.internal.Attr
   // object rowGap extends TypedAttrT1[Len] with ZeroLit {
   //   override val attr = Attr.real("row-gap")
@@ -148,15 +156,6 @@ object Styles extends jjm.ui.View.Styles {
   }
 
   val app = style(
-    // display.grid,
-    // gridTemplateColumns := "1fr 1fr",
-    // gridTemplateRows := "1fr 1fr",
-    // gridTemplateAreas := "\"TL TR\" \"B B\"",
-    textAlign.center,
-    // columnGap(5 px),
-    // rowGap(5 px),
-    // padding(5 px),
-    // boxSizing.borderBox,
     position.absolute,
     top.`0`,
     left.`0`,
@@ -165,18 +164,18 @@ object Styles extends jjm.ui.View.Styles {
     overflowX.hidden
   )
 
-  val connectDialog = style(
-    position.relative,
-    width(640 px),
-    height.auto,
-    margin.auto,
-    paddingTop(40 px),
-    display.flex,
-    flexDirection.column,
-    unsafeChild("div")(
-      margin(10 px)
-    )
-  )
+  // val connectDialog = style(
+  //   position.relative,
+  //   width(640 px),
+  //   height.auto,
+  //   margin.auto,
+  //   paddingTop(40 px),
+  //   display.flex,
+  //   flexDirection.column,
+  //   unsafeChild("div")(
+  //     margin(10 px)
+  //   )
+  // )
 
   val settingUpStatusLabel = style(
     color.gold
@@ -196,12 +195,17 @@ object Styles extends jjm.ui.View.Styles {
     alignItems.center
   )
 
-  val roomMainColumn = style(
-    position.relative,
-    margin.auto,
-    padding(5 px),
-    maxWidth(1200 px),
-    height(100 vh),
+  val lobbyContainer = style(
+    addClassNames("container")
+  )
+
+  val debateContainer = style(
+    addClassNames("container-fluid"),
+    // position.relative,
+    // margin.auto,
+    // padding(5 px),
+    // maxWidth(1200 px),
+    // height(100 vh),
     display.flex,
     flexDirection.column
   )

@@ -31,6 +31,11 @@ package object debate extends PackagePlatformExtensions {
       case InProgress => "in progress"
       case Complete => "complete"
     }
+
+    def isComplete = this match {
+      case Complete => true
+      case _ => false
+    }
   }
   object RoomStatus {
     case object SettingUp extends RoomStatus

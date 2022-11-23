@@ -17,7 +17,7 @@ object Page {
         ),
         link(
           rel := "stylesheet",
-          href := "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
+          href := "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
         ),
         scalatags.Text.tags2.title(makePageTitle(roomName))
       ),
