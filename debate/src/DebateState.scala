@@ -108,17 +108,20 @@ object Debate {
   */
 @JsonCodec sealed trait DebateRound {
   def timestamp: Option[Long]
+  def isComplete(numDebaters: Int): Boolean
 }
 @Lenses @JsonCodec case class SimultaneousSpeeches(
     speeches: Map[Int, DebateSpeech] // map from answer index -> statement
 ) extends DebateRound {
   def timestamp = speeches.values.view.map(_.timestamp).maxOption
+  def isComplete(numDebaters: Int) = speeches.size == numDebaters
 }
 object SimultaneousSpeeches
 @Lenses @JsonCodec case class SequentialSpeeches(
     speeches: Map[Int, DebateSpeech]
 ) extends DebateRound {
   def timestamp = speeches.values.view.map(_.timestamp).maxOption
+  def isComplete(numDebaters: Int) = speeches.size == numDebaters
 }
 object SequentialSpeeches
 object DebaterSpeech
@@ -128,6 +131,7 @@ object DebaterSpeech
     endDebate: Boolean
 ) extends DebateRound {
   def timestamp = Some(feedback.timestamp)
+  def isComplete(numDebaters: Int) = true
 }
 object JudgeFeedback
 object DebateRound

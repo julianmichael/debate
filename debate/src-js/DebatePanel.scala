@@ -546,8 +546,11 @@ class DebatePanel(
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
               ^.id := "speeches",
-              rounds.zipWithIndex.map { case (round, roundIndex) =>
-                makeRoundHtml(round, roundIndex)
+              rounds.zipWithIndex.flatMap { case (round, roundIndex) =>
+                Option(makeRoundHtml(round, roundIndex)).filter(_ =>
+                  role.collect { case Facilitator | Debater(_) => () }.nonEmpty ||
+                    round.isComplete(setup.answers.size)
+                )
               }.toVdomArray,
               userId.whenDefined { userId =>
                 makeSpeechHtml(
