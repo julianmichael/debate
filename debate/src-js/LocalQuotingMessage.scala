@@ -7,6 +7,7 @@ import jjm.ling.ESpan
 
 import cats.implicits._
 import scala.annotation.nowarn
+import scala.scalajs.js
 
 /** Local state HOC for the speech a debater is currently constructing. This
   * exists to keep in sync the overlying `spans` state (of currently highlighted
@@ -22,32 +23,35 @@ object LocalQuotingMessage {
   type Context = String => Callback
   case class Props(
       spans: StateSnapshot[Set[ESpan]],
-      initialValue: String,
+      messageCookieId: String,
       shouldRefresh: String => Boolean,
       didUpdate: String => Callback,
       render: StateSnapshot[String] => VdomElement
   )
 
+  def getMessageCookie(cookieId: String) =
+    js.Dynamic.global.Cookies.get(cookieId)
+      .asInstanceOf[scalajs.js.UndefOr[String]]
+      .toOption
+
+  def setMessageCookie(cookieId: String, message: String) =
+    js.Dynamic.global.Cookies.set(
+      cookieId, message, js.Dynamic.literal(expires = 5)
+    )
+
   @nowarn val Component = ScalaComponent
     .builder[Props]("Local Quoting Message")
-    .initialStateFromProps(_.initialValue)
+    .initialStateFromProps(p => getMessageCookie(p.messageCookieId).getOrElse(""))
     .render { $ => $.props.render(StateSnapshot.of($)) }
     .componentWillReceiveProps { $ =>
-      if (
-        $.currentProps.initialValue != $.nextProps.initialValue &&
-          $.nextProps.shouldRefresh($.state)
-      ) {
-        $.setState($.nextProps.initialValue)
-      } else {
-        val messageSpans: Set[ESpan] = SpeechSegment
-          .getSegmentsFromString($.state)
-          .collect { case SpeechSegment.Quote(span) => span }
-          .toSet
-        val newSpans = $.nextProps.spans.value -- messageSpans
-        if (newSpans.nonEmpty) {
-          $.modState(_ + newSpans.toVector.sorted.foldMap(span2text))
-        } else Callback.empty
-      }
+      val messageSpans: Set[ESpan] = SpeechSegment
+        .getSegmentsFromString($.state)
+        .collect { case SpeechSegment.Quote(span) => span }
+        .toSet
+      val newSpans = $.nextProps.spans.value -- messageSpans
+      if (newSpans.nonEmpty) {
+        $.modState(_ + newSpans.toVector.sorted.foldMap(span2text))
+      } else Callback.empty
     }
     .componentDidUpdate { $ =>
       val messageSpans = SpeechSegment
@@ -59,18 +63,19 @@ object LocalQuotingMessage {
         $.currentProps.spans.setState(messageSpans)
       } else Callback.empty
 
-      spanCb >> $.currentProps.didUpdate($.currentState)
+      Callback(setMessageCookie($.currentProps.messageCookieId, $.currentState)) >>
+        spanCb >> $.currentProps.didUpdate($.currentState)
     }
     .build
 
   def make(
       spans: StateSnapshot[Set[ESpan]],
-      initialValue: String,
+      messageCookieId: String,
       shouldRefresh: String => Boolean = (_: String) => true,
       didUpdate: String => Callback
   )(
       render: StateSnapshot[String] => VdomElement
   ) = {
-    Component(Props(spans, initialValue, shouldRefresh, didUpdate, render))
+    Component(Props(spans, messageCookieId, shouldRefresh, didUpdate, render))
   }
 }

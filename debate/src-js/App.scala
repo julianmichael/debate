@@ -719,6 +719,7 @@ object App {
                               }
                             ),
                             debatePanel(
+                              roomName,
                               userId,
                               setup,
                               debate,

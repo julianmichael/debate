@@ -30,6 +30,7 @@ val scalajsJqueryVersion = "1.0.0"
 val scalacssVersion = "0.7.0"
 
 // raw JS
+val jsCookieVersion = "3.0.1"
 val jqueryVersion = "2.1.4"
 val reactVersion = "15.6.1"
 
@@ -183,6 +184,7 @@ object debate extends Module {
     )
 
     def jsDeps = Agg(
+      s"https://cdn.jsdelivr.net/npm/js-cookie@$jsCookieVersion/dist/js.cookie.min.js",
       s"https://code.jquery.com/jquery-$jqueryVersion.min.js",
       s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react.js",
       s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react-dom.js"

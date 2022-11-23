@@ -205,6 +205,7 @@ class DebatePanel(
 
   /** Show the debate. */
   def apply(
+    roomName: String,
     userId: Option[ParticipantId],
     setup: DebateSetup,
     debate: Debate,
@@ -497,7 +498,7 @@ class DebatePanel(
         ).when(shouldShowSourceMaterial),
         LocalQuotingMessage.make(
           curMessageSpans,
-          "",
+          s"debate-cookie-$roomName",
           didUpdate = _ => scrollDebateToBottom
         ) { currentMessage =>
           val currentMessageSpeechSegments =
@@ -556,7 +557,7 @@ class DebatePanel(
                 makeSpeechHtml(
                   DebateSpeech(userId, -1L, currentMessageSpeechSegments),
                   inProgressSpeechStyle,
-                ).when(currentMessage.value.size > 0)
+                ).when(currentMessage.value.size > 0 && isUsersTurn)
               }
             ),
             turnDisplay(role, currentTurnOrResult),
