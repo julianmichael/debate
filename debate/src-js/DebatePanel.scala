@@ -448,16 +448,17 @@ class DebatePanel(
       if (isScrolledToBottom) scrollDebateToBottom else Callback.empty
     }
 
-    val debateSpansWithSpeaker = rounds.flatMap {
-      case SimultaneousSpeeches(speeches) =>
-        speeches.values.toVector.flatMap(speech =>
+    val debateSpansWithSpeaker = rounds.flatMap { round =>
+      if(round.isComplete(setup.answers.size)) {
+        round.allSpeeches.view.flatMap(speech =>
           speech.allQuotes.map(speech.speaker -> _)
-        )
-      case SequentialSpeeches(speeches) =>
-        speeches.values.toVector.flatMap(speech =>
-          speech.allQuotes.map(speech.speaker -> _)
-        )
-      case JudgeFeedback(_, _, _) => Vector()
+        ).toVector
+      } else {
+        userId.map(_.role).view
+          .flatMap(role => round.allSpeeches.filter(_.speaker.role == role))
+          .flatMap(speech => speech.allQuotes.map(speech.speaker -> _))
+          .toVector
+      }
     }
 
     LocalSpans.make(Set.empty[ESpan]) { curMessageSpans =>
