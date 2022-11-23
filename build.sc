@@ -158,7 +158,7 @@ object debate extends Module {
   }
 
   // deploy using fullOpt JS, it's MUCH more compact
-  object prod {
+  object prod extends Module {
     def serve(args: String*) = T.command {
       val runMain = jvm.runMainFn()
       runMain(
