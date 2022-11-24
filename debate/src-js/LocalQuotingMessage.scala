@@ -7,7 +7,6 @@ import jjm.ling.ESpan
 
 import cats.implicits._
 import scala.annotation.nowarn
-import scala.scalajs.js
 
 /** Local state HOC for the speech a debater is currently constructing. This
   * exists to keep in sync the overlying `spans` state (of currently highlighted
@@ -29,19 +28,9 @@ object LocalQuotingMessage {
       render: StateSnapshot[String] => VdomElement
   )
 
-  def getMessageCookie(cookieId: String) =
-    js.Dynamic.global.Cookies.get(cookieId)
-      .asInstanceOf[scalajs.js.UndefOr[String]]
-      .toOption
-
-  def setMessageCookie(cookieId: String, message: String) =
-    js.Dynamic.global.Cookies.set(
-      cookieId, message, js.Dynamic.literal(expires = 5)
-    )
-
   @nowarn val Component = ScalaComponent
     .builder[Props]("Local Quoting Message")
-    .initialStateFromProps(p => getMessageCookie(p.messageCookieId).getOrElse(""))
+    .initialStateFromProps(p => getCookie(p.messageCookieId).getOrElse(""))
     .render { $ => $.props.render(StateSnapshot.of($)) }
     .componentWillReceiveProps { $ =>
       val messageSpans: Set[ESpan] = SpeechSegment
@@ -63,7 +52,7 @@ object LocalQuotingMessage {
         $.currentProps.spans.setState(messageSpans)
       } else Callback.empty
 
-      Callback(setMessageCookie($.currentProps.messageCookieId, $.currentState)) >>
+      Callback(setCookie($.currentProps.messageCookieId, $.currentState, expires = 5)) >>
         spanCb >> $.currentProps.didUpdate($.currentState)
     }
     .build

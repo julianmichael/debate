@@ -505,8 +505,9 @@ object App {
                       // roomName.setState(roomNameLive.value)
 
                       val noProfileString = "(select profile)"
+                      val profileCookieId = "debate-profile"
 
-                      LocalString.make("") { userName =>
+                      LocalString.make(initialValue = getCookie(profileCookieId).getOrElse("")) { userName =>
                         <.div(S.lobbyContainer, S.spaceyContainer)(
                           <.div(^.classSet1("form-group row"))(
                             <.label(^.classSet1("col-sm-2 col-form-label"))("Profile:"),
@@ -522,7 +523,7 @@ object App {
                                 } else noProfileString,
                               setChoice = (name: String) => {
                                 val adjustedName = if(name == noProfileString) "" else name
-                                userName.setState(adjustedName)
+                                userName.setState(adjustedName) >> Callback(setCookie(profileCookieId, adjustedName, expires = 5))
                               }
                             )
                           ),
@@ -534,7 +535,7 @@ object App {
                           <.div(^.classSet1("form-group row"), ^.display.none) {
                             val name = userName.value
                             val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
-                            <.button(^.classSet1("btn-block"))(
+                            <.button(^.classSet1("btn btn-primary btn-block"))(
                               "Create profile",
                               ^.disabled := isDisabled,
                               (^.onClick --> sendToMainChannel(
@@ -582,7 +583,7 @@ object App {
                                       ))(roomNameLive, placeholderOpt = Some("Room")
                                     ),
                                     <.div(^.classSet1("input-group-append"))(
-                                      <.button(^.classSet1("btn"))(
+                                      <.button(^.classSet1("btn btn-primary"))(
                                        if(currentRooms.exists(_.name == roomNameLive.value)) "Join" else "Create",
                                        ^.`type` := "button",
                                        ^.disabled := !canEnter,
