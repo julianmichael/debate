@@ -153,8 +153,6 @@ object App {
   val RoundTypeConfig = SumConfig[DebateRoundType]()
   val ScoringFunctionConfig = SumConfig[ScoringFunction]()
 
-  val StringField = V.LiveTextField.String
-  val StringArea = V.LiveTextArea.String
   val StringOptField = V.LiveTextField[Option[String]](
     x => Some(Option(x).filter(_.nonEmpty)),
     _.getOrElse("")
@@ -531,12 +529,12 @@ object App {
                           V.LiveTextField.String.mod(
                             span = TagMod(^.classSet1("form-group row"), ^.display.none),
                             label = ^.classSet1("col-sm-2 col-form-label"),
-                            input = ^.classSet1("form-control")
+                            input = ^.classSet1("col-sm-10 form-control")
                           )(userName, labelOpt = Some("Name: ")),
-                          {
+                          <.div(^.classSet1("form-group row"), ^.display.none) {
                             val name = userName.value
                             val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
-                            <.button(^.classSet1("btn-block"), ^.display.none)(
+                            <.button(^.classSet1("btn-block"))(
                               "Create profile",
                               ^.disabled := isDisabled,
                               (^.onClick --> sendToMainChannel(
@@ -560,11 +558,9 @@ object App {
                             }
                             <.div(^.classSet1("card"), ^.textAlign.center)(
                               <.div(^.classSet1("card-header"))(
-                                <.ul(^.classSet1("nav nav-tabs card-header-tabs"))(
+                                <.ul(^.classSet1("nav nav-fill nav-tabs card-header-tabs"))(
                                   List(MyCurrentDebates, AllMyDebates, OpenDebates).toVdomArray(tab =>
-                                    <.li(^.classSet1("nav-item"),
-                                        // if(tab == lobbyTab.value) S.simpleSelected else S.simpleSelectable
-                                    )(
+                                    <.li(^.classSet1("nav-item"))(
                                       <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
                                         ^.href := "#",
                                         ^.onClick --> lobbyTab.setState(tab),
@@ -575,18 +571,25 @@ object App {
                                 )
                               ),
                               LocalString.make("") { roomNameLive =>
-                                <.div(^.classSet1("card-block"))(
-                                  <.div("Room: ", StringField(roomNameLive)),
-                                  <.div {
-                                    val isDisabled = roomNameLive.value.isEmpty || userName.value.isEmpty
-                                      <.button(
-                                        // if(lobby.value.roomMetadatas)
-                                        "Join",
-                                        ^.`type` := "submit",
-                                        ^.disabled := isDisabled,
-                                        (^.onClick --> enterRoom(isScheduled, roomNameLive.value, userName.value)).when(!isDisabled)
+                                val canEnter = roomNameLive.value.isEmpty || userName.value.isEmpty
+                                val enter = if(canEnter) enterRoom(isScheduled, roomNameLive.value, userName.value) else Callback.empty
+                                <.div(^.classSet1("card-body"))(
+                                  <.div(^.classSet1("input-group"))(
+                                    V.LiveTextField.String.modInput(
+                                      input = TagMod(
+                                        ^.classSet1("form-control"),
+                                        ^.onKeyDown ==> ((e: ReactKeyboardEvent) => if(e.keyCode == dom.ext.KeyCode.Enter) enter else Callback.empty)
+                                      ))(roomNameLive, placeholderOpt = Some("Room")
+                                    ),
+                                    <.div(^.classSet1("input-group-append"))(
+                                      <.button(^.classSet1("btn"))(
+                                       if(currentRooms.exists(_.name == roomNameLive.value)) "Join" else "Create",
+                                       ^.`type` := "button",
+                                       ^.disabled := !canEnter,
+                                       ^.onClick --> enter
                                       )
-                                  },
+                                    )
+                                  ),
                                   currentRooms.toVdomArray {
                                     case RoomMetadata(roomName, assignedParticipants, currentParticipants, status) =>
                                       val participantName = userName.value

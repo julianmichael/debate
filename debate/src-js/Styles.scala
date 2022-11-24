@@ -201,11 +201,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val debateContainer = style(
     addClassNames("container-fluid"),
-    // position.relative,
-    // margin.auto,
-    // padding(5 px),
-    // maxWidth(1200 px),
-    // height(100 vh),
+    height(100 %%),
     display.flex,
     flexDirection.column
   )
