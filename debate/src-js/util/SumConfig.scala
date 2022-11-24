@@ -1,4 +1,4 @@
-package debate
+package debate.util
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot

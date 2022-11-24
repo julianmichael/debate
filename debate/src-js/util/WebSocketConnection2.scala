@@ -1,4 +1,4 @@
-package debate
+package debate.util
 
 import scalajs.js.typedarray.ArrayBuffer
 

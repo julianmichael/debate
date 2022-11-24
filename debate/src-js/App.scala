@@ -2,9 +2,6 @@ package debate
 
 import annotation.unused
 
-// import jjm.implicits._
-
-// import scalajs.js
 import scalajs.js.typedarray.TypedArrayBuffer
 
 import org.scalajs.dom
@@ -21,26 +18,17 @@ import scalacss.ScalaCssReact._
 
 import monocle.macros._
 
-import cats.implicits._
-
 import boopickle.Default._
-
-// import org.scalajs.dom.ext.KeyCode
 
 import scala.util.Try
 
 import io.circe.generic.JsonCodec
 
-// import java.time.{Instant, ZoneId}
 import cats.Foldable
 import cats.Functor
-import debate.MainChannelRequest
+import cats.implicits._
 
-// @js.native
-// @JSGlobal("showdown.Converter")
-// class Converter extends js.Object {
-//   def makeHtml(text: String): String = js.native
-// }
+import debate.util._
 
 /** This exists to handle pre-tokenized source material. */
 @Lenses @JsonCodec case class DebateSetupRaw(
@@ -84,12 +72,10 @@ object App {
     new WebSocketConnection2[A, B](
       sendRequest = (socket, req) =>
         Callback {
-          // println(s"Sending $req");
           socket.send(Pickle.intoBytes(req))
         },
       readResponse = x => {
         val res = Unpickle[B].fromBytes(TypedArrayBuffer.wrap(x));
-        // println(s"Received $res");
         res
       }
     )
@@ -781,6 +767,8 @@ object App {
   }
 
   final def main(args: Array[String]): Unit = jQuery { () =>
+    // get permission for notifications. TODO: only add this in when I'm ready to actually use notifications
+    // dom.experimental.Notification.requestPermission(result => dom.console.log(result))
     setupUI()
   }
 }

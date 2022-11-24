@@ -1,4 +1,4 @@
-package debate
+package debate.util
 
 import jjm.ling.ISpan
 

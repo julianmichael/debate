@@ -35,6 +35,8 @@ import jjm.ui.LocalState
   
 import java.time.{Instant, ZoneId}
 
+import debate.util._
+
 class DebatePanel(
   S: Styles.type,
   V: jjm.ui.View
