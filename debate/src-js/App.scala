@@ -571,7 +571,7 @@ object App {
                                 )
                               ),
                               LocalString.make("") { roomNameLive =>
-                                val canEnter = roomNameLive.value.isEmpty || userName.value.isEmpty
+                                val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
                                 val enter = if(canEnter) enterRoom(isScheduled, roomNameLive.value, userName.value) else Callback.empty
                                 <.div(^.classSet1("card-body"))(
                                   <.div(^.classSet1("input-group"))(
@@ -592,10 +592,9 @@ object App {
                                   ),
                                   currentRooms.toVdomArray {
                                     case RoomMetadata(roomName, assignedParticipants, currentParticipants, status) =>
-                                      val participantName = userName.value
                                       val canEnterRoom =
-                                        participantName.nonEmpty && !currentParticipants
-                                          .contains(participantName)
+                                        userName.value.nonEmpty && !currentParticipants
+                                          .contains(userName.value)
                                       val statusStyle = {
                                         import RoomStatus._
                                         status match {
@@ -628,7 +627,7 @@ object App {
                                         (^.onClick --> enterRoom(
                                           isScheduled,
                                           roomName,
-                                          participantName
+                                          userName.value
                                         )).when(canEnterRoom)
                                       )
                                   }
