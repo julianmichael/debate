@@ -81,7 +81,23 @@ object App {
     )
   }
 
+  def boopickleSyncedState[A: Pickler] = {
+      // import scalajs.js.typedarray._
+      import DataConversions._
+      new SyncedState[A](
+        sendRequest = (socket, req) =>
+          Callback {
+            socket.send(Pickle.intoBytes(req))
+          },
+        readResponse = x => {
+          val res = Unpickle[A].fromBytes(TypedArrayBuffer.wrap(x));
+          res
+        }
+      )
+    }
+
   val DebateWebSocket = boopickleWebsocket[DebateState, DebateState]
+  val SyncedDebate = boopickleSyncedState[DebateState]
   def getDebateWebsocketUri(isScheduled: Boolean, roomName: String, participantId: String): String = {
     val prefix = if(isScheduled) "scheduled" else "open"
     s"$wsProtocol://${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
@@ -628,124 +644,117 @@ object App {
                 }
               )
             case Some(ConnectionSpec(isScheduled, roomName, userName)) =>
-              DebateRoomLocal.make(DebateState.init) { debateState =>
-                DebateWebSocket.make(
-                  getDebateWebsocketUri(isScheduled, roomName, userName),
-                  onOpen = _ => Callback(println("Chat socket opened.")),
-                  onMessage = (_, msg) => {
-                    debateState.setState(msg)
-                  }
-                ) {
-                  case DebateWebSocket.Disconnected(_, reason) =>
-                    <.div(S.loading)(
-                      """You've been disconnected. This is either due to a bug or the server
-                         restarting. Please refresh the page. Sorry about that.
-                      """ + reason
-                    )
-                  case DebateWebSocket.Connecting =>
-                    <.div(S.loading)("Connecting to debate data server...")
-                  case DebateWebSocket.Connected(sendState, _) =>
-                    val userId =
-                      debateState.value.participants.find(_.name == userName)
-                    val backgroundStyle = S.observerBg
+              SyncedDebate.make(getDebateWebsocketUri(isScheduled, roomName, userName)) {
+                case SyncedDebate.Disconnected(_, reason) =>
+                  <.div(S.loading)(
+                    """You've been disconnected. This is either due to a bug or the server
+                        restarting. Please refresh the page. Sorry about that.
+                    """ + reason
+                  )
+                case SyncedDebate.Connecting =>
+                  <.div(S.loading)("Connecting to debate data server...")
+                case SyncedDebate.Waiting(_) =>
+                  <.div(S.loading)("Waiting for debate data...")
+                case SyncedDebate.Connected(debateState) =>
+                  val userId =
+                    debateState.value.participants.find(_.name == userName)
+                  val backgroundStyle = S.observerBg
 
-                    <.div(S.debateContainer)(
-                      roleChoiceRow(
-                        userName,
-                        debateState.value,
-                        sendState,
-                        disconnect = connectionSpecOpt.setState(None)
-                      ),
-                      userInfoRow(roomName, userName, userId),
-                      debateState.value.debate match {
-                        case None =>
-                          userId.map(_.role) match {
-                            case Some(Facilitator) =>
-                              facilitatorSetup(debateState.value, sendState)
-                            case _ =>
-                              <.div(S.debateColumn)(
-                                "Waiting for a facilitator to set up the debate."
-                              )
-                          }
-                        case Some(debate) =>
-                          val setup = debate.setup
-                          def assumeRole(role: Role): Callback = {
-                            sendState(
-                              debateState.value.addParticipant(
-                                ParticipantId(userName, role)
-                              )
+                  <.div(S.debateContainer)(
+                    roleChoiceRow(
+                      userName,
+                      // debateState,
+                      debateState.value,
+                      debateState.setState(_),
+                      disconnect = connectionSpecOpt.setState(None)
+                    ),
+                    userInfoRow(roomName, userName, userId),
+                    debateState.value.debate match {
+                      case None =>
+                        userId.map(_.role) match {
+                          case Some(Facilitator) =>
+                            facilitatorSetup(debateState.value, debateState.setState(_))
+                          case _ =>
+                            <.div(S.debateColumn)(
+                              "Waiting for a facilitator to set up the debate."
                             )
-                          }
-                          val isCurrentJudge = userId
-                            .map(_.role)
-                            .collect { case Judge => true }
-                            .nonEmpty
-                          val questionBoxStyle =
-                            if (isCurrentJudge) S.questionBoxCurrent
-                            else S.questionBox
-                          <.div(S.debateColumn, backgroundStyle)(
-                            <.div(questionBoxStyle)(
-                              <.div(S.questionTitle)(
-                                <.span(S.questionLabel)("Question: "),
-                                setup.question
-                              ),
-                              <.div(S.judgesList)(
-                                "Judges: ",
-                                debateState.value.participants.collect {
-                                  case ParticipantId(name, Judge) =>
-                                    <.span(name)
-                                }.toVdomArray
-                              ),
-                              ^.onClick --> assumeRole(Judge)
-                            ),
-                            <.div(S.answerBoxesRow)(
-                              setup.answers.zipWithIndex.toVdomArray {
-                                case (answer, answerIndex) =>
-                                  val isCurrent = userId
-                                    .map(_.role)
-                                    .collect { case Debater(`answerIndex`) =>
-                                      true
-                                    }
-                                    .nonEmpty
-                                  val answerBoxStyle =
-                                    if (isCurrent) S.answerBoxCurrent
-                                    else S.answerBox
-                                  <.div(answerBoxStyle(answerIndex))(
-                                    <.div(S.answerTitle)(
-                                      s"${answerLetter(answerIndex)}. $answer"
-                                    ),
-                                    <.div(S.debatersList)(
-                                      "Debaters: ",
-                                      debateState.value.participants.collect {
-                                        case ParticipantId(
-                                              name,
-                                              Debater(`answerIndex`)
-                                            ) =>
-                                          <.span(name)
-                                      }.toVdomArray
-                                    ),
-                                    ^.onClick --> assumeRole(
-                                      Debater(answerIndex)
-                                    )
-                                  )
-                              }
-                            ),
-                            debatePanel(
-                              roomName,
-                              userId,
-                              setup,
-                              debate,
-                              (d: Debate) =>
-                                sendState(
-                                  DebateState.debate.set(Some(d))(
-                                    debateState.value
-                                  )
-                                )
+                        }
+                      case Some(debate) =>
+                        val setup = debate.setup
+                        def assumeRole(role: Role): Callback = {
+                          debateState.modState(
+                            _.addParticipant(
+                              ParticipantId(userName, role)
                             )
                           )
-                      }
-                    )
-                }
+                        }
+                        val isCurrentJudge = userId
+                          .map(_.role)
+                          .collect { case Judge => true }
+                          .nonEmpty
+                        val questionBoxStyle =
+                          if (isCurrentJudge) S.questionBoxCurrent
+                          else S.questionBox
+                        <.div(S.debateColumn, backgroundStyle)(
+                          <.div(questionBoxStyle)(
+                            <.div(S.questionTitle)(
+                              <.span(S.questionLabel)("Question: "),
+                              setup.question
+                            ),
+                            <.div(S.judgesList)(
+                              "Judges: ",
+                              debateState.value.participants.collect {
+                                case ParticipantId(name, Judge) =>
+                                  <.span(name)
+                              }.toVdomArray
+                            ),
+                            ^.onClick --> assumeRole(Judge)
+                          ),
+                          <.div(S.answerBoxesRow)(
+                            setup.answers.zipWithIndex.toVdomArray {
+                              case (answer, answerIndex) =>
+                                val isCurrent = userId
+                                  .map(_.role)
+                                  .collect { case Debater(`answerIndex`) =>
+                                    true
+                                  }
+                                  .nonEmpty
+                                val answerBoxStyle =
+                                  if (isCurrent) S.answerBoxCurrent
+                                  else S.answerBox
+                                <.div(answerBoxStyle(answerIndex))(
+                                  <.div(S.answerTitle)(
+                                    s"${answerLetter(answerIndex)}. $answer"
+                                  ),
+                                  <.div(S.debatersList)(
+                                    "Debaters: ",
+                                    debateState.value.participants.collect {
+                                      case ParticipantId(
+                                            name,
+                                            Debater(`answerIndex`)
+                                          ) =>
+                                        <.span(name)
+                                    }.toVdomArray
+                                  ),
+                                  ^.onClick --> assumeRole(
+                                    Debater(answerIndex)
+                                  )
+                                )
+                            }
+                          ),
+                          debatePanel(
+                            roomName,
+                            userId,
+                            setup,
+                            debate,
+                            (d: Debate) =>
+                              debateState
+                                .zoomStateL(DebateState.debate)
+                                .setState(Some(d))
+                          )
+                        )
+                    }
+                  )
               }
           }
         }
