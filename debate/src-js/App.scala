@@ -16,43 +16,15 @@ import japgolly.scalajs.react.MonocleReact._
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
-import monocle.macros._
-
 import boopickle.Default._
 
 import scala.util.Try
-
-import io.circe.generic.JsonCodec
 
 import cats.Foldable
 import cats.Functor
 import cats.implicits._
 
 import debate.util._
-
-/** This exists to handle pre-tokenized source material. */
-@Lenses @JsonCodec case class DebateSetupRaw(
-    rules: DebateRules,
-    sourceMaterial: String,
-    question: String,
-    answers: Vector[String],
-    roles: Map[DebateRole, String],
-    correctAnswerIndex: Int
-) {
-  def areAllRolesAssigned = {
-    roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
-  }
-}
-object DebateSetupRaw {
-  def init = DebateSetupRaw(
-    rules = DebateRules.default,
-    sourceMaterial = "Source material.",
-    question = "Question?",
-    answers = Vector("Answer 1", "Answer 2"),
-    roles = Map(),
-    correctAnswerIndex = 0
-  )
-}
 
 /** The main webapp. */
 object App {
@@ -147,13 +119,6 @@ object App {
   val LocalStringOpt = new LocalState[Option[String]]
   val LocalConnectionSpecOpt = new LocalState[Option[ConnectionSpec]]
   val LocalLobby = new LocalState[Lobby]
-  val DebateRoomLocal = new LocalState[DebateState]
-  val DebateSetupRawLocal = new LocalState[DebateSetupRaw]
-
-  val RoundTypeList =
-    ListConfig[DebateRoundType](DebateRoundType.SequentialSpeechesRound(500))
-  val RoundTypeConfig = SumConfig[DebateRoundType]()
-  val ScoringFunctionConfig = SumConfig[ScoringFunction]()
 
   val StringOptField = V.LiveTextField[Option[String]](
     x => Some(Option(x).filter(_.nonEmpty)),
@@ -168,6 +133,7 @@ object App {
   // val TurnTypeSpecSelect = V.Select[DebateRoundTypeSpec](_.toString)
 
   val debatePanel = new DebatePanel(S, V)
+  val facilitatorPanel = new FacilitatorPanel(S, V)
 
   /** Shows the user's ID. */
   def userInfoRow(roomName: String, name: String, idOpt: Option[ParticipantId]) = {
@@ -193,16 +159,15 @@ object App {
     */
   def roleChoiceRow(
       userName: String,
-      debate: DebateState,
-      sendState: DebateState => Callback,
+      debate: StateSnapshot[DebateState],
       disconnect: Callback
   ) = {
 
     def assumeRole(role: Role): Callback = {
-      sendState(debate.addParticipant(ParticipantId(userName, role)))
+      debate.modState(_.addParticipant(ParticipantId(userName, role)))
     }
     def facilitatorsDiv = {
-      val facilitators = debate.participants.collect {
+      val facilitators = debate.value.participants.collect {
         case ParticipantId(name, Facilitator) => name
       }
       val isCurrent = facilitators.contains(userName)
@@ -214,7 +179,7 @@ object App {
       )
     }
     def observersDiv = {
-      val observers = debate.participants.collect {
+      val observers = debate.value.participants.collect {
         case ParticipantId(name, Observer) => name
       }
       val isCurrent = observers.contains(userName)
@@ -240,234 +205,6 @@ object App {
         observersDiv,
         // downloadButton,
         disconnectButton
-      )
-    )
-  }
-
-  /** Config panel for setting a list of round types. */
-  def roundTypeSelect(
-      roundTypes: StateSnapshot[Vector[DebateRoundType]],
-      minItems: Int
-  ) = {
-    RoundTypeList(roundTypes, minItems) { (remove, roundType, _) =>
-      <.div( // (S.labeledInputRow)
-        <.span(S.inputRowItem)(remove, " "),
-        RoundTypeConfig(roundType)(
-          "Simultaneous Speeches" -> SumConfigOption(
-            DebateRoundType.SimultaneousSpeechesRound(500),
-            DebateRoundType.simultaneousSpeechesRound
-          ) { simulSpeeches =>
-            <.span(S.inputRowItem)(
-              <.span("Character limit"),
-              V.NumberField(
-                simulSpeeches.zoomStateL(
-                  DebateRoundType.SimultaneousSpeechesRound.charLimit
-                )
-              )
-            )
-          },
-          "Sequential Speeches" -> SumConfigOption(
-            DebateRoundType.SequentialSpeechesRound(500),
-            DebateRoundType.sequentialSpeechesRound
-          ) { seqSpeeches =>
-            <.span(S.inputRowItem)(
-              <.span("Character limit"),
-              V.NumberField(
-                seqSpeeches.zoomStateL(
-                  DebateRoundType.SequentialSpeechesRound.charLimit
-                )
-              )
-            )
-          },
-          "Judge Feedback" -> SumConfigOption(
-            DebateRoundType.JudgeFeedbackRound(true, 500),
-            DebateRoundType.judgeFeedbackRound
-          ) { judgeFeedback =>
-            <.span(S.inputRowItem)(
-              V.Checkbox(
-                judgeFeedback.zoomStateL(
-                  DebateRoundType.JudgeFeedbackRound.reportBeliefs
-                ),
-                "Report probabilities"
-              ),
-              <.span(
-                <.span("Character limit"),
-                V.NumberField(
-                  judgeFeedback.zoomStateL(
-                    DebateRoundType.JudgeFeedbackRound.charLimit
-                  )
-                )
-              )
-            )
-          }
-        )
-      )
-    }
-  }
-
-  /** Config panel for facilitator to set the rules of the debate. */
-  def facilitatorSetup(
-      debate: DebateState,
-      sendState: DebateState => Callback
-  ) = DebateSetupRawLocal.make(DebateSetupRaw.init) { setupRaw =>
-    val answers = setupRaw.value.answers
-    <.div(S.debateColumn)(
-      <.form(
-        ^.onSubmit ==> ((e: ReactEvent) => {
-          e.preventDefault();
-          val setup = DebateSetup(
-            setupRaw.value.rules,
-            bigTokenize(setupRaw.value.sourceMaterial),
-            setupRaw.value.question,
-            setupRaw.value.answers.filter(_.nonEmpty),
-            setupRaw.value.correctAnswerIndex,
-            setupRaw.value.roles,
-            System.currentTimeMillis()
-          )
-          sendState(
-            DebateState.debate
-              .set(Some(Debate(setup, Vector())))(debate)
-          )
-        }),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Opening Rounds"),
-          roundTypeSelect(
-            setupRaw.zoomStateL(
-              DebateSetupRaw.rules.composeLens(DebateRules.fixedOpening)
-            ),
-            0
-          )
-        ),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Repeated Rounds"),
-          roundTypeSelect(
-            setupRaw.zoomStateL(
-              DebateSetupRaw.rules.composeLens(DebateRules.repeatingStructure)
-            ),
-            1
-          )
-        ),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Judge Scoring Function"),
-          ScoringFunctionConfig(
-            setupRaw.zoomStateL(
-              DebateSetupRaw.rules.composeLens(DebateRules.scoringFunction)
-            )
-          )(
-            "Spherical Score" -> SumConfigOption(
-              ScoringFunction.SphericalScoreWithLinearPenalty(3, 1),
-              ScoringFunction.sphericalScoreWithLinearPenalty
-            ) { sphericalScore =>
-              <.span(S.inputRowItem)(
-                V.LiveTextField.Double(
-                  sphericalScore.zoomStateL(
-                    ScoringFunction.SphericalScoreWithLinearPenalty.baseCoefficient
-                  ),
-                  Some("Base coefficient")
-                ),
-                V.LiveTextField.Double(
-                  sphericalScore.zoomStateL(
-                    ScoringFunction.SphericalScoreWithLinearPenalty.perTurnPenalty
-                  ),
-                  Some("Per turn penalty")
-                )
-              )
-            },
-            "Quadratic Score" -> SumConfigOption(
-              ScoringFunction.QuadraticScoreWithLinearPenalty(3, 1),
-              ScoringFunction.quadraticScoreWithLinearPenalty
-            ) { quadraticScore =>
-              <.span(S.inputRowItem)(
-                V.LiveTextField.Double(
-                  quadraticScore.zoomStateL(
-                    ScoringFunction.QuadraticScoreWithLinearPenalty.baseCoefficient
-                  ),
-                  Some("Base coefficient")
-                ),
-                V.LiveTextField.Double(
-                  quadraticScore.zoomStateL(
-                    ScoringFunction.QuadraticScoreWithLinearPenalty.perTurnPenalty
-                  ),
-                  Some("Per turn penalty")
-                )
-              )
-            },
-            "Log Score" -> SumConfigOption(
-              ScoringFunction.LogScoreWithLinearPenalty(3.0, 1.0, 2.0, 1.0),
-              ScoringFunction.logScoreWithLinearPenalty
-            ) { logScore =>
-              <.span(S.inputRowItem)(
-                V.LiveTextField.Double(
-                  logScore.zoomStateL(
-                    ScoringFunction.LogScoreWithLinearPenalty.baseCoefficient
-                  ),
-                  Some("Base coefficient")
-                ),
-                V.LiveTextField.Double(
-                  logScore.zoomStateL(
-                    ScoringFunction.LogScoreWithLinearPenalty.constant
-                  ),
-                  Some("Constant")
-                ),
-                V.LiveTextField.Double(
-                  logScore.zoomStateL(
-                    ScoringFunction.LogScoreWithLinearPenalty.logBase
-                  ),
-                  Some("Log base")
-                ),
-                V.LiveTextField.Double(
-                  logScore.zoomStateL(
-                    ScoringFunction.LogScoreWithLinearPenalty.perTurnPenalty
-                  ),
-                  Some("Per turn penalty")
-                )
-              )
-            }
-          )
-          // roundTypeSelect(setupRaw.zoomStateL(DebateSetupRaw.rules.composeLens(DebateRules.repeatingStructure)), 1),
-        ),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Source Material"),
-          V.LiveTextArea.String
-            .mod(textarea = TagMod(S.fullWidthInput, ^.rows := 10))(
-              setupRaw.zoomStateL(DebateSetupRaw.sourceMaterial),
-              placeholderOpt = Some("Paste source material here")
-            )
-        ),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Question"),
-          V.LiveTextField.String.mod(input = S.fullWidthInput)(
-            setupRaw.zoomStateL(DebateSetupRaw.question)
-          )
-        ),
-        <.div(S.labeledInputRow)(
-          <.span(S.inputLabel)("Answers"),
-          ListConfig.String(setupRaw.zoomStateL(DebateSetupRaw.answers), 1) {
-            (remove, answer, index) =>
-              <.div(S.labeledInputRow)(
-                <.span(S.answerLabel)(remove, " ", s"${answerLetter(index)}. "),
-                V.LiveTextField.String.mod(input = S.fullWidthInput)(answer),
-                <.input(S.correctAnswerRadio)(
-                  ^.`type` := "radio",
-                  ^.name := "correctAnswerIndex",
-                  ^.value := index,
-                  ^.checked := setupRaw.value.correctAnswerIndex == index,
-                  ^.onChange --> setupRaw
-                    .zoomStateL(DebateSetupRaw.correctAnswerIndex)
-                    .setState(index)
-                ),
-                <.span(S.inputRowItem)(
-                  "Correct answer",
-                  S.hidden.when(setupRaw.value.correctAnswerIndex != index)
-                )
-              )
-          }
-        ),
-        <.button(
-          "Start the debate!",
-          ^.`type` := "submit",
-          ^.disabled := answers.filter(_.nonEmpty).size < 2
-        )
       )
     )
   }
@@ -682,9 +419,7 @@ object App {
                   <.div(S.debateContainer)(
                     roleChoiceRow(
                       userName,
-                      // debateState,
-                      debateState.value,
-                      debateState.setState(_),
+                      debateState,
                       disconnect = connectionSpecOpt.setState(None)
                     ),
                     userInfoRow(roomName, userName, userId),
@@ -692,7 +427,7 @@ object App {
                       case None =>
                         userId.map(_.role) match {
                           case Some(Facilitator) =>
-                            facilitatorSetup(debateState.value, debateState.setState(_))
+                            facilitatorPanel(debateState)
                           case _ =>
                             <.div(S.debateColumn)(
                               "Waiting for a facilitator to set up the debate."
