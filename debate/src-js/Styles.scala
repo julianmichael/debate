@@ -143,6 +143,12 @@ object Styles extends jjm.ui.View.Styles {
       margin(spaceyPadding)
     }
   )
+  val spaceySubcontainer = style(
+    margin(0 em),
+    unsafeChild("> *") {
+      margin(spaceyPadding)
+    }
+  )
 
   import scalacss.internal.Attr
   // object rowGap extends TypedAttrT1[Len] with ZeroLit {
@@ -222,15 +228,11 @@ object Styles extends jjm.ui.View.Styles {
     // padding(mainHalfPadding),
   )
 
-  val disconnectButton = style(
-    margin(mainHalfPadding),
-    padding(2 px)
-  )
-
   val optionBox = style(
+    flexBasis := "0",
     flexGrow(1),
-    height(50 px),
-    margin(mainHalfPadding),
+    height(60 px),
+    // margin(mainHalfPadding),
     padding(2 px),
     borderStyle.solid,
     borderWidth(1 px),
@@ -243,12 +245,23 @@ object Styles extends jjm.ui.View.Styles {
     fontWeight.bold
   )
 
+  val judgeColor = darkgreen
+  val judgeColorLight = green
+
   val answerColors = Vector(
-    darkblue,
-    darkred,
-    rebeccapurple,
-    darkorange,
-    darkturquoise
+      darkblue,
+      darkred,
+      rebeccapurple,
+      darkorange,
+      darkturquoise
+    )
+
+  val answerColorsLight = Vector(
+    lightblue,
+    lightpink,
+    lightsteelblue,
+    lightgoldenrodyellow,
+    lightseagreen
   )
 
   val debateWidthOffset = styleF.int(0 to 4)(i =>
@@ -262,6 +275,10 @@ object Styles extends jjm.ui.View.Styles {
     backgroundColor.coral
   )
 
+  val judgeFeedbackBg = style(
+      backgroundColor(judgeColor),
+      color.white
+    )
   val answerBg = styleF.int(0 to 4)(i =>
     styleS(
       backgroundColor(answerColors(i)),
@@ -279,13 +296,20 @@ object Styles extends jjm.ui.View.Styles {
     color.black
   )
   val judgeBg = style(
-    backgroundColor.green,
+    backgroundColor(judgeColorLight),
     color.white
   )
+
   val judgeDecision = style(
     borderStyle.solid,
     borderWidth(2 px),
     borderColor.red
+  )
+  val debaterBg = styleF.int(0 to 4)(i =>
+    styleS(
+      backgroundColor(answerColorsLight(i)),
+      color.white
+    )
   )
 
   val answerOutline = styleF.int(0 to 4)(i =>
@@ -314,11 +338,11 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val debateColumn = style(
-    position.relative,
+    // position.relative,
     // margin.auto,
     padding(10 px),
-    width(100 %%),
-    height(100 %%),
+    // width(100 %%),
+    // height(100 %%),
     display.flex,
     flexDirection.column,
     borderRadius(commonBorderRadius),
@@ -327,20 +351,20 @@ object Styles extends jjm.ui.View.Styles {
 
   val inDebateRoleBox = style(
     backgroundColor.white,
-    width(100 %%),
+    // width(100 %%),
     fontSize(14 pt),
     textAlign.left,
     &.hover(
       filter := "brightness(85%)"
     ),
     borderRadius(commonBorderRadius),
-    margin(mainHalfPadding),
+    // margin(mainHalfPadding),
     padding(mainHalfPadding)
   )
 
   val questionBox = style(
     inDebateRoleBox,
-    color.darkgreen
+    color(judgeColor)
     // flexGrow(1),
     // display.flex,
     // flexDirection.row,
@@ -348,7 +372,7 @@ object Styles extends jjm.ui.View.Styles {
   val questionBoxCurrent = style(
     inDebateRoleBox,
     color.white,
-    backgroundColor.darkgreen
+    backgroundColor(judgeColor)
     // flexGrow(1),
     // display.flex,
     // flexDirection.row,
@@ -374,6 +398,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val answerBox = styleF.int(0 to 4)(i =>
     styleS(
+      flexBasis := "0",
       flexGrow(1),
       inDebateRoleBox,
       color(answerColors(i))
@@ -433,12 +458,12 @@ object Styles extends jjm.ui.View.Styles {
     // padding(mainHalfPadding)
   )
 
-  val userInfoRow = style(
-    // flexGrow(1),
-    width(100 %%),
-    margin(mainHalfPadding)
-    // padding(mainHalfPadding)
-  )
+  // val userInfoRow = style(
+  //   // flexGrow(1),
+  //   width(100 %%),
+  //   margin(mainHalfPadding)
+  //   // padding(mainHalfPadding)
+  // )
 
   val labeledInputRow = style(
     // flexGrow(1),
@@ -534,7 +559,7 @@ object Styles extends jjm.ui.View.Styles {
     flexDirection.column,
     backgroundColor.white,
     borderRadius(commonBorderRadius),
-    margin(mainHalfPadding),
+    // margin(mainHalfPadding),
     position.relative,
     overflow.hidden
   )

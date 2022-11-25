@@ -135,33 +135,18 @@ object App {
   val debatePanel = new DebatePanel(S, V)
   val facilitatorPanel = new FacilitatorPanel(S, V)
 
-  /** Shows the user's ID. */
-  def userInfoRow(roomName: String, name: String, idOpt: Option[ParticipantId]) = {
-    <.div(S.userInfoRow)(
-      <.span(S.userInfoMessage)(
-        "You are in room ",
-        <.strong(roomName),
-        ", your name is ",
-        <.em(name),
-        idOpt.map(_.role) match {
-          case None => <.span(", and you have no role!")
-          case Some(role) =>
-            <.span(
-              ", and your role is ",
-              <.strong(role.toString)
-            ) // TODO stylize role
-        }
-      )
-    )
-  }
-
   /** Top row showing non-debating roles (user can click one to change roles).
     */
-  def roleChoiceRow(
+  def headerRow(
       userName: String,
+      roomName: String,
       debate: StateSnapshot[DebateState],
       disconnect: Callback
   ) = {
+
+    // val roleOpt = debate.value.participants
+    //   .find(_.name == userName)
+    //   .map(_.role)
 
     def assumeRole(role: Role): Callback = {
       debate.modState(_.addParticipant(ParticipantId(userName, role)))
@@ -189,22 +174,16 @@ object App {
         ^.onClick --> assumeRole(Observer)
       )
     }
-    // def downloadButton = <.a(
-    //   ^.href := s"/download/$roomName",
-    //   ^.target := "_blank",
-    //   <.button(S.disconnectButton)("Download")
-    // )
-    def disconnectButton = <.button(S.disconnectButton)(
-      "Disconnect",
-      ^.onClick --> disconnect
-    )
 
-    <.div(S.roomRolesRow)(
-      <.div(S.roomRolesRow)(
-        facilitatorsDiv,
-        observersDiv,
-        // downloadButton,
-        disconnectButton
+    <.div(^.classSet1("row"), S.spaceySubcontainer)(
+      <.div(
+        <.div(<.strong("Name: "), userName),
+        <.div(<.strong("Room: "), roomName)
+      ),
+      facilitatorsDiv,
+      observersDiv,
+      <.button(^.classSet1("btn"))(
+        "Disconnect", ^.onClick --> disconnect
       )
     )
   }
@@ -217,169 +196,167 @@ object App {
         LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
           connectionSpecOpt.value match {
             case None =>
-              <.div(S.lobbyContainer) (
-                LocalLobby.make(Lobby.init) { lobby =>
-                  MainWebSocket.make(
-                    mainWebsocketUri,
-                    onOpen = _ => Callback(println("Main socket opened.")),
-                    onMessage = (_, msg) => lobby.setState(msg)
-                  ) {
-                    case MainWebSocket.Disconnected(_, reason) =>
-                      <.div(S.loading)(
-                        """You've been disconnected. This is probably either because of a bug or
-                           because the server is restarting. Please refresh the page.
-                           Sorry about that.
-                        """ + reason
+              LocalLobby.make(Lobby.init) { lobby =>
+                MainWebSocket.make(
+                  mainWebsocketUri,
+                  onOpen = _ => Callback(println("Main socket opened.")),
+                  onMessage = (_, msg) => lobby.setState(msg)
+                ) {
+                  case MainWebSocket.Disconnected(_, reason) =>
+                    <.div(S.loading)(
+                      """You've been disconnected. This is probably either because of a bug or
+                          because the server is restarting. Please refresh the page.
+                          Sorry about that.
+                      """ + reason
+                    )
+                  case MainWebSocket.Connecting =>
+                    <.div(S.loading)("Connecting to metadata server...")
+                  case MainWebSocket.Connected(sendToMainChannel, _) =>
+                    def enterRoom(isScheduled: Boolean, roomName: String, participantName: String) =
+                      connectionSpecOpt.setState(
+                        Some(ConnectionSpec(isScheduled, roomName, participantName))
                       )
-                    case MainWebSocket.Connecting =>
-                      <.div(S.loading)("Connecting to metadata server...")
-                    case MainWebSocket.Connected(sendToMainChannel, _) =>
-                      def enterRoom(isScheduled: Boolean, roomName: String, participantName: String) =
-                        connectionSpecOpt.setState(
-                          Some(ConnectionSpec(isScheduled, roomName, participantName))
-                        )
-                      // TODO change page title? maybe do this on mount for the debate room component instead
-                      // >> Callback(dom.window.document.title = makePageTitle(roomName)) >>
-                      // Callback(dom.window.history.replaceState("", makePageTitle(roomName), roomName))
-                      // roomName.setState(roomNameLive.value)
+                    // TODO change page title? maybe do this on mount for the debate room component instead
+                    // >> Callback(dom.window.document.title = makePageTitle(roomName)) >>
+                    // Callback(dom.window.history.replaceState("", makePageTitle(roomName), roomName))
+                    // roomName.setState(roomNameLive.value)
 
-                      val noProfileString = "(select profile)"
-                      val profileCookieId = "debate-profile"
+                    val noProfileString = "(select profile)"
+                    val profileCookieId = "debate-profile"
 
-                      LocalString.make(initialValue = getCookie(profileCookieId).getOrElse("")) { userName =>
-                        <.div(S.lobbyContainer, S.spaceyContainer)(
-                          <.div(^.classSet1("form-group row"))(
-                            <.label(^.classSet1("col-sm-2 col-form-label"))("Profile:"),
-                            V.Select.String.modFull(^.classSet1("col-sm-10 custom-select"))(
-                              choices =
-                                noProfileString +: lobby.value.trackedDebaters.toList.sorted,
-                              curChoice =
-                                if (
-                                  lobby.value.trackedDebaters
-                                    .contains(userName.value)
-                                ) {
-                                  userName.value
-                                } else noProfileString,
-                              setChoice = (name: String) => {
-                                val adjustedName = if(name == noProfileString) "" else name
-                                userName.setState(adjustedName) >> Callback(setCookie(profileCookieId, adjustedName, expires = 5))
-                              }
-                            )
-                          ),
-                          V.LiveTextField.String.mod(
-                            span = TagMod(^.classSet1("form-group row"), ^.display.none),
-                            label = ^.classSet1("col-sm-2 col-form-label"),
-                            input = ^.classSet1("col-sm-10 form-control")
-                          )(userName, labelOpt = Some("Name: ")),
-                          <.div(^.classSet1("form-group row"), ^.display.none) {
-                            val name = userName.value
-                            val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
-                            <.button(^.classSet1("btn btn-primary btn-block"))(
-                              "Create profile",
-                              ^.disabled := isDisabled,
-                              (^.onClick --> sendToMainChannel(
-                                RegisterDebater(userName.value)
-                              )).when(!isDisabled),
-                            )
-                          },
-                          LocalLobbyTab.make(LobbyTab.MyCurrentDebates) { lobbyTab =>
-                            import LobbyTab._
-                            val allMyDebates = lobby.value.scheduledRooms
-                              .filter(_.assignedParticipants.contains(userName.value))
-                            val myCurrentDebates = allMyDebates.filterNot(_.status.isComplete)
-                            val isScheduled = lobbyTab.value match {
-                              case OpenDebates => false
-                              case _ => true
+                    LocalString.make(initialValue = getCookie(profileCookieId).getOrElse("")) { userName =>
+                      <.div(S.lobbyContainer, S.spaceyContainer)(
+                        <.div(^.classSet1("form-group row"))(
+                          <.label(^.classSet1("col-sm-2 col-form-label"))("Profile:"),
+                          V.Select.String.modFull(^.classSet1("col-sm-10 custom-select"))(
+                            choices =
+                              noProfileString +: lobby.value.trackedDebaters.toList.sorted,
+                            curChoice =
+                              if (
+                                lobby.value.trackedDebaters
+                                  .contains(userName.value)
+                              ) {
+                                userName.value
+                              } else noProfileString,
+                            setChoice = (name: String) => {
+                              val adjustedName = if(name == noProfileString) "" else name
+                              userName.setState(adjustedName) >> Callback(setCookie(profileCookieId, adjustedName, expires = 5))
                             }
-                            val currentRooms = lobbyTab.value match {
-                              case MyCurrentDebates => myCurrentDebates
-                              case AllMyDebates => allMyDebates
-                              case OpenDebates => lobby.value.openRooms
-                            }
-                            <.div(^.classSet1("card"), ^.textAlign.center)(
-                              <.div(^.classSet1("card-header"))(
-                                <.ul(^.classSet1("nav nav-fill nav-tabs card-header-tabs"))(
-                                  List(MyCurrentDebates, AllMyDebates, OpenDebates).toVdomArray(tab =>
-                                    <.li(^.classSet1("nav-item"))(
-                                      <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
-                                        ^.href := "#",
-                                        ^.onClick --> lobbyTab.setState(tab),
-                                        tab.toString,
-                                      )
+                          )
+                        ),
+                        V.LiveTextField.String.mod(
+                          span = TagMod(^.classSet1("form-group row"), ^.display.none),
+                          label = ^.classSet1("col-sm-2 col-form-label"),
+                          input = ^.classSet1("col-sm-10 form-control")
+                        )(userName, labelOpt = Some("Name: ")),
+                        <.div(^.classSet1("form-group row"), ^.display.none) {
+                          val name = userName.value
+                          val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
+                          <.button(^.classSet1("btn btn-primary btn-block"))(
+                            "Create profile",
+                            ^.disabled := isDisabled,
+                            (^.onClick --> sendToMainChannel(
+                              RegisterDebater(userName.value)
+                            )).when(!isDisabled),
+                          )
+                        },
+                        LocalLobbyTab.make(LobbyTab.MyCurrentDebates) { lobbyTab =>
+                          import LobbyTab._
+                          val allMyDebates = lobby.value.scheduledRooms
+                            .filter(_.assignedParticipants.contains(userName.value))
+                          val myCurrentDebates = allMyDebates.filterNot(_.status.isComplete)
+                          val isScheduled = lobbyTab.value match {
+                            case OpenDebates => false
+                            case _ => true
+                          }
+                          val currentRooms = lobbyTab.value match {
+                            case MyCurrentDebates => myCurrentDebates
+                            case AllMyDebates => allMyDebates
+                            case OpenDebates => lobby.value.openRooms
+                          }
+                          <.div(^.classSet1("card"), ^.textAlign.center)(
+                            <.div(^.classSet1("card-header"))(
+                              <.ul(^.classSet1("nav nav-fill nav-tabs card-header-tabs"))(
+                                List(MyCurrentDebates, AllMyDebates, OpenDebates).toVdomArray(tab =>
+                                  <.li(^.classSet1("nav-item"))(
+                                    <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
+                                      ^.href := "#",
+                                      ^.onClick --> lobbyTab.setState(tab),
+                                      tab.toString,
                                     )
                                   )
                                 )
-                              ),
-                              LocalString.make("") { roomNameLive =>
-                                val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
-                                val enter = if(canEnter) enterRoom(isScheduled, roomNameLive.value, userName.value) else Callback.empty
-                                <.div(^.classSet1("card-body"))(
-                                  <.div(^.classSet1("input-group"))(
-                                    V.LiveTextField.String.modInput(
-                                      input = TagMod(
-                                        ^.classSet1("form-control"),
-                                        ^.onKeyDown ==> ((e: ReactKeyboardEvent) => if(e.keyCode == dom.ext.KeyCode.Enter) enter else Callback.empty)
-                                      ))(roomNameLive, placeholderOpt = Some("Room")
-                                    ),
-                                    <.div(^.classSet1("input-group-append"))(
-                                      <.button(^.classSet1("btn btn-primary"))(
-                                       if(currentRooms.exists(_.name == roomNameLive.value)) "Join" else "Create",
-                                       ^.`type` := "button",
-                                       ^.disabled := !canEnter,
-                                       ^.onClick --> enter
-                                      )
-                                    )
+                              )
+                            ),
+                            LocalString.make("") { roomNameLive =>
+                              val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
+                              val enter = if(canEnter) enterRoom(isScheduled, roomNameLive.value, userName.value) else Callback.empty
+                              <.div(^.classSet1("card-body"))(
+                                <.div(^.classSet1("input-group"))(
+                                  V.LiveTextField.String.modInput(
+                                    input = TagMod(
+                                      ^.classSet1("form-control"),
+                                      ^.onKeyDown ==> ((e: ReactKeyboardEvent) => if(e.keyCode == dom.ext.KeyCode.Enter) enter else Callback.empty)
+                                    ))(roomNameLive, placeholderOpt = Some("Room")
                                   ),
-                                  currentRooms.toVdomArray {
-                                    case RoomMetadata(roomName, assignedParticipants, currentParticipants, status) =>
-                                      val canEnterRoom =
-                                        userName.value.nonEmpty && !currentParticipants
-                                          .contains(userName.value)
-                                      val statusStyle = {
-                                        import RoomStatus._
-                                        status match {
-                                          case SettingUp  => S.settingUpStatusLabel
-                                          case InProgress => S.inProgressStatusLabel
-                                          case Complete   => S.completeStatusLabel
-                                        }
+                                  <.div(^.classSet1("input-group-append"))(
+                                    <.button(^.classSet1("btn btn-primary"))(
+                                      if(currentRooms.exists(_.name == roomNameLive.value)) "Join" else "Create",
+                                      ^.`type` := "button",
+                                      ^.disabled := !canEnter,
+                                      ^.onClick --> enter
+                                    )
+                                  )
+                                ),
+                                currentRooms.toVdomArray {
+                                  case RoomMetadata(roomName, assignedParticipants, currentParticipants, status) =>
+                                    val canEnterRoom =
+                                      userName.value.nonEmpty && !currentParticipants
+                                        .contains(userName.value)
+                                    val statusStyle = {
+                                      import RoomStatus._
+                                      status match {
+                                        case SettingUp  => S.settingUpStatusLabel
+                                        case InProgress => S.inProgressStatusLabel
+                                        case Complete   => S.completeStatusLabel
                                       }
-                                      val selectableStyle =
-                                        if (canEnterRoom) S.simpleSelectable
-                                        else S.simpleUnselectable
-                                      <.div(S.optionBox, selectableStyle)(
-                                        <.div(S.optionTitle)(
-                                          roomName,
-                                          " ",
-                                          <.span(statusStyle)(s"($status)")
-                                        ),
-                                        <.div(
-                                          <.strong("Assigned: "),
-                                          commaSeparatedSpans(
-                                            assignedParticipants.toList.sorted
-                                          ).toVdomArray
-                                        ).when(assignedParticipants.nonEmpty),
-                                        <.div(
-                                          <.strong("Present: "),
-                                          commaSeparatedSpans(
-                                            currentParticipants.toList.sorted
-                                          ).toVdomArray
-                                        ).when(currentParticipants.nonEmpty),
-                                        (^.onClick --> enterRoom(
-                                          isScheduled,
-                                          roomName,
-                                          userName.value
-                                        )).when(canEnterRoom)
-                                      )
-                                  }
-                                )
-                              }
-                            )
-                          }
-                        )
-                      }
-                  }
+                                    }
+                                    val selectableStyle =
+                                      if (canEnterRoom) S.simpleSelectable
+                                      else S.simpleUnselectable
+                                    <.div(S.optionBox, selectableStyle)(
+                                      <.div(S.optionTitle)(
+                                        roomName,
+                                        " ",
+                                        <.span(statusStyle)(s"($status)")
+                                      ),
+                                      <.div(
+                                        <.strong("Assigned: "),
+                                        commaSeparatedSpans(
+                                          assignedParticipants.toList.sorted
+                                        ).toVdomArray
+                                      ).when(assignedParticipants.nonEmpty),
+                                      <.div(
+                                        <.strong("Present: "),
+                                        commaSeparatedSpans(
+                                          currentParticipants.toList.sorted
+                                        ).toVdomArray
+                                      ).when(currentParticipants.nonEmpty),
+                                      (^.onClick --> enterRoom(
+                                        isScheduled,
+                                        roomName,
+                                        userName.value
+                                      )).when(canEnterRoom)
+                                    )
+                                }
+                              )
+                            }
+                          )
+                        }
+                      )
+                    }
                 }
-              )
+              }
             case Some(ConnectionSpec(isScheduled, roomName, userName)) =>
               SyncedDebate.make(
                 getDebateWebsocketUri(isScheduled, roomName, userName),
@@ -414,15 +391,26 @@ object App {
                 case SyncedDebate.Connected(debateState) =>
                   val userId =
                     debateState.value.participants.find(_.name == userName)
+
+                  // val backgroundStyle = userId.map(_.role).fold(S.noRoleBg) {
+                  //   case Facilitator => S.facilitatorBg
+                  //   case Observer => S.observerBg
+                  //   case Judge => S.judgeBg
+                  //   case Debater(i) => S.debaterBg(i)
+                  // }
+
+                  // looks really bad to use the others haha.
+                  // Might have to think through colors (or just do a redesign)
                   val backgroundStyle = S.observerBg
 
-                  <.div(S.debateContainer)(
-                    roleChoiceRow(
+                  <.div(S.debateContainer, S.spaceyContainer)(
+                    headerRow(
                       userName,
+                      roomName,
                       debateState,
                       disconnect = connectionSpecOpt.setState(None)
                     ),
-                    userInfoRow(roomName, userName, userId),
+                    // userInfoRow(roomName, userName, userId),
                     debateState.value.debate match {
                       case None =>
                         userId.map(_.role) match {
@@ -449,7 +437,7 @@ object App {
                         val questionBoxStyle =
                           if (isCurrentJudge) S.questionBoxCurrent
                           else S.questionBox
-                        <.div(S.debateColumn, backgroundStyle)(
+                        <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
                           <.div(questionBoxStyle)(
                             <.div(S.questionTitle)(
                               <.span(S.questionLabel)("Question: "),
@@ -464,7 +452,7 @@ object App {
                             ),
                             ^.onClick --> assumeRole(Judge)
                           ),
-                          <.div(S.answerBoxesRow)(
+                          <.div(S.answerBoxesRow, S.spaceySubcontainer)(
                             setup.answers.zipWithIndex.toVdomArray {
                               case (answer, answerIndex) =>
                                 val isCurrent = userId

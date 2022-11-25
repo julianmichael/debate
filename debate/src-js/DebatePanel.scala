@@ -343,7 +343,7 @@ class DebatePanel(
               val speechStyle = speech.speaker.role match {
                 case Facilitator => TagMod(S.facilitatorBg)
                 case Observer    => TagMod(S.observerBg)
-                case Judge       => TagMod(S.judgeBg)
+                case Judge       => TagMod(S.judgeFeedbackBg)
                 case Debater(index) =>
                   TagMod(S.answerBg(index), S.debateWidthOffset(index))
               }
@@ -354,7 +354,7 @@ class DebatePanel(
               case Facilitator => TagMod(S.facilitatorBg)
               case Observer    => TagMod(S.observerBg)
               case Judge =>
-                TagMod(S.judgeBg, S.judgeDecision.when(endsDebate))
+                TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
               case Debater(index) =>
                 TagMod(S.answerBg(index), S.debateWidthOffset(index))
             }
@@ -458,7 +458,7 @@ class DebatePanel(
         span -> getSpanColorForRole(id.role)
       } ++ curMessageSpans.value.toVector.map(_ -> curHighlightColor)
 
-      <.div(S.debatePanel)(
+      <.div(S.debatePanel, S.spaceySubcontainer)(
         <.div(S.debateSubpanel)(
           SpanSelection2.make(
             true,
