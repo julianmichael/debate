@@ -140,16 +140,23 @@ object DebateRound
   */
 sealed trait DebateTurnType {
   def charLimit: Int
+  def rolesRemaining: Set[Role]
 }
 object DebateTurnType {
   case class SimultaneousSpeechesTurn(
       remainingDebaters: Set[Int],
       charLimit: Int
-  ) extends DebateTurnType
+  ) extends DebateTurnType {
+    def rolesRemaining = remainingDebaters.map(Debater(_))
+  }
   case class DebaterSpeechTurn(debater: Int, charLimit: Int)
-      extends DebateTurnType
+      extends DebateTurnType {
+    def rolesRemaining = Set(Debater(debater))
+  }
   case class JudgeFeedbackTurn(reportBeliefs: Boolean, charLimit: Int)
-      extends DebateTurnType
+      extends DebateTurnType {
+    def rolesRemaining = Set(Judge)
+  }
 }
 
 /** Info needed to set up a debate; what's set by the facilitator.

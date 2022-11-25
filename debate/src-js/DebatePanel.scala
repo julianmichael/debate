@@ -229,22 +229,12 @@ class DebatePanel(
     }
 
     val currentTurnOrResult = debate.currentTurn
-    val isUsersTurn = currentTurnOrResult.exists {
-      case DebateTurnType.SimultaneousSpeechesTurn(_, _) =>
-        role.collect { case Debater(_) => () }.nonEmpty
-      case DebateTurnType.DebaterSpeechTurn(curSpeaker, _) =>
-        role.collect { case Debater(`curSpeaker`) => () }.nonEmpty
-      case DebateTurnType.JudgeFeedbackTurn(_, _) =>
-        role.collect { case Judge => () }.nonEmpty
-    }
-    val charLimit = currentTurnOrResult.fold(_ => -1, _.charLimit)
-
-    isUsersTurn && (
-      role match {
-        case None | Some(Observer) => false
-        case _                     => true
-      }
+    val isUsersTurn = role.exists(r =>
+      currentTurnOrResult
+        .unorderedFoldMap(_.rolesRemaining)
+        .contains(r)
     )
+    val charLimit = currentTurnOrResult.fold(_ => -1, _.charLimit)
 
     def makeSimpleVdomFromText(text: String) = {
       <.span(

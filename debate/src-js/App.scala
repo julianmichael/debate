@@ -644,7 +644,26 @@ object App {
                 }
               )
             case Some(ConnectionSpec(isScheduled, roomName, userName)) =>
-              SyncedDebate.make(getDebateWebsocketUri(isScheduled, roomName, userName)) {
+              SyncedDebate.make(
+                getDebateWebsocketUri(isScheduled, roomName, userName),
+                didUpdate = (prevDebate, curDebate) => {
+                  curDebate.participants
+                    .find(_.name == userName)
+                    .map(_.role)
+                    .fold(Callback.empty) { role =>
+                      def getRoles(debate: DebateState) = debate.debate.foldMap(
+                        _.currentTurn.foldMap(_.rolesRemaining)
+                      )
+                      val newRoles = getRoles(curDebate) -- getRoles(prevDebate)
+                      if(newRoles.contains(role)) {
+                        Callback {
+                          val n = new dom.experimental.Notification("It's your turn!")
+                          scalajs.js.timers.setTimeout(7000)(n.close())
+                        }
+                      } else Callback.empty
+                  }
+                }
+              ) {
                 case SyncedDebate.Disconnected(_, reason) =>
                   <.div(S.loading)(
                     """You've been disconnected. This is either due to a bug or the server
@@ -777,7 +796,7 @@ object App {
 
   final def main(args: Array[String]): Unit = jQuery { () =>
     // get permission for notifications. TODO: only add this in when I'm ready to actually use notifications
-    // dom.experimental.Notification.requestPermission(result => dom.console.log(result))
+    dom.experimental.Notification.requestPermission(result => dom.console.log(result))
     setupUI()
   }
 }
