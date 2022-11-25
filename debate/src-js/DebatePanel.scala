@@ -31,11 +31,11 @@ import jjm.ling.ESpan
 import jjm.ui.Rgba
 import jjm.ui.LocalState
 
-// import io.circe.generic.JsonCodec
-  
 import java.time.{Instant, ZoneId}
 
 import debate.util._
+
+// import App.ClassSetInterpolator
 
 class DebatePanel(
   S: Styles.type,

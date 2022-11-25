@@ -29,10 +29,18 @@ import debate.util._
 /** The main webapp. */
 object App {
 
+  implicit class ClassSetInterpolator(val sc: StringContext) extends AnyVal {
+    def c(args: Any*) = {
+          // concatenate everything: use the built-in S method (which happens to be used in the S interpolator)
+          // val tokens = sc.s(args: _*).split(",")
+          // Person(tokens(0), tokens(1).toInt)
+        ^.classSet1(sc.s(args: _*))
+      }
+  }
+
   def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = {
     fa.map(x => Vector(<.span(x))).intercalate(Vector(<.span(", ")))
   }
-
 
   val wsProtocol = {
     if (dom.document.location.protocol == "https:") "wss" else "ws"
@@ -175,14 +183,14 @@ object App {
       )
     }
 
-    <.div(^.classSet1("row"), S.spaceySubcontainer)(
+    <.div(c"row", S.spaceySubcontainer)(
       <.div(
         <.div(<.strong("Name: "), userName),
         <.div(<.strong("Room: "), roomName)
       ),
       facilitatorsDiv,
       observersDiv,
-      <.button(^.classSet1("btn"))(
+      <.button(c"btn", S.simpleSelectable)(
         "Disconnect", ^.onClick --> disconnect
       )
     )
@@ -226,9 +234,9 @@ object App {
 
                     LocalString.make(initialValue = getCookie(profileCookieId).getOrElse("")) { userName =>
                       <.div(S.lobbyContainer, S.spaceyContainer)(
-                        <.div(^.classSet1("form-group row"))(
-                          <.label(^.classSet1("col-sm-2 col-form-label"))("Profile:"),
-                          V.Select.String.modFull(^.classSet1("col-sm-10 custom-select"))(
+                        <.div(c"form-group row")(
+                          <.label(c"col-sm-2 col-form-label")("Profile:"),
+                          V.Select.String.modFull(c"col-sm-10 custom-select")(
                             choices =
                               noProfileString +: lobby.value.trackedDebaters.toList.sorted,
                             curChoice =
@@ -245,14 +253,14 @@ object App {
                           )
                         ),
                         V.LiveTextField.String.mod(
-                          span = TagMod(^.classSet1("form-group row"), ^.display.none),
-                          label = ^.classSet1("col-sm-2 col-form-label"),
-                          input = ^.classSet1("col-sm-10 form-control")
+                          span = TagMod(c"form-group row", ^.display.none),
+                          label = c"col-sm-2 col-form-label",
+                          input = c"col-sm-10 form-control"
                         )(userName, labelOpt = Some("Name: ")),
-                        <.div(^.classSet1("form-group row"), ^.display.none) {
+                        <.div(c"form-group row", ^.display.none) {
                           val name = userName.value
                           val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
-                          <.button(^.classSet1("btn btn-primary btn-block"))(
+                          <.button(c"btn btn-primary btn-block")(
                             "Create profile",
                             ^.disabled := isDisabled,
                             (^.onClick --> sendToMainChannel(
@@ -274,11 +282,11 @@ object App {
                             case AllMyDebates => allMyDebates
                             case OpenDebates => lobby.value.openRooms
                           }
-                          <.div(^.classSet1("card"), ^.textAlign.center)(
-                            <.div(^.classSet1("card-header"))(
-                              <.ul(^.classSet1("nav nav-fill nav-tabs card-header-tabs"))(
+                          <.div(c"card", ^.textAlign.center)(
+                            <.div(c"card-header")(
+                              <.ul(c"nav nav-fill nav-tabs card-header-tabs")(
                                 List(MyCurrentDebates, AllMyDebates, OpenDebates).toVdomArray(tab =>
-                                  <.li(^.classSet1("nav-item"))(
+                                  <.li(c"nav-item")(
                                     <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
                                       ^.href := "#",
                                       ^.onClick --> lobbyTab.setState(tab),
@@ -291,23 +299,24 @@ object App {
                             LocalString.make("") { roomNameLive =>
                               val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
                               val enter = if(canEnter) enterRoom(isScheduled, roomNameLive.value, userName.value) else Callback.empty
-                              <.div(^.classSet1("card-body"))(
-                                <.div(^.classSet1("input-group"))(
+                              <.div(c"card-body", S.spaceySubcontainer)(
+                                <.div(c"input-group", ^.width.auto)(
                                   V.LiveTextField.String.modInput(
                                     input = TagMod(
-                                      ^.classSet1("form-control"),
+                                      c"form-control",
                                       ^.onKeyDown ==> ((e: ReactKeyboardEvent) => if(e.keyCode == dom.ext.KeyCode.Enter) enter else Callback.empty)
                                     ))(roomNameLive, placeholderOpt = Some("Room")
                                   ),
-                                  <.div(^.classSet1("input-group-append"))(
-                                    <.button(^.classSet1("btn btn-primary"))(
+                                  <.div(c"input-group-append")(
+                                    <.button(c"btn btn-primary")(
                                       if(currentRooms.exists(_.name == roomNameLive.value)) "Join" else "Create",
                                       ^.`type` := "button",
                                       ^.disabled := !canEnter,
                                       ^.onClick --> enter
                                     )
                                   )
-                                ),
+                                ).when(lobbyTab.value != MyCurrentDebates),
+                                <.div("No rooms to show.").when(currentRooms.isEmpty),
                                 currentRooms.toVdomArray {
                                   case RoomMetadata(roomName, assignedParticipants, currentParticipants, status) =>
                                     val canEnterRoom =
