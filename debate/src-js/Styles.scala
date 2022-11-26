@@ -100,6 +100,10 @@ object Styles extends jjm.ui.View.Styles {
 
   // App
 
+  val adminOnly = style(
+    display.none
+  )
+
   // generic arrangement styles
 
   val row = style(

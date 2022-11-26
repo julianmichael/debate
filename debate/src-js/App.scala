@@ -100,14 +100,14 @@ object App {
   sealed trait LobbyTab extends Product with Serializable {
     import LobbyTab._
     override def toString = this match {
-      case MyCurrentDebates => "My Current Debates"
-      case AllMyDebates => "All My Debates"
+      case MyDebates => "My Debates"
+      case AllScheduledDebates => "All Scheduled Debates"
       case OpenDebates => "Open Debates"
     }
   }
   object LobbyTab {
-    case object MyCurrentDebates extends LobbyTab
-    case object AllMyDebates extends LobbyTab
+    case object MyDebates extends LobbyTab
+    case object AllScheduledDebates extends LobbyTab
     case object OpenDebates extends LobbyTab
   }
 
@@ -253,11 +253,11 @@ object App {
                           )
                         ),
                         V.LiveTextField.String.mod(
-                          span = TagMod(c"form-group row", ^.display.none),
+                          span = TagMod(c"form-group row", Styles.adminOnly),
                           label = c"col-sm-2 col-form-label",
                           input = c"col-sm-10 form-control"
                         )(userName, labelOpt = Some("Name: ")),
-                        <.div(c"form-group row", ^.display.none) {
+                        <.div(c"form-group row", Styles.adminOnly) {
                           val name = userName.value
                           val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
                           <.button(c"btn btn-primary btn-block")(
@@ -268,24 +268,23 @@ object App {
                             )).when(!isDisabled),
                           )
                         },
-                        LocalLobbyTab.make(LobbyTab.MyCurrentDebates) { lobbyTab =>
+                        LocalLobbyTab.make(LobbyTab.MyDebates) { lobbyTab =>
                           import LobbyTab._
-                          val allMyDebates = lobby.value.scheduledRooms
+                          val myDebates = lobby.value.scheduledRooms
                             .filter(_.assignedParticipants.contains(userName.value))
-                          val myCurrentDebates = allMyDebates.filterNot(_.status.isComplete)
                           val isScheduled = lobbyTab.value match {
                             case OpenDebates => false
                             case _ => true
                           }
                           val currentRooms = lobbyTab.value match {
-                            case MyCurrentDebates => myCurrentDebates
-                            case AllMyDebates => allMyDebates
+                            case MyDebates => myDebates
+                            case AllScheduledDebates => lobby.value.scheduledRooms
                             case OpenDebates => lobby.value.openRooms
                           }
                           <.div(c"card", ^.textAlign.center)(
                             <.div(c"card-header")(
                               <.ul(c"nav nav-fill nav-tabs card-header-tabs")(
-                                List(MyCurrentDebates, AllMyDebates, OpenDebates).toVdomArray(tab =>
+                                List(MyDebates, AllScheduledDebates, OpenDebates).toVdomArray(tab =>
                                   <.li(c"nav-item")(
                                     <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
                                       ^.href := "#",
@@ -315,7 +314,7 @@ object App {
                                       ^.onClick --> enter
                                     )
                                   )
-                                ).when(lobbyTab.value != MyCurrentDebates),
+                                ).when(lobbyTab.value != MyDebates),
                                 <.div("No rooms to show.").when(currentRooms.isEmpty),
                                 currentRooms.toVdomArray {
                                   case RoomMetadata(roomName, assignedParticipants, currentParticipants, status) =>
@@ -380,7 +379,7 @@ object App {
                       val newRoles = getRoles(curDebate) -- getRoles(prevDebate)
                       if(newRoles.contains(role)) {
                         Callback {
-                          val n = new dom.experimental.Notification("It's your turn!")
+                          val n = new dom.experimental.Notification(s"It's your turn as $role in $roomName!")
                           scalajs.js.timers.setTimeout(7000)(n.close())
                         }
                       } else Callback.empty
