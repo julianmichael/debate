@@ -7,7 +7,7 @@ trait SimpleJSDeps extends Module {
   def downloadedJSDeps = T {
     for(url <- jsDeps()) yield {
       val filename = url.substring(url.lastIndexOf("/") + 1)
-        os.proc("curl", "-o", filename, url).call(cwd = T.ctx().dest)
+      os.proc("curl", "-o", filename, url).call(cwd = T.ctx().dest)
       T.ctx().dest / filename
     }
   }

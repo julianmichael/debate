@@ -20,11 +20,15 @@ import boopickle.Default._
 
 import scala.util.Try
 
+import cats.~>
 import cats.Foldable
 import cats.Functor
 import cats.implicits._
 
 import debate.util._
+import scala.concurrent.Future
+import jjm.io.HttpUtil
+import jjm.OrWrapped
 
 /** The main webapp. */
 object App {
@@ -61,23 +65,28 @@ object App {
     )
   }
 
-  def boopickleSyncedState[A: Pickler] = {
+  def boopickleSyncedState[Request: Pickler, State: Pickler](
+    getRequestFromState: State => Request
+  ) = {
       // import scalajs.js.typedarray._
       import DataConversions._
-      new SyncedState[A](
+      new SyncedState[Request, State](
         sendRequest = (socket, req) =>
           Callback {
             socket.send(Pickle.intoBytes(req))
           },
         readResponse = x => {
-          val res = Unpickle[A].fromBytes(TypedArrayBuffer.wrap(x));
+          val res = Unpickle[State].fromBytes(TypedArrayBuffer.wrap(x));
           res
-        }
+        },
+        getRequestFromState = getRequestFromState
       )
     }
 
   val DebateWebSocket = boopickleWebsocket[DebateState, DebateState]
-  val SyncedDebate = boopickleSyncedState[DebateState]
+  val SyncedDebate = boopickleSyncedState[DebateStateUpdateRequest, DebateState](
+    getRequestFromState = DebateStateUpdateRequest.State(_)
+  )
   def getDebateWebsocketUri(isScheduled: Boolean, roomName: String, participantId: String): String = {
     val prefix = if(isScheduled) "scheduled" else "open"
     s"$wsProtocol://${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
@@ -87,6 +96,32 @@ object App {
   val mainWebsocketUri: String = {
     s"$wsProtocol://${dom.document.location.host}/main-ws"
   }
+
+
+  val httpProtocol = dom.document.location.protocol
+  val qualityApiUrl: String = {
+    s"$httpProtocol://${dom.document.location.host}/$qualityStoryApiEndpoint"
+  }
+
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  type DelayedFuture[A] = () => Future[A]
+  val toAsyncCallback = {
+    λ[DelayedFuture ~> AsyncCallback](f =>
+      AsyncCallback.fromFuture(f())
+    )
+  }
+  def wrap[F[_]] = λ[F ~> OrWrapped[F, *]]{f =>
+    OrWrapped.wrapped(f)
+  }
+
+  // def tapPrint[F[_]: Functor] = λ[F ~> F](x =>
+  //   { Functor[F].map(x)(y => { println(y); y}) }
+  // )
+
+  val qualityStoryService = HttpUtil.makeHttpPostClient[QuALITYStoryRequest](
+    qualityApiUrl
+  ).andThenK(toAsyncCallback)//.andThenK(wrap)//.andThenK(tapPrint)
 
   import jjm.ui.LocalState
 
@@ -396,7 +431,7 @@ object App {
                   <.div(S.loading)("Connecting to debate data server...")
                 case SyncedDebate.Waiting(_) =>
                   <.div(S.loading)("Waiting for debate data...")
-                case SyncedDebate.Connected(debateState) =>
+                case SyncedDebate.Connected(debateState, sendUpdate) =>
                   val userId =
                     debateState.value.participants.find(_.name == userName)
 
@@ -423,7 +458,7 @@ object App {
                       case None =>
                         userId.map(_.role) match {
                           case Some(Facilitator) =>
-                            facilitatorPanel(debateState)
+                            facilitatorPanel(qualityStoryService, sendUpdate)
                           case _ =>
                             <.div(S.debateColumn)(
                               "Waiting for a facilitator to set up the debate."

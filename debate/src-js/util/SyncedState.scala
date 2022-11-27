@@ -20,29 +20,31 @@ import monocle.macros.GenPrism
 
 import cats.implicits._
 
-/** HOC for websocket connections. I can't remember why I (apparently) modified
-  * this from the jjm.ui version.
+/** HOC for websocket connections that manage a state variable synced between
+  * multiple clients.
   *
   * @param sendRequest
   * @param readResponse
+  * @param getRequestFromState
   */
-class SyncedState[State](
-    sendRequest: (WebSocket, State) => Callback,
-    readResponse: ArrayBuffer => State
+class SyncedState[Request, State](
+    sendRequest: (WebSocket, Request) => Callback,
+    readResponse: ArrayBuffer => State,
+    getRequestFromState: State => Request
 ) {
 
   sealed trait FullState
   @Lenses case class ConnectedState(socket: WebSocket, state: State) extends FullState
+  case class WaitingState(socket: WebSocket) extends FullState
 
   sealed trait Context
-  case class Connected(
-    state: StateSnapshot[State]
-  ) extends Context
 
   case class Disconnected(reconnect: Callback, reason: String)
       extends FullState with Context
   case object Connecting extends FullState with Context
-  case class Waiting(socket: WebSocket) extends FullState with Context
+
+  case class Waiting(sendRequest: Request => Callback) extends Context
+  case class Connected(state: StateSnapshot[State], sendRequest: Request => Callback) extends Context
 
   object FullState {
     val connectedState = GenPrism[FullState, ConnectedState]
@@ -57,13 +59,13 @@ class SyncedState[State](
   class Backend(scope: BackendScope[Props, FullState]) {
 
     def connect(props: Props): Callback = scope.state >>= {
-      case ConnectedState(_, _) | Waiting(_) =>
+      case ConnectedState(_, _) | WaitingState(_) =>
         Callback(System.err.println("Already connected."))
       case Disconnected(_, _) | Connecting =>
         scope.setState(Connecting) >> Callback {
           val socket = new WebSocket(props.websocketURI)
           socket.onopen = { (_: Event) =>
-            (scope.setState(Waiting(socket))).runNow()
+            (scope.setState(WaitingState(socket))).runNow()
           }
           socket.onerror = { (event: Event) =>
             val msg = s"WebSocket connection failure. Error: ${event}"
@@ -80,7 +82,7 @@ class SyncedState[State](
               (_: Event) => {
                 val message = readResponse(reader.result.asInstanceOf[ArrayBuffer])
                 scope.modState {
-                  case Waiting(s) => ConnectedState(s, message)
+                  case WaitingState(s) => ConnectedState(s, message)
                   case ConnectedState(s, _) => ConnectedState(s, message)
                   case x => x
                 }.runNow()
@@ -105,7 +107,7 @@ class SyncedState[State](
     def close(s: FullState): Callback = s match {
       case Disconnected(_, _)        => Callback.empty
       case Connecting                => Callback.empty
-      case Waiting(socket)           => Callback(socket.close(1000))
+      case WaitingState(socket)      => Callback(socket.close(1000))
       case ConnectedState(socket, _) => Callback(socket.close(1000))
     }
 
@@ -114,12 +116,15 @@ class SyncedState[State](
         s match {
           case x @ Disconnected(_, _) => (x: Context)
           case Connecting         => Connecting
-          case Waiting(s)         => Waiting(s)
+          case WaitingState(s)    => Waiting(sendRequest(s, _))
           case ConnectedState(socket, state) =>
             Connected(
               StateSnapshot(state)(
-                (stateOpt: Option[State], cb: Callback) => stateOpt.foldMap(sendRequest(socket, _)) >> cb
-              )
+                (stateOpt: Option[State], cb: Callback) => stateOpt.foldMap(
+                  state => sendRequest(socket, getRequestFromState(state))
+                ) >> cb
+              ),
+              sendRequest(socket, _)
             ): Context
         }
       )

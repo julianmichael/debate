@@ -1,5 +1,7 @@
 package debate
 
+import debate.quality._
+
 import java.io.InputStream
 import java.security.{SecureRandom, KeyStore}
 import javax.net.ssl.{SSLContext, TrustManagerFactory, KeyManagerFactory}
@@ -23,6 +25,12 @@ import java.nio.file.{Path => NIOPath}
 
 import fs2._
 import fs2.concurrent.Topic
+import java.nio.file.Paths
+import java.net.URL
+import jjm.io.HttpUtil
+import jjm.DotKleisli
+import debate.QuALITYStoryRequest
+import java.nio.file.Files
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -109,9 +117,48 @@ object Serve
     }
   }
 
+  val dataPath = Paths.get("data")
+  val qualityDataName = "QuALITY.v1.0.1"
+  val qualityURL = "https://github.com/nyu-mll/quality/blob/main/data/v1.0.1/QuALITY.v1.0.1.zip?raw=true"
+  // val qualityDataPath = Paths.get("data/QuALITY.v1.0.1")
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
   def openRoomsDir(saveDir: NIOPath) = saveDir.resolve("open")
   def scheduledRoomsDir(saveDir: NIOPath) = saveDir.resolve("scheduled")
+
+  def ensureQualityIsDownloaded(blocker: Blocker): IO[Unit] = {
+    val qualityPath = dataPath.resolve(qualityDataName)
+    IO(Files.isDirectory(qualityPath)).ifM(
+      ifTrue = IO.unit, ifFalse = for {
+        _ <- IO(println("Downloading QuALITY data..."))
+        _ <- fs2.io.file.createDirectories[IO](blocker, qualityPath)
+        _ <- {
+          io.readInputStream(IO(new URL(qualityURL).openConnection.getInputStream), 4096, blocker, true)
+            .through(io.file.writeAll(dataPath.resolve(qualityDataName + ".zip"), blocker))
+            .compile.drain
+        }
+        _ <- IO(println("Downloaded QuALITY.")) 
+        // too lazy to unzip in fs2
+        _ <- IO(os.proc("unzip", "../" + qualityDataName + ".zip").call(cwd = os.pwd / dataPath.toString / qualityDataName))
+      } yield ()
+    )
+  }
+
+  def readQuALITY(blocker: Blocker): IO[Map[String, QuALITYStory]] = for {
+    _ <- ensureQualityIsDownloaded(blocker)
+    allInstances <- {
+      Stream.emits[IO, String](List("train", "dev", "test"))
+        .flatMap { split =>
+          val filename = s"$qualityDataName.htmlstripped.$split"
+          val filePath = dataPath.resolve(qualityDataName).resolve(filename)
+          FileUtil.readJsonLines[QuALITYInstance](filePath).map(_.toStory(split))
+        }
+        .compile.toVector
+    }
+    instancesByArticleId = allInstances.toList.groupByNel(_.articleId)
+    storiesByArticleId <- instancesByArticleId.toVector.traverse { case (articleId, instances) =>
+      IO.fromEither(instances.reduceLeftMonadic(_ merge _).map(articleId -> _))
+    }.map(_.toMap)
+  } yield storiesByArticleId
 
   /** Initialize the server state and make the HTTP server
     *
@@ -129,6 +176,7 @@ object Serve
       blocker: Blocker
   ) = {
     for {
+      qualityDataset <- readQuALITY(blocker)
       trackedDebaters <- FileUtil
         .readJson[Set[String]](debatersSavePath(saveDir))
         .recoverWith { case e: Throwable =>
@@ -166,8 +214,16 @@ object Serve
       }
       _ <- pushUpdateRef.set(pushUpdate)
     } yield {
+      val qualityService = HttpUtil.makeHttpPostServer(
+        new DotKleisli[IO, QuALITYStoryRequest] {
+          def apply(req: QuALITYStoryRequest): IO[QuALITYStory] = {
+            IO(qualityDataset(req.title))
+          }
+        }
+      )
       HttpsRedirect(
         Router(
+          s"/$qualityStoryApiEndpoint" -> qualityService,
           "/" -> service(
             jsPath,
             jsDepsPath,
@@ -257,18 +313,6 @@ object Serve
             .render,
           Header("Content-Type", "text/html")
         )
-
-      // TODO maybe reinstate this later, probably just delete
-      // Download the JSON for a debate.
-      // case GET -> Root / "download" / roomName =>
-      //   rooms.get.map(_.get(roomName)).flatMap {
-      //     case None => NotFound()
-      //     case Some(room) =>
-      //       Ok(
-      //         room.debate.asJson.spaces2,
-      //         Header("Content-Type", "application/json")
-      //       )
-      //   }
 
       // connect to the lobby to see open rooms / who's in them, etc.
       case GET -> Root / "main-ws" => openLobbyWS

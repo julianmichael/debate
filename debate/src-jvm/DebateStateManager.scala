@@ -125,14 +125,38 @@ case class DebateStateManager(
     _ <- pushUpdate
   } yield ()
 
-  def processUpdate(roomName: String, debateState: DebateState) = for {
-    _ <- rooms.update(roomStateL(roomName).set(debateState)) // update state
-    _ <- debateState.debate.traverse(
-      FileUtil.writeJson(saveDir.resolve(roomName + ".json"))
-    ) // save after every change
-      // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
-    // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
-  } yield debateState
+  def processUpdate(roomName: String, request: DebateStateUpdateRequest) = {
+    val updateState = request match {
+      case DebateStateUpdateRequest.State(debateState) =>
+        rooms.update(roomStateL(roomName).set(debateState)) // update state
+      case DebateStateUpdateRequest.SetupSpec(setupSpec) => {
+        val setup = DebateSetup(
+          setupSpec.rules,
+          bigTokenize(setupSpec.sourceMaterial),
+          setupSpec.question,
+          setupSpec.answers.filter(_.nonEmpty),
+          setupSpec.correctAnswerIndex,
+          setupSpec.roles,
+          System.currentTimeMillis()
+        )
+        rooms.update(
+          roomStateL(roomName).composeLens(DebateState.debate)
+            .set(Some(Debate(setup, Vector())))
+        )
+      }
+    }
+
+    for {
+      _ <- updateState
+      debateState <- rooms.get.map(_.apply(roomName).debate)
+      _ <- debateState.debate.traverse(
+        FileUtil.writeJson(saveDir.resolve(roomName + ".json"))
+      ) // save after every change
+        // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
+        // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
+    } yield debateState
+
+  }
 
   import boopickle.Default._
 
@@ -141,7 +165,7 @@ case class DebateStateManager(
     room <- rooms.get.map(_.apply(roomName))
     outStream = (
       Stream
-        .emit[IO, DebateState]{room.debate}
+        .emit[IO, DebateState](room.debate)
         .merge(room.channel.subscribe(100))
         .map(pickleToWSFrame(_))
         .through(filterCloseFrames)
@@ -152,7 +176,7 @@ case class DebateStateManager(
       receive = x =>
         room.channel.publish(
           filterCloseFrames(x)
-            .map(unpickleFromWSFrame[DebateState])
+            .map(unpickleFromWSFrame[DebateStateUpdateRequest])
             .evalMap(processUpdate(roomName, _))
         ),
       onClose = removeParticipant(roomName, participantName)

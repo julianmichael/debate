@@ -13,7 +13,10 @@ val thisScalaJSVersion = "1.6.0"
 val kindProjectorVersion = "0.13.2"
 
 // scala deps
+// my libs
 val jjmVersion = "0.2.2-SNAPSHOT"
+// other deps
+val circeVersion = "0.13.0"
 val declineVersion = "1.0.0"
 val boopickleVersion = "1.4.0"
 // testing
@@ -67,6 +70,7 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     // most of the FP dependencies are pulled in by JJM
     ivy"org.julianmichael::jjm-core::$jjmVersion",
     ivy"org.julianmichael::jjm-io::$jjmVersion",
+    ivy"io.circe::circe-generic-extras::$circeVersion",
     ivy"io.suzaku::boopickle::$boopickleVersion",
     // ivy"org.typelevel::kittens::$kittensVersion",
     ivy"io.github.cquiroz::scala-java-time::2.0.0" // TODO probably not the right version
