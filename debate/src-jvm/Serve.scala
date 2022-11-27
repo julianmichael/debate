@@ -20,6 +20,7 @@ import com.monovore.decline._
 import com.monovore.decline.effect._
 import _root_.org.http4s.server.middleware.HttpsRedirect
 
+import jjm.implicits._
 import jjm.io.FileUtil
 import java.nio.file.{Path => NIOPath}
 
@@ -29,7 +30,6 @@ import java.nio.file.Paths
 import java.net.URL
 import jjm.io.HttpUtil
 import jjm.DotKleisli
-import debate.QuALITYStoryRequest
 import java.nio.file.Files
 
 /** Main object for running the debate webserver. Uses the decline-effect
@@ -215,15 +215,21 @@ object Serve
       _ <- pushUpdateRef.set(pushUpdate)
     } yield {
       val qualityService = HttpUtil.makeHttpPostServer(
-        new DotKleisli[IO, QuALITYStoryRequest] {
-          def apply(req: QuALITYStoryRequest): IO[QuALITYStory] = {
-            IO(qualityDataset(req.title))
+        new DotKleisli[IO, QuALITYService.Request] {
+          import QuALITYService.Request
+          def apply(req: Request): IO[req.Out] = {
+            val res = req match {
+              case Request.GetIndex => IO(qualityDataset.mapVals(_.title))
+              case Request.GetStory(articleId) => IO(qualityDataset(articleId))
+            }
+            // not sure why it isn't inferring the type...
+            res.asInstanceOf[IO[req.Out]]
           }
         }
       )
       HttpsRedirect(
         Router(
-          s"/$qualityStoryApiEndpoint" -> qualityService,
+          s"/$qualityServiceApiEndpoint" -> qualityService,
           "/" -> service(
             jsPath,
             jsDepsPath,

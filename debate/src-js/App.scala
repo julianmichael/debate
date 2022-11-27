@@ -47,7 +47,7 @@ object App {
   }
 
   val wsProtocol = {
-    if (dom.document.location.protocol == "https:") "wss" else "ws"
+    if (dom.document.location.protocol == "https:") "wss:" else "ws:"
   }
 
   def boopickleWebsocket[A: Pickler, B: Pickler] = {
@@ -89,19 +89,21 @@ object App {
   )
   def getDebateWebsocketUri(isScheduled: Boolean, roomName: String, participantId: String): String = {
     val prefix = if(isScheduled) "scheduled" else "open"
-    s"$wsProtocol://${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
+    s"$wsProtocol//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
   val MainWebSocket = boopickleWebsocket[MainChannelRequest, Lobby]
   val mainWebsocketUri: String = {
-    s"$wsProtocol://${dom.document.location.host}/main-ws"
+    s"$wsProtocol//${dom.document.location.host}/main-ws"
   }
 
 
   val httpProtocol = dom.document.location.protocol
   val qualityApiUrl: String = {
-    s"$httpProtocol://${dom.document.location.host}/$qualityStoryApiEndpoint"
+    s"$httpProtocol//${dom.document.location.host}/$qualityServiceApiEndpoint"
   }
+  println(mainWebsocketUri)
+  println(qualityApiUrl)
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -119,9 +121,11 @@ object App {
   //   { Functor[F].map(x)(y => { println(y); y}) }
   // )
 
-  val qualityStoryService = HttpUtil.makeHttpPostClient[QuALITYStoryRequest](
-    qualityApiUrl
-  ).andThenK(toAsyncCallback)//.andThenK(wrap)//.andThenK(tapPrint)
+  val qualityStoryService = quality.QuALITYService(
+    HttpUtil.makeHttpPostClient[quality.QuALITYService.Request](
+      qualityApiUrl
+    ).andThenK(toAsyncCallback)//.andThenK(wrap)//.andThenK(tapPrint)
+  )
 
   import jjm.ui.LocalState
 

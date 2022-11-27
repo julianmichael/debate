@@ -1,5 +1,6 @@
 package debate
 import debate.util._
+import debate.quality._
 
 // import org.scalajs.dom
 
@@ -12,8 +13,8 @@ import japgolly.scalajs.react.MonocleReact._
 import scalacss.ScalaCssReact._
 
 import jjm.ui.LocalState
-import jjm.DotKleisli
-import debate.DebateStateUpdateRequest
+import jjm.ui.CacheCallContent
+import jjm.OrWrapped
 
 class FacilitatorPanel(
   S: Styles.type,
@@ -24,6 +25,18 @@ class FacilitatorPanel(
   val RoundTypeConfig = SumConfig[DebateRoundType]()
   val ScoringFunctionConfig = SumConfig[ScoringFunction]()
   val DebateSetupSpecLocal = new LocalState[DebateSetupSpec]
+
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  val QuALITYIndexFetch = new CacheCallContent[Unit, Map[String, String]]
+  val QuALITYStoryFetch = new CacheCallContent[String, QuALITYStory]
+  private val QuALITYStorySelect = new V.Select[Option[(String, String)]](
+    show = choice => choice match {
+      case None => "(custom)"
+      case Some((articleId, title)) => s"$title ($articleId)"
+    }
+  )
+  val QuALITYStoryOptLocal = new LocalState[Option[(String, String)]]
 
   /** Config panel for setting a list of round types. */
   def roundTypeSelect(
@@ -88,7 +101,7 @@ class FacilitatorPanel(
 
   /** Config panel for facilitator to set the rules of the debate. */
   def apply(
-    qualityStoryService: DotKleisli[AsyncCallback, QuALITYStoryRequest],
+    qualityService: QuALITYService[AsyncCallback],
     sendUpdate: DebateStateUpdateRequest => Callback
   ) = DebateSetupSpecLocal.make(DebateSetupSpec.init) { setupRaw =>
     val answers = setupRaw.value.answers
@@ -196,14 +209,36 @@ class FacilitatorPanel(
           )
           // roundTypeSelect(setupRaw.zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)), 1),
         ),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Source Material"),
-          V.LiveTextArea.String
-            .mod(textarea = TagMod(S.fullWidthInput, ^.rows := 10))(
-              setupRaw.zoomStateL(DebateSetupSpec.sourceMaterial),
-              placeholderOpt = Some("Paste source material here")
-            )
-        ),
+        QuALITYStoryOptLocal.make(None) { curStory =>
+          <.div(S.labeledInputRow)(
+            <.div(S.inputLabel)("Source Material"),
+            QuALITYIndexFetch.make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
+              case QuALITYIndexFetch.Loading => <.div("Loading QuALITY story list...")
+              case QuALITYIndexFetch.Loaded(index) =>
+                val indexList = index.toList.sortBy(_._2)
+                QuALITYStorySelect(None +: indexList.map(Some(_)), curStory)
+            },
+            curStory.value match {
+              case None =>
+                V.LiveTextArea.String
+                  .mod(textarea = TagMod(S.fullWidthInput, ^.rows := 10))(
+                    setupRaw.zoomStateL(DebateSetupSpec.sourceMaterial),
+                    placeholderOpt = Some("Paste source material here")
+                  )
+              case Some((articleId, _)) =>
+                QuALITYStoryFetch.make(request = articleId, sendRequest = articleId => OrWrapped.wrapped(qualityService.getStory(articleId))) {
+                  case QuALITYStoryFetch.Loading => <.div("Loading QuALITY story...")
+                  case QuALITYStoryFetch.Loaded(story) => 
+                    <.textarea(
+                      S.fullWidthInput,
+                      ^.rows := 10,
+                      ^.readOnly := true,
+                      ^.value := story.article
+                    )
+                }
+            }
+          )
+        },
         <.div(S.labeledInputRow)(
           <.div(S.inputLabel)("Question"),
           V.LiveTextField.String.mod(input = S.fullWidthInput)(

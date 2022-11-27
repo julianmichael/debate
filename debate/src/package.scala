@@ -4,10 +4,8 @@
 import monocle.Lens
 import monocle.macros.Lenses
 
-import io.circe.{Encoder, Decoder}
 import io.circe.generic.JsonCodec
 
-import jjm.{DotEncoder, DotDecoder}
 import jjm.ling.ESpan
 
 import cats.implicits._
@@ -16,32 +14,13 @@ import cats.Reducible
 
 package object debate extends PackagePlatformExtensions {
 
-  implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {
-    // version of reduceLeftM which takes advantage of Monad.pure
-    def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] = {
-      fa.reduceLeftTo(Monad[G].pure)((ga, a) => Monad[G].flatMap(ga)(g(_, a)))
-    }
-  }
-
   @JsonCodec sealed trait DebateStateUpdateRequest
   object DebateStateUpdateRequest {
     case class State(state: DebateState) extends DebateStateUpdateRequest
     case class SetupSpec(spec: DebateSetupSpec) extends DebateStateUpdateRequest
   }
 
-  val qualityStoryApiEndpoint = "getStory"
-  @JsonCodec case class QuALITYStoryRequest(title: String) {
-    type Out = quality.QuALITYStory
-  }
-  object QuALITYStoryRequest {
-    implicit val qualityStoryRequestDotEncoder = new DotEncoder[QuALITYStoryRequest] {
-      def apply(r: QuALITYStoryRequest) = implicitly[Encoder[quality.QuALITYStory]]
-    }
-    implicit val qualityStoryRequestDotDecoder = new DotDecoder[QuALITYStoryRequest] {
-      def apply(r: QuALITYStoryRequest) = implicitly[Decoder[quality.QuALITYStory]]
-    }
- 
-  }
+  val qualityServiceApiEndpoint = "quality"
 
   @Lenses case class Lobby(
     trackedDebaters: Set[String],
@@ -138,5 +117,12 @@ package object debate extends PackagePlatformExtensions {
       .intercalate(Vector("\n\n"))
       .filter(_.nonEmpty)
     res
+  }
+
+  implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {
+    // version of reduceLeftM which takes advantage of Monad.pure
+    def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] = {
+      fa.reduceLeftTo(Monad[G].pure)((ga, a) => Monad[G].flatMap(ga)(g(_, a)))
+    }
   }
 }
