@@ -105,9 +105,14 @@ case class DebateStateManager(
   def addParticipant(roomName: String, participantId: String) = for {
     _ <- ensureDebate(roomName)
     _ <- rooms.update(
-      roomStateL(roomName).modify(
-        _.addParticipant(ParticipantId(participantId, Observer))
-      )
+      roomStateL(roomName).modify { debateState =>
+        val role = debateState.debate.flatMap(debate =>
+          debate.setup.roles
+            .find(_._2 == participantId)
+            .map(_._1)
+        ).getOrElse(Observer)
+        debateState.addParticipant(ParticipantId(participantId, role))
+      }
     )
     room <- rooms.get.map(_.apply(roomName))
     _ <- room.channel.publish1(room.debate)

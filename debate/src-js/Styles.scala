@@ -390,9 +390,6 @@ object Styles extends jjm.ui.View.Styles {
     // width(100 %%),
     fontSize(14 pt),
     textAlign.left,
-    &.hover(
-      filter := "brightness(85%)"
-    ),
     borderRadius(commonBorderRadius),
     // margin(mainHalfPadding),
     padding(mainHalfPadding)

@@ -185,6 +185,7 @@ object App {
   /** Top row showing non-debating roles (user can click one to change roles).
     */
   def headerRow(
+      isScheduled: Boolean,
       userName: String,
       roomName: String,
       debate: StateSnapshot[DebateState],
@@ -195,8 +196,14 @@ object App {
     //   .find(_.name == userName)
     //   .map(_.role)
 
+    def canAssumeRole(role: Role) = debate.value.debate.forall(
+      _.setup.canAssumeRole(userName, role)
+    )
+
     def assumeRole(role: Role): Callback = {
-      debate.modState(_.addParticipant(ParticipantId(userName, role)))
+      if(canAssumeRole(role)) {
+        debate.modState(_.addParticipant(ParticipantId(userName, role)))
+      } else Callback.empty
     }
     def facilitatorsDiv = {
       val facilitators = debate.value.participants.collect {
@@ -204,7 +211,7 @@ object App {
       }
       val isCurrent = facilitators.contains(userName)
 
-      <.div(S.optionBox, S.simpleSelectable, S.simpleSelected.when(isCurrent))(
+      <.div(S.optionBox, S.simpleSelectable.when(canAssumeRole(Facilitator)), S.simpleSelected.when(isCurrent))(
         <.div(S.optionTitle)("Facilitators"),
         commaSeparatedSpans(facilitators.toList.sorted).toVdomArray,
         ^.onClick --> assumeRole(Facilitator)
@@ -215,17 +222,19 @@ object App {
         case ParticipantId(name, Observer) => name
       }
       val isCurrent = observers.contains(userName)
-      <.div(S.optionBox, S.simpleSelectable, S.simpleSelected.when(isCurrent))(
+      <.div(S.optionBox, S.simpleSelectable.when(canAssumeRole(Observer)), S.simpleSelected.when(isCurrent))(
         <.div(S.optionTitle)("Observers"),
         commaSeparatedSpans(observers.toList.sorted).toVdomArray,
         ^.onClick --> assumeRole(Observer)
       )
     }
 
+    val roomPrefix = if(isScheduled) "Scheduled" else "Open"
+
     <.div(c"row", S.spaceySubcontainer)(
       <.div(
         <.div(<.strong("Name: "), userName),
-        <.div(<.strong("Room: "), roomName)
+        <.div(<.strong(s"$roomPrefix Room: "), roomName)
       ),
       facilitatorsDiv,
       observersDiv,
@@ -450,6 +459,7 @@ object App {
 
                         <.div(S.debateContainer, S.spaceyContainer)(
                           headerRow(
+                            isScheduled,
                             userName,
                             roomName,
                             debateState,
@@ -473,11 +483,13 @@ object App {
                             case Some(debate) =>
                               val setup = debate.setup
                               def assumeRole(role: Role): Callback = {
-                                debateState.modState(
-                                  _.addParticipant(
-                                    ParticipantId(userName, role)
+                                if(!setup.canAssumeRole(userName, role)) Callback.empty else {
+                                  debateState.modState(
+                                    _.addParticipant(
+                                      ParticipantId(userName, role)
+                                    )
                                   )
-                                )
+                                }
                               }
                               val isCurrentJudge = userId
                                 .map(_.role)
@@ -487,7 +499,7 @@ object App {
                                 if (isCurrentJudge) S.questionBoxCurrent
                                 else S.questionBox
                               <.div(S.debateColumn, backgroundStyle)(
-                                <.div(questionBoxStyle)(
+                                <.div(questionBoxStyle, S.simpleSelectable.when(setup.canAssumeRole(userName, Judge)))(
                                   <.div(S.questionTitle)(
                                     <.span(S.questionLabel)("Question: "),
                                     setup.question
@@ -513,7 +525,7 @@ object App {
                                       val answerBoxStyle =
                                         if (isCurrent) S.answerBoxCurrent
                                         else S.answerBox
-                                      <.div(answerBoxStyle(answerIndex))(
+                                      <.div(answerBoxStyle(answerIndex), S.simpleSelectable.when(setup.canAssumeRole(userName, Debater(answerIndex))))(
                                         <.div(S.answerTitle)(
                                           s"${answerLetter(answerIndex)}. $answer"
                                         ),

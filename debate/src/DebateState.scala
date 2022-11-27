@@ -199,5 +199,16 @@ object SourceMaterial
   def areAllRolesAssigned = {
     roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
   }
+
+  def assignedRole(userName: String): Option[DebateRole] = roles.find(_._2 == userName).map(_._1)
+  def userIsAssigned(userName: String) = assignedRole(userName).nonEmpty
+  def roleIsAssigned(role: Role) = role match {
+    case role: DebateRole => roles.contains(role)
+    case _ => false
+  }
+  def canAssumeRole(userName: String, role: Role) =
+    assignedRole(userName) == Some(role) || (
+      !roleIsAssigned(role) && !userIsAssigned(userName)
+    )
 }
 object DebateSetup
