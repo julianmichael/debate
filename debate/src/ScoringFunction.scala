@@ -75,6 +75,14 @@ object ScoringFunction {
       )) + constant - (perTurnPenalty * turnNumber)
     }
   }
+  object LogScoreWithLinearPenalty {
+    def default = LogScoreWithLinearPenalty(
+      baseCoefficient = 1.0,
+      constant = 0.0,
+      logBase = 2.0,
+      perTurnPenalty = 0.05
+    )
+  }
 
   val sphericalScoreWithLinearPenalty =
     GenPrism[ScoringFunction, SphericalScoreWithLinearPenalty]

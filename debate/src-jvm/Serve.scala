@@ -143,14 +143,21 @@ object Serve
     )
   }
 
+
+  def cleanStoryText(story: String): String = {
+    story.replaceAll("\n\n\n+", "\n\n")
+  }
+
   def readQuALITY(blocker: Blocker): IO[Map[String, QuALITYStory]] = for {
     _ <- ensureQualityIsDownloaded(blocker)
     allInstances <- {
       Stream.emits[IO, String](List("train", "dev", "test"))
         .flatMap { split =>
-          val filename = s"$qualityDataName.htmlstripped.$split"
+          val filename = s"$qualityDataName.$split"
           val filePath = dataPath.resolve(qualityDataName).resolve(filename)
-          FileUtil.readJsonLines[QuALITYInstance](filePath).map(_.toStory(split))
+          FileUtil.readJsonLines[QuALITYInstance](filePath)
+            .map(_.toStory(split))
+            .map(QuALITYStory.article.modify(cleanStoryText))
         }
         .compile.toVector
     }

@@ -58,7 +58,7 @@ object DebateRules {
       DebateRoundType.SequentialSpeechesRound(500),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
-    ScoringFunction.LogScoreWithLinearPenalty(1, 0, 2, 0.05)
+    ScoringFunction.LogScoreWithLinearPenalty.default
   )
 }
 

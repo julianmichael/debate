@@ -14,7 +14,7 @@ import io.circe.generic.JsonCodec
 //   case object Train extends 
 // }
 
-@JsonCodec case class QuALITYStory(
+@Lenses @JsonCodec case class QuALITYStory(
   articleId: String,
   source: String,
   title: String,
@@ -49,6 +49,7 @@ import io.circe.generic.JsonCodec
     )
   }
 }
+object QuALITYStory
 
 @JsonCodec case class QuALITYQuestion(
   split: String,
