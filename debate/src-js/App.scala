@@ -240,25 +240,25 @@ object App {
     /** Main render method. */
     def render(@unused props: Unit, @unused state: Unit) = {
       <.div(S.app)(
-        LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
-          connectionSpecOpt.value match {
-            case None =>
-              LocalLobby.make(Lobby.init) { lobby =>
-                MainWebSocket.make(
-                  mainWebsocketUri,
-                  onOpen = _ => Callback(println("Main socket opened.")),
-                  onMessage = (_, msg) => lobby.setState(msg)
-                ) {
-                  case MainWebSocket.Disconnected(_, reason) =>
-                    <.div(S.loading)(
-                      """You've been disconnected. This is probably either because of a bug or
-                          because the server is restarting. Please refresh the page.
-                          Sorry about that.
-                      """ + reason
-                    )
-                  case MainWebSocket.Connecting =>
-                    <.div(S.loading)("Connecting to metadata server...")
-                  case MainWebSocket.Connected(sendToMainChannel, _) =>
+        LocalLobby.make(Lobby.init) { lobby =>
+          MainWebSocket.make(
+            mainWebsocketUri,
+            onOpen = _ => Callback(println("Main socket opened.")),
+            onMessage = (_, msg) => lobby.setState(msg)
+          ) {
+            case MainWebSocket.Disconnected(_, reason) =>
+              <.div(S.loading)(
+                """You've been disconnected. This is probably either because of a bug or
+                    because the server is restarting. Please refresh the page.
+                    Sorry about that.
+                """ + reason
+              )
+            case MainWebSocket.Connecting =>
+              <.div(S.loading)("Connecting to metadata server...")
+            case MainWebSocket.Connected(sendToMainChannel, _) =>
+              LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
+                connectionSpecOpt.value match {
+                  case None =>
                     def enterRoom(isScheduled: Boolean, roomName: String, participantName: String) =
                       connectionSpecOpt.setState(
                         Some(ConnectionSpec(isScheduled, roomName, participantName))
@@ -402,148 +402,152 @@ object App {
                         }
                       )
                     }
-                }
-              }
-            case Some(ConnectionSpec(isScheduled, roomName, userName)) =>
-              SyncedDebate.make(
-                getDebateWebsocketUri(isScheduled, roomName, userName),
-                didUpdate = (prevDebate, curDebate) => {
-                  curDebate.participants
-                    .find(_.name == userName)
-                    .map(_.role)
-                    .fold(Callback.empty) { role =>
-                      def getRoles(debate: DebateState) = debate.debate.foldMap(
-                        _.currentTurn.foldMap(_.rolesRemaining)
-                      )
-                      val newRoles = getRoles(curDebate) -- getRoles(prevDebate)
-                      if(newRoles.contains(role)) {
-                        Callback {
-                          val n = new dom.experimental.Notification(s"It's your turn as $role in $roomName!")
-                          scalajs.js.timers.setTimeout(7000)(n.close())
-                        }
-                      } else Callback.empty
-                  }
-                }
-              ) {
-                case SyncedDebate.Disconnected(_, reason) =>
-                  <.div(S.loading)(
-                    """You've been disconnected. This is either due to a bug or the server
-                        restarting. Please refresh the page. Sorry about that.
-                    """ + reason
-                  )
-                case SyncedDebate.Connecting =>
-                  <.div(S.loading)("Connecting to debate data server...")
-                case SyncedDebate.Waiting(_) =>
-                  <.div(S.loading)("Waiting for debate data...")
-                case SyncedDebate.Connected(debateState, sendUpdate) =>
-                  val userId =
-                    debateState.value.participants.find(_.name == userName)
-
-                  // val backgroundStyle = userId.map(_.role).fold(S.noRoleBg) {
-                  //   case Facilitator => S.facilitatorBg
-                  //   case Observer => S.observerBg
-                  //   case Judge => S.judgeBg
-                  //   case Debater(i) => S.debaterBg(i)
-                  // }
-
-                  // looks really bad to use the others haha.
-                  // Might have to think through colors (or just do a redesign)
-                  val backgroundStyle = S.observerBg
-
-                  <.div(S.debateContainer, S.spaceyContainer)(
-                    headerRow(
-                      userName,
-                      roomName,
-                      debateState,
-                      disconnect = connectionSpecOpt.setState(None)
-                    ),
-                    // userInfoRow(roomName, userName, userId),
-                    debateState.value.debate match {
-                      case None =>
-                        userId.map(_.role) match {
-                          case Some(Facilitator) =>
-                            facilitatorPanel(qualityStoryService, sendUpdate)
-                          case _ =>
-                            <.div(S.debateColumn)(
-                              "Waiting for a facilitator to set up the debate."
-                            )
-                        }
-                      case Some(debate) =>
-                        val setup = debate.setup
-                        def assumeRole(role: Role): Callback = {
-                          debateState.modState(
-                            _.addParticipant(
-                              ParticipantId(userName, role)
-                            )
-                          )
-                        }
-                        val isCurrentJudge = userId
+                  case Some(ConnectionSpec(isScheduled, roomName, userName)) =>
+                    SyncedDebate.make(
+                      getDebateWebsocketUri(isScheduled, roomName, userName),
+                      didUpdate = (prevDebate, curDebate) => {
+                        curDebate.participants
+                          .find(_.name == userName)
                           .map(_.role)
-                          .collect { case Judge => true }
-                          .nonEmpty
-                        val questionBoxStyle =
-                          if (isCurrentJudge) S.questionBoxCurrent
-                          else S.questionBox
-                        <.div(S.debateColumn, backgroundStyle)(
-                          <.div(questionBoxStyle)(
-                            <.div(S.questionTitle)(
-                              <.span(S.questionLabel)("Question: "),
-                              setup.question
-                            ),
-                            <.div(S.judgesList)(
-                              "Judges: ",
-                              debateState.value.participants.collect {
-                                case ParticipantId(name, Judge) =>
-                                  <.span(name)
-                              }.toVdomArray
-                            ),
-                            ^.onClick --> assumeRole(Judge)
+                          .fold(Callback.empty) { role =>
+                            def getRoles(debate: DebateState) = debate.debate.foldMap(
+                              _.currentTurn.foldMap(_.rolesRemaining)
+                            )
+                            val newRoles = getRoles(curDebate) -- getRoles(prevDebate)
+                            if(newRoles.contains(role)) {
+                              Callback {
+                                val n = new dom.experimental.Notification(s"It's your turn as $role in $roomName!")
+                                scalajs.js.timers.setTimeout(7000)(n.close())
+                              }
+                            } else Callback.empty
+                        }
+                      }
+                    ) {
+                      case SyncedDebate.Disconnected(_, reason) =>
+                        <.div(S.loading)(
+                          """You've been disconnected. This is either due to a bug or the server
+                              restarting. Please refresh the page. Sorry about that.
+                          """ + reason
+                        )
+                      case SyncedDebate.Connecting =>
+                        <.div(S.loading)("Connecting to debate data server...")
+                      case SyncedDebate.Waiting(_) =>
+                        <.div(S.loading)("Waiting for debate data...")
+                      case SyncedDebate.Connected(debateState, sendUpdate) =>
+                        val userId =
+                          debateState.value.participants.find(_.name == userName)
+
+                        // val backgroundStyle = userId.map(_.role).fold(S.noRoleBg) {
+                        //   case Facilitator => S.facilitatorBg
+                        //   case Observer => S.observerBg
+                        //   case Judge => S.judgeBg
+                        //   case Debater(i) => S.debaterBg(i)
+                        // }
+
+                        // looks really bad to use the others haha.
+                        // Might have to think through colors (or just do a redesign)
+                        val backgroundStyle = S.observerBg
+
+                        <.div(S.debateContainer, S.spaceyContainer)(
+                          headerRow(
+                            userName,
+                            roomName,
+                            debateState,
+                            disconnect = connectionSpecOpt.setState(None)
                           ),
-                          <.div(S.answerBoxesRow, S.spaceySubcontainer)(
-                            setup.answers.zipWithIndex.toVdomArray {
-                              case (answer, answerIndex) =>
-                                val isCurrent = userId
-                                  .map(_.role)
-                                  .collect { case Debater(`answerIndex`) =>
-                                    true
-                                  }
-                                  .nonEmpty
-                                val answerBoxStyle =
-                                  if (isCurrent) S.answerBoxCurrent
-                                  else S.answerBox
-                                <.div(answerBoxStyle(answerIndex))(
-                                  <.div(S.answerTitle)(
-                                    s"${answerLetter(answerIndex)}. $answer"
+                          // userInfoRow(roomName, userName, userId),
+                          debateState.value.debate match {
+                            case None =>
+                              userId.map(_.role) match {
+                                case Some(Facilitator) =>
+                                  facilitatorPanel(
+                                    mustAssignRoles = isScheduled,
+                                    profiles = lobby.value.trackedDebaters,
+                                    qualityService = qualityStoryService,
+                                    sendUpdate = sendUpdate)
+                                case _ =>
+                                  <.div(S.debateColumn)(
+                                    "Waiting for a facilitator to set up the debate."
+                                  )
+                              }
+                            case Some(debate) =>
+                              val setup = debate.setup
+                              def assumeRole(role: Role): Callback = {
+                                debateState.modState(
+                                  _.addParticipant(
+                                    ParticipantId(userName, role)
+                                  )
+                                )
+                              }
+                              val isCurrentJudge = userId
+                                .map(_.role)
+                                .collect { case Judge => true }
+                                .nonEmpty
+                              val questionBoxStyle =
+                                if (isCurrentJudge) S.questionBoxCurrent
+                                else S.questionBox
+                              <.div(S.debateColumn, backgroundStyle)(
+                                <.div(questionBoxStyle)(
+                                  <.div(S.questionTitle)(
+                                    <.span(S.questionLabel)("Question: "),
+                                    setup.question
                                   ),
-                                  <.div(S.debatersList)(
-                                    "Debaters: ",
+                                  <.div(S.judgesList)(
+                                    "Judges: ",
                                     debateState.value.participants.collect {
-                                      case ParticipantId(
-                                            name,
-                                            Debater(`answerIndex`)
-                                          ) =>
+                                      case ParticipantId(name, Judge) =>
                                         <.span(name)
                                     }.toVdomArray
                                   ),
-                                  ^.onClick --> assumeRole(
-                                    Debater(answerIndex)
-                                  )
+                                  ^.onClick --> assumeRole(Judge)
+                                ),
+                                <.div(S.answerBoxesRow, S.spaceySubcontainer)(
+                                  setup.answers.zipWithIndex.toVdomArray {
+                                    case (answer, answerIndex) =>
+                                      val isCurrent = userId
+                                        .map(_.role)
+                                        .collect { case Debater(`answerIndex`) =>
+                                          true
+                                        }
+                                        .nonEmpty
+                                      val answerBoxStyle =
+                                        if (isCurrent) S.answerBoxCurrent
+                                        else S.answerBox
+                                      <.div(answerBoxStyle(answerIndex))(
+                                        <.div(S.answerTitle)(
+                                          s"${answerLetter(answerIndex)}. $answer"
+                                        ),
+                                        <.div(S.debatersList)(
+                                          "Debaters: ",
+                                          debateState.value.participants.collect {
+                                            case ParticipantId(
+                                                  name,
+                                                  Debater(`answerIndex`)
+                                                ) =>
+                                              <.span(name)
+                                          }.toVdomArray
+                                        ),
+                                        ^.onClick --> assumeRole(
+                                          Debater(answerIndex)
+                                        )
+                                      )
+                                  }
+                                ),
+                                debatePanel(
+                                  roomName,
+                                  userId,
+                                  setup,
+                                  debate,
+                                  (d: Debate) =>
+                                    debateState
+                                      .zoomStateL(DebateState.debate)
+                                      .setState(Some(d))
                                 )
-                            }
-                          ),
-                          debatePanel(
-                            roomName,
-                            userId,
-                            setup,
-                            debate,
-                            (d: Debate) =>
-                              debateState
-                                .zoomStateL(DebateState.debate)
-                                .setState(Some(d))
-                          )
+                              )
+                          }
                         )
                     }
-                  )
+                }
               }
           }
         }

@@ -546,7 +546,7 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val answerLabel = style(
-    inputRowItem,
+    addClassNames("col-form-label"),
     marginRight(mainHalfPadding * 2)
     // width(50 px),
     // textAlign.right

@@ -16,11 +16,13 @@ import jjm.ui.LocalState
 import jjm.ui.CacheCallContent
 import jjm.OrWrapped
 
+import monocle.function.{all => Optics}
+
 import cats.implicits._
 
 class FacilitatorPanel(
-  S: Styles.type,
-  V: jjm.ui.View
+  val S: Styles.type,
+  val V: jjm.ui.View
 ) {
 
   import App.ClassSetInterpolator
@@ -35,12 +37,14 @@ class FacilitatorPanel(
 
   val QuALITYIndexFetch = new CacheCallContent[Unit, Map[String, String]]
   val QuALITYStoryFetch = new CacheCallContent[String, QuALITYStory]
-  private val QuALITYStorySelect = new V.Select[Option[(String, String)]](
+  val QuALITYStorySelect = new V.Select[Option[(String, String)]](
     show = choice => choice match {
       case None => "(custom)"
       case Some((articleId, title)) => s"$title ($articleId)"
     }
   )
+
+  val ProfileOptSelect = new V.OptionalSelect[String](show = _.toString)
 
   /** Config panel for setting a list of round types. */
   def roundTypeSelect(
@@ -114,10 +118,15 @@ class FacilitatorPanel(
 
   /** Config panel for facilitator to set the rules of the debate. */
   def apply(
+    mustAssignRoles: Boolean,
+    profiles: Set[String],
     qualityService: QuALITYService[AsyncCallback],
     sendUpdate: DebateStateUpdateRequest => Callback
   ) = DebateSetupSpecLocal.make(DebateSetupSpec.init) { setupRaw =>
-    val answers = setupRaw.value.answers
+    val canStartDebate = setupRaw.value.answers.filter(_.nonEmpty).size > 1 && (
+      !mustAssignRoles || setupRaw.value.areAllRolesAssigned
+    )
+
     <.div(S.facilitatorColumn)(
       <.div(S.mainLabeledInputRow)(
         <.div(S.inputLabel)("Opening Rounds"),
@@ -305,6 +314,15 @@ class FacilitatorPanel(
         <.div(S.inputRowContents)(
           V.LiveTextField.String(
             setupRaw.zoomStateL(DebateSetupSpec.question)
+          ),
+          <.div(S.row)(
+            <.div(S.inputLabel, ^.width := "240px")("Assigned Judge:"),
+            ProfileOptSelect.mod(select = c"custom-select")(
+              choices = profiles,
+              choice = setupRaw.zoomStateL(
+                DebateSetupSpec.roles.composeLens(Optics.at(Judge: DebateRole))
+              )
+            )
           )
         )
       ),
@@ -315,19 +333,32 @@ class FacilitatorPanel(
             (remove, answer, index) =>
               <.div(S.row)(
                 <.span(S.answerLabel)(remove, " ", s"${answerLetter(index)}. "),
-                V.LiveTextField.String(answer),
-                <.input(S.correctAnswerRadio)(
-                  ^.`type` := "radio",
-                  ^.name := "correctAnswerIndex",
-                  ^.value := index,
-                  ^.checked := setupRaw.value.correctAnswerIndex == index,
-                  ^.onChange --> setupRaw
-                    .zoomStateL(DebateSetupSpec.correctAnswerIndex)
-                    .setState(index)
-                ),
-                <.span(S.inputRowItem)(
-                  "Correct answer",
-                  S.hidden.when(setupRaw.value.correctAnswerIndex != index)
+                <.div(S.col, S.grow)(
+                  <.div(S.row)(
+                    V.LiveTextField.String(answer),
+                    <.input(S.correctAnswerRadio)(
+                      ^.`type` := "radio",
+                      ^.name := "correctAnswerIndex",
+                      ^.value := index,
+                      ^.checked := setupRaw.value.correctAnswerIndex == index,
+                      ^.onChange --> setupRaw
+                        .zoomStateL(DebateSetupSpec.correctAnswerIndex)
+                        .setState(index)
+                    ),
+                    <.span(S.inputRowItem)(
+                      "Correct answer",
+                      S.hidden.when(setupRaw.value.correctAnswerIndex != index)
+                    )
+                  ),
+                  <.div(S.row)(
+                    <.div(S.inputLabel, ^.width := "240px")("Assigned Debater:"),
+                    ProfileOptSelect.mod(select = c"custom-select")(
+                      choices = profiles,
+                      choice = setupRaw.zoomStateL(
+                        DebateSetupSpec.roles.composeLens(Optics.at(Debater(index): DebateRole))
+                      )
+                    )
+                  )
                 )
               )
           }
@@ -335,10 +366,10 @@ class FacilitatorPanel(
       ),
       <.button(c"btn btn-primary")(
         "Start the debate!",
-        ^.disabled := answers.filter(_.nonEmpty).size < 2, // TODO factor this out
+        ^.disabled := !canStartDebate,
         ^.onClick ==> (
           (e: ReactEvent) => {
-            if(answers.filter(_.nonEmpty).size < 2) Callback.empty else {
+            if(!canStartDebate) Callback.empty else {
               e.preventDefault();
               sendUpdate(DebateStateUpdateRequest.SetupSpec(setupRaw.value))
             }
