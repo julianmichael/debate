@@ -87,8 +87,8 @@ object App {
   val SyncedDebate = boopickleSyncedState[DebateStateUpdateRequest, DebateState](
     getRequestFromState = DebateStateUpdateRequest.State(_)
   )
-  def getDebateWebsocketUri(isScheduled: Boolean, roomName: String, participantId: String): String = {
-    val prefix = if(isScheduled) "scheduled" else "open"
+  def getDebateWebsocketUri(isOfficial: Boolean, roomName: String, participantId: String): String = {
+    val prefix = if(isOfficial) "official" else "practice"
     s"$wsProtocol//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
@@ -130,7 +130,7 @@ object App {
   import jjm.ui.LocalState
 
   case class ConnectionSpec(
-    isScheduled: Boolean,
+    isOfficial: Boolean,
     roomName: String,
     participantName: String
   )
@@ -140,14 +140,14 @@ object App {
     import LobbyTab._
     override def toString = this match {
       case MyDebates => "My Debates"
-      case AllScheduledDebates => "All Scheduled Debates"
-      case OpenDebates => "Open Debates"
+      case AllOfficialDebates => "All Official Debates"
+      case PracticeDebates => "Practice Debates"
     }
   }
   object LobbyTab {
     case object MyDebates extends LobbyTab
-    case object AllScheduledDebates extends LobbyTab
-    case object OpenDebates extends LobbyTab
+    case object AllOfficialDebates extends LobbyTab
+    case object PracticeDebates extends LobbyTab
   }
 
   val defaultRoomName: String =
@@ -185,7 +185,7 @@ object App {
   /** Top row showing non-debating roles (user can click one to change roles).
     */
   def headerRow(
-      isScheduled: Boolean,
+      isOfficial: Boolean,
       userName: String,
       roomName: String,
       debate: StateSnapshot[DebateState],
@@ -229,7 +229,7 @@ object App {
       )
     }
 
-    val roomPrefix = if(isScheduled) "Scheduled" else "Open"
+    val roomPrefix = if(isOfficial) "Official" else "Practice"
 
     <.div(c"row", S.spaceySubcontainer)(
       <.div(
@@ -268,9 +268,9 @@ object App {
               LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
                 connectionSpecOpt.value match {
                   case None =>
-                    def enterRoom(isScheduled: Boolean, roomName: String, participantName: String) =
+                    def enterRoom(isOfficial: Boolean, roomName: String, participantName: String) =
                       connectionSpecOpt.setState(
-                        Some(ConnectionSpec(isScheduled, roomName, participantName))
+                        Some(ConnectionSpec(isOfficial, roomName, participantName))
                       )
                     // TODO change page title? maybe do this on mount for the debate room component instead
                     // >> Callback(dom.window.document.title = makePageTitle(roomName)) >>
@@ -318,21 +318,21 @@ object App {
                         },
                         LocalLobbyTab.make(LobbyTab.MyDebates) { lobbyTab =>
                           import LobbyTab._
-                          val myDebates = lobby.value.scheduledRooms
+                          val myDebates = lobby.value.officialRooms
                             .filter(_.assignedParticipants.contains(userName.value))
-                          val isScheduled = lobbyTab.value match {
-                            case OpenDebates => false
+                          val isOfficial = lobbyTab.value match {
+                            case PracticeDebates => false
                             case _ => true
                           }
                           val currentRooms = lobbyTab.value match {
                             case MyDebates => myDebates
-                            case AllScheduledDebates => lobby.value.scheduledRooms
-                            case OpenDebates => lobby.value.openRooms
+                            case AllOfficialDebates => lobby.value.officialRooms
+                            case PracticeDebates => lobby.value.practiceRooms
                           }
                           <.div(c"card", ^.textAlign.center)(
                             <.div(c"card-header")(
                               <.ul(c"nav nav-fill nav-tabs card-header-tabs")(
-                                List(MyDebates, AllScheduledDebates, OpenDebates).toVdomArray(tab =>
+                                List(MyDebates, AllOfficialDebates, PracticeDebates).toVdomArray(tab =>
                                   <.li(c"nav-item")(
                                     <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
                                       ^.href := "#",
@@ -345,7 +345,7 @@ object App {
                             ),
                             LocalString.make("") { roomNameLive =>
                               val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
-                              val enter = if(canEnter) enterRoom(isScheduled, roomNameLive.value, userName.value) else Callback.empty
+                              val enter = if(canEnter) enterRoom(isOfficial, roomNameLive.value, userName.value) else Callback.empty
                               <.div(c"card-body", S.spaceySubcontainer)(
                                 <.div(c"input-group", ^.width.auto)(
                                   V.LiveTextField.String.modInput(
@@ -356,7 +356,11 @@ object App {
                                   ),
                                   <.div(c"input-group-append")(
                                     <.button(c"btn btn-primary")(
-                                      if(currentRooms.exists(_.name == roomNameLive.value)) "Join" else "Create",
+                                      (
+                                        (if(currentRooms.exists(_.name == roomNameLive.value)) "Join" else "Create") +
+                                          " " +
+                                        (if(isOfficial) "Official Debate" else "Practice Debate")
+                                      ),
                                       ^.`type` := "button",
                                       ^.disabled := !canEnter,
                                       ^.onClick --> enter
@@ -399,7 +403,7 @@ object App {
                                         ).toVdomArray
                                       ).when(currentParticipants.nonEmpty),
                                       (^.onClick --> enterRoom(
-                                        isScheduled,
+                                        isOfficial,
                                         roomName,
                                         userName.value
                                       )).when(canEnterRoom)
@@ -411,9 +415,9 @@ object App {
                         }
                       )
                     }
-                  case Some(ConnectionSpec(isScheduled, roomName, userName)) =>
+                  case Some(ConnectionSpec(isOfficial, roomName, userName)) =>
                     SyncedDebate.make(
-                      getDebateWebsocketUri(isScheduled, roomName, userName),
+                      getDebateWebsocketUri(isOfficial, roomName, userName),
                       didUpdate = (prevDebate, curDebate) => {
                         curDebate.participants
                           .find(_.name == userName)
@@ -459,7 +463,7 @@ object App {
 
                         <.div(S.debateContainer, S.spaceyContainer)(
                           headerRow(
-                            isScheduled,
+                            isOfficial,
                             userName,
                             roomName,
                             debateState,
@@ -471,7 +475,7 @@ object App {
                               userId.map(_.role) match {
                                 case Some(Facilitator) =>
                                   facilitatorPanel(
-                                    mustAssignRoles = isScheduled,
+                                    mustAssignRoles = isOfficial,
                                     profiles = lobby.value.trackedDebaters,
                                     qualityService = qualityStoryService,
                                     sendUpdate = sendUpdate)

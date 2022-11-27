@@ -24,8 +24,8 @@ package object debate extends PackagePlatformExtensions {
 
   @Lenses case class Lobby(
     trackedDebaters: Set[String],
-    scheduledRooms: Vector[RoomMetadata],
-    openRooms: Vector[RoomMetadata]
+    officialRooms: Vector[RoomMetadata],
+    practiceRooms: Vector[RoomMetadata]
   )
   object Lobby {
     def init = Lobby(Set(), Vector(), Vector())

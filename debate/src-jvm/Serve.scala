@@ -122,8 +122,8 @@ object Serve
   val qualityURL = "https://github.com/nyu-mll/quality/blob/main/data/v1.0.1/QuALITY.v1.0.1.zip?raw=true"
   // val qualityDataPath = Paths.get("data/QuALITY.v1.0.1")
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
-  def openRoomsDir(saveDir: NIOPath) = saveDir.resolve("open")
-  def scheduledRoomsDir(saveDir: NIOPath) = saveDir.resolve("scheduled")
+  def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
+  def officialRoomsDir(saveDir: NIOPath) = saveDir.resolve("official")
 
   def ensureQualityIsDownloaded(blocker: Blocker): IO[Unit] = {
     val qualityPath = dataPath.resolve(qualityDataName)
@@ -222,29 +222,29 @@ object Serve
         }
       trackedDebatersRef <- Ref[IO].of(trackedDebaters)
       pushUpdateRef <- Ref[IO].of(IO.unit)
-      scheduledDebates <- DebateStateManager.init(
+      officialDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
-        scheduledRoomsDir(saveDir),
+        officialRoomsDir(saveDir),
         pushUpdateRef
       )
-      openDebates <- DebateStateManager.init(
+      practiceDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
-        openRoomsDir(saveDir),
+        practiceRoomsDir(saveDir),
         pushUpdateRef
       )
-      scheduledRooms <- scheduledDebates.getRoomList
-      openRooms <- openDebates.getRoomList
+      officialRooms <- officialDebates.getRoomList
+      practiceRooms <- practiceDebates.getRoomList
       // channel to update all clients on the lobby state
       mainChannel <- Topic[IO, Lobby](
-        Lobby(trackedDebaters, scheduledRooms, openRooms)
+        Lobby(trackedDebaters, officialRooms, practiceRooms)
       )
       pushUpdate = {
         for {
           debaters <- trackedDebatersRef.get
-          scheduledRoomList <- scheduledDebates.getRoomList
-          openRoomList <- openDebates.getRoomList
+          officialRoomList <- officialDebates.getRoomList
+          practiceRoomList <- practiceDebates.getRoomList
           _ <- mainChannel.publish1(
-            Lobby(debaters, scheduledRoomList, openRoomList)
+            Lobby(debaters, officialRoomList, practiceRoomList)
           )
         } yield ()
       }
@@ -272,8 +272,8 @@ object Serve
             saveDir,
             mainChannel,
             trackedDebatersRef,
-            scheduledDebates,
-            openDebates,
+            officialDebates,
+            practiceDebates,
             pushUpdate,
             blocker
           )
@@ -295,8 +295,8 @@ object Serve
       saveDir: NIOPath, // where to save the debates as JSON
       mainChannel: Topic[IO, Lobby], // channel for updates to
       trackedDebaters: Ref[IO, Set[String]],
-      scheduledDebates: DebateStateManager,
-      openDebates: DebateStateManager,
+      officialDebates: DebateStateManager,
+      practiceDebates: DebateStateManager,
       pushUpdate: IO[Unit],
       blocker: Blocker
   ) = {
@@ -316,14 +316,14 @@ object Serve
 
     import boopickle.Default._
 
-    val openLobbyWS = for {
+    val createLobbyWebsocket = for {
       debaters <- trackedDebaters.get
-      scheduledRooms <- scheduledDebates.getRoomList
-      openRooms <- openDebates.getRoomList
+      officialRooms <- officialDebates.getRoomList
+      practiceRooms <- practiceDebates.getRoomList
       outStream = (
         Stream
           .emit[IO, Lobby](
-            Lobby(debaters, scheduledRooms, openRooms)
+            Lobby(debaters, officialRooms, practiceRooms)
           ) // send the current set of debaters and rooms on connect
           .merge(
             mainChannel.subscribe(100)
@@ -357,16 +357,16 @@ object Serve
         )
 
       // connect to the lobby to see open rooms / who's in them, etc.
-      case GET -> Root / "main-ws" => openLobbyWS
+      case GET -> Root / "main-ws" => createLobbyWebsocket
 
       // Connect via websocket to the messaging channel for the given debate.
       // The participant is added to the debate state and then removed when the websocket closes.
-      case GET -> Root / "scheduled-ws" / roomName :? NameParam(
+      case GET -> Root / "official-ws" / roomName :? NameParam(
             participantName
           ) =>
-        scheduledDebates.createWebsocket(roomName, participantName)
-      case GET -> Root / "open-ws" / roomName :? NameParam(participantName) =>
-        openDebates.createWebsocket(roomName, participantName)
+        officialDebates.createWebsocket(roomName, participantName)
+      case GET -> Root / "practice-ws" / roomName :? NameParam(participantName) =>
+        practiceDebates.createWebsocket(roomName, participantName)
 
       case req @ GET -> Root / `staticFilePrefix` / `jsDepsLocation` =>
         StaticFile
