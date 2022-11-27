@@ -295,7 +295,7 @@ class DebatePanel(
     def quoteToHTML(span: ESpan) = {
       <.span(
         <.span(S.quoteText)(
-          breakNewlines(ling.Text.renderSpan(setup.sourceMaterial, span))
+          breakNewlines(ling.Text.renderSpan(setup.sourceMaterial.contents, span))
         ),
         <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
       )
@@ -420,7 +420,7 @@ class DebatePanel(
       speechSegments.foldMap {
         case SpeechSegment.Text(text) => text.size
         case SpeechSegment.Quote(span) =>
-          ling.Text.renderSpan(setup.sourceMaterial, span).size
+          ling.Text.renderSpan(setup.sourceMaterial.contents, span).size
       }
     }
 
@@ -473,9 +473,9 @@ class DebatePanel(
 
             <.div(S.sourceMaterialSubpanel)(
               renderHighlightedTokens(
-                setup.sourceMaterial,
+                setup.sourceMaterial.contents,
                 allHighlights,
-                setup.sourceMaterial.indices.toVector
+                setup.sourceMaterial.contents.indices.toVector
                   .map(i =>
                     i -> ((el: VdomTag) =>
                       el(

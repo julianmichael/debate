@@ -22,8 +22,8 @@ case class SumConfig[A]() {
   val LocalString = new LocalState[String]
 
   def mod(
-      outerSpan: TagMod = S.sumConfigOuterSpan,
-      innerSpan: TagMod = S.sumConfigOuterSpan,
+      div: TagMod = S.sumConfigOuterDiv,
+      // innerDiv: TagMod = S.sumConfigInnerDiv,
       select: TagMod = S.sumConfigSelect
   )(item: StateSnapshot[A])(
       options: (String, SumConfigOption[A])*
@@ -35,31 +35,29 @@ case class SumConfig[A]() {
       .headOption
       .getOrElse(options.head._1)
     val optionsMap = options.toMap
-    <.span(outerSpan)(
-      LocalString.make(initialValue) { optionName =>
-        <.span(innerSpan)(
-          V.Select.String.modFull(select)(
-            options.map(_._1).toList,
-            optionName.value,
-            choice =>
-              optionName.setState(choice) >> item.setState {
-                val option = optionsMap(choice)
-                val projectedDefault = option.prism.apply(option.default)
-                projectedDefault
-              }
-          ),
-          options
-            .find(_._1 == optionName.value)
-            .map(_._2)
-            .flatMap { option =>
-              item.zoomStateO(option.prism.asOptional).map { subItem =>
-                option.render(subItem)
-              }
+    LocalString.make(initialValue) { optionName =>
+      <.div(div)(
+        V.Select.String.modFull(select)(
+          options.map(_._1).toList,
+          optionName.value,
+          choice =>
+            optionName.setState(choice) >> item.setState {
+              val option = optionsMap(choice)
+              val projectedDefault = option.prism.apply(option.default)
+              projectedDefault
             }
-            .whenDefined
-        )
-      }
-    )
+        ),
+        options
+          .find(_._1 == optionName.value)
+          .map(_._2)
+          .flatMap { option =>
+            item.zoomStateO(option.prism.asOptional).map { subItem =>
+              option.render(subItem)
+            }
+          }
+          .whenDefined
+      )
+    }
   }
 
   def apply(item: StateSnapshot[A])(
@@ -70,18 +68,18 @@ sealed trait SumConfigOption[A] {
   type Subtype
   def default: Subtype
   def prism: Prism[A, Subtype]
-  def render: StateSnapshot[Subtype] => VdomElement
+  def render: StateSnapshot[Subtype] => VdomArray
 }
 object SumConfigOption {
   private[this] case class SumConfigOptionImpl[A, S](
       default: S,
       prism: Prism[A, S],
-      render: StateSnapshot[S] => VdomElement
+      render: StateSnapshot[S] => VdomArray
   ) extends SumConfigOption[A] {
     type Subtype = S
   }
   def apply[A, S](default: S, prism: Prism[A, S])(
-      render: StateSnapshot[S] => VdomElement
+      render: StateSnapshot[S] => VdomArray
   ): SumConfigOption[A] { type Subtype = S } =
     SumConfigOptionImpl(default, prism, render)
 }

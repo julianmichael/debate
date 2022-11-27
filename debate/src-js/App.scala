@@ -484,7 +484,7 @@ object App {
                         val questionBoxStyle =
                           if (isCurrentJudge) S.questionBoxCurrent
                           else S.questionBox
-                        <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
+                        <.div(S.debateColumn, backgroundStyle)(
                           <.div(questionBoxStyle)(
                             <.div(S.questionTitle)(
                               <.span(S.questionLabel)("Question: "),

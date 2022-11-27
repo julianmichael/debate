@@ -159,6 +159,21 @@ object DebateTurnType {
   }
 }
 
+@JsonCodec sealed trait SourceMaterial {
+  def title: String
+  def contents: Vector[String]
+}
+@JsonCodec case class CustomSourceMaterial(
+  title: String,
+  contents: Vector[String]
+) extends SourceMaterial
+@JsonCodec case class QuALITYSourceMaterial(
+  articleId: String,
+  title: String,
+  contents: Vector[String]
+) extends SourceMaterial
+object SourceMaterial
+
 /** Info needed to set up a debate; what's set by the facilitator.
   *
   * @param rules
@@ -174,7 +189,7 @@ object DebateTurnType {
   */
 @Lenses @JsonCodec case class DebateSetup(
     rules: DebateRules,
-    sourceMaterial: Vector[String],
+    sourceMaterial: SourceMaterial,
     question: String,
     answers: Vector[String],
     correctAnswerIndex: Int,

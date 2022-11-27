@@ -20,8 +20,8 @@ case class ListConfig[A](defaultItem: A) {
 
   def mod(
       listDiv: TagMod = S.listConfigListDiv,
-      itemDiv: TagMod = S.listConfigItemDiv,
       removeItemSpan: TagMod = S.listConfigRemoveItemSpan,
+      addItemDiv: TagMod = S.listConfigAddItemDiv,
       addItemSpan: TagMod = S.listConfigAddItemSpan
   )(values: StateSnapshot[Vector[A]], minItems: Int = 0)(
       renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
@@ -38,7 +38,7 @@ case class ListConfig[A](defaultItem: A) {
         ^.key := s"item-$index"
       )
     },
-    <.div(itemDiv)(
+    <.div(addItemDiv)(
       <.span(addItemSpan)(
         "(+)",
         ^.onClick --> values.modState(_ :+ defaultItem)

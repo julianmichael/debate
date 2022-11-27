@@ -160,6 +160,33 @@ object Serve
     }.map(_.toMap)
   } yield storiesByArticleId
 
+  def initializeDebate(qualityDataset: Map[String, QuALITYStory])(setupSpec: DebateSetupSpec): IO[DebateSetup] = {
+    val tokenize = bigTokenize(_)
+    val sourceMaterialIO = setupSpec.sourceMaterial match {
+      case CustomSourceMaterialSpec(title, contents) =>
+        IO.pure(CustomSourceMaterial(title, tokenize(contents)))
+      case QuALITYSourceMaterialSpec(articleId) =>
+        IO(qualityDataset(articleId)).map { qualityStory =>
+          QuALITYSourceMaterial(
+            articleId = articleId,
+            title = qualityStory.title,
+            contents = tokenize(qualityStory.article)
+          )
+        }
+    }
+    sourceMaterialIO.map { sourceMaterial =>
+      DebateSetup(
+        setupSpec.rules,
+        sourceMaterial,
+        setupSpec.question,
+        setupSpec.answers.filter(_.nonEmpty),
+        setupSpec.correctAnswerIndex,
+        setupSpec.roles,
+        System.currentTimeMillis()
+      )
+    }
+  }
+
   /** Initialize the server state and make the HTTP server
     *
     * @param saveDir
@@ -189,10 +216,12 @@ object Serve
       trackedDebatersRef <- Ref[IO].of(trackedDebaters)
       pushUpdateRef <- Ref[IO].of(IO.unit)
       scheduledDebates <- DebateStateManager.init(
+        initializeDebate(qualityDataset),
         scheduledRoomsDir(saveDir),
         pushUpdateRef
       )
       openDebates <- DebateStateManager.init(
+        initializeDebate(qualityDataset),
         openRoomsDir(saveDir),
         pushUpdateRef
       )

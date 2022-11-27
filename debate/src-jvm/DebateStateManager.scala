@@ -54,6 +54,7 @@ object DebateRoom {
 }
 
 case class DebateStateManager(
+  initializeDebate: DebateSetupSpec => IO[DebateSetup],
   rooms: Ref[IO, Map[String, DebateRoom]],
   saveDir: NIOPath,
   pushUpdateRef: Ref[IO, IO[Unit]])(
@@ -130,19 +131,12 @@ case class DebateStateManager(
       case DebateStateUpdateRequest.State(debateState) =>
         rooms.update(roomStateL(roomName).set(debateState)) // update state
       case DebateStateUpdateRequest.SetupSpec(setupSpec) => {
-        val setup = DebateSetup(
-          setupSpec.rules,
-          bigTokenize(setupSpec.sourceMaterial),
-          setupSpec.question,
-          setupSpec.answers.filter(_.nonEmpty),
-          setupSpec.correctAnswerIndex,
-          setupSpec.roles,
-          System.currentTimeMillis()
-        )
-        rooms.update(
-          roomStateL(roomName).composeLens(DebateState.debate)
-            .set(Some(Debate(setup, Vector())))
-        )
+        initializeDebate(setupSpec).flatMap { setup =>
+          rooms.update(
+            roomStateL(roomName).composeLens(DebateState.debate)
+              .set(Some(Debate(setup, Vector())))
+          )
+        }
       }
     }
 
@@ -185,7 +179,7 @@ case class DebateStateManager(
 
 }
 object DebateStateManager {
-  def init(saveDir: NIOPath, pushUpdateRef: Ref[IO, IO[Unit]])(implicit c: Concurrent[IO]) = {
+  def init(initializeDebate: DebateSetupSpec => IO[DebateSetup], saveDir: NIOPath, pushUpdateRef: Ref[IO, IO[Unit]])(implicit c: Concurrent[IO]) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
       _ <- IO(os.makeDir.all(saveDirOs))
@@ -207,6 +201,6 @@ object DebateStateManager {
         )
         .map(_.toMap)
       roomsRef <- Ref[IO].of(rooms)
-    } yield DebateStateManager(roomsRef, saveDir, pushUpdateRef)
+    } yield DebateStateManager(initializeDebate, roomsRef, saveDir, pushUpdateRef)
   }
 }

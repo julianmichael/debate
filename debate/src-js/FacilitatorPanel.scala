@@ -16,10 +16,15 @@ import jjm.ui.LocalState
 import jjm.ui.CacheCallContent
 import jjm.OrWrapped
 
+import cats.implicits._
+
 class FacilitatorPanel(
   S: Styles.type,
   V: jjm.ui.View
 ) {
+
+  import App.ClassSetInterpolator
+
   val RoundTypeList =
       ListConfig[DebateRoundType](DebateRoundType.SequentialSpeechesRound(500))
   val RoundTypeConfig = SumConfig[DebateRoundType]()
@@ -36,26 +41,30 @@ class FacilitatorPanel(
       case Some((articleId, title)) => s"$title ($articleId)"
     }
   )
-  val QuALITYStoryOptLocal = new LocalState[Option[(String, String)]]
 
   /** Config panel for setting a list of round types. */
   def roundTypeSelect(
       roundTypes: StateSnapshot[Vector[DebateRoundType]],
       minItems: Int
   ) = {
-    RoundTypeList(roundTypes, minItems) { (remove, roundType, _) =>
-      <.div( // (S.labeledInputRow)
-        <.span(S.inputRowItem)(remove, " "),
-        RoundTypeConfig(roundType)(
+    RoundTypeList.mod(
+      listDiv = S.inputRowContents,
+      addItemDiv = S.row
+    )(roundTypes, minItems) { (remove, roundType, _) =>
+      <.div(S.row)(
+        <.span(remove, " "), // (S.inputRowItem)
+        RoundTypeConfig.mod(div = S.inputRowContents)(roundType)(
           "Simultaneous Speeches" -> SumConfigOption(
             DebateRoundType.SimultaneousSpeechesRound(500),
             DebateRoundType.simultaneousSpeechesRound
           ) { simulSpeeches =>
-            <.span(S.inputRowItem)(
-              <.span("Character limit"),
-              V.NumberField(
-                simulSpeeches.zoomStateL(
-                  DebateRoundType.SimultaneousSpeechesRound.charLimit
+            VdomArray(
+              <.div(S.row)(
+                <.div(S.inputLabel)("Character limit"),
+                V.NumberField.mod(input = c"form-control")(
+                  simulSpeeches.zoomStateL(
+                    DebateRoundType.SimultaneousSpeechesRound.charLimit
+                  )
                 )
               )
             )
@@ -64,11 +73,13 @@ class FacilitatorPanel(
             DebateRoundType.SequentialSpeechesRound(500),
             DebateRoundType.sequentialSpeechesRound
           ) { seqSpeeches =>
-            <.span(S.inputRowItem)(
-              <.span("Character limit"),
-              V.NumberField(
-                seqSpeeches.zoomStateL(
-                  DebateRoundType.SequentialSpeechesRound.charLimit
+            VdomArray(
+              <.div(S.row)(
+                <.div(S.inputLabel)("Character limit"),
+                V.NumberField.mod(input = c"form-control")(
+                  seqSpeeches.zoomStateL(
+                    DebateRoundType.SequentialSpeechesRound.charLimit
+                  )
                 )
               )
             )
@@ -77,19 +88,21 @@ class FacilitatorPanel(
             DebateRoundType.JudgeFeedbackRound(true, 500),
             DebateRoundType.judgeFeedbackRound
           ) { judgeFeedback =>
-            <.span(S.inputRowItem)(
-              V.Checkbox(
-                judgeFeedback.zoomStateL(
-                  DebateRoundType.JudgeFeedbackRound.reportBeliefs
-                ),
-                "Report probabilities"
-              ),
-              <.span(
-                <.span("Character limit"),
-                V.NumberField(
+            VdomArray(
+              <.div(S.row)(
+                <.span(S.inputLabel)("Character limit"),
+                V.NumberField.mod(input = c"form-control")(
                   judgeFeedback.zoomStateL(
                     DebateRoundType.JudgeFeedbackRound.charLimit
                   )
+                )
+              ),
+              <.div(S.row)(
+                V.Checkbox(
+                  judgeFeedback.zoomStateL(
+                    DebateRoundType.JudgeFeedbackRound.reportBeliefs
+                  ),
+                  "Report probabilities"
                 )
               )
             )
@@ -105,153 +118,204 @@ class FacilitatorPanel(
     sendUpdate: DebateStateUpdateRequest => Callback
   ) = DebateSetupSpecLocal.make(DebateSetupSpec.init) { setupRaw =>
     val answers = setupRaw.value.answers
-    <.div(S.debateColumn)(
-      <.form(
-        ^.onSubmit ==> (
-          (e: ReactEvent) => {
-            e.preventDefault();
-            sendUpdate(DebateStateUpdateRequest.SetupSpec(setupRaw.value))
-        }),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Opening Rounds"),
-          roundTypeSelect(
-            setupRaw.zoomStateL(
-              DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)
-            ),
-            0
-          )
-        ),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Repeated Rounds"),
+    <.div(S.facilitatorColumn)(
+      <.div(S.mainLabeledInputRow)(
+        <.div(S.inputLabel)("Opening Rounds"),
+        roundTypeSelect(
+          setupRaw.zoomStateL(
+            DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)
+          ),
+          0
+        )
+      ),
+      <.div(S.mainLabeledInputRow)(
+        <.div(S.inputLabel)("Repeated Rounds"),
+        <.div(S.inputRowContents)(
           roundTypeSelect(
             setupRaw.zoomStateL(
               DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)
             ),
             1
           )
-        ),
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Judge Scoring Function"),
-          ScoringFunctionConfig(
-            setupRaw.zoomStateL(
-              DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction)
-            )
-          )(
-            "Spherical Score" -> SumConfigOption(
-              ScoringFunction.SphericalScoreWithLinearPenalty(3, 1),
-              ScoringFunction.sphericalScoreWithLinearPenalty
-            ) { sphericalScore =>
-              <.span(S.inputRowItem)(
-                V.LiveTextField.Double(
-                  sphericalScore.zoomStateL(
-                    ScoringFunction.SphericalScoreWithLinearPenalty.baseCoefficient
-                  ),
-                  Some("Base coefficient")
-                ),
-                V.LiveTextField.Double(
-                  sphericalScore.zoomStateL(
-                    ScoringFunction.SphericalScoreWithLinearPenalty.perTurnPenalty
-                  ),
-                  Some("Per turn penalty")
-                )
-              )
-            },
-            "Quadratic Score" -> SumConfigOption(
-              ScoringFunction.QuadraticScoreWithLinearPenalty(3, 1),
-              ScoringFunction.quadraticScoreWithLinearPenalty
-            ) { quadraticScore =>
-              <.span(S.inputRowItem)(
-                V.LiveTextField.Double(
-                  quadraticScore.zoomStateL(
-                    ScoringFunction.QuadraticScoreWithLinearPenalty.baseCoefficient
-                  ),
-                  Some("Base coefficient")
-                ),
-                V.LiveTextField.Double(
-                  quadraticScore.zoomStateL(
-                    ScoringFunction.QuadraticScoreWithLinearPenalty.perTurnPenalty
-                  ),
-                  Some("Per turn penalty")
-                )
-              )
-            },
-            "Log Score" -> SumConfigOption(
-              ScoringFunction.LogScoreWithLinearPenalty(3.0, 1.0, 2.0, 1.0),
-              ScoringFunction.logScoreWithLinearPenalty
-            ) { logScore =>
-              <.span(S.inputRowItem)(
-                V.LiveTextField.Double(
-                  logScore.zoomStateL(
-                    ScoringFunction.LogScoreWithLinearPenalty.baseCoefficient
-                  ),
-                  Some("Base coefficient")
-                ),
-                V.LiveTextField.Double(
-                  logScore.zoomStateL(
-                    ScoringFunction.LogScoreWithLinearPenalty.constant
-                  ),
-                  Some("Constant")
-                ),
-                V.LiveTextField.Double(
-                  logScore.zoomStateL(
-                    ScoringFunction.LogScoreWithLinearPenalty.logBase
-                  ),
-                  Some("Log base")
-                ),
-                V.LiveTextField.Double(
-                  logScore.zoomStateL(
-                    ScoringFunction.LogScoreWithLinearPenalty.perTurnPenalty
-                  ),
-                  Some("Per turn penalty")
-                )
-              )
-            }
+        )
+      ),
+      <.div(S.mainLabeledInputRow)(
+        <.div(S.inputLabel)("Judge Scoring Function"),
+        ScoringFunctionConfig.mod(
+          div = S.inputRowContents)(
+          setupRaw.zoomStateL(
+            DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction)
           )
-          // roundTypeSelect(setupRaw.zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)), 1),
-        ),
-        QuALITYStoryOptLocal.make(None) { curStory =>
-          <.div(S.labeledInputRow)(
-            <.div(S.inputLabel)("Source Material"),
-            QuALITYIndexFetch.make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
-              case QuALITYIndexFetch.Loading => <.div("Loading QuALITY story list...")
-              case QuALITYIndexFetch.Loaded(index) =>
-                val indexList = index.toList.sortBy(_._2)
-                QuALITYStorySelect(None +: indexList.map(Some(_)), curStory)
-            },
-            curStory.value match {
-              case None =>
-                V.LiveTextArea.String
-                  .mod(textarea = TagMod(S.fullWidthInput, ^.rows := 10))(
-                    setupRaw.zoomStateL(DebateSetupSpec.sourceMaterial),
+        )(
+          "Spherical Score" -> SumConfigOption(
+            ScoringFunction.SphericalScoreWithLinearPenalty(3, 1),
+            ScoringFunction.sphericalScoreWithLinearPenalty
+          ) { sphericalScore =>
+            VdomArray(
+              V.LiveTextField.Double(
+                sphericalScore.zoomStateL(
+                  ScoringFunction.SphericalScoreWithLinearPenalty.baseCoefficient
+                ),
+                Some("Base coefficient")
+              ),
+              V.LiveTextField.Double(
+                sphericalScore.zoomStateL(
+                  ScoringFunction.SphericalScoreWithLinearPenalty.perTurnPenalty
+                ),
+                Some("Per turn penalty")
+              )
+            )
+          },
+          "Quadratic Score" -> SumConfigOption(
+            ScoringFunction.QuadraticScoreWithLinearPenalty(3, 1),
+            ScoringFunction.quadraticScoreWithLinearPenalty
+          ) { quadraticScore =>
+            VdomArray(
+              V.LiveTextField.Double(
+                quadraticScore.zoomStateL(
+                  ScoringFunction.QuadraticScoreWithLinearPenalty.baseCoefficient
+                ),
+                Some("Base coefficient")
+              ),
+              V.LiveTextField.Double(
+                quadraticScore.zoomStateL(
+                  ScoringFunction.QuadraticScoreWithLinearPenalty.perTurnPenalty
+                ),
+                Some("Per turn penalty")
+              )
+            )
+          },
+          "Log Score" -> SumConfigOption(
+            ScoringFunction.LogScoreWithLinearPenalty(3.0, 1.0, 2.0, 1.0),
+            ScoringFunction.logScoreWithLinearPenalty
+          ) { logScore =>
+            VdomArray(
+              V.LiveTextField.Double(
+                logScore.zoomStateL(
+                  ScoringFunction.LogScoreWithLinearPenalty.baseCoefficient
+                ),
+                Some("Base coefficient")
+              ),
+              V.LiveTextField.Double(
+                logScore.zoomStateL(
+                  ScoringFunction.LogScoreWithLinearPenalty.constant
+                ),
+                Some("Constant")
+              ),
+              V.LiveTextField.Double(
+                logScore.zoomStateL(
+                  ScoringFunction.LogScoreWithLinearPenalty.logBase
+                ),
+                Some("Log base")
+              ),
+              V.LiveTextField.Double(
+                logScore.zoomStateL(
+                  ScoringFunction.LogScoreWithLinearPenalty.perTurnPenalty
+                ),
+                Some("Per turn penalty")
+              )
+            )
+          }
+        )
+        // roundTypeSelect(setupRaw.zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)), 1),
+      ),
+      QuALITYIndexFetch.make(
+        request = (),
+        sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)
+      ) { indexFetch =>
+        // val indexOpt = indexFetch.toOption
+        val indexOpt = indexFetch match {
+          case QuALITYIndexFetch.Loading => None
+          case QuALITYIndexFetch.Loaded(index) => Some(index)
+
+        }
+        def getTitle(articleId: String): String = indexOpt.flatMap(_.get(articleId)).getOrElse("(loading title)")
+        // val indexList = indexOpt.foldMap(_.toList)
+
+        <.div(S.mainLabeledInputRow)(
+          <.div(S.inputLabel)("Source Material"),
+          <.div(S.inputRowContents)(
+            QuALITYStorySelect.modFull(select = c"custom-select")(
+              choices = None +: indexOpt.foldMap(_.toList.sortBy(_.swap)).map(Some(_)),
+              curChoice = setupRaw.value.sourceMaterial match {
+                case CustomSourceMaterialSpec(_, _) => None
+                case QuALITYSourceMaterialSpec(articleId) => Some(
+                  articleId -> getTitle(articleId)
+                )
+              },
+              setChoice = choice => choice match {
+                case None => setupRaw.zoomStateL(DebateSetupSpec.sourceMaterial).setState(
+                  CustomSourceMaterialSpec("Title", "Custom source material.")
+                )
+                case Some((articleId, _)) => {
+                  setupRaw.zoomStateL(DebateSetupSpec.sourceMaterial).setState(
+                    QuALITYSourceMaterialSpec(articleId)
+                  )
+                }
+              }
+            ),
+            setupRaw.value.sourceMaterial match {
+              case CustomSourceMaterialSpec(_, _) =>
+                val customSourceMaterialSpec = setupRaw.zoomStateO(
+                  DebateSetupSpec.sourceMaterial.composePrism(SourceMaterialSpec.custom)
+                ).get // will succeed bc of match case
+                VdomArray(
+                  // title
+                  V.LiveTextField.String.modInput(input = c"form-control")(
+                    customSourceMaterialSpec.zoomStateL(CustomSourceMaterialSpec.title)
+                  ),
+                  // article
+                  V.LiveTextArea.String.mod(textarea = TagMod(c"form-control", ^.rows := 10))(
+                    customSourceMaterialSpec.zoomStateL(CustomSourceMaterialSpec.contents),
                     placeholderOpt = Some("Paste source material here")
                   )
-              case Some((articleId, _)) =>
-                QuALITYStoryFetch.make(request = articleId, sendRequest = articleId => OrWrapped.wrapped(qualityService.getStory(articleId))) {
-                  case QuALITYStoryFetch.Loading => <.div("Loading QuALITY story...")
-                  case QuALITYStoryFetch.Loaded(story) => 
-                    <.textarea(
-                      S.fullWidthInput,
-                      ^.rows := 10,
-                      ^.readOnly := true,
-                      ^.value := story.article
-                    )
-                }
+                )
+              case QuALITYSourceMaterialSpec(articleId) =>
+                VdomArray(
+                  // <.input(S.fullWidthInput, ^.rows := 10, ^.readOnly)(
+                  //   getTitleOpt(spec.articleId).getOrElse("(loading title)")
+                  // )
+                  <.input(
+                    c"form-control",
+                    ^.readOnly := true,
+                    ^.value := getTitle(articleId)
+                  ),
+                  QuALITYStoryFetch.make(
+                    request = articleId,
+                    sendRequest = articleId => OrWrapped.wrapped(qualityService.getStory(articleId))
+                  ) { storyFetch =>
+                    val storyOpt = storyFetch match {
+                      case QuALITYStoryFetch.Loading => None
+                      case QuALITYStoryFetch.Loaded(story) => Some(story)
+                    }
+                      <.textarea(
+                        c"form-control",
+                        ^.rows := 10,
+                        ^.readOnly := true,
+                        ^.value := storyOpt.fold("(loading story contents)")(_.article)
+                      )
+                  }
+                )
             }
           )
-        },
-        <.div(S.labeledInputRow)(
-          <.div(S.inputLabel)("Question"),
-          V.LiveTextField.String.mod(input = S.fullWidthInput)(
+        )
+      },
+      <.div(S.mainLabeledInputRow)(
+        <.div(S.inputLabel)("Question"),
+        <.div(S.inputRowContents)(
+          V.LiveTextField.String(
             setupRaw.zoomStateL(DebateSetupSpec.question)
           )
-        ),
-        <.div(S.labeledInputRow)(
-          <.span(S.inputLabel)("Answers"),
+        )
+      ),
+      <.div(S.mainLabeledInputRow)(
+        <.div(S.inputLabel)("Answers"),
+        <.div(S.inputRowContents)(
           ListConfig.String(setupRaw.zoomStateL(DebateSetupSpec.answers), 1) {
             (remove, answer, index) =>
-              <.div(S.labeledInputRow)(
+              <.div(S.row)(
                 <.span(S.answerLabel)(remove, " ", s"${answerLetter(index)}. "),
-                V.LiveTextField.String.mod(input = S.fullWidthInput)(answer),
+                V.LiveTextField.String(answer),
                 <.input(S.correctAnswerRadio)(
                   ^.`type` := "radio",
                   ^.name := "correctAnswerIndex",
@@ -267,11 +331,18 @@ class FacilitatorPanel(
                 )
               )
           }
-        ),
-        <.button(
-          "Start the debate!",
-          ^.`type` := "submit",
-          ^.disabled := answers.filter(_.nonEmpty).size < 2
+        )
+      ),
+      <.button(c"btn btn-primary")(
+        "Start the debate!",
+        ^.disabled := answers.filter(_.nonEmpty).size < 2, // TODO factor this out
+        ^.onClick ==> (
+          (e: ReactEvent) => {
+            if(answers.filter(_.nonEmpty).size < 2) Callback.empty else {
+              e.preventDefault();
+              sendUpdate(DebateStateUpdateRequest.SetupSpec(setupRaw.value))
+            }
+          }
         )
       )
     )

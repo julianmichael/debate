@@ -19,11 +19,33 @@ import scalacss.internal.ValueT
 object Styles extends jjm.ui.View.Styles {
   import dsl._
 
+
+  val commonBorderRadius = 5 px
+  val mainHalfPadding = 3 px
+  val hoverBgColor = c"#eee"
+
   // overrides
 
   override val textFieldSpan = style(
+    display.flex,
+    flexDirection.row,
     flexGrow(1)
     // width(100 %%)
+  )
+
+  val inputLabel = style(
+    addClassNames("col-form-label"),
+    width(120 px),
+    textAlign.right,
+    marginRight(mainHalfPadding)
+      // marginRight(5 px),
+      // flexGrow(1),
+  )
+
+  override val textFieldLabel = inputLabel
+
+  override val textFieldInput = style(
+    addClassNames("form-control")
   )
 
   override val intArrowFieldInput = style(
@@ -35,9 +57,6 @@ object Styles extends jjm.ui.View.Styles {
   val listConfigListDiv = style(
     textAlign.left
   )
-  val listConfigItemDiv = style(
-    // textAlign.left
-  )
   val listConfigRemoveItemSpan = style(
     color.gray,
     &.hover(
@@ -45,13 +64,18 @@ object Styles extends jjm.ui.View.Styles {
       fontWeight.bold
     )
   )
+  val listConfigAddItemDiv = style(
+      // textAlign.left
+    )
   val listConfigAddItemSpan = listConfigRemoveItemSpan
 
   // sum config
 
-  val sumConfigOuterSpan = style()
-  val sumConfigInnerSpan = style()
-  val sumConfigSelect = style()
+  val sumConfigOuterDiv = style()
+  val sumConfigInnerDiv = style()
+  val sumConfigSelect = style(
+    addClassNames("custom-select")
+  )
 
   // prob sliders
 
@@ -220,10 +244,6 @@ object Styles extends jjm.ui.View.Styles {
     margin.auto
   )
 
-  val commonBorderRadius = 5 px
-  val mainHalfPadding = 3 px
-  val hoverBgColor = c"#eee"
-
   val roomRolesRow = style(
     // flexGrow(1),
     width(100 %%),
@@ -342,16 +362,28 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val debateColumn = style(
-    // position.relative,
-    // margin.auto,
-    padding(10 px),
-    // width(100 %%),
-    // height(100 %%),
-    display.flex,
-    flexDirection.column,
-    borderRadius(commonBorderRadius),
-    overflow.hidden
-  )
+      // position.relative,
+      // margin.auto,
+      padding(10 px),
+      // width(100 %%),
+      // height(100 %%),
+      display.flex,
+      flexDirection.column,
+      borderRadius(commonBorderRadius),
+      overflow.hidden
+    )
+
+  val facilitatorColumn = style(
+      spaceySubcontainer,
+      // position.relative,
+      // margin.auto,
+      // padding(10 px),
+      // width(100 %%),
+      // height(100 %%),
+      display.flex,
+      flexDirection.column,
+      borderRadius(commonBorderRadius)
+    )
 
   val inDebateRoleBox = style(
     backgroundColor.white,
@@ -469,18 +501,16 @@ object Styles extends jjm.ui.View.Styles {
   //   // padding(mainHalfPadding)
   // )
 
-  val labeledInputRow = style(
-    // flexGrow(1),
-    display.flex,
-    flexDirection.row
-    // padding(mainHalfPadding)
+  val mainLabeledInputRow = style(
+    row, spaceyContainer,
+    borderRadius(commonBorderRadius),
+    backgroundColor(c"#eee"),
   )
 
-  val inputLabel = style(
-    width(120 px),
-    textAlign.right,
-    margin(mainHalfPadding)
-    // flexGrow(1),
+  val inputRowContents = style(
+    display.flex,
+    flexDirection.column,
+    width(100 %%)
   )
 
   val inputRowItem = style(
@@ -516,7 +546,8 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val answerLabel = style(
-    inputRowItem
+    inputRowItem,
+    marginRight(mainHalfPadding * 2)
     // width(50 px),
     // textAlign.right
     // margin(mainHalfPadding)
