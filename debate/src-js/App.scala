@@ -200,7 +200,7 @@ object App {
       _.setup.canAssumeRole(userName, role)
     )
 
-    def assumeRole(role: Role): Callback = {
+    def tryAssumingRole(role: Role): Callback = {
       if(canAssumeRole(role)) {
         debate.modState(_.addParticipant(ParticipantId(userName, role)))
       } else Callback.empty
@@ -214,7 +214,7 @@ object App {
       <.div(S.optionBox, S.simpleSelectable.when(canAssumeRole(Facilitator)), S.simpleSelected.when(isCurrent))(
         <.div(S.optionTitle)("Facilitators"),
         commaSeparatedSpans(facilitators.toList.sorted).toVdomArray,
-        ^.onClick --> assumeRole(Facilitator)
+        ^.onClick --> tryAssumingRole(Facilitator)
       )
     }
     def observersDiv = {
@@ -225,7 +225,7 @@ object App {
       <.div(S.optionBox, S.simpleSelectable.when(canAssumeRole(Observer)), S.simpleSelected.when(isCurrent))(
         <.div(S.optionTitle)("Observers"),
         commaSeparatedSpans(observers.toList.sorted).toVdomArray,
-        ^.onClick --> assumeRole(Observer)
+        ^.onClick --> tryAssumingRole(Observer)
       )
     }
 
@@ -482,7 +482,7 @@ object App {
                               }
                             case Some(debate) =>
                               val setup = debate.setup
-                              def assumeRole(role: Role): Callback = {
+                              def tryAssumingRole(role: Role): Callback = {
                                 if(!setup.canAssumeRole(userName, role)) Callback.empty else {
                                   debateState.modState(
                                     _.addParticipant(
@@ -498,6 +498,20 @@ object App {
                               val questionBoxStyle =
                                 if (isCurrentJudge) S.questionBoxCurrent
                                 else S.questionBox
+
+                              def showRoleNames(role: DebateRole) = {
+                                setup.roles.get(role) match {
+                                  case Some(name) =>
+                                    if(!debateState.value.participants.contains(ParticipantId(name, role))) {
+                                      <.span(S.missingParticipant)(name + " (not here)")
+                                    } else <.span(name)
+                                  case None =>
+                                    debateState.value.participants.collect {
+                                      case ParticipantId(name, `role`) => <.span(name)
+                                    }.toVdomArray
+                                }
+                              }
+
                               <.div(S.debateColumn, backgroundStyle)(
                                 <.div(questionBoxStyle, S.simpleSelectable.when(setup.canAssumeRole(userName, Judge)))(
                                   <.div(S.questionTitle)(
@@ -505,13 +519,9 @@ object App {
                                     setup.question
                                   ),
                                   <.div(S.judgesList)(
-                                    "Judges: ",
-                                    debateState.value.participants.collect {
-                                      case ParticipantId(name, Judge) =>
-                                        <.span(name)
-                                    }.toVdomArray
+                                    "Judge: ", showRoleNames(Judge)
                                   ),
-                                  ^.onClick --> assumeRole(Judge)
+                                  ^.onClick --> tryAssumingRole(Judge)
                                 ),
                                 <.div(S.answerBoxesRow, S.spaceySubcontainer)(
                                   setup.answers.zipWithIndex.toVdomArray {
@@ -530,16 +540,9 @@ object App {
                                           s"${answerLetter(answerIndex)}. $answer"
                                         ),
                                         <.div(S.debatersList)(
-                                          "Debaters: ",
-                                          debateState.value.participants.collect {
-                                            case ParticipantId(
-                                                  name,
-                                                  Debater(`answerIndex`)
-                                                ) =>
-                                              <.span(name)
-                                          }.toVdomArray
+                                          "Debater: ", showRoleNames(Debater(answerIndex))
                                         ),
-                                        ^.onClick --> assumeRole(
+                                        ^.onClick --> tryAssumingRole(
                                           Debater(answerIndex)
                                         )
                                       )

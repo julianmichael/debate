@@ -438,6 +438,11 @@ object Styles extends jjm.ui.View.Styles {
     )
   )
 
+  val missingParticipant = style(
+    fontWeight.lighter,
+    fontStyle.italic,
+  )
+
   val answerBoxCurrent = styleF.int(0 to 4)(i =>
     styleS(
       width(75 %%),
