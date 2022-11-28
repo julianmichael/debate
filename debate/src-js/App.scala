@@ -284,7 +284,7 @@ object App {
                       <.div(S.lobbyContainer, S.spaceyContainer)(
                         <.div(c"form-group row")(
                           <.label(c"col-sm-2 col-form-label")("Profile:"),
-                          V.Select.String.modFull(c"col-sm-10 custom-select")(
+                          V.Select.String.modFull(TagMod(c"col-sm-10", S.customSelect))(
                             choices =
                               noProfileString +: lobby.value.trackedDebaters.toList.sorted,
                             curChoice =

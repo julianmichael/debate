@@ -19,10 +19,17 @@ import scalacss.internal.ValueT
 object Styles extends jjm.ui.View.Styles {
   import dsl._
 
+  val niceGreen = c"#28a745"
 
   val commonBorderRadius = 5 px
   val mainHalfPadding = 3 px
   val hoverBgColor = c"#eee"
+
+  val customSelect = style(
+    addClassNames("custom-select"),
+    width.auto,
+    flexGrow(1)
+  )
 
   // overrides
 
@@ -35,7 +42,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val inputLabel = style(
     addClassNames("col-form-label"),
-    width(120 px),
+    width(140 px),
     textAlign.right,
     marginRight(mainHalfPadding)
       // marginRight(5 px),
@@ -73,9 +80,10 @@ object Styles extends jjm.ui.View.Styles {
 
   val sumConfigOuterDiv = style()
   val sumConfigInnerDiv = style()
-  val sumConfigSelect = style(
-    addClassNames("custom-select")
-  )
+  val sumConfigSelect = customSelect
+  // style(
+  //   addClassNames("custom-select")
+  // )
 
   // prob sliders
 
@@ -545,6 +553,11 @@ object Styles extends jjm.ui.View.Styles {
   //   width(75 %%),
   //   if(i % 2 == 0) alignSelf.start else alignSelf.end
   // )
+  )
+
+  val correctAnswerLabel = style(
+    color(niceGreen),
+    fontWeight.bold
   )
 
   val answerLabel = style(

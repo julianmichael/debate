@@ -59,7 +59,15 @@ object QuALITYStory
   questionUniqueId: String,
   question: String,
   options: Vector[String],
-  difficult: Boolean
+  difficult: Boolean,
+  annotations: Option[QuALITYQuestionAnnotations]
+)
+
+@JsonCodec case class QuALITYQuestionAnnotations(
+  writerLabel: Int,
+  goldLabel: Int,
+  validation: Vector[QuALITYQuestionValidationInstance],
+  speedValidation: Vector[QuALITYQuestionSpeedValidationInstance]
 )
 
 // only putting this silly object here because scala 2 doesn't allow vals not in objects/etc.
@@ -101,6 +109,15 @@ import SillyObject.config
           case 1 => true
           case _ => throw new IllegalArgumentException(s"Question difficulty must be 0 or 1. Found: ${q.difficult}")
         }
+        val annotations = q.writerLabel.map { writerLabel =>
+          // assume, if writerLabel is present, that all the other gold info is present as well
+          QuALITYQuestionAnnotations(
+            writerLabel = writerLabel,
+            goldLabel = q.goldLabel.get,
+            validation = q.validation.get,
+            speedValidation = q.speedValidation.get
+          )
+        }
         q.questionUniqueId -> QuALITYQuestion(
           split = split,
           setUniqueId = setUniqueId,
@@ -109,7 +126,8 @@ import SillyObject.config
           questionUniqueId = q.questionUniqueId,
           question = q.question,
           options = q.options,
-          difficult = difficult
+          difficult = difficult,
+          annotations = annotations
         )
       }.toMap
     )
@@ -120,6 +138,25 @@ object QuALITYInstance
   questionUniqueId: String,
   question: String,
   options: Vector[String],
-  difficult: Int
+  difficult: Int,
+  writerLabel: Option[Int],
+  goldLabel: Option[Int],
+  validation: Option[Vector[QuALITYQuestionValidationInstance]],
+  speedValidation: Option[Vector[QuALITYQuestionSpeedValidationInstance]]
 )
 object QuALITYQuestionInstance
+
+@ConfiguredJsonCodec @Lenses case class QuALITYQuestionValidationInstance(
+  untimedAnnotatorId: String,
+  untimedAnswer: Int,
+  untimedEval1Answerability: Int,
+  untimedEval2Context: Int,
+  untimedBestDistractor: Int
+)
+object QuALITYQuestionValidationInstance
+
+@ConfiguredJsonCodec @Lenses case class QuALITYQuestionSpeedValidationInstance(
+  speedAnnotatorId: String,
+  speedAnswer: Int,
+)
+object QuALITYQuestionSpeedValidationInstance
