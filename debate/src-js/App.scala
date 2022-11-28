@@ -316,6 +316,17 @@ object App {
                             )).when(!isDisabled),
                           )
                         },
+                        <.div(c"form-group row", Styles.adminOnly) {
+                          val name = userName.value
+                          val isEnabled = lobby.value.trackedDebaters.contains(name)
+                          <.button(c"btn btn-danger btn-block")(
+                            "Delete profile",
+                            ^.disabled := !isEnabled,
+                            (^.onClick --> sendToMainChannel(
+                              RemoveDebater(userName.value)
+                            )).when(isEnabled),
+                          )
+                        },
                         LocalLobbyTab.make(LobbyTab.MyDebates) { lobbyTab =>
                           import LobbyTab._
                           val myDebates = lobby.value.officialRooms
@@ -402,6 +413,15 @@ object App {
                                           currentParticipants.toList.sorted
                                         ).toVdomArray
                                       ).when(currentParticipants.nonEmpty),
+                                      <.button(c"btn btn-block btn-danger", S.adminOnly)(
+                                        "Delete room",
+                                        ^.onClick ==> (
+                                          (e: ReactMouseEvent) => {
+                                            e.stopPropagation();
+                                            sendToMainChannel(DeleteRoom(isOfficial, roomName))
+                                          }
+                                        )
+                                      ),
                                       (^.onClick --> enterRoom(
                                         isOfficial,
                                         roomName,

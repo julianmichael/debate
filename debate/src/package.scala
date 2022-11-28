@@ -33,6 +33,8 @@ package object debate extends PackagePlatformExtensions {
 
   sealed trait MainChannelRequest
   case class RegisterDebater(debaterName: String) extends MainChannelRequest
+  case class RemoveDebater(debaterName: String) extends MainChannelRequest
+  case class DeleteRoom(isOfficial: Boolean, roomName: String) extends MainChannelRequest
 
   @JsonCodec sealed trait RoomStatus {
     import RoomStatus._

@@ -310,6 +310,13 @@ object Serve
       _ <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
     } yield ()
 
+    def removeDebater(name: String) = for {
+      _ <- trackedDebaters.update(_ - name)
+      _ <- pushUpdate
+      debaters <- trackedDebaters.get
+      _ <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
+    } yield ()
+
     val jsDepsLocation = "deps.js"
     val jsLocation = "out.js"
     val jsMapLocation = jsLocation + ".map"
@@ -338,8 +345,12 @@ object Serve
         receive = x => {
           x.through(filterCloseFrames)
             .map(unpickleFromWSFrame[MainChannelRequest])
-            .evalMap { case RegisterDebater(name) =>
-              registerDebater(name)
+            .evalMap {
+              case RegisterDebater(name) => registerDebater(name)
+              case RemoveDebater(name) => removeDebater(name)
+              case DeleteRoom(isOfficial, roomName) =>
+                if(isOfficial) officialDebates.deleteDebate(roomName)
+                else practiceDebates.deleteDebate(roomName)
             }
         },
         onClose = IO.unit

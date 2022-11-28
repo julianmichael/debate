@@ -20,6 +20,7 @@ import fs2.Stream
 import org.http4s.server.websocket._
 
 import jjm.io.FileUtil
+import java.nio.file.Files
 
 /** The server state for a debate room.
   *
@@ -100,6 +101,24 @@ case class DebateStateManager(
           ) >> pushUpdate
         )
     )
+  } yield ()
+
+  def deleteDebate(roomName: String) = for {
+    _ <- rooms.update(_ - roomName)
+    _ <- IO(Files.delete(saveDir.resolve(roomName + ".json")))
+    _ <- pushUpdate
+    // roomOpt <- rooms.get.map(_.get(roomName))
+    // _ <- IO(roomOpt.nonEmpty).ifM(
+    //   ifTrue = IO.unit,
+    //   ifFalse = DebateRoom
+    //     .create()
+    //     .flatMap(room =>
+    //       rooms.update(rooms =>
+    //         if (rooms.contains(roomName)) rooms
+    //         else rooms + (roomName -> room)
+    //       ) >> pushUpdate
+    //     )
+    // )
   } yield ()
 
   def addParticipant(roomName: String, participantId: String) = for {
@@ -184,7 +203,11 @@ case class DebateStateManager(
 
 }
 object DebateStateManager {
-  def init(initializeDebate: DebateSetupSpec => IO[DebateSetup], saveDir: NIOPath, pushUpdateRef: Ref[IO, IO[Unit]])(implicit c: Concurrent[IO]) = {
+  def init(
+    initializeDebate: DebateSetupSpec => IO[DebateSetup],
+    saveDir: NIOPath,
+    pushUpdateRef: Ref[IO, IO[Unit]])(
+    implicit c: Concurrent[IO]) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
       _ <- IO(os.makeDir.all(saveDirOs))

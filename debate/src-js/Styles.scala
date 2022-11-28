@@ -255,7 +255,7 @@ object Styles extends jjm.ui.View.Styles {
   val optionBox = style(
     flexBasis := "0",
     flexGrow(1),
-    height(60 px),
+    minHeight(60 px),
     // margin(mainHalfPadding),
     padding(2 px),
     borderStyle.solid,
