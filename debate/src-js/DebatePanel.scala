@@ -537,6 +537,152 @@ class DebatePanel(
             )
           }
 
+          def undoButtonPanel(submit: Boolean => Callback) = {
+            <.button(
+              "Undo",
+              ^.onClick --> submit(true),
+              ^.disabled := isUsersTurn // TODO what about during simultaneous speeches?
+            )
+          }
+
+          def handleSimultaneousSpeechesWhenUsersTurn() = {
+            val submit =
+              (
+                if (!isUsersTurn || speechIsTooLong) Callback.empty
+                else
+                  userId.foldMap(userId =>
+                    CallbackTo(System.currentTimeMillis()).flatMap { time =>
+                      val speech = DebateSpeech(
+                        userId,
+                        time,
+                        currentMessageSpeechSegments
+                      )
+                      val newRounds = role match {
+                        case Some(Debater(debaterIndex)) =>
+                          rounds.lastOption match {
+                            // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
+                            case Some(SimultaneousSpeeches(speeches))
+                                if speeches.size < setup.answers.size =>
+                              rounds.updated(
+                                rounds.size - 1,
+                                SimultaneousSpeeches(
+                                  speeches + (debaterIndex -> speech)
+                                )
+                              )
+                            // otherwise, create the record for the turn with our new speech.
+                            case _ =>
+                              rounds :+ SimultaneousSpeeches(
+                                Map(debaterIndex -> speech)
+                              )
+                          }
+                        case _ => rounds // TODO should we error here?
+                      }
+                      sendDebate(Debate(setup, newRounds))
+                    } >> currentMessage.setState("")
+                  )
+              )
+
+            <.div(S.col)(
+              speechInputPanel(_ => submit, true),
+              <.button(
+                "Submit",
+                ^.disabled := !isUsersTurn || speechIsTooLong,
+                ^.onClick --> submit
+              )
+            )
+
+            // TODO add undo here? (for simultaneous speeches)
+          }
+
+          def handleSequentialSpeechesWhenUsersTurn() = {
+            val submitNewSpeech =
+              (
+                if (!isUsersTurn || speechIsTooLong) Callback.empty
+                else
+                  userId.foldMap(userId =>
+                    CallbackTo(System.currentTimeMillis()).flatMap { time =>
+                      val speech = DebateSpeech(
+                        userId,
+                        time,
+                        currentMessageSpeechSegments
+                      )
+                      val newRounds = role match {
+                        case Some(Debater(debaterIndex)) =>
+                          rounds.lastOption match {
+                            // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
+                            case Some(SequentialSpeeches(speeches))
+                                if speeches.size < setup.answers.size =>
+                              rounds.updated(
+                                rounds.size - 1,
+                                SequentialSpeeches(
+                                  speeches + (debaterIndex -> speech)
+                                )
+                              )
+                            // otherwise, create the record for the turn with our new speech.
+                            case _ =>
+                              rounds :+ SequentialSpeeches(
+                                Map(debaterIndex -> speech)
+                              )
+                          }
+                        case _ => rounds // TODO should we error here?
+                      }
+                      sendDebate(Debate(setup, newRounds))
+                    } >> currentMessage.setState("")
+                  )
+              )
+
+            // TODO add undo for simultaneousspeeches
+            // TODO do we need to do anything else to synchronize the state to disk?
+
+            <.div(S.col)(
+              <.div(S.col)(
+                speechInputPanel(
+                  _ => submitNewSpeech,
+                  cmdEnterToSubmit = true
+                ),
+                <.button(
+                  "Submit",
+                  ^.disabled := !isUsersTurn || speechIsTooLong,
+                  ^.onClick --> submitNewSpeech // TODO extract?
+                )
+              )
+            )
+          }
+
+          def handleSequentialSpeechesWhenNotUsersTurn() = {
+            val undoLastSpeech =
+              (
+                if (isUsersTurn)
+                  Callback.empty // TODO why do we need this? (copied from above)
+                else
+                  // TODO why do we need [foldMap] here? (copied from above)
+                  userId.foldMap((_: ParticipantId) =>
+                    CallbackTo(System.currentTimeMillis()).flatMap {
+                      (_: Long) =>
+                        val newRounds =
+                          rounds.lastOption match {
+                            // TODO what about adversarial opponents?
+                            // they could just send the ws message anyway
+                            case Some(SequentialSpeeches(speeches))
+                                if speeches.size > 0 =>
+                              val newLastRound = SequentialSpeeches(
+                                speeches - (speeches.size - 1)
+                              )
+                              rounds.dropRight(1) :+ newLastRound
+                            case _ =>
+                              rounds // TODO does this properly handle simultaneous speeches? why can't we get better type inference (or can we ?) what's the metals command? (i think it's fine :)
+                          }
+                        sendDebate(Debate(setup, rounds = newRounds))
+                    }
+                  )
+              )
+
+            <.div(S.col)(
+              // TODO add styling for buttonPanel
+              undoButtonPanel(_ => undoLastSpeech)
+            )
+          }
+
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
               ^.id := "speeches",
@@ -556,146 +702,30 @@ class DebatePanel(
               }
             ),
             turnDisplay(role, currentTurnOrResult),
+            currentTurnOrResult.toOption
+              .filter(_ => !isUsersTurn)
+              // TODO filter out if we're the judge
+              // TODO only let one undo happen- otherwise we can backspace the entire debate :)
+              .whenDefined {
+                case _: DebateTurnType.SimultaneousSpeechesTurn =>
+                  // TODO undo for simultaneous speeches? is this even the right place for it?
+                  // handleSimultaneousSpeechesWhenNotUsersTurn()
+                  <.div()()
+                case _: DebateTurnType.DebaterSpeechTurn =>
+                  handleSequentialSpeechesWhenNotUsersTurn()
+                case _: DebateTurnType.JudgeFeedbackTurn =>
+                  <.div()() // TODO anything to say here?
+              },
             currentTurnOrResult.toOption.filter(_ => isUsersTurn).whenDefined {
               case DebateTurnType.SimultaneousSpeechesTurn(
                     _: Set[Int],
                     _: Int
                   ) =>
-                val submit =
-                  (
-                    if (!isUsersTurn || speechIsTooLong) Callback.empty
-                    else
-                      userId.foldMap(userId =>
-                        CallbackTo(System.currentTimeMillis()).flatMap { time =>
-                          val speech = DebateSpeech(
-                            userId,
-                            time,
-                            currentMessageSpeechSegments
-                          )
-                          val newRounds = role match {
-                            case Some(Debater(debaterIndex)) =>
-                              rounds.lastOption match {
-                                // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
-                                case Some(SimultaneousSpeeches(speeches))
-                                    if speeches.size < setup.answers.size =>
-                                  rounds.updated(
-                                    rounds.size - 1,
-                                    SimultaneousSpeeches(
-                                      speeches + (debaterIndex -> speech)
-                                    )
-                                  )
-                                // otherwise, create the record for the turn with our new speech.
-                                case _ =>
-                                  rounds :+ SimultaneousSpeeches(
-                                    Map(debaterIndex -> speech)
-                                  )
-                              }
-                            case _ => rounds // TODO should we error here?
-                          }
-                          sendDebate(Debate(setup, newRounds))
-                        } >> currentMessage.setState("")
-                      )
-                  )
-
-                <.div(S.col)(
-                  speechInputPanel(_ => submit, true),
-                  <.button(
-                    "Submit",
-                    ^.disabled := !isUsersTurn || speechIsTooLong,
-                    ^.onClick --> submit
-                  )
-                )
-
-              // TODO add undo here? (for simultaneous speeches)
+                handleSimultaneousSpeechesWhenUsersTurn()
 
               case DebateTurnType
                     .DebaterSpeechTurn(_: Int, _: Int) =>
-                val submitNewSpeech =
-                  (
-                    if (!isUsersTurn || speechIsTooLong) Callback.empty
-                    else
-                      userId.foldMap(userId =>
-                        CallbackTo(System.currentTimeMillis()).flatMap { time =>
-                          val speech = DebateSpeech(
-                            userId,
-                            time,
-                            currentMessageSpeechSegments
-                          )
-                          val newRounds = role match {
-                            case Some(Debater(debaterIndex)) =>
-                              rounds.lastOption match {
-                                // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
-                                case Some(SequentialSpeeches(speeches))
-                                    if speeches.size < setup.answers.size =>
-                                  rounds.updated(
-                                    rounds.size - 1,
-                                    SequentialSpeeches(
-                                      speeches + (debaterIndex -> speech)
-                                    )
-                                  )
-                                // otherwise, create the record for the turn with our new speech.
-                                case _ =>
-                                  rounds :+ SequentialSpeeches(
-                                    Map(debaterIndex -> speech)
-                                  )
-                              }
-                            case _ => rounds // TODO should we error here?
-                          }
-                          sendDebate(Debate(setup, newRounds))
-                        } >> currentMessage.setState("")
-                      )
-                  )
-
-                <.div(S.col)(
-                  speechInputPanel(
-                    _ => submitNewSpeech,
-                    cmdEnterToSubmit = true
-                  ),
-                  <.button(
-                    "Submit",
-                    ^.disabled := !isUsersTurn || speechIsTooLong,
-                    ^.onClick --> submitNewSpeech // TODO extract?
-                  )
-                )
-
-              /*                val undoLastSpeech =
-                  (
-                    if (isUsersTurn)
-                      Callback.empty // TODO why do we need this? (copied from above)
-                    else
-                      // TODO why do we need [foldMap] here? (copied from above)
-                      userId.foldMap((_: ParticipantId) =>
-                        CallbackTo(System.currentTimeMillis()).flatMap {
-                          (_: Long) =>
-                            val newRounds =
-                              rounds.lastOption match {
-                                // TODO what about adversarial opponents?
-                                // they could just send the ws message anyway
-                                case Some(SequentialSpeeches(speeches))
-                                    if speeches.size > 0 =>
-                                  val newLastRound = SequentialSpeeches(
-                                    speeches - (speeches.size - 1)
-                                  )
-                                  rounds.dropRight(1) :+ newLastRound
-                                case _ =>
-                                  rounds // TODO does this properly handle simultaneous speeches? why can't we get better type inference (or can we ?) what's the metals command? (i think it's fine :)
-                              }
-                            sendDebate(Debate(setup, rounds = newRounds))
-                        }
-                      )
-                  )
-
-                <.div(S.col)(
-                  speechInputPanel(
-                    _ => undoLastSpeech,
-                    cmdEnterToSubmit = true
-                  ),
-                  <.button(
-                    "Undo",
-                    ^.disabled := isUsersTurn,
-                    ^.onClick --> undoLastSpeech
-                  )
-                ) */
+                handleSequentialSpeechesWhenUsersTurn()
 
               case DebateTurnType.JudgeFeedbackTurn(
                     _: Boolean,

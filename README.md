@@ -76,4 +76,4 @@ smithjessk observed that using `mill -j 0` sped up his builds a lot. (~33% for `
 
 ## In case a default profile isn't set up
 
-You can add profiles with the ~secret admin controls~ which you can access by using the developer tools to change the Styles-adminOnly and disable display: none . You can find the element if you just select the profile dropdown and then scan the elements that come after it
+You can add profiles with the **~secret admin controls~** which you can access by using the developer tools to change the `Styles-adminOnly` and disable `display: none`. You can find the element if you just select the profile dropdown and then scan the elements that come after it
