@@ -71,4 +71,5 @@ Relevant libraries to reference:
 
 ## Speeding up your build
 
-smithjessk observed that using `mill -j 0` sped up his builds a lot. (~33% for `mill debate._.compile`)
+smithjessk observed that using `mill -j 0` sped up his builds a lot. (~33% for `mill debate._.compile`).
+(This might use more memory though).
