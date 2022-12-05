@@ -666,7 +666,7 @@ class DebatePanel(
                       // TODO why do we need [foldMap] here? (copied from above)
                       userId.foldMap((_: ParticipantId) =>
                         CallbackTo(System.currentTimeMillis()).flatMap {
-                          (_: long) =>
+                          (_: Long) =>
                             val newRounds =
                               rounds.lastOption match {
                                 // TODO what about adversarial opponents?
