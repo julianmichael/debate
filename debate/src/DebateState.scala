@@ -20,9 +20,11 @@ import cats.implicits._
 
   def status: RoomStatus = debate match {
     case None => RoomStatus.SettingUp
-    case Some(debate) => debate.currentTurn.fold(
-      _ => RoomStatus.Complete, _ => RoomStatus.InProgress
-    )
+    case Some(debate) =>
+      debate.currentTurn.fold(
+        _ => RoomStatus.Complete,
+        _ => RoomStatus.InProgress
+      )
   }
 
   /** Add a participant. If the participant is already present, potentially
@@ -37,10 +39,10 @@ object DebateState {
 }
 
 @Lenses @JsonCodec case class DebateResult(
-  correctAnswerIndex: Int,
-  numTurns: Int,
-  finalJudgment: Vector[Double],
-  judgeReward: Double
+    correctAnswerIndex: Int,
+    numTurns: Int,
+    finalJudgment: Vector[Double],
+    judgeReward: Double
 )
 object DebateResult
 
@@ -63,7 +65,7 @@ object DebateResult
 
   def numContinues = rounds.foldMap {
     case JudgeFeedback(_, _, false) => 1
-    case _ => 0
+    case _                          => 0
   }
 
   /** Whose turn it is and what they need to submit. */
@@ -71,20 +73,25 @@ object DebateResult
     // TODO: validate that the debate follows the specified structure?
     // turn sequence is always nonempty
     val numDebaters = setup.answers.size
-    val roundSequence = setup.rules.roundTypes//(setup.answers.size)
+    val roundSequence = setup.rules.roundTypes // (setup.answers.size)
     if (rounds.isEmpty) Right(roundSequence.head.getFirstTurn(numDebaters))
     else {
       val lastRoundTypeAndRest = roundSequence.drop(rounds.size - 1)
       val lastRound = rounds.last
       lastRoundTypeAndRest.head.getTurn(lastRound, numDebaters) match {
-        case DebateTurnTypeResult.Next => Right(
-          lastRoundTypeAndRest.tail.head.getFirstTurn(numDebaters) // there should always be more turns
-        )
+        case DebateTurnTypeResult.Next =>
+          Right(
+            lastRoundTypeAndRest.tail.head.getFirstTurn(
+              numDebaters
+            ) // there should always be more turns
+          )
         case DebateTurnTypeResult.Turn(turn) => Right(turn)
         case DebateTurnTypeResult.End(finalJudgment) =>
           val numTurns = numContinues
           val judgeReward = setup.rules.scoringFunction.eval(
-            numTurns, finalJudgment, setup.correctAnswerIndex
+            numTurns,
+            finalJudgment,
+            setup.correctAnswerIndex
           )
           Left(
             DebateResult(
@@ -108,14 +115,28 @@ object Debate {
   */
 @JsonCodec sealed trait DebateRound {
   def allSpeeches: Set[DebateSpeech]
+
+  /** Removes the last speech. If there are no speeches, does nothing.
+    */
+  def removeLastSpeech: DebateRound
+
   def isComplete(numDebaters: Int): Boolean
-  final def timestamp: Option[Long] = allSpeeches.view.map(_.timestamp).maxOption
+  final def timestamp: Option[Long] =
+    allSpeeches.view.map(_.timestamp).maxOption
 }
 @Lenses @JsonCodec case class SimultaneousSpeeches(
     speeches: Map[Int, DebateSpeech] // map from answer index -> statement
 ) extends DebateRound {
   def isComplete(numDebaters: Int) = speeches.size == numDebaters
   def allSpeeches = speeches.values.toSet
+
+  def removeLastSpeech: SimultaneousSpeeches = {
+    speeches.keys.maxOption match {
+      case None => this
+      case Some(max) =>
+        SimultaneousSpeeches.speeches.modify(_ - max)(this)
+    }
+  }
 }
 object SimultaneousSpeeches
 @Lenses @JsonCodec case class SequentialSpeeches(
@@ -123,6 +144,14 @@ object SimultaneousSpeeches
 ) extends DebateRound {
   def isComplete(numDebaters: Int) = speeches.size == numDebaters
   def allSpeeches = speeches.values.toSet
+
+  def removeLastSpeech: SequentialSpeeches = {
+    speeches.keys.maxOption match {
+      case None => this
+      case Some(max) =>
+        SequentialSpeeches.speeches.modify(_ - max)(this)
+    }
+  }
 }
 object SequentialSpeeches
 @Lenses @JsonCodec case class JudgeFeedback(
@@ -132,9 +161,17 @@ object SequentialSpeeches
 ) extends DebateRound {
   def isComplete(numDebaters: Int) = true
   def allSpeeches = Set(feedback)
+
+  def removeLastSpeech: JudgeFeedback = {
+    speeches.keys.maxOption match {
+      case None => this
+      case Some(max) =>
+        SequentialSpeeches.speeches.modify(_ - max)(this)
+    }
+  }
 }
-object JudgeFeedback
-object DebateRound
+object JudgeFeedback // TODO why does this exist? can we just delete this?
+object DebateRound // TODO why does this exist? can we just delete this?
 
 /** Specifies who gets to speak next and what kind of input they should provide.
   */
@@ -164,13 +201,13 @@ object DebateTurnType {
   def contents: Vector[String]
 }
 @JsonCodec case class CustomSourceMaterial(
-  title: String,
-  contents: Vector[String]
+    title: String,
+    contents: Vector[String]
 ) extends SourceMaterial
 @JsonCodec case class QuALITYSourceMaterial(
-  articleId: String,
-  title: String,
-  contents: Vector[String]
+    articleId: String,
+    title: String,
+    contents: Vector[String]
 ) extends SourceMaterial
 object SourceMaterial
 
@@ -197,14 +234,17 @@ object SourceMaterial
     startTime: Long
 ) {
   def areAllRolesAssigned = {
-    roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
+    roles.contains(Judge) && answers.indices.forall(i =>
+      roles.contains(Debater(i))
+    )
   }
 
-  def assignedRole(userName: String): Option[DebateRole] = roles.find(_._2 == userName).map(_._1)
+  def assignedRole(userName: String): Option[DebateRole] =
+    roles.find(_._2 == userName).map(_._1)
   def userIsAssigned(userName: String) = assignedRole(userName).nonEmpty
   def roleIsAssigned(role: Role) = role match {
     case role: DebateRole => roles.contains(role)
-    case _ => false
+    case _                => false
   }
   def canAssumeRole(userName: String, role: Role) =
     assignedRole(userName) == Some(role) || (
