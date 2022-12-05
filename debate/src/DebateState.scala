@@ -116,10 +116,6 @@ object Debate {
 @JsonCodec sealed trait DebateRound {
   def allSpeeches: Set[DebateSpeech]
 
-  /** Removes the last speech. If there are no speeches, does nothing.
-    */
-  def removeLastSpeech: DebateRound
-
   def isComplete(numDebaters: Int): Boolean
   final def timestamp: Option[Long] =
     allSpeeches.view.map(_.timestamp).maxOption
@@ -130,13 +126,6 @@ object Debate {
   def isComplete(numDebaters: Int) = speeches.size == numDebaters
   def allSpeeches = speeches.values.toSet
 
-  def removeLastSpeech: SimultaneousSpeeches = {
-    speeches.keys.maxOption match {
-      case None => this
-      case Some(max) =>
-        SimultaneousSpeeches.speeches.modify(_ - max)(this)
-    }
-  }
 }
 object SimultaneousSpeeches
 @Lenses @JsonCodec case class SequentialSpeeches(
@@ -145,13 +134,6 @@ object SimultaneousSpeeches
   def isComplete(numDebaters: Int) = speeches.size == numDebaters
   def allSpeeches = speeches.values.toSet
 
-  def removeLastSpeech: SequentialSpeeches = {
-    speeches.keys.maxOption match {
-      case None => this
-      case Some(max) =>
-        SequentialSpeeches.speeches.modify(_ - max)(this)
-    }
-  }
 }
 object SequentialSpeeches
 @Lenses @JsonCodec case class JudgeFeedback(
@@ -162,13 +144,6 @@ object SequentialSpeeches
   def isComplete(numDebaters: Int) = true
   def allSpeeches = Set(feedback)
 
-  def removeLastSpeech: JudgeFeedback = {
-    speeches.keys.maxOption match {
-      case None => this
-      case Some(max) =>
-        SequentialSpeeches.speeches.modify(_ - max)(this)
-    }
-  }
 }
 object JudgeFeedback // TODO why does this exist? can we just delete this?
 object DebateRound // TODO why does this exist? can we just delete this?

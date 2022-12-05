@@ -66,7 +66,6 @@ object App {
   def boopickleSyncedState[Request: Pickler, State: Pickler](
       getRequestFromState: State => Request
   ) = {
-    // import scalajs.js.typedarray._
     import DataConversions._
     new SyncedState[Request, State](
       sendRequest = (socket, req) =>

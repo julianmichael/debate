@@ -501,7 +501,7 @@ class DebatePanel(
           val speechIsTooLong = charLimit > 0 && speechLength > charLimit
 
           def speechInputPanel(
-              submit: Boolean => Callback,
+              submit: Boolean => Callback, // TODO why does this take a boolean?
               cmdEnterToSubmit: Boolean
           ) = {
             <.div(S.speechInputPanel)(
@@ -606,9 +606,11 @@ class DebatePanel(
                   )
                 )
 
+              // TODO add undo here? (for simultaneous speeches)
+
               case DebateTurnType
                     .DebaterSpeechTurn(_: Int, _: Int) =>
-                val submit =
+                val submitNewSpeech =
                   (
                     if (!isUsersTurn || speechIsTooLong) Callback.empty
                     else
@@ -645,11 +647,53 @@ class DebatePanel(
                   )
 
                 <.div(S.col)(
-                  speechInputPanel(_ => submit, true),
+                  speechInputPanel(
+                    _ => submitNewSpeech,
+                    cmdEnterToSubmit = true
+                  ),
                   <.button(
                     "Submit",
                     ^.disabled := !isUsersTurn || speechIsTooLong,
-                    ^.onClick --> submit
+                    ^.onClick --> submitNewSpeech // TODO extract?
+                  )
+                )
+
+                val undoLastSpeech =
+                  (
+                    if (isUsersTurn)
+                      Callback.empty // TODO why do we need this? (copied from above)
+                    else
+                      // TODO why do we need [foldMap] here? (copied from above)
+                      userId.foldMap((_: ParticipantId) =>
+                        CallbackTo(System.currentTimeMillis()).flatMap {
+                          (_: long) =>
+                            val newRounds =
+                              rounds.lastOption match {
+                                // TODO what about adversarial opponents?
+                                // they could just send the ws message anyway
+                                case Some(SequentialSpeeches(speeches))
+                                    if speeches.size > 0 =>
+                                  val newLastRound = SequentialSpeeches(
+                                    speeches - (speeches.size - 1)
+                                  )
+                                  rounds.dropRight(1) :+ newLastRound
+                                case _ =>
+                                  rounds // TODO does this properly handle simultaneous speeches? why can't we get better type inference (or can we ?) what's the metals command? (i think it's fine :)
+                              }
+                            sendDebate(Debate(setup, rounds = newRounds))
+                        }
+                      )
+                  )
+
+                <.div(S.col)(
+                  speechInputPanel(
+                    _ => undoLastSpeech,
+                    cmdEnterToSubmit = true
+                  ),
+                  <.button(
+                    "Undo",
+                    ^.disabled := isUsersTurn,
+                    ^.onClick --> undoLastSpeech
                   )
                 )
 

@@ -2,7 +2,7 @@ package debate
 
 import munit.CatsEffectSuite
 
-class RemoveLastSpeechTests extends CatsEffectSuite {
+/*class RemoveLastSpeechTests extends CatsEffectSuite {
   // TODO what if two users submit a speech at the same time? what
   // should the undo button do? (granted it's extremely unlikely
   // that two users will submit a speech at the exact same timestamp,
@@ -27,5 +27,6 @@ class RemoveLastSpeechTests extends CatsEffectSuite {
   }
 
   // TODO test that it works for SequentialSpeeches
-  // TODO test that it works for JudgeFeedback
+  // TODO test that it works for JudgeFeedback- this is a confusion
 }
+ */

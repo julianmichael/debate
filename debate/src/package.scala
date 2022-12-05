@@ -102,6 +102,7 @@ package object debate extends PackagePlatformExtensions {
     res
   }
 
+  // TODO lol
   def biggTokenize(x: String): Vector[String] = {
     val res = x
       .split("\n")
@@ -112,6 +113,7 @@ package object debate extends PackagePlatformExtensions {
     res
   }
 
+  // TODO loll
   def bigggTokenize(x: String): Vector[String] = {
     val res = x
       .split("\n\n")
