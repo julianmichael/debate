@@ -658,7 +658,7 @@ class DebatePanel(
                   )
                 )
 
-                val undoLastSpeech =
+              /*                val undoLastSpeech =
                   (
                     if (isUsersTurn)
                       Callback.empty // TODO why do we need this? (copied from above)
@@ -695,7 +695,7 @@ class DebatePanel(
                     ^.disabled := isUsersTurn,
                     ^.onClick --> undoLastSpeech
                   )
-                )
+                ) */
 
               case DebateTurnType.JudgeFeedbackTurn(
                     _: Boolean,
