@@ -4,15 +4,6 @@ import scalacss.DevDefaults._
 import scala.language.postfixOps
 import scalacss.internal.ValueT
 
-// body{
-//   -webkit-touch-callout: none;
-//   -webkit-user-select: none;
-//   -khtml-user-select: none;
-//   -moz-user-select: none;
-//   -ms-user-select: none;
-//   user-select: none;
-// }
-
 /** Stylesheet for the webapp. Inherits default styles for the default view
   * components; these can be overridden.
   */
@@ -37,7 +28,6 @@ object Styles extends jjm.ui.View.Styles {
     display.flex,
     flexDirection.row,
     flexGrow(1)
-    // width(100 %%)
   )
 
   val inputLabel = style(
@@ -45,8 +35,6 @@ object Styles extends jjm.ui.View.Styles {
     width(140 px),
     textAlign.right,
     marginRight(mainHalfPadding)
-      // marginRight(5 px),
-      // flexGrow(1),
   )
 
   override val textFieldLabel = inputLabel
@@ -72,8 +60,8 @@ object Styles extends jjm.ui.View.Styles {
     )
   )
   val listConfigAddItemDiv = style(
-      // textAlign.left
-    )
+    // textAlign.left
+  )
   val listConfigAddItemSpan = listConfigRemoveItemSpan
 
   // sum config
@@ -111,9 +99,6 @@ object Styles extends jjm.ui.View.Styles {
         "Helvetica Neue",
         "sans-serif"
       )
-      // fontSize(12 pt)
-      // -webkit-font-smoothing: antialiased;
-      // -moz-osx-font-smoothing: grayscale;
     )
   )
 
@@ -187,12 +172,6 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   import scalacss.internal.Attr
-  // object rowGap extends TypedAttrT1[Len] with ZeroLit {
-  //   override val attr = Attr.real("row-gap")
-  // }
-  // object gridGap extends TypedAttrT1[Len] with ZeroLit {
-  //   override val attr = Attr.real("grid-gap")
-  // }
   object accentColor extends ValueT.TypedAttr_Color {
     override val attr = Attr.real("accent-color")
   }
@@ -205,19 +184,6 @@ object Styles extends jjm.ui.View.Styles {
     width(100 vw),
     overflowX.hidden
   )
-
-  // val connectDialog = style(
-  //   position.relative,
-  //   width(640 px),
-  //   height.auto,
-  //   margin.auto,
-  //   paddingTop(40 px),
-  //   display.flex,
-  //   flexDirection.column,
-  //   unsafeChild("div")(
-  //     margin(10 px)
-  //   )
-  // )
 
   val settingUpStatusLabel = style(
     color.gold
@@ -269,7 +235,7 @@ object Styles extends jjm.ui.View.Styles {
     borderStyle.solid,
     borderWidth(1 px),
     borderColor(c"#ddd"),
-    borderRadius(commonBorderRadius),
+    borderRadius(commonBorderRadius)
   )
 
   val optionTitle = style(
@@ -281,12 +247,12 @@ object Styles extends jjm.ui.View.Styles {
   val judgeColorLight = green
 
   val answerColors = Vector(
-      darkblue,
-      darkred,
-      rebeccapurple,
-      darkorange,
-      darkturquoise
-    )
+    darkblue,
+    darkred,
+    rebeccapurple,
+    darkorange,
+    darkturquoise
+  )
 
   val answerColorsLight = Vector(
     lightblue,
@@ -308,9 +274,9 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val judgeFeedbackBg = style(
-      backgroundColor(judgeColor),
-      color.white
-    )
+    backgroundColor(judgeColor),
+    color.white
+  )
   val answerBg = styleF.int(0 to 4)(i =>
     styleS(
       backgroundColor(answerColors(i)),
@@ -370,28 +336,23 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val debateColumn = style(
-      // position.relative,
-      // margin.auto,
-      padding(10 px),
-      // width(100 %%),
-      // height(100 %%),
-      display.flex,
-      flexDirection.column,
-      borderRadius(commonBorderRadius),
-      overflow.hidden
-    )
+    // position.relative,
+    // margin.auto,
+    padding(10 px),
+    // width(100 %%),
+    // height(100 %%),
+    display.flex,
+    flexDirection.column,
+    borderRadius(commonBorderRadius),
+    overflow.hidden
+  )
 
   val facilitatorColumn = style(
-      spaceySubcontainer,
-      // position.relative,
-      // margin.auto,
-      // padding(10 px),
-      // width(100 %%),
-      // height(100 %%),
-      display.flex,
-      flexDirection.column,
-      borderRadius(commonBorderRadius)
-    )
+    spaceySubcontainer,
+    display.flex,
+    flexDirection.column,
+    borderRadius(commonBorderRadius)
+  )
 
   val inDebateRoleBox = style(
     backgroundColor.white,
@@ -406,17 +367,11 @@ object Styles extends jjm.ui.View.Styles {
   val questionBox = style(
     inDebateRoleBox,
     color(judgeColor)
-    // flexGrow(1),
-    // display.flex,
-    // flexDirection.row,
   )
   val questionBoxCurrent = style(
     inDebateRoleBox,
     color.white,
     backgroundColor(judgeColor)
-    // flexGrow(1),
-    // display.flex,
-    // flexDirection.row,
   )
 
   val questionTitle = style(
@@ -448,7 +403,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val missingParticipant = style(
     fontWeight.lighter,
-    fontStyle.italic,
+    fontStyle.italic
   )
 
   val answerBoxCurrent = styleF.int(0 to 4)(i =>
@@ -512,9 +467,10 @@ object Styles extends jjm.ui.View.Styles {
   // )
 
   val mainLabeledInputRow = style(
-    row, spaceyContainer,
+    row,
+    spaceyContainer,
     borderRadius(commonBorderRadius),
-    backgroundColor(c"#eee"),
+    backgroundColor(c"#eee")
   )
 
   val inputRowContents = style(

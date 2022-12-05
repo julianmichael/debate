@@ -23,9 +23,9 @@ package object debate extends PackagePlatformExtensions {
   val qualityServiceApiEndpoint = "quality"
 
   @Lenses case class Lobby(
-    trackedDebaters: Set[String],
-    officialRooms: Vector[RoomMetadata],
-    practiceRooms: Vector[RoomMetadata]
+      trackedDebaters: Set[String],
+      officialRooms: Vector[RoomMetadata],
+      practiceRooms: Vector[RoomMetadata]
   )
   object Lobby {
     def init = Lobby(Set(), Vector(), Vector())
@@ -34,19 +34,20 @@ package object debate extends PackagePlatformExtensions {
   sealed trait MainChannelRequest
   case class RegisterDebater(debaterName: String) extends MainChannelRequest
   case class RemoveDebater(debaterName: String) extends MainChannelRequest
-  case class DeleteRoom(isOfficial: Boolean, roomName: String) extends MainChannelRequest
+  case class DeleteRoom(isOfficial: Boolean, roomName: String)
+      extends MainChannelRequest
 
   @JsonCodec sealed trait RoomStatus {
     import RoomStatus._
     override def toString = this match {
-      case SettingUp => "setting up"
+      case SettingUp  => "setting up"
       case InProgress => "in progress"
-      case Complete => "complete"
+      case Complete   => "complete"
     }
 
     def isComplete = this match {
       case Complete => true
-      case _ => false
+      case _        => false
     }
   }
   object RoomStatus {
@@ -56,11 +57,11 @@ package object debate extends PackagePlatformExtensions {
   }
 
   @Lenses @JsonCodec case class RoomMetadata(
-    name: String,
-    assignedParticipants: Set[String],
-    currentParticipants: Set[String],
-    // latestUpdateTime: Long, // TODO
-    status: RoomStatus,
+      name: String,
+      assignedParticipants: Set[String],
+      currentParticipants: Set[String],
+      // latestUpdateTime: Long, // TODO
+      status: RoomStatus
   )
 
   def makePageTitle(x: String) = {

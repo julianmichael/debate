@@ -35,11 +35,9 @@ object App {
 
   implicit class ClassSetInterpolator(val sc: StringContext) extends AnyVal {
     def c(args: Any*) = {
-          // concatenate everything: use the built-in S method (which happens to be used in the S interpolator)
-          // val tokens = sc.s(args: _*).split(",")
-          // Person(tokens(0), tokens(1).toInt)
-        ^.classSet1(sc.s(args: _*))
-      }
+      // concatenate everything: use the built-in S method (which happens to be used in the S interpolator)
+      ^.classSet1(sc.s(args: _*))
+    }
   }
 
   def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = {
@@ -66,29 +64,34 @@ object App {
   }
 
   def boopickleSyncedState[Request: Pickler, State: Pickler](
-    getRequestFromState: State => Request
+      getRequestFromState: State => Request
   ) = {
-      // import scalajs.js.typedarray._
-      import DataConversions._
-      new SyncedState[Request, State](
-        sendRequest = (socket, req) =>
-          Callback {
-            socket.send(Pickle.intoBytes(req))
-          },
-        readResponse = x => {
-          val res = Unpickle[State].fromBytes(TypedArrayBuffer.wrap(x));
-          res
+    // import scalajs.js.typedarray._
+    import DataConversions._
+    new SyncedState[Request, State](
+      sendRequest = (socket, req) =>
+        Callback {
+          socket.send(Pickle.intoBytes(req))
         },
-        getRequestFromState = getRequestFromState
-      )
-    }
+      readResponse = x => {
+        val res = Unpickle[State].fromBytes(TypedArrayBuffer.wrap(x));
+        res
+      },
+      getRequestFromState = getRequestFromState
+    )
+  }
 
   val DebateWebSocket = boopickleWebsocket[DebateState, DebateState]
-  val SyncedDebate = boopickleSyncedState[DebateStateUpdateRequest, DebateState](
-    getRequestFromState = DebateStateUpdateRequest.State(_)
-  )
-  def getDebateWebsocketUri(isOfficial: Boolean, roomName: String, participantId: String): String = {
-    val prefix = if(isOfficial) "official" else "practice"
+  val SyncedDebate =
+    boopickleSyncedState[DebateStateUpdateRequest, DebateState](
+      getRequestFromState = DebateStateUpdateRequest.State(_)
+    )
+  def getDebateWebsocketUri(
+      isOfficial: Boolean,
+      roomName: String,
+      participantId: String
+  ): String = {
+    val prefix = if (isOfficial) "official" else "practice"
     s"$wsProtocol//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
@@ -96,7 +99,6 @@ object App {
   val mainWebsocketUri: String = {
     s"$wsProtocol//${dom.document.location.host}/main-ws"
   }
-
 
   val httpProtocol = dom.document.location.protocol
   val qualityApiUrl: String = {
@@ -109,39 +111,34 @@ object App {
 
   type DelayedFuture[A] = () => Future[A]
   val toAsyncCallback = {
-    λ[DelayedFuture ~> AsyncCallback](f =>
-      AsyncCallback.fromFuture(f())
-    )
+    λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
   }
-  def wrap[F[_]] = λ[F ~> OrWrapped[F, *]]{f =>
+  def wrap[F[_]] = λ[F ~> OrWrapped[F, *]] { f =>
     OrWrapped.wrapped(f)
   }
 
-  // def tapPrint[F[_]: Functor] = λ[F ~> F](x =>
-  //   { Functor[F].map(x)(y => { println(y); y}) }
-  // )
-
   val qualityStoryService = quality.QuALITYService(
-    HttpUtil.makeHttpPostClient[quality.QuALITYService.Request](
-      qualityApiUrl
-    ).andThenK(toAsyncCallback)//.andThenK(wrap)//.andThenK(tapPrint)
+    HttpUtil
+      .makeHttpPostClient[quality.QuALITYService.Request](
+        qualityApiUrl
+      )
+      .andThenK(toAsyncCallback)
   )
 
   import jjm.ui.LocalState
 
   case class ConnectionSpec(
-    isOfficial: Boolean,
-    roomName: String,
-    participantName: String
+      isOfficial: Boolean,
+      roomName: String,
+      participantName: String
   )
-
 
   sealed trait LobbyTab extends Product with Serializable {
     import LobbyTab._
     override def toString = this match {
-      case MyDebates => "My Debates"
+      case MyDebates          => "My Debates"
       case AllOfficialDebates => "All Official Debates"
-      case PracticeDebates => "Practice Debates"
+      case PracticeDebates    => "Practice Debates"
     }
   }
   object LobbyTab {
@@ -173,11 +170,8 @@ object App {
   )
   val IntOptField = V.LiveTextField[Option[Int]](
     x => if (x.isEmpty) Option(None) else Try(x.toInt).toOption.map(Option(_)),
-    // Option(x).flatMap(_.nonEmpty).traverse(i => Try(i.toInt).toOption),
     _.foldMap(_.toString)
   )
-  // val TurnTypeSpecLocal = new LocalState[DebateRoundTypeSpec]
-  // val TurnTypeSpecSelect = V.Select[DebateRoundTypeSpec](_.toString)
 
   val debatePanel = new DebatePanel(S, V)
   val facilitatorPanel = new FacilitatorPanel(S, V)
@@ -192,16 +186,12 @@ object App {
       disconnect: Callback
   ) = {
 
-    // val roleOpt = debate.value.participants
-    //   .find(_.name == userName)
-    //   .map(_.role)
-
     def canAssumeRole(role: Role) = debate.value.debate.forall(
       _.setup.canAssumeRole(userName, role)
     )
 
     def tryAssumingRole(role: Role): Callback = {
-      if(canAssumeRole(role)) {
+      if (canAssumeRole(role)) {
         debate.modState(_.addParticipant(ParticipantId(userName, role)))
       } else Callback.empty
     }
@@ -211,7 +201,11 @@ object App {
       }
       val isCurrent = facilitators.contains(userName)
 
-      <.div(S.optionBox, S.simpleSelectable.when(canAssumeRole(Facilitator)), S.simpleSelected.when(isCurrent))(
+      <.div(
+        S.optionBox,
+        S.simpleSelectable.when(canAssumeRole(Facilitator)),
+        S.simpleSelected.when(isCurrent)
+      )(
         <.div(S.optionTitle)("Facilitators"),
         commaSeparatedSpans(facilitators.toList.sorted).toVdomArray,
         ^.onClick --> tryAssumingRole(Facilitator)
@@ -222,14 +216,18 @@ object App {
         case ParticipantId(name, Observer) => name
       }
       val isCurrent = observers.contains(userName)
-      <.div(S.optionBox, S.simpleSelectable.when(canAssumeRole(Observer)), S.simpleSelected.when(isCurrent))(
+      <.div(
+        S.optionBox,
+        S.simpleSelectable.when(canAssumeRole(Observer)),
+        S.simpleSelected.when(isCurrent)
+      )(
         <.div(S.optionTitle)("Observers"),
         commaSeparatedSpans(observers.toList.sorted).toVdomArray,
         ^.onClick --> tryAssumingRole(Observer)
       )
     }
 
-    val roomPrefix = if(isOfficial) "Official" else "Practice"
+    val roomPrefix = if (isOfficial) "Official" else "Practice"
 
     <.div(c"row", S.spaceySubcontainer)(
       <.div(
@@ -239,7 +237,8 @@ object App {
       facilitatorsDiv,
       observersDiv,
       <.button(c"btn", S.simpleSelectable)(
-        "Disconnect", ^.onClick --> disconnect
+        "Disconnect",
+        ^.onClick --> disconnect
       )
     )
   }
@@ -268,9 +267,15 @@ object App {
               LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
                 connectionSpecOpt.value match {
                   case None =>
-                    def enterRoom(isOfficial: Boolean, roomName: String, participantName: String) =
+                    def enterRoom(
+                        isOfficial: Boolean,
+                        roomName: String,
+                        participantName: String
+                    ) =
                       connectionSpecOpt.setState(
-                        Some(ConnectionSpec(isOfficial, roomName, participantName))
+                        Some(
+                          ConnectionSpec(isOfficial, roomName, participantName)
+                        )
                       )
                     // TODO change page title? maybe do this on mount for the debate room component instead
                     // >> Callback(dom.window.document.title = makePageTitle(roomName)) >>
@@ -280,11 +285,15 @@ object App {
                     val noProfileString = "(select profile)"
                     val profileCookieId = "debate-profile"
 
-                    LocalString.make(initialValue = getCookie(profileCookieId).getOrElse("")) { userName =>
+                    LocalString.make(initialValue =
+                      getCookie(profileCookieId).getOrElse("")
+                    ) { userName =>
                       <.div(S.lobbyContainer, S.spaceyContainer)(
                         <.div(c"form-group row")(
                           <.label(c"col-sm-2 col-form-label")("Profile:"),
-                          V.Select.String.modFull(TagMod(c"col-sm-10", S.customSelect))(
+                          V.Select.String.modFull(
+                            TagMod(c"col-sm-10", S.customSelect)
+                          )(
                             choices =
                               noProfileString +: lobby.value.trackedDebaters.toList.sorted,
                             curChoice =
@@ -295,8 +304,15 @@ object App {
                                 userName.value
                               } else noProfileString,
                             setChoice = (name: String) => {
-                              val adjustedName = if(name == noProfileString) "" else name
-                              userName.setState(adjustedName) >> Callback(setCookie(profileCookieId, adjustedName, expires = 5))
+                              val adjustedName =
+                                if (name == noProfileString) "" else name
+                              userName.setState(adjustedName) >> Callback(
+                                setCookie(
+                                  profileCookieId,
+                                  adjustedName,
+                                  expires = 5
+                                )
+                              )
                             }
                           )
                         ),
@@ -307,70 +323,107 @@ object App {
                         )(userName, labelOpt = Some("Name: ")),
                         <.div(c"form-group row", Styles.adminOnly) {
                           val name = userName.value
-                          val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
+                          val isDisabled =
+                            (lobby.value.trackedDebaters + "" + "(no profile)")
+                              .contains(name)
                           <.button(c"btn btn-primary btn-block")(
                             "Create profile",
                             ^.disabled := isDisabled,
                             (^.onClick --> sendToMainChannel(
                               RegisterDebater(userName.value)
-                            )).when(!isDisabled),
+                            )).when(!isDisabled)
                           )
                         },
                         <.div(c"form-group row", Styles.adminOnly) {
                           val name = userName.value
-                          val isEnabled = lobby.value.trackedDebaters.contains(name)
+                          val isEnabled =
+                            lobby.value.trackedDebaters.contains(name)
                           <.button(c"btn btn-danger btn-block")(
                             "Delete profile",
                             ^.disabled := !isEnabled,
                             (^.onClick --> sendToMainChannel(
                               RemoveDebater(userName.value)
-                            )).when(isEnabled),
+                            )).when(isEnabled)
                           )
                         },
                         LocalLobbyTab.make(LobbyTab.MyDebates) { lobbyTab =>
                           import LobbyTab._
                           val myDebates = lobby.value.officialRooms
-                            .filter(_.assignedParticipants.contains(userName.value))
+                            .filter(
+                              _.assignedParticipants.contains(userName.value)
+                            )
                           val isOfficial = lobbyTab.value match {
                             case PracticeDebates => false
-                            case _ => true
+                            case _               => true
                           }
                           val currentRooms = lobbyTab.value match {
-                            case MyDebates => myDebates
+                            case MyDebates          => myDebates
                             case AllOfficialDebates => lobby.value.officialRooms
-                            case PracticeDebates => lobby.value.practiceRooms
+                            case PracticeDebates    => lobby.value.practiceRooms
                           }
                           <.div(c"card", ^.textAlign.center)(
                             <.div(c"card-header")(
                               <.ul(c"nav nav-fill nav-tabs card-header-tabs")(
-                                List(MyDebates, AllOfficialDebates, PracticeDebates).toVdomArray(tab =>
+                                List(
+                                  MyDebates,
+                                  AllOfficialDebates,
+                                  PracticeDebates
+                                ).toVdomArray(tab =>
                                   <.li(c"nav-item")(
-                                    <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
+                                    <.a(
+                                      ^.classSet1(
+                                        "nav-link",
+                                        "active" -> (tab == lobbyTab.value)
+                                      )
+                                    )(
                                       ^.href := "#",
                                       ^.onClick --> lobbyTab.setState(tab),
-                                      tab.toString,
+                                      tab.toString
                                     )
                                   )
                                 )
                               )
                             ),
                             LocalString.make("") { roomNameLive =>
-                              val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
-                              val enter = if(canEnter) enterRoom(isOfficial, roomNameLive.value, userName.value) else Callback.empty
+                              val canEnter =
+                                roomNameLive.value.nonEmpty && userName.value.nonEmpty
+                              val enter =
+                                if (canEnter)
+                                  enterRoom(
+                                    isOfficial,
+                                    roomNameLive.value,
+                                    userName.value
+                                  )
+                                else Callback.empty
                               <.div(c"card-body", S.spaceySubcontainer)(
                                 <.div(c"input-group", ^.width.auto)(
                                   V.LiveTextField.String.modInput(
                                     input = TagMod(
                                       c"form-control",
-                                      ^.onKeyDown ==> ((e: ReactKeyboardEvent) => if(e.keyCode == dom.ext.KeyCode.Enter) enter else Callback.empty)
-                                    ))(roomNameLive, placeholderOpt = Some("Room")
+                                      ^.onKeyDown ==> (
+                                        (e: ReactKeyboardEvent) =>
+                                          if (
+                                            e.keyCode == dom.ext.KeyCode.Enter
+                                          ) enter
+                                          else Callback.empty
+                                      )
+                                    )
+                                  )(
+                                    roomNameLive,
+                                    placeholderOpt = Some("Room")
                                   ),
                                   <.div(c"input-group-append")(
                                     <.button(c"btn btn-primary")(
                                       (
-                                        (if(currentRooms.exists(_.name == roomNameLive.value)) "Join" else "Create") +
+                                        (if (
+                                           currentRooms.exists(
+                                             _.name == roomNameLive.value
+                                           )
+                                         ) "Join"
+                                         else "Create") +
                                           " " +
-                                        (if(isOfficial) "Official Debate" else "Practice Debate")
+                                          (if (isOfficial) "Official Debate"
+                                           else "Practice Debate")
                                       ),
                                       ^.`type` := "button",
                                       ^.disabled := !canEnter,
@@ -378,18 +431,25 @@ object App {
                                     )
                                   )
                                 ).when(lobbyTab.value != MyDebates),
-                                <.div("No rooms to show.").when(currentRooms.isEmpty),
+                                <.div("No rooms to show.")
+                                  .when(currentRooms.isEmpty),
                                 currentRooms.toVdomArray {
-                                  case RoomMetadata(roomName, assignedParticipants, currentParticipants, status) =>
+                                  case RoomMetadata(
+                                        roomName,
+                                        assignedParticipants,
+                                        currentParticipants,
+                                        status
+                                      ) =>
                                     val canEnterRoom =
                                       userName.value.nonEmpty && !currentParticipants
                                         .contains(userName.value)
                                     val statusStyle = {
                                       import RoomStatus._
                                       status match {
-                                        case SettingUp  => S.settingUpStatusLabel
-                                        case InProgress => S.inProgressStatusLabel
-                                        case Complete   => S.completeStatusLabel
+                                        case SettingUp => S.settingUpStatusLabel
+                                        case InProgress =>
+                                          S.inProgressStatusLabel
+                                        case Complete => S.completeStatusLabel
                                       }
                                     }
                                     val selectableStyle =
@@ -413,14 +473,17 @@ object App {
                                           currentParticipants.toList.sorted
                                         ).toVdomArray
                                       ).when(currentParticipants.nonEmpty),
-                                      <.button(c"btn btn-block btn-danger", S.adminOnly)(
+                                      <.button(
+                                        c"btn btn-block btn-danger",
+                                        S.adminOnly
+                                      )(
                                         "Delete room",
-                                        ^.onClick ==> (
-                                          (e: ReactMouseEvent) => {
-                                            e.stopPropagation();
-                                            sendToMainChannel(DeleteRoom(isOfficial, roomName))
-                                          }
-                                        )
+                                        ^.onClick ==> ((e: ReactMouseEvent) => {
+                                          e.stopPropagation();
+                                          sendToMainChannel(
+                                            DeleteRoom(isOfficial, roomName)
+                                          )
+                                        })
                                       ),
                                       (^.onClick --> enterRoom(
                                         isOfficial,
@@ -443,17 +506,21 @@ object App {
                           .find(_.name == userName)
                           .map(_.role)
                           .fold(Callback.empty) { role =>
-                            def getRoles(debate: DebateState) = debate.debate.foldMap(
-                              _.currentTurn.foldMap(_.rolesRemaining)
-                            )
-                            val newRoles = getRoles(curDebate) -- getRoles(prevDebate)
-                            if(newRoles.contains(role)) {
+                            def getRoles(debate: DebateState) =
+                              debate.debate.foldMap(
+                                _.currentTurn.foldMap(_.rolesRemaining)
+                              )
+                            val newRoles =
+                              getRoles(curDebate) -- getRoles(prevDebate)
+                            if (newRoles.contains(role)) {
                               Callback {
-                                val n = new dom.experimental.Notification(s"It's your turn as $role in $roomName!")
+                                val n = new dom.experimental.Notification(
+                                  s"It's your turn as $role in $roomName!"
+                                )
                                 scalajs.js.timers.setTimeout(7000)(n.close())
                               }
                             } else Callback.empty
-                        }
+                          }
                       }
                     ) {
                       case SyncedDebate.Disconnected(_, reason) =>
@@ -468,14 +535,9 @@ object App {
                         <.div(S.loading)("Waiting for debate data...")
                       case SyncedDebate.Connected(debateState, sendUpdate) =>
                         val userId =
-                          debateState.value.participants.find(_.name == userName)
-
-                        // val backgroundStyle = userId.map(_.role).fold(S.noRoleBg) {
-                        //   case Facilitator => S.facilitatorBg
-                        //   case Observer => S.observerBg
-                        //   case Judge => S.judgeBg
-                        //   case Debater(i) => S.debaterBg(i)
-                        // }
+                          debateState.value.participants.find(
+                            _.name == userName
+                          )
 
                         // looks really bad to use the others haha.
                         // Might have to think through colors (or just do a redesign)
@@ -498,7 +560,8 @@ object App {
                                     mustAssignRoles = isOfficial,
                                     profiles = lobby.value.trackedDebaters,
                                     qualityService = qualityStoryService,
-                                    sendUpdate = sendUpdate)
+                                    sendUpdate = sendUpdate
+                                  )
                                 case _ =>
                                   <.div(S.debateColumn)(
                                     "Waiting for a facilitator to set up the debate."
@@ -507,7 +570,9 @@ object App {
                             case Some(debate) =>
                               val setup = debate.setup
                               def tryAssumingRole(role: Role): Callback = {
-                                if(!setup.canAssumeRole(userName, role)) Callback.empty else {
+                                if (!setup.canAssumeRole(userName, role))
+                                  Callback.empty
+                                else {
                                   debateState.modState(
                                     _.addParticipant(
                                       ParticipantId(userName, role)
@@ -526,24 +591,36 @@ object App {
                               def showRoleNames(role: DebateRole) = {
                                 setup.roles.get(role) match {
                                   case Some(name) =>
-                                    if(!debateState.value.participants.contains(ParticipantId(name, role))) {
-                                      <.span(S.missingParticipant)(name + " (not here)")
+                                    if (
+                                      !debateState.value.participants
+                                        .contains(ParticipantId(name, role))
+                                    ) {
+                                      <.span(S.missingParticipant)(
+                                        name + " (not here)"
+                                      )
                                     } else <.span(name)
                                   case None =>
                                     debateState.value.participants.collect {
-                                      case ParticipantId(name, `role`) => <.span(name)
+                                      case ParticipantId(name, `role`) =>
+                                        <.span(name)
                                     }.toVdomArray
                                 }
                               }
 
                               <.div(S.debateColumn, backgroundStyle)(
-                                <.div(questionBoxStyle, S.simpleSelectable.when(setup.canAssumeRole(userName, Judge)))(
+                                <.div(
+                                  questionBoxStyle,
+                                  S.simpleSelectable.when(
+                                    setup.canAssumeRole(userName, Judge)
+                                  )
+                                )(
                                   <.div(S.questionTitle)(
                                     <.span(S.questionLabel)("Question: "),
                                     setup.question
                                   ),
                                   <.div(S.judgesList)(
-                                    "Judge: ", showRoleNames(Judge)
+                                    "Judge: ",
+                                    showRoleNames(Judge)
                                   ),
                                   ^.onClick --> tryAssumingRole(Judge)
                                 ),
@@ -552,19 +629,29 @@ object App {
                                     case (answer, answerIndex) =>
                                       val isCurrent = userId
                                         .map(_.role)
-                                        .collect { case Debater(`answerIndex`) =>
-                                          true
+                                        .collect {
+                                          case Debater(`answerIndex`) =>
+                                            true
                                         }
                                         .nonEmpty
                                       val answerBoxStyle =
                                         if (isCurrent) S.answerBoxCurrent
                                         else S.answerBox
-                                      <.div(answerBoxStyle(answerIndex), S.simpleSelectable.when(setup.canAssumeRole(userName, Debater(answerIndex))))(
+                                      <.div(
+                                        answerBoxStyle(answerIndex),
+                                        S.simpleSelectable.when(
+                                          setup.canAssumeRole(
+                                            userName,
+                                            Debater(answerIndex)
+                                          )
+                                        )
+                                      )(
                                         <.div(S.answerTitle)(
                                           s"${answerLetter(answerIndex)}. $answer"
                                         ),
                                         <.div(S.debatersList)(
-                                          "Debater: ", showRoleNames(Debater(answerIndex))
+                                          "Debater: ",
+                                          showRoleNames(Debater(answerIndex))
                                         ),
                                         ^.onClick --> tryAssumingRole(
                                           Debater(answerIndex)
@@ -609,7 +696,9 @@ object App {
 
   final def main(args: Array[String]): Unit = jQuery { () =>
     // get permission for notifications. TODO: only add this in when I'm ready to actually use notifications
-    dom.experimental.Notification.requestPermission(result => dom.console.log(result))
+    dom.experimental.Notification.requestPermission(result =>
+      dom.console.log(result)
+    )
     setupUI()
   }
 }

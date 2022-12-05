@@ -44,7 +44,6 @@ object SpeechSegment {
     val indexOfStartTag = content.indexOf("<<")
     if (indexOfStartTag < 0) Vector(Text(content))
     else { // no quotes
-      // val initialText = Text(content.substring(0, indexOfStartTag))
       val postStartTag = content.substring(indexOfStartTag + 2)
       val indexOfEndTag = postStartTag.indexOf(">>")
       if (indexOfEndTag < 0) Vector(Text(content))
