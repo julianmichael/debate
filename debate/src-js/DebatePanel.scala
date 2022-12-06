@@ -541,7 +541,7 @@ class DebatePanel(
             <.button(
               "Undo",
               ^.onClick --> submit(true),
-              ^.disabled := isUsersTurn // TODO what about during simultaneous speeches?
+              ^.disabled := isUsersTurn
             )
           }
 
@@ -575,7 +575,8 @@ class DebatePanel(
                                 Map(debaterIndex -> speech)
                               )
                           }
-                        case _ => rounds // TODO should we error here?
+                        case _ =>
+                          rounds // TODO do we want to allow judge undoing?
                       }
                       sendDebate(Debate(setup, newRounds))
                     } >> currentMessage.setState("")
@@ -590,8 +591,7 @@ class DebatePanel(
                 ^.onClick --> submit
               )
             )
-
-            // TODO add undo here? (for simultaneous speeches)
+            // no undo button because it doesn't make sense to undo in a simultaneous round if it's our turn
           }
 
           def handleSequentialSpeechesWhenUsersTurn() = {
@@ -631,9 +631,6 @@ class DebatePanel(
                   )
               )
 
-            // TODO add undo for simultaneousspeeches
-            // TODO do we need to do anything else to synchronize the state to disk?
-
             <.div(S.col)(
               <.div(S.col)(
                 speechInputPanel(
@@ -643,7 +640,7 @@ class DebatePanel(
                 <.button(
                   "Submit",
                   ^.disabled := !isUsersTurn || speechIsTooLong,
-                  ^.onClick --> submitNewSpeech // TODO extract?
+                  ^.onClick --> submitNewSpeech
                 )
               )
             )
@@ -675,7 +672,7 @@ class DebatePanel(
                               )
                               rounds.dropRight(1) :+ newLastRound
                             case _ =>
-                              rounds // TODO does this properly handle simultaneous speeches? why can't we get better type inference (or can we ?) what's the metals command? (i think it's fine :)
+                              rounds
                           }
                         sendDebate(Debate(setup, rounds = newRounds))
                     }
@@ -683,7 +680,39 @@ class DebatePanel(
               )
 
             <.div(S.col)(
-              // TODO add styling for buttonPanel
+              undoButtonPanel(_ => undoLastSpeech)
+            )
+          }
+
+          // TODO reduce code duplication with the above function
+          def handleSimultaneousSpeechesWhenNotUsersTurn() = {
+            val undoLastSpeech =
+              (
+                if (isUsersTurn)
+                  Callback.empty
+                else
+                  userId.foldMap((_: ParticipantId) => {
+                    println(rounds)
+                    println(rounds.lastOption)
+                    CallbackTo(System.currentTimeMillis()).flatMap {
+                      (_: Long) =>
+                        val newRounds =
+                          rounds.lastOption match {
+                            case Some(SimultaneousSpeeches(speeches))
+                                if speeches.size > 0 =>
+                              val newLastRound = SimultaneousSpeeches(
+                                speeches - (speeches.size - 1)
+                              )
+                              rounds.dropRight(1) :+ newLastRound
+                            case _ =>
+                              rounds
+                          }
+                        sendDebate(Debate(setup, rounds = newRounds))
+                    }
+                  })
+              )
+
+            <.div(S.col)(
               undoButtonPanel(_ => undoLastSpeech)
             )
           }
@@ -712,10 +741,9 @@ class DebatePanel(
               // TODO maybe only let one undo happen- otherwise we can backspace the entire debate :)
               .whenDefined {
                 case _: DebateTurnType.SimultaneousSpeechesTurn =>
-                  // TODO undo for simultaneous speeches? is this even the right place for it?
                   role match {
                     case Some(Debater(_: Int)) =>
-                      // handleSimultaneousSpeechesWhenNotUsersTurn()
+                      handleSimultaneousSpeechesWhenNotUsersTurn()
                       <.div()()
                     case _ => <.div()()
                   }
