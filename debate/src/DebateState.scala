@@ -33,6 +33,29 @@ import cats.implicits._
   def addParticipant(id: ParticipantId) = {
     copy(participants = participants.filter(_.name != id.name) + id)
   }
+
+  def getJudge: ParticipantId = {
+    participants.find(_.role == Judge).get
+  }
+
+  def whoCanUndo: Set[ParticipantId] = {
+    debate match {
+      case None => Set.empty
+      case Some(debate) =>
+        debate.rounds.lastOption match {
+          case None => Set()
+          case Some(round) =>
+            round match {
+              case JudgeFeedback(_, _, _) => Set(getJudge)
+              case SequentialSpeeches(speeches) =>
+                val (_, lastSpeech) = speeches.last
+                Set(lastSpeech.speaker)
+              case SimultaneousSpeeches(speeches) =>
+                (speeches.map({ case (_, speech) => speech.speaker })).toSet
+            }
+        }
+    }
+  }
 }
 object DebateState {
   def init = DebateState(None, Set())

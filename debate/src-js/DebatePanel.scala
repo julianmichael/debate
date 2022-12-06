@@ -655,28 +655,25 @@ class DebatePanel(
             val undoLastSpeech =
               (
                 if (isUsersTurn)
-                  Callback.empty // TODO why do we need this? (copied from above)
+                  Callback.empty
                 else
                   // TODO why do we need [foldMap] here? (copied from above)
-                  userId.foldMap((_: ParticipantId) =>
-                    CallbackTo(System.currentTimeMillis()).flatMap {
-                      (_: Long) =>
-                        val newRounds =
-                          rounds.lastOption match {
-                            // TODO what about adversarial opponents?
-                            // they could just send the ws message anyway
-                            case Some(SequentialSpeeches(speeches))
-                                if speeches.size > 0 =>
-                              val newLastRound = SequentialSpeeches(
-                                speeches - (speeches.size - 1)
-                              )
-                              rounds.dropRight(1) :+ newLastRound
-                            case _ =>
-                              rounds
-                          }
-                        sendDebate(Debate(setup, rounds = newRounds))
-                    }
-                  )
+                  userId.foldMap((_: ParticipantId) => {
+                    val newRounds =
+                      rounds.lastOption match {
+                        // TODO what about adversarial opponents?
+                        // they could just send the ws message anyway
+                        case Some(SequentialSpeeches(speeches))
+                            if speeches.size > 0 =>
+                          val newLastRound = SequentialSpeeches(
+                            speeches - (speeches.size - 1)
+                          )
+                          rounds.dropRight(1) :+ newLastRound
+                        case _ =>
+                          rounds
+                      }
+                    sendDebate(Debate(setup, rounds = newRounds))
+                  })
               )
 
             <.div(S.col)(
@@ -687,35 +684,40 @@ class DebatePanel(
           // TODO reduce code duplication with the above function
           def handleSimultaneousSpeechesWhenNotUsersTurn() = {
             val undoLastSpeech =
-              (
-                if (isUsersTurn)
-                  Callback.empty
-                else
-                  userId.foldMap((_: ParticipantId) => {
-                    println(rounds)
-                    println(rounds.lastOption)
-                    CallbackTo(System.currentTimeMillis()).flatMap {
-                      (_: Long) =>
-                        val newRounds =
-                          rounds.lastOption match {
-                            case Some(SimultaneousSpeeches(speeches))
-                                if speeches.size > 0 =>
-                              val newLastRound = SimultaneousSpeeches(
-                                speeches - (speeches.size - 1)
-                              )
-                              rounds.dropRight(1) :+ newLastRound
-                            case _ =>
-                              rounds
-                          }
-                        sendDebate(Debate(setup, rounds = newRounds))
-                    }
-                  })
-              )
+              (if (isUsersTurn)
+                 Callback.empty
+               else
+                 userId.foldMap((participantID: ParticipantId) => {
+                   val newRounds =
+                     rounds.lastOption match {
+                       case Some(SimultaneousSpeeches(speeches))
+                           if speeches.size > 0 =>
+                         val answerIndex = participantID.role match {
+                           case Debater(debaterIndex) =>
+                             debaterIndex
+                           case _ =>
+                             throw new RuntimeException(
+                               "How did we get here?"
+                             ) // TODO more
+                         }
+                         println("answer index", answerIndex)
+                         val newLastRound = SimultaneousSpeeches(
+                           speeches - answerIndex
+                         )
+                         rounds.dropRight(1) :+ newLastRound
+                       case _ =>
+                         rounds
+                     }
+                   println("newrounds", newRounds)
+                   sendDebate(Debate(setup, rounds = newRounds))
+                 }))
 
             <.div(S.col)(
               undoButtonPanel(_ => undoLastSpeech)
             )
           }
+
+          val whoCanUndo = debate
 
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
@@ -736,18 +738,14 @@ class DebatePanel(
               }
             ),
             turnDisplay(role, currentTurnOrResult),
+            // TODO make the undo button populate the textarea with the last message that was sent
             currentTurnOrResult.toOption
-              .filter(_ => !isUsersTurn)
-              // TODO make the undo button populate the textarea with the last message that was sent
-              // TODO maybe only let one undo happen- otherwise we can backspace the entire debate :)
+              // TODO .filter(_ => !isUsersTurn)
               .whenDefined {
-                case _: DebateTurnType.SimultaneousSpeechesTurn =>
-                  role match {
-                    case Some(Debater(_: Int)) =>
-                      handleSimultaneousSpeechesWhenNotUsersTurn()
-                      <.div()()
-                    case _ => <.div()()
-                  }
+                case _: DebateTurnType.SimultaneousSpeechesTurn
+                    if (whoCanUndo.contains(userId)) =>
+                  // TODO rename :)
+                  handleSimultaneousSpeechesWhenNotUsersTurn()
                 case _: DebateTurnType.DebaterSpeechTurn =>
                   val canUndo = rounds.lastOption match {
                     case Some(SequentialSpeeches(speeches))
@@ -778,6 +776,7 @@ class DebatePanel(
                     .DebaterSpeechTurn(_: Int, _: Int) =>
                 handleSequentialSpeechesWhenUsersTurn()
 
+              // TODO create a 'allowed undoers' method on a debate
               case DebateTurnType.JudgeFeedbackTurn(
                     _: Boolean,
                     _: Int
