@@ -27,6 +27,5 @@ import munit.CatsEffectSuite
   }
 
   // TODO test that it works for SequentialSpeeches
-  // TODO test that it works for JudgeFeedback- this is a confusion
 }
  */

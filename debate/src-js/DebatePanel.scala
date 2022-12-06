@@ -738,6 +738,7 @@ class DebatePanel(
             turnDisplay(role, currentTurnOrResult),
             currentTurnOrResult.toOption
               .filter(_ => !isUsersTurn)
+              // TODO make the undo button populate the textarea with the last message that was sent
               // TODO maybe only let one undo happen- otherwise we can backspace the entire debate :)
               .whenDefined {
                 case _: DebateTurnType.SimultaneousSpeechesTurn =>

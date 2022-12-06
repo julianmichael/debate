@@ -145,8 +145,9 @@ object SequentialSpeeches
   def allSpeeches = Set(feedback)
 
 }
-object JudgeFeedback // TODO why does this exist? can we just delete this?
-object DebateRound // TODO why does this exist? can we just delete this?
+
+// These exist for @Lenses
+object JudgeFeedback
 
 /** Specifies who gets to speak next and what kind of input they should provide.
   */
