@@ -216,7 +216,7 @@ object Serve
         .recoverWith { case e: Throwable =>
           IO {
             println("Error reading debaters JSON. Initializing to empty JSON.")
-            e.printStackTrace()
+            println(s"--->\tError message: ${e.getMessage()}")
             Set.empty[String] // start with empty if none already exists
           }
         }
