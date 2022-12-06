@@ -649,6 +649,11 @@ class DebatePanel(
             )
           }
 
+          /** truth table
+            *
+            * shouldDisplayUndo |
+            */
+
           def handleSequentialSpeechesWhenNotUsersTurn() = {
             val undoLastSpeech =
               (
@@ -704,17 +709,34 @@ class DebatePanel(
             turnDisplay(role, currentTurnOrResult),
             currentTurnOrResult.toOption
               .filter(_ => !isUsersTurn)
-              // TODO filter out if we're the judge
-              // TODO only let one undo happen- otherwise we can backspace the entire debate :)
+              // TODO maybe only let one undo happen- otherwise we can backspace the entire debate :)
               .whenDefined {
                 case _: DebateTurnType.SimultaneousSpeechesTurn =>
                   // TODO undo for simultaneous speeches? is this even the right place for it?
-                  // handleSimultaneousSpeechesWhenNotUsersTurn()
-                  <.div()()
+                  role match {
+                    case Some(Debater(_: Int)) =>
+                      // handleSimultaneousSpeechesWhenNotUsersTurn()
+                      <.div()()
+                    case _ => <.div()()
+                  }
                 case _: DebateTurnType.DebaterSpeechTurn =>
-                  handleSequentialSpeechesWhenNotUsersTurn()
+                  val canUndo = rounds.lastOption match {
+                    case Some(SequentialSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      true
+                    case _ => false
+                  }
+                  role match {
+                    case Some(Debater(_: Int)) if canUndo =>
+                      handleSequentialSpeechesWhenNotUsersTurn()
+                    case _ => <.div()()
+                  }
                 case _: DebateTurnType.JudgeFeedbackTurn =>
-                  <.div()() // TODO anything to say here?
+                  role match {
+                    case Some(Judge) =>
+                      <.div()() // TODO anything to say here? i mean we know it's not the judge's turn
+                    case _ => <.div()()
+                  }
               },
             currentTurnOrResult.toOption.filter(_ => isUsersTurn).whenDefined {
               case DebateTurnType.SimultaneousSpeechesTurn(
