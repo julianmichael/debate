@@ -79,8 +79,6 @@ object DebateResult
     rounds.lastOption match {
       case None => Set()
       case Some(round) =>
-        println(rounds)
-        println(round)
         round match {
           case JudgeFeedback(_, _, _) => Set(Judge)
           case SequentialSpeeches(speeches) =>
