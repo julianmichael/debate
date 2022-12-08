@@ -202,7 +202,7 @@ class DebatePanel(
       debate: Debate,
       sendDebate: Debate => Callback
   ) = {
-    val rounds = debate.rounds
+    import debate.{setup, rounds}
     val role = userId.map(_.role)
     val shouldShowSourceMaterial = role match {
       case Some(Facilitator | Debater(_)) => true
@@ -252,22 +252,27 @@ class DebatePanel(
     }
 
     def timestampHTML(timestamp: Long) = {
-      <.span(S.speechTimestamp)(
-        minSecTime(timestamp - setup.startTime),
-        " into the debate at ", {
-          val base = {
-            Instant
-              .ofEpochMilli(timestamp)
-              // TODO this should perhaps display it in the client's timezone
-              .atZone(
-                ZoneId.of("Z")
-              ) // see "time zones" on http://cquiroz.github.io/scala-java-time/
-              .toLocalTime
-              .toString
-          }
-          base + " UTC"
+      println(debate.startTime)
+      debate.startTime.whenDefined { startTime =>
+        val relTime = timestamp - startTime
+        val humanReadableTimeUTC = {
+          Instant
+            .ofEpochMilli(timestamp)
+            // TODO this should perhaps display it in the client's timezone
+            .atZone(
+              ZoneId.of("Z")
+            ) // see "time zones" on http://cquiroz.github.io/scala-java-time/
+            .toLocalTime
+            .toString
         }
-      ).when(timestamp > 0)
+        <.span(S.speechTimestamp)(
+          TagMod(
+            minSecTime(relTime),
+            " into the debate at "
+          ).when(relTime > 0),
+          humanReadableTimeUTC + " UTC"
+        )
+      }
     }
 
     def speechToHTML(speech: DebateSpeech) = {

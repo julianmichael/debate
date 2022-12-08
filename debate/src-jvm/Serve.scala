@@ -57,13 +57,13 @@ object Serve
     "port",
     metavar = "<port number>",
     help = "Port where to host the server."
-  )
+  ).withDefault(8080)
 
   val saveO = Opts.option[NIOPath](
     "save",
     metavar = "<directory path>",
     help = "Directory in which to save the debates."
-  )
+  ).withDefault(Paths.get("save"))
 
   val sslO = Opts
     .flag(
@@ -216,7 +216,7 @@ object Serve
         .recoverWith { case e: Throwable =>
           IO {
             println("Error reading debaters JSON. Initializing to empty JSON.")
-            e.printStackTrace()
+            println(s"--->\tError message: ${e.getMessage()}")
             Set.empty[String] // start with empty if none already exists
           }
         }

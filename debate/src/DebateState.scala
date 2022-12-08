@@ -60,6 +60,12 @@ object DebateResult
     rounds: Vector[DebateRound]
 ) {
 
+  /** Time of the first round of the debate (not the init time of the debate
+    * setup).
+    */
+  def startTime: Option[Long] =
+    rounds.headOption.flatMap(_.timestamp(setup.numDebaters))
+
   def result: Option[DebateResult] = currentTurn.left.toOption
   def isOver: Boolean = result.nonEmpty
   def finalJudgment: Option[Vector[Double]] = result.map(_.finalJudgment)
@@ -138,8 +144,11 @@ object Debate {
   def allSpeeches: Set[DebateSpeech]
 
   def isComplete(numDebaters: Int): Boolean
-  final def timestamp: Option[Long] =
-    allSpeeches.view.map(_.timestamp).maxOption
+  final def timestamp(numDebaters: Int): Option[Long] =
+    if (!isComplete(numDebaters)) None
+    else {
+      allSpeeches.view.map(_.timestamp).maxOption
+    }
 }
 @Lenses @JsonCodec case class SimultaneousSpeeches(
     speeches: Map[Int, DebateSpeech] // map from answer index -> statement
@@ -228,8 +237,10 @@ object SourceMaterial
     answers: Vector[String],
     correctAnswerIndex: Int,
     roles: Map[DebateRole, String],
-    startTime: Long
+    startTime: Long // TODO change this to initTime to distinguish it more clearly from Debate#startTime
 ) {
+  def numDebaters = answers.size
+
   def areAllRolesAssigned = {
     roles.contains(Judge) && answers.indices.forall(i =>
       roles.contains(Debater(i))

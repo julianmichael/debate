@@ -47,7 +47,7 @@ object DebateRoom {
         case None => 0L
         case Some(debate) =>
           debate.rounds.view
-            .flatMap(_.timestamp)
+            .flatMap(_.timestamp(debate.setup.numDebaters))
             .lastOption
             .fold(1L)(-_)
       }

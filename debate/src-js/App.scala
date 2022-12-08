@@ -661,7 +661,6 @@ object App {
                                 debatePanel(
                                   roomName,
                                   userId,
-                                  setup,
                                   debate,
                                   (d: Debate) =>
                                     debateState
