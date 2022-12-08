@@ -68,3 +68,12 @@ Relevant libraries to reference:
 * [scalajs-react](https://github.com/japgolly/scalajs-react): React facade for Scala
 * [jjm](https://github.com/julianmichael/jjm): My personal library of utilities on top of these tools
 * [munit](https://scalameta.org/munit/): Unit testing
+
+## Speeding up your build
+
+smithjessk observed that using `mill -j 0` sped up his builds a lot. (~33% for `mill debate._.compile`).
+(This might use more memory though).
+
+## In case a default profile isn't set up
+
+You can add profiles with the **~secret admin controls~** which you can access by using the developer tools to change the `Styles-adminOnly` and disable `display: none`. You can find the element if you just select the profile dropdown and then scan the elements that come after it

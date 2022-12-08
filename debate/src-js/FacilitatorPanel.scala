@@ -21,14 +21,14 @@ import monocle.function.{all => Optics}
 import cats.implicits._
 
 class FacilitatorPanel(
-  val S: Styles.type,
-  val V: jjm.ui.View
+    val S: Styles.type,
+    val V: jjm.ui.View
 ) {
 
   import App.ClassSetInterpolator
 
   val RoundTypeList =
-      ListConfig[DebateRoundType](DebateRoundType.SequentialSpeechesRound(500))
+    ListConfig[DebateRoundType](DebateRoundType.SequentialSpeechesRound(500))
   val RoundTypeConfig = SumConfig[DebateRoundType]()
   val ScoringFunctionConfig = SumConfig[ScoringFunction]()
   val DebateSetupSpecLocal = new LocalState[DebateSetupSpec]
@@ -36,20 +36,23 @@ class FacilitatorPanel(
   import scala.concurrent.ExecutionContext.Implicits.global
 
   val QuALITYIndexFetch = new CacheCallContent[Unit, Map[String, String]]
-  val QuALITYStoryOptFetch = new CacheCallContent[Option[String], Option[QuALITYStory]]
+  val QuALITYStoryOptFetch =
+    new CacheCallContent[Option[String], Option[QuALITYStory]]
   val QuALITYStorySelect = new V.Select[Option[(String, String)]](
-    show = choice => choice match {
-      case None => "(custom)"
-      case Some((articleId, title)) => s"$title ($articleId)"
-    }
+    show = choice =>
+      choice match {
+        case None                     => "(custom)"
+        case Some((articleId, title)) => s"$title ($articleId)"
+      }
   )
 
   val QuestionOptLocal = new LocalState[Option[QuALITYQuestion]]
   val QuestionSelect = new V.Select[Option[QuALITYQuestion]](
-    show = choice => choice match {
-      case None => "(custom)"
-      case Some(question) => question.question
-    }
+    show = choice =>
+      choice match {
+        case None           => "(custom)"
+        case Some(question) => question.question
+      }
   )
 
   val ProfileOptSelect = new V.OptionalSelect[String](show = _.toString)
@@ -125,9 +128,9 @@ class FacilitatorPanel(
   }
 
   def roundTypeConfig(
-    label: String,
-    rounds: StateSnapshot[Vector[DebateRoundType]],
-    minItems: Int
+      label: String,
+      rounds: StateSnapshot[Vector[DebateRoundType]],
+      minItems: Int
   ) = {
     <.div(S.mainLabeledInputRow)(
       <.div(S.inputLabel)(label),
@@ -215,10 +218,10 @@ class FacilitatorPanel(
 
   /** Config panel for facilitator to set the rules of the debate. */
   def apply(
-    mustAssignRoles: Boolean,
-    profiles: Set[String],
-    qualityService: QuALITYService[AsyncCallback],
-    sendUpdate: DebateStateUpdateRequest => Callback
+      mustAssignRoles: Boolean,
+      profiles: Set[String],
+      qualityService: QuALITYService[AsyncCallback],
+      sendUpdate: DebateStateUpdateRequest => Callback
   ) = DebateSetupSpecLocal.make(DebateSetupSpec.init) { setup =>
     val canStartDebate = setup.value.answers.filter(_.nonEmpty).size > 1 && (
       !mustAssignRoles || setup.value.areAllRolesAssigned
@@ -228,70 +231,102 @@ class FacilitatorPanel(
       request = (),
       sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)
     ) { indexFetch =>
-      // val indexOpt = indexFetch.toOption
       val indexOpt = indexFetch match {
-        case QuALITYIndexFetch.Loading => None
+        case QuALITYIndexFetch.Loading       => None
         case QuALITYIndexFetch.Loaded(index) => Some(index)
       }
-      def getTitle(articleId: String): String = indexOpt.flatMap(_.get(articleId)).getOrElse("(loading title)")
-        // val indexList = indexOpt.foldMap(_.toList)
+      def getTitle(articleId: String): String =
+        indexOpt.flatMap(_.get(articleId)).getOrElse("(loading title)")
       val articleIdOpt = setup.value.sourceMaterial match {
-        case CustomSourceMaterialSpec(_, _) => None
+        case CustomSourceMaterialSpec(_, _)       => None
         case QuALITYSourceMaterialSpec(articleId) => Some(articleId)
       }
       QuALITYStoryOptFetch.make(
         request = articleIdOpt,
-        sendRequest = articleIdOpt => articleIdOpt match {
-          case None => OrWrapped.pure[AsyncCallback](None)
-          case Some(articleId) => OrWrapped.wrapped(qualityService.getStory(articleId).map(Option(_)))
-        }
+        sendRequest = articleIdOpt =>
+          articleIdOpt match {
+            case None => OrWrapped.pure[AsyncCallback](None)
+            case Some(articleId) =>
+              OrWrapped.wrapped(
+                qualityService.getStory(articleId).map(Option(_))
+              )
+          }
       ) { storyOptFetch =>
         val storyOpt = storyOptFetch.toOption.flatten
         QuestionOptLocal.make(None) { qualityQuestionOpt =>
           <.div(S.facilitatorColumn)(
             roundTypeConfig(
               "Opening Rounds",
-              setup.zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)),
-              minItems = 0),
+              setup.zoomStateL(
+                DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)
+              ),
+              minItems = 0
+            ),
             roundTypeConfig(
               "Repeated Rounds",
-              setup.zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)),
-              minItems = 1),
+              setup.zoomStateL(
+                DebateSetupSpec.rules.composeLens(
+                  DebateRules.repeatingStructure
+                )
+              ),
+              minItems = 1
+            ),
             scoringFunctionConfig(
-              setup.zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction))
+              setup.zoomStateL(
+                DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction)
+              )
             ),
             <.div(S.mainLabeledInputRow)(
               <.div(S.inputLabel)("Source Material"),
               <.div(S.inputRowContents)(
                 QuALITYStorySelect.modFull(select = S.customSelect)(
-                  choices = None +: indexOpt.foldMap(_.toList.sortBy(_.swap)).map(Some(_)),
+                  choices = None +: indexOpt
+                    .foldMap(_.toList.sortBy(_.swap))
+                    .map(Some(_)),
                   curChoice = articleIdOpt.map(id => id -> getTitle(id)),
-                  setChoice = choice => choice match {
-                    case None => setup.zoomStateL(DebateSetupSpec.sourceMaterial).setState(
-                      CustomSourceMaterialSpec("Title", "Custom source material.")
-                    )
-                    case Some((articleId, _)) => {
-                      setup.zoomStateL(DebateSetupSpec.sourceMaterial).setState(
-                        QuALITYSourceMaterialSpec(articleId)
-                      )
+                  setChoice = choice =>
+                    choice match {
+                      case None =>
+                        setup
+                          .zoomStateL(DebateSetupSpec.sourceMaterial)
+                          .setState(
+                            CustomSourceMaterialSpec(
+                              "Title",
+                              "Custom source material."
+                            )
+                          )
+                      case Some((articleId, _)) => {
+                        setup
+                          .zoomStateL(DebateSetupSpec.sourceMaterial)
+                          .setState(
+                            QuALITYSourceMaterialSpec(articleId)
+                          )
+                      }
                     }
-                  }
                 ),
                 setup.value.sourceMaterial match {
                   case CustomSourceMaterialSpec(_, _) =>
-                    val customSourceMaterialSpec = setup.zoomStateO(
-                      DebateSetupSpec.sourceMaterial.composePrism(SourceMaterialSpec.custom)
-                    ).get // will succeed bc of match case
+                    val customSourceMaterialSpec = setup
+                      .zoomStateO(
+                        DebateSetupSpec.sourceMaterial
+                          .composePrism(SourceMaterialSpec.custom)
+                      )
+                      .get // will succeed bc of match case
                     VdomArray(
                       // title
                       V.LiveTextField.String.modInput(input = c"form-control")(
-                        customSourceMaterialSpec.zoomStateL(CustomSourceMaterialSpec.title)
+                        customSourceMaterialSpec.zoomStateL(
+                          CustomSourceMaterialSpec.title
+                        )
                       ),
                       // article
-                      V.LiveTextArea.String.mod(textarea = TagMod(c"form-control", ^.rows := 10))(
-                        customSourceMaterialSpec.zoomStateL(CustomSourceMaterialSpec.contents),
-                        placeholderOpt = Some("Paste source material here")
-                      )
+                      V.LiveTextArea.String
+                        .mod(textarea = TagMod(c"form-control", ^.rows := 10))(
+                          customSourceMaterialSpec.zoomStateL(
+                            CustomSourceMaterialSpec.contents
+                          ),
+                          placeholderOpt = Some("Paste source material here")
+                        )
                     )
                   case QuALITYSourceMaterialSpec(articleId) =>
                     VdomArray(
@@ -304,7 +339,9 @@ class FacilitatorPanel(
                         c"form-control",
                         ^.rows := 10,
                         ^.readOnly := true,
-                        ^.value := storyOpt.fold("(loading story contents)")(_.article)
+                        ^.value := storyOpt.fold("(loading story contents)")(
+                          _.article
+                        )
                       )
                     )
                 }
@@ -314,7 +351,9 @@ class FacilitatorPanel(
               <.div(S.inputLabel)("Question"),
               <.div(S.inputRowContents)(
                 QuestionSelect.modFull(select = S.customSelect)(
-                  choices = None +: storyOpt.foldMap(_.questions.values.toList).map(Some(_)),
+                  choices = None +: storyOpt
+                    .foldMap(_.questions.values.toList)
+                    .map(Some(_)),
                   curChoice = qualityQuestionOpt.value,
                   setChoice = {
                     case None =>
@@ -325,13 +364,17 @@ class FacilitatorPanel(
                         )
                     case Some(question) =>
                       import io.circe.syntax._
-                      Callback(org.scalajs.dom.console.log(question.asJson.spaces2)) >>
+                      Callback(
+                        org.scalajs.dom.console.log(question.asJson.spaces2)
+                      ) >>
                         qualityQuestionOpt.setState(Some(question)) >>
                         setup.modState(setup =>
                           setup.copy(
                             question = question.question,
                             answers = question.options,
-                            correctAnswerIndex = question.annotations.fold(setup.correctAnswerIndex)(_.writerLabel - 1) // writer labels are 1-indexed
+                            correctAnswerIndex = question.annotations.fold(
+                              setup.correctAnswerIndex
+                            )(_.writerLabel - 1) // writer labels are 1-indexed
                           )
                         )
                   }
@@ -344,7 +387,9 @@ class FacilitatorPanel(
                   ProfileOptSelect.mod(select = S.customSelect)(
                     choices = profiles,
                     choice = setup.zoomStateL(
-                      DebateSetupSpec.roles.composeLens(Optics.at(Judge: DebateRole))
+                      DebateSetupSpec.roles.composeLens(
+                        Optics.at(Judge: DebateRole)
+                      )
                     )
                   )
                 )
@@ -353,52 +398,59 @@ class FacilitatorPanel(
             <.div(S.mainLabeledInputRow)(
               <.div(S.inputLabel)("Answers"),
               <.div(S.inputRowContents)(
-                ListConfig.String(setup.zoomStateL(DebateSetupSpec.answers), 1) {
-                  (remove, answer, index) =>
-                    <.div(S.row)(
-                      <.span(S.answerLabel)(remove, " ", s"${answerLetter(index)}. "),
-                      <.div(S.col, S.grow)(
-                        <.div(S.row)(
-                          V.LiveTextField.String(answer)
+                ListConfig.String(
+                  setup.zoomStateL(DebateSetupSpec.answers),
+                  1
+                ) { (remove, answer, index) =>
+                  <.div(S.row)(
+                    <.span(S.answerLabel)(
+                      remove,
+                      " ",
+                      s"${answerLetter(index)}. "
+                    ),
+                    <.div(S.col, S.grow)(
+                      <.div(S.row)(
+                        V.LiveTextField.String(answer)
+                      ),
+                      <.div(S.row)(
+                        <.input(S.correctAnswerRadio)(
+                          ^.`type` := "radio",
+                          ^.name := "correctAnswerIndex",
+                          ^.value := index,
+                          ^.checked := setup.value.correctAnswerIndex == index,
+                          ^.onChange --> setup
+                            .zoomStateL(DebateSetupSpec.correctAnswerIndex)
+                            .setState(index)
                         ),
-                        <.div(S.row)(
-                          <.input(S.correctAnswerRadio)(
-                            ^.`type` := "radio",
-                            ^.name := "correctAnswerIndex",
-                            ^.value := index,
-                            ^.checked := setup.value.correctAnswerIndex == index,
-                            ^.onChange --> setup
-                              .zoomStateL(DebateSetupSpec.correctAnswerIndex)
-                              .setState(index)
-                          ),
-                          <.span(S.inputRowItem)(
-                            <.span(S.correctAnswerLabel)("Correct"),
-                            S.hidden.when(setup.value.correctAnswerIndex != index)
-                          ),
-                          <.div(S.inputLabel)("Assigned Debater:"),
-                          ProfileOptSelect.mod(select = S.customSelect)(
-                            choices = profiles,
-                            choice = setup.zoomStateL(
-                              DebateSetupSpec.roles.composeLens(Optics.at(Debater(index): DebateRole))
+                        <.span(S.inputRowItem)(
+                          <.span(S.correctAnswerLabel)("Correct"),
+                          S.hidden.when(setup.value.correctAnswerIndex != index)
+                        ),
+                        <.div(S.inputLabel)("Assigned Debater:"),
+                        ProfileOptSelect.mod(select = S.customSelect)(
+                          choices = profiles,
+                          choice = setup.zoomStateL(
+                            DebateSetupSpec.roles.composeLens(
+                              Optics.at(Debater(index): DebateRole)
                             )
                           )
                         )
                       )
                     )
+                  )
                 }
               )
             ),
             <.button(c"btn btn-primary")(
               "Start the debate!",
               ^.disabled := !canStartDebate,
-              ^.onClick ==> (
-                (e: ReactEvent) => {
-                  if(!canStartDebate) Callback.empty else {
-                    e.preventDefault();
-                    sendUpdate(DebateStateUpdateRequest.SetupSpec(setup.value))
-                  }
+              ^.onClick ==> ((e: ReactEvent) => {
+                if (!canStartDebate) Callback.empty
+                else {
+                  e.preventDefault();
+                  sendUpdate(DebateStateUpdateRequest.SetupSpec(setup.value))
                 }
-              )
+              })
             )
           )
 

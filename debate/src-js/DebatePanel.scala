@@ -4,19 +4,12 @@ import jjm.implicits._
 
 import scalajs.js
 
-// import org.scalajs.dom
-
 import org.scalajs.jquery.jQuery
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-// import japgolly.scalajs.react.extra.StateSnapshot
-// import japgolly.scalajs.react.MonocleReact._
 
-// import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
-
-// import monocle.macros._
 
 import cats.implicits._
 
@@ -35,11 +28,9 @@ import java.time.{Instant, ZoneId}
 
 import debate.util._
 
-// import App.ClassSetInterpolator
-
 class DebatePanel(
-  S: Styles.type,
-  V: jjm.ui.View
+    S: Styles.type,
+    V: jjm.ui.View
 ) {
 
   val LocalSpans = new LocalState[Set[ESpan]]
@@ -192,7 +183,6 @@ class DebatePanel(
               case Some(Debater(`index`)) =>
                 <.span("It is YOUR TURN to make a speech.")
               case _ => <.span(s"Debaters are writing their speeches.")
-              // case _ => <.span(s"It is Debater ${answerLetter(index)}'s turn.")
             }
           case DebateTurnType.JudgeFeedbackTurn(_, _) =>
             roleOpt match {
@@ -204,13 +194,12 @@ class DebatePanel(
     }
   )
 
-
   /** Show the debate. */
   def apply(
-    roomName: String,
-    userId: Option[ParticipantId],
-    debate: Debate,
-    sendDebate: Debate => Callback
+      roomName: String,
+      userId: Option[ParticipantId],
+      debate: Debate,
+      sendDebate: Debate => Callback
   ) = {
     import debate.{setup, rounds}
     val role = userId.map(_.role)
@@ -255,11 +244,11 @@ class DebatePanel(
     }
 
     def minSecTime(millis: Long): String = {
-          val secs = millis / 1000
-          val mins = secs / 60
-          val secsRem = secs % 60
-          s"${mins}m ${secsRem}s"
-        }
+      val secs = millis / 1000
+      val mins = secs / 60
+      val secsRem = secs % 60
+      s"${mins}m ${secsRem}s"
+    }
 
     def timestampHTML(timestamp: Long) = {
       println(debate.startTime)
@@ -268,7 +257,7 @@ class DebatePanel(
         val humanReadableTimeUTC = {
           Instant
             .ofEpochMilli(timestamp)
-          // TODO this should perhaps display it in the client's timezone
+            // TODO this should perhaps display it in the client's timezone
             .atZone(
               ZoneId.of("Z")
             ) // see "time zones" on http://cquiroz.github.io/scala-java-time/
@@ -278,7 +267,7 @@ class DebatePanel(
         <.span(S.speechTimestamp)(
           TagMod(
             minSecTime(relTime),
-            " into the debate at ",
+            " into the debate at "
           ).when(relTime > 0),
           humanReadableTimeUTC + " UTC"
         )
@@ -291,7 +280,10 @@ class DebatePanel(
         speech.speaker.name,
         s" ($roleString) ",
         timestampHTML(speech.timestamp).when(
-          userId.map(_.role).collect { case Facilitator | Debater(_) => () }.nonEmpty
+          userId
+            .map(_.role)
+            .collect { case Facilitator | Debater(_) => () }
+            .nonEmpty
         )
       )
     }
@@ -299,21 +291,29 @@ class DebatePanel(
     def quoteToHTML(span: ESpan) = {
       <.span(
         <.span(S.quoteText)(
-          breakNewlines(ling.Text.renderSpan(setup.sourceMaterial.contents, span))
+          breakNewlines(
+            ling.Text.renderSpan(setup.sourceMaterial.contents, span)
+          )
         ),
         <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
       )
     }
 
     def makeRoundHtml(
-      round: DebateRound,
-      roundIndex: Int
+        round: DebateRound,
+        roundIndex: Int
     ) = {
       <.div(
         ^.key := s"round-$roundIndex",
-        round.timestamp(setup.numDebaters).whenDefined(timestampHTML).when(
-          userId.map(_.role).collect { case Facilitator | Debater(_) => () }.isEmpty
-        ),
+        round
+          .timestamp(setup.numDebaters)
+          .whenDefined(timestampHTML)
+          .when(
+            userId
+              .map(_.role)
+              .collect { case Facilitator | Debater(_) => () }
+              .isEmpty
+          ),
         round match {
           case SimultaneousSpeeches(speeches) =>
             if (speeches.size < setup.answers.size) {
@@ -338,7 +338,9 @@ class DebatePanel(
             }
           case SequentialSpeeches(speeches) =>
             val speechesToShow = if (speeches.size < setup.answers.size) {
-              if(role.collect { case Facilitator | Debater(_) => () }.nonEmpty) {
+              if (
+                role.collect { case Facilitator | Debater(_) => () }.nonEmpty
+              ) {
                 speeches.toVector.sortBy(_._1).map(_._2)
               } else Vector()
             } else speeches.values.toVector
@@ -368,16 +370,15 @@ class DebatePanel(
                 <.div(
                   ^.display := "flex",
                   ^.flexDirection := "row",
-                  probabilities.zipWithIndex.toVdomArray {
-                    case (prob, index) =>
-                      val pct = f"${prob * 100.0}%.0f%%"
-                      <.div(
-                        S.answerBg(index),
-                        ^.width := pct,
-                        ^.color := "white",
-                        ^.fontWeight := "bold",
-                        ^.flexGrow := "1"
-                      )(pct)
+                  probabilities.zipWithIndex.toVdomArray { case (prob, index) =>
+                    val pct = f"${prob * 100.0}%.0f%%"
+                    <.div(
+                      S.answerBg(index),
+                      ^.width := pct,
+                      ^.color := "white",
+                      ^.fontWeight := "bold",
+                      ^.flexGrow := "1"
+                    )(pct)
                   }
                 )
               ).filter(_ => probabilities.size > 1)
@@ -391,7 +392,6 @@ class DebatePanel(
         speeches: Map[Int, DebateSpeech]
     ) = {
       <.div(S.speechRow)(
-        // ^.key := s"speech-$speechIndex",
         speeches.toVector.sortBy(_._1).toVdomArray {
           case (debaterIndex, speech) =>
             <.div(S.speechBox, S.answerBg(debaterIndex))(
@@ -408,11 +408,10 @@ class DebatePanel(
 
     def makeSpeechHtml(
         speech: DebateSpeech,
-        style: TagMod,
+        style: TagMod
         // speechIndex: Int
     ) = {
       <.div(S.speechBox, style)(
-        // ^.key := s"speech-$speechIndex",
         speechToHTML(speech),
         speech.content.toVdomArray {
           case SpeechSegment.Text(text)  => makeSimpleVdomFromText(text)
@@ -445,12 +444,14 @@ class DebatePanel(
     }
 
     val debateSpansWithSpeaker = rounds.flatMap { round =>
-      if(round.isComplete(setup.answers.size)) {
-        round.allSpeeches.view.flatMap(speech =>
-          speech.allQuotes.map(speech.speaker -> _)
-        ).toVector
+      if (round.isComplete(setup.answers.size)) {
+        round.allSpeeches.view
+          .flatMap(speech => speech.allQuotes.map(speech.speaker -> _))
+          .toVector
       } else {
-        userId.map(_.role).view
+        userId
+          .map(_.role)
+          .view
           .flatMap(role => round.allSpeeches.filter(_.speaker.role == role))
           .flatMap(speech => speech.allQuotes.map(speech.speaker -> _))
           .toVector
@@ -541,120 +542,262 @@ class DebatePanel(
             )
           }
 
+          def undoButtonPanel(submit: Boolean => Callback) = {
+            <.button(
+              "Undo",
+              ^.onClick --> submit(true),
+              ^.disabled := isUsersTurn
+            )
+          }
+
+          def handleSimultaneousSpeechesWhenUsersTurn() = {
+            val submit =
+              (
+                if (!isUsersTurn || speechIsTooLong) Callback.empty
+                else
+                  userId.foldMap(userId =>
+                    CallbackTo(System.currentTimeMillis()).flatMap { time =>
+                      val speech = DebateSpeech(
+                        userId,
+                        time,
+                        currentMessageSpeechSegments
+                      )
+                      val newRounds = role match {
+                        case Some(Debater(debaterIndex)) =>
+                          rounds.lastOption match {
+                            // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
+                            case Some(SimultaneousSpeeches(speeches))
+                                if speeches.size < setup.answers.size =>
+                              rounds.updated(
+                                rounds.size - 1,
+                                SimultaneousSpeeches(
+                                  speeches + (debaterIndex -> speech)
+                                )
+                              )
+                            // otherwise, create the record for the turn with our new speech.
+                            case _ =>
+                              rounds :+ SimultaneousSpeeches(
+                                Map(debaterIndex -> speech)
+                              )
+                          }
+                        case _ =>
+                          rounds
+                      }
+                      sendDebate(Debate(setup, newRounds))
+                    } >> currentMessage.setState("")
+                  )
+              )
+
+            <.div(S.col)(
+              speechInputPanel(_ => submit, true),
+              <.button(
+                "Submit",
+                ^.disabled := !isUsersTurn || speechIsTooLong,
+                ^.onClick --> submit
+              )
+            )
+          }
+
+          def handleSequentialSpeechesWhenUsersTurn() = {
+            val submitNewSpeech =
+              (
+                if (!isUsersTurn || speechIsTooLong) Callback.empty
+                else
+                  userId.foldMap(userId =>
+                    CallbackTo(System.currentTimeMillis()).flatMap { time =>
+                      val speech = DebateSpeech(
+                        userId,
+                        time,
+                        currentMessageSpeechSegments
+                      )
+                      val newRounds = role match {
+                        case Some(Debater(debaterIndex)) =>
+                          rounds.lastOption match {
+                            // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
+                            case Some(SequentialSpeeches(speeches))
+                                if speeches.size < setup.answers.size =>
+                              rounds.updated(
+                                rounds.size - 1,
+                                SequentialSpeeches(
+                                  speeches + (debaterIndex -> speech)
+                                )
+                              )
+                            // otherwise, create the record for the turn with our new speech.
+                            case _ =>
+                              rounds :+ SequentialSpeeches(
+                                Map(debaterIndex -> speech)
+                              )
+                          }
+                        case _ => rounds // TODO should we error here?
+                      }
+                      sendDebate(Debate(setup, newRounds))
+                    } >> currentMessage.setState("")
+                  )
+              )
+
+            <.div(S.col)(
+              <.div(S.col)(
+                speechInputPanel(
+                  _ => submitNewSpeech,
+                  cmdEnterToSubmit = true
+                ),
+                <.button(
+                  "Submit",
+                  ^.disabled := !isUsersTurn || speechIsTooLong,
+                  ^.onClick --> submitNewSpeech
+                )
+              )
+            )
+          }
+
+          def undoSequentialSpeech(speeches: Map[Int, DebateSpeech]) = {
+            val newLastRound = SequentialSpeeches(
+              speeches - (speeches.size - 1)
+            )
+            rounds.dropRight(1) :+ newLastRound
+          }
+
+          def undoSimultaneousSpeech(
+              speeches: Map[Int, DebateSpeech],
+              participantID: ParticipantId
+          ) = {
+            val answerIndex = participantID.role match {
+              case Debater(debaterIndex) =>
+                debaterIndex
+              case _ =>
+                throw new RuntimeException(
+                  "How did we get here? Somehow trying to undo a simultaneous speech for a non-debater"
+                )
+            }
+            val newLastRound = SimultaneousSpeeches(
+              speeches - answerIndex
+            )
+            rounds.dropRight(1) :+ newLastRound
+          }
+
+          def undoButtonWhenCurrentlyOnSequentialSpeech() = {
+            val undoLastSpeech =
+              userId.foldMap((_: ParticipantId) => {
+                val newRounds =
+                  rounds.lastOption match {
+                    case Some(SequentialSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      undoSequentialSpeech(speeches)
+                    case Some(_: JudgeFeedback) =>
+                      rounds.dropRight(1)
+                    case _ =>
+                      rounds
+                  }
+                sendDebate(
+                  Debate(setup, rounds = newRounds)
+                )
+
+              })
+
+            <.div(S.col)(
+              undoButtonPanel(_ => undoLastSpeech)
+            )
+          }
+
+          // TODO maybe-someday share this code with [undoButtonWhenCurrentlyOnSequentialSpeech]
+          def undoButtonWhenCurrentlyOnSimultaneousSpeech() = {
+            val undoLastSpeech =
+              userId.foldMap((participantID: ParticipantId) => {
+                val newRounds =
+                  rounds.lastOption match {
+                    case Some(SimultaneousSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      undoSimultaneousSpeech(speeches, participantID)
+                    case Some(_: JudgeFeedback) =>
+                      rounds.dropRight(1)
+                    case _ =>
+                      rounds // TODO maybe-someday should we also catch sequential speeches? to handle all debate variants?
+                  }
+
+                sendDebate(
+                  Debate(setup, rounds = newRounds)
+                )
+              })
+
+            <.div(S.col)(
+              undoButtonPanel(_ => undoLastSpeech)
+            )
+          }
+
+          val isUndoAllowed = role
+            .map { role =>
+              debate.whoCanUndo.contains(role)
+            }
+            .getOrElse(false)
+
+          def undoButtonWhenCurrentlyOnJudgeFeedback() = {
+            val undoLastSpeech =
+              userId.foldMap((participantID: ParticipantId) => {
+                val newRounds =
+                  rounds.lastOption match {
+                    case Some(SequentialSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      undoSequentialSpeech(speeches)
+                    case Some(SimultaneousSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      undoSimultaneousSpeech(speeches, participantID)
+                    case Some(_: JudgeFeedback) =>
+                      rounds.dropRight(1)
+                    case _ =>
+                      rounds
+                  }
+                sendDebate(
+                  Debate(setup, rounds = newRounds)
+                )
+
+              })
+
+            <.div(S.col)(
+              undoButtonPanel(_ => undoLastSpeech)
+            )
+          }
+
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
               ^.id := "speeches",
               rounds.zipWithIndex.flatMap { case (round, roundIndex) =>
                 Option(makeRoundHtml(round, roundIndex)).filter(_ =>
-                  role.collect { case Facilitator | Debater(_) => () }.nonEmpty ||
+                  role.collect { case Facilitator | Debater(_) =>
+                    ()
+                  }.nonEmpty ||
                     round.isComplete(setup.answers.size)
                 )
               }.toVdomArray,
               userId.whenDefined { userId =>
                 makeSpeechHtml(
                   DebateSpeech(userId, -1L, currentMessageSpeechSegments),
-                  inProgressSpeechStyle,
+                  inProgressSpeechStyle
                 ).when(currentMessage.value.size > 0 && isUsersTurn)
               }
             ),
             turnDisplay(role, currentTurnOrResult),
+            currentTurnOrResult.toOption
+              .whenDefined {
+                case _: DebateTurnType.SimultaneousSpeechesTurn
+                    if isUndoAllowed =>
+                  undoButtonWhenCurrentlyOnSimultaneousSpeech()
+                case _: DebateTurnType.DebaterSpeechTurn if isUndoAllowed =>
+                  undoButtonWhenCurrentlyOnSequentialSpeech()
+                case _: DebateTurnType.JudgeFeedbackTurn if isUndoAllowed =>
+                  undoButtonWhenCurrentlyOnJudgeFeedback()
+                case _ =>
+                  <.div()()
+              },
             currentTurnOrResult.toOption.filter(_ => isUsersTurn).whenDefined {
               case DebateTurnType.SimultaneousSpeechesTurn(
                     _: Set[Int],
                     _: Int
                   ) =>
-                val submit =
-                  (
-                    if (!isUsersTurn || speechIsTooLong) Callback.empty
-                    else
-                      userId.foldMap(userId =>
-                        CallbackTo(System.currentTimeMillis()).flatMap { time =>
-                          val speech = DebateSpeech(
-                            userId,
-                            time,
-                            currentMessageSpeechSegments
-                          )
-                          val newRounds = role match {
-                            case Some(Debater(debaterIndex)) =>
-                              rounds.lastOption match {
-                                // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
-                                case Some(SimultaneousSpeeches(speeches))
-                                    if speeches.size < setup.answers.size =>
-                                  rounds.updated(
-                                    rounds.size - 1,
-                                    SimultaneousSpeeches(
-                                      speeches + (debaterIndex -> speech)
-                                    )
-                                  )
-                                // otherwise, create the record for the turn with our new speech.
-                                case _ =>
-                                  rounds :+ SimultaneousSpeeches(
-                                    Map(debaterIndex -> speech)
-                                  )
-                              }
-                            case _ => rounds // TODO should we error here?
-                          }
-                          sendDebate(Debate(setup, newRounds))
-                        } >> currentMessage.setState("")
-                      )
-                  )
-
-                <.div(S.col)(
-                  speechInputPanel(_ => submit, true),
-                  <.button(
-                    "Submit",
-                    ^.disabled := !isUsersTurn || speechIsTooLong,
-                    ^.onClick --> submit
-                  )
-                )
+                handleSimultaneousSpeechesWhenUsersTurn()
 
               case DebateTurnType
                     .DebaterSpeechTurn(_: Int, _: Int) =>
-
-                val submit =
-                  (
-                    if (!isUsersTurn || speechIsTooLong) Callback.empty
-                    else
-                      userId.foldMap(userId =>
-                        CallbackTo(System.currentTimeMillis()).flatMap { time =>
-                          val speech = DebateSpeech(
-                            userId,
-                            time,
-                            currentMessageSpeechSegments
-                          )
-                          val newRounds = role match {
-                            case Some(Debater(debaterIndex)) =>
-                              rounds.lastOption match {
-                                // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
-                                case Some(SequentialSpeeches(speeches))
-                                    if speeches.size < setup.answers.size =>
-                                  rounds.updated(
-                                    rounds.size - 1,
-                                    SequentialSpeeches(
-                                      speeches + (debaterIndex -> speech)
-                                    )
-                                  )
-                                // otherwise, create the record for the turn with our new speech.
-                                case _ =>
-                                  rounds :+ SequentialSpeeches(
-                                    Map(debaterIndex -> speech)
-                                  )
-                              }
-                            case _ => rounds // TODO should we error here?
-                          }
-                          sendDebate(Debate(setup, newRounds))
-                        } >> currentMessage.setState("")
-                      )
-                  )
-
-                <.div(S.col)(
-                  speechInputPanel(_ => submit, true),
-                  <.button(
-                    "Submit",
-                    ^.disabled := !isUsersTurn || speechIsTooLong,
-                    ^.onClick --> submit
-                  )
-                )
+                handleSequentialSpeechesWhenUsersTurn()
 
               case DebateTurnType.JudgeFeedbackTurn(
                     _: Boolean,

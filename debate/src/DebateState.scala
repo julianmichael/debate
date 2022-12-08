@@ -20,9 +20,11 @@ import cats.implicits._
 
   def status: RoomStatus = debate match {
     case None => RoomStatus.SettingUp
-    case Some(debate) => debate.currentTurn.fold(
-      _ => RoomStatus.Complete, _ => RoomStatus.InProgress
-    )
+    case Some(debate) =>
+      debate.currentTurn.fold(
+        _ => RoomStatus.Complete,
+        _ => RoomStatus.InProgress
+      )
   }
 
   /** Add a participant. If the participant is already present, potentially
@@ -31,16 +33,17 @@ import cats.implicits._
   def addParticipant(id: ParticipantId) = {
     copy(participants = participants.filter(_.name != id.name) + id)
   }
+
 }
 object DebateState {
   def init = DebateState(None, Set())
 }
 
 @Lenses @JsonCodec case class DebateResult(
-  correctAnswerIndex: Int,
-  numTurns: Int,
-  finalJudgment: Vector[Double],
-  judgeReward: Double
+    correctAnswerIndex: Int,
+    numTurns: Int,
+    finalJudgment: Vector[Double],
+    judgeReward: Double
 )
 object DebateResult
 
@@ -57,8 +60,11 @@ object DebateResult
     rounds: Vector[DebateRound]
 ) {
 
-  /** Time of the first round of the debate (not the init time of the debate setup). */
-  def startTime: Option[Long] = rounds.headOption.flatMap(_.timestamp(setup.numDebaters))
+  /** Time of the first round of the debate (not the init time of the debate
+    * setup).
+    */
+  def startTime: Option[Long] =
+    rounds.headOption.flatMap(_.timestamp(setup.numDebaters))
 
   def result: Option[DebateResult] = currentTurn.left.toOption
   def isOver: Boolean = result.nonEmpty
@@ -66,7 +72,25 @@ object DebateResult
 
   def numContinues = rounds.foldMap {
     case JudgeFeedback(_, _, false) => 1
-    case _ => 0
+    case _                          => 0
+  }
+
+  def whoCanUndo: Set[Role] = {
+    rounds.lastOption match {
+      case None => Set()
+      case Some(round) =>
+        round match {
+          case JudgeFeedback(_, _, _) => Set(Judge)
+          case SequentialSpeeches(speeches) =>
+            speeches.lastOption match {
+              case None =>
+                Set() // TODO maybe-someday let the judge undo here- requires dropping two rounds in [DebatePanel.scala]
+              case Some((_, speech)) => Set(speech.speaker.role)
+            }
+          case SimultaneousSpeeches(speeches) =>
+            (speeches.map({ case (_, speech) => speech.speaker.role })).toSet
+        }
+    }
   }
 
   /** Whose turn it is and what they need to submit. */
@@ -74,20 +98,25 @@ object DebateResult
     // TODO: validate that the debate follows the specified structure?
     // turn sequence is always nonempty
     val numDebaters = setup.answers.size
-    val roundSequence = setup.rules.roundTypes//(setup.answers.size)
+    val roundSequence = setup.rules.roundTypes // (setup.answers.size)
     if (rounds.isEmpty) Right(roundSequence.head.getFirstTurn(numDebaters))
     else {
       val lastRoundTypeAndRest = roundSequence.drop(rounds.size - 1)
       val lastRound = rounds.last
       lastRoundTypeAndRest.head.getTurn(lastRound, numDebaters) match {
-        case DebateTurnTypeResult.Next => Right(
-          lastRoundTypeAndRest.tail.head.getFirstTurn(numDebaters) // there should always be more turns
-        )
+        case DebateTurnTypeResult.Next =>
+          Right(
+            lastRoundTypeAndRest.tail.head.getFirstTurn(
+              numDebaters
+            ) // there should always be more turns
+          )
         case DebateTurnTypeResult.Turn(turn) => Right(turn)
         case DebateTurnTypeResult.End(finalJudgment) =>
           val numTurns = numContinues
           val judgeReward = setup.rules.scoringFunction.eval(
-            numTurns, finalJudgment, setup.correctAnswerIndex
+            numTurns,
+            finalJudgment,
+            setup.correctAnswerIndex
           )
           Left(
             DebateResult(
@@ -111,9 +140,11 @@ object Debate {
   */
 @JsonCodec sealed trait DebateRound {
   def allSpeeches: Set[DebateSpeech]
+
   def isComplete(numDebaters: Int): Boolean
   final def timestamp(numDebaters: Int): Option[Long] =
-    if(!isComplete(numDebaters)) None else {
+    if (!isComplete(numDebaters)) None
+    else {
       allSpeeches.view.map(_.timestamp).maxOption
     }
 }
@@ -122,6 +153,7 @@ object Debate {
 ) extends DebateRound {
   def isComplete(numDebaters: Int) = speeches.size == numDebaters
   def allSpeeches = speeches.values.toSet
+
 }
 object SimultaneousSpeeches
 @Lenses @JsonCodec case class SequentialSpeeches(
@@ -129,6 +161,7 @@ object SimultaneousSpeeches
 ) extends DebateRound {
   def isComplete(numDebaters: Int) = speeches.size == numDebaters
   def allSpeeches = speeches.values.toSet
+
 }
 object SequentialSpeeches
 @Lenses @JsonCodec case class JudgeFeedback(
@@ -138,9 +171,11 @@ object SequentialSpeeches
 ) extends DebateRound {
   def isComplete(numDebaters: Int) = true
   def allSpeeches = Set(feedback)
+
 }
+
+// These exist for @Lenses
 object JudgeFeedback
-object DebateRound
 
 /** Specifies who gets to speak next and what kind of input they should provide.
   */
@@ -170,13 +205,13 @@ object DebateTurnType {
   def contents: Vector[String]
 }
 @JsonCodec case class CustomSourceMaterial(
-  title: String,
-  contents: Vector[String]
+    title: String,
+    contents: Vector[String]
 ) extends SourceMaterial
 @JsonCodec case class QuALITYSourceMaterial(
-  articleId: String,
-  title: String,
-  contents: Vector[String]
+    articleId: String,
+    title: String,
+    contents: Vector[String]
 ) extends SourceMaterial
 object SourceMaterial
 
@@ -205,14 +240,17 @@ object SourceMaterial
   def numDebaters = answers.size
 
   def areAllRolesAssigned = {
-    roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
+    roles.contains(Judge) && answers.indices.forall(i =>
+      roles.contains(Debater(i))
+    )
   }
 
-  def assignedRole(userName: String): Option[DebateRole] = roles.find(_._2 == userName).map(_._1)
+  def assignedRole(userName: String): Option[DebateRole] =
+    roles.find(_._2 == userName).map(_._1)
   def userIsAssigned(userName: String) = assignedRole(userName).nonEmpty
   def roleIsAssigned(role: Role) = role match {
     case role: DebateRole => roles.contains(role)
-    case _ => false
+    case _                => false
   }
   def canAssumeRole(userName: String, role: Role) =
     assignedRole(userName) == Some(role) || (

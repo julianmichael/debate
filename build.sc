@@ -40,9 +40,11 @@ val reactVersion = "15.6.1"
 
 trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
 
-  def repositoriesTask = T.task { super.repositoriesTask() ++ Seq(
-    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
-  ) }
+  def repositoriesTask = T.task {
+    super.repositoriesTask() ++ Seq(
+      MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
+    )
+  }
 
   def scalaVersion = thisScalaVersion
 
@@ -89,14 +91,9 @@ trait JsPlatform extends CommonModule with ScalaJSModule {
   def scalaJSVersion = T(thisScalaJSVersion)
   def platformSegment = "js"
 
-  import mill.scalajslib.{
-    ScalaJSWorkerApi
-  }
-  import mill.scalajslib.api.{
-    OptimizeMode,
-    FastOpt
-  }
-  // copied from 
+  import mill.scalajslib.{ScalaJSWorkerApi}
+  import mill.scalajslib.api.{OptimizeMode, FastOpt}
+  // copied from
   // https://github.com/com-lihaoyi/mill/blob/0.10.3/scalajslib/src/ScalaJSModule.scala
   // TODO: move this to a non-deprecated API when possible.
   // the point is to give us a `fastestOpt` target that uses no optimization,
@@ -157,17 +154,19 @@ object debate extends Module {
     def runMainFn = T.task { (mainClass: String, args: Seq[String]) =>
       import mill.api.Result
       import mill.modules.Jvm
-      try Result.Success(
-        Jvm.runSubprocess(
-          mainClass,
-          runClasspath().map(_.path),
-          forkArgs(),
-          forkEnv(),
-          args,
-          workingDir = forkWorkingDir(),
-          useCpPassingJar = runUseArgsFile()
+      try
+        Result.Success(
+          Jvm.runSubprocess(
+            mainClass,
+            runClasspath().map(_.path),
+            forkArgs(),
+            forkEnv(),
+            args,
+            workingDir = forkWorkingDir(),
+            useCpPassingJar = runUseArgsFile()
+          )
         )
-      ) catch {
+      catch {
         case e: Exception =>
           Result.Failure("subprocess failed")
       }
@@ -182,11 +181,16 @@ object debate extends Module {
   object dev extends Module {
     def serve(args: String*) = T.command {
       val runMain = jvm.runMainFn()
+      // Turn off optimization in the scalajs linker
+      // so that we can get fast incremental compilation
+      // of the Scala.js code
       runMain(
         "debate.Serve",
         (Seq(
-          "--js",        js.fastestOpt().path.toString,
-          "--jsDeps",    js.aggregatedJSDeps().path.toString
+          "--js",
+          js.fastestOpt().path.toString,
+          "--jsDeps",
+          js.aggregatedJSDeps().path.toString
         ) ++ args)
       )
     }
@@ -197,9 +201,12 @@ object debate extends Module {
     def serve(args: String*) = T.command {
       val runMain = jvm.runMainFn()
       runMain(
-        "debate.Serve", Seq(
-          "--js",        js.fullOpt().path.toString,
-          "--jsDeps",    js.aggregatedJSDeps().path.toString
+        "debate.Serve",
+        Seq(
+          "--js",
+          js.fullOpt().path.toString,
+          "--jsDeps",
+          js.aggregatedJSDeps().path.toString
         ) ++ args
       )
     }

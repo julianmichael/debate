@@ -1,11 +1,9 @@
 import mill._
-// import ammonite.
-// import ammonite.ops._
 
 trait SimpleJSDeps extends Module {
   def jsDeps = T { Agg.empty[String] }
   def downloadedJSDeps = T {
-    for(url <- jsDeps()) yield {
+    for (url <- jsDeps()) yield {
       val filename = url.substring(url.lastIndexOf("/") + 1)
       os.proc("curl", "-o", filename, url).call(cwd = T.ctx().dest)
       T.ctx().dest / filename
