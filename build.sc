@@ -1,5 +1,7 @@
+import scala.annotation.nowarn
 import $ivy.`com.goyeau::mill-scalafix::0.2.11`
 import com.goyeau.mill.scalafix.ScalafixModule
+import mill.define.{Command, Target, Task}
 import mill._, mill.scalalib._, mill.scalalib.publish._, mill.scalajslib._
 import mill.scalalib.scalafmt._
 import coursier.maven.MavenRepository
@@ -88,6 +90,36 @@ trait JsPlatform extends CommonModule with ScalaJSModule {
   def scalaJSVersion = T(thisScalaJSVersion)
   def platformSegment = "js"
 
+  import mill.scalajslib.{
+    ScalaJSWorkerApi
+  }
+  import mill.scalajslib.api.{
+    OptimizeMode,
+    FastOpt
+  }
+  // copied from 
+  // https://github.com/com-lihaoyi/mill/blob/0.10.3/scalajslib/src/ScalaJSModule.scala
+  // TODO: move this to a non-deprecated API when possible.
+  // the point is to give us a `fastestOpt` target that uses no optimization,
+  // even when it's set to true in the module.
+  @nowarn
+  private def linkTaskCustom(mode: OptimizeMode): Task[PathRef] = T.task {
+    link(
+      worker = ScalaJSWorkerApi.scalaJSWorker(),
+      toolsClasspath = scalaJSToolsClasspath(),
+      runClasspath = runClasspath(),
+      mainClass = finalMainClassOpt().toOption,
+      testBridgeInit = false,
+      mode = mode,
+      moduleKind = moduleKind(),
+      esFeatures = esFeatures()
+    )
+  }
+
+  def fastestOpt: Target[PathRef] = T {
+    linkTaskCustom(mode = FastOpt)()
+  }
+
   trait Tests extends super.Tests with CommonTestModule {
     override def scalaVersion = thisScalaVersion
     def scalaJSVersion = T(thisScalaJSVersion)
@@ -155,7 +187,7 @@ object debate extends Module {
       runMain(
         "debate.Serve",
         (Seq(
-          "--js",        js.fastOpt().path.toString,
+          "--js",        js.fastestOpt().path.toString,
           "--jsDeps",    js.aggregatedJSDeps().path.toString
         ) ++ args)
       )
@@ -176,6 +208,8 @@ object debate extends Module {
   }
 
   object js extends DebateModule with JsPlatform with SimpleJSDeps {
+
+    override def scalaJSOptimizer: Target[Boolean] = T { false }
 
     def mainClass = T(Some("debate.App"))
 
