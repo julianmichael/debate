@@ -501,7 +501,7 @@ class DebatePanel(
           val speechIsTooLong = charLimit > 0 && speechLength > charLimit
 
           def speechInputPanel(
-              submit: Boolean => Callback, // TODO why does this take a boolean?
+              submit: Boolean => Callback,
               cmdEnterToSubmit: Boolean
           ) = {
             <.div(S.speechInputPanel)(
@@ -576,7 +576,7 @@ class DebatePanel(
                               )
                           }
                         case _ =>
-                          rounds // TODO do we want to allow judge undoing?
+                          rounds
                       }
                       sendDebate(Debate(setup, newRounds))
                     } >> currentMessage.setState("")
@@ -645,72 +645,89 @@ class DebatePanel(
             )
           }
 
-          def handleSequentialSpeechesWhenUserCanUndo() = {
+          case class NewRoundsAnDroppedSpeech(
+              newRounds: Vector[DebateRound],
+              droppedSpeech: DebateSpeech
+          )
+
+          def undoSequentialSpeech(speeches: Map[Int, DebateSpeech]) = {
+            val newLastRound = SequentialSpeeches(
+              speeches - (speeches.size - 1)
+            )
+            val newRounds = rounds.dropRight(1) :+ newLastRound
+            NewRoundsAnDroppedSpeech(
+              newRounds,
+              speeches(speeches.size - 1)
+            )
+          }
+
+          def undoSimultaneousSpeech(
+              speeches: Map[Int, DebateSpeech],
+              participantID: ParticipantId
+          ) = {
+            val answerIndex = participantID.role match {
+              case Debater(debaterIndex) =>
+                debaterIndex
+              case _ =>
+                throw new RuntimeException(
+                  "How did we get here?"
+                ) // TODO more
+            }
+            val newLastRound = SimultaneousSpeeches(
+              speeches - answerIndex
+            )
+            val newRounds = rounds.dropRight(1) :+ newLastRound
+            NewRoundsAnDroppedSpeech(
+              newRounds,
+              speeches(answerIndex)
+            )
+          }
+
+          def undoButtonWhenCurrentlyOnSequentialSpeech() = {
             val undoLastSpeech =
-              (
-                if (isUsersTurn)
-                  Callback.empty
-                else
-                  // TODO why do we need [foldMap] here? (copied from above)
-                  userId.foldMap((_: ParticipantId) => {
-                    val newRounds =
-                      rounds.lastOption match {
-                        // TODO what about adversarial opponents?
-                        // they could just send the ws message anyway
-                        case Some(SequentialSpeeches(speeches))
-                            if speeches.size > 0 =>
-                          val newLastRound = SequentialSpeeches(
-                            speeches - (speeches.size - 1)
-                          )
-                          rounds.dropRight(1) :+ newLastRound
-                        case Some(_: JudgeFeedback) =>
-                          println(
-                            "inside seq speech, dropping judge feedback"
-                          )
-                          rounds.dropRight(1)
-                        case _ =>
-                          rounds
-                      }
-                    sendDebate(Debate(setup, rounds = newRounds))
-                  })
-              )
+              // TODO why do we need [foldMap] here? (copied from above)
+              userId.foldMap((_: ParticipantId) => {
+                val newRoundsAndDroppedSpeech =
+                  rounds.lastOption match {
+                    case Some(SequentialSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      undoSequentialSpeech(speeches)
+                    case Some(_: JudgeFeedback) =>
+                      rounds.dropRight(1)
+                    case _ =>
+                      rounds
+                  }
+                sendDebate(
+                  Debate(setup, rounds = newRoundsAndDroppedSpeech.newRounds)
+                ) >> currentMessage
+                  .setState(droppedSpeech.text)
+              })
 
             <.div(S.col)(
               undoButtonPanel(_ => undoLastSpeech)
             )
           }
 
-          // TODO reduce code duplication with the above function
-          def handleSimultaneousSpeechesWhenUserCanUndo() = {
+          // TODO maybe-someday share this code with [undoButtonWhenCurrentlyOnSequentialSpeech]
+          def undoButtonWhenCurrentlyOnSimultaneousSpeech() = {
             val undoLastSpeech =
-              (if (isUsersTurn)
-                 Callback.empty
-               else
-                 userId.foldMap((participantID: ParticipantId) => {
-                   val newRounds =
-                     rounds.lastOption match {
-                       case Some(SimultaneousSpeeches(speeches))
-                           if speeches.size > 0 =>
-                         val answerIndex = participantID.role match {
-                           case Debater(debaterIndex) =>
-                             debaterIndex
-                           case _ =>
-                             throw new RuntimeException(
-                               "How did we get here?"
-                             ) // TODO more
-                         }
-                         val newLastRound = SimultaneousSpeeches(
-                           speeches - answerIndex
-                         )
-                         rounds.dropRight(1) :+ newLastRound
-                       case Some(_: JudgeFeedback) =>
-                         println("inside simul speech, dropping judge feedback")
-                         rounds.dropRight(1)
-                       case _ =>
-                         rounds
-                     }
-                   sendDebate(Debate(setup, rounds = newRounds))
-                 }))
+              userId.foldMap((participantID: ParticipantId) => {
+                val newRoundsAndDroppedSpeech =
+                  rounds.lastOption match {
+                    case Some(SimultaneousSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      undoSimultaneousSpeech(speeches, participantID)
+                    case Some(_: JudgeFeedback) =>
+                      rounds.dropRight(1)
+                    case _ =>
+                      rounds // TODO should we also catch sequential speeches? to handle all debate variants?
+                  }
+
+                sendDebate(
+                  Debate(setup, rounds = newRoundsAndDroppedSpeech.newRounds)
+                ) >> currentMessage
+                  .setState(droppedSpeech.text)
+              })
 
             <.div(S.col)(
               undoButtonPanel(_ => undoLastSpeech)
@@ -719,61 +736,35 @@ class DebatePanel(
 
           val isUndoAllowed = role
             .map { role =>
-              val wcu = debate.whoCanUndo
-              println("wcu", wcu)
-              wcu.contains(role)
+              debate.whoCanUndo.contains(role)
             }
             .getOrElse(false)
 
-          println("isUndoAllowed", isUndoAllowed)
-          println("currentturnorreuslt", currentTurnOrResult)
-
-          def handleJudgeFeedbackWhenUserCanUndo() = {
+          def undoButtonWhenCurrentlyOnJudgeFeedback() = {
             val undoLastSpeech =
-              (
-                if (!isUndoAllowed) {
-                  println("can't undo")
-                  Callback.empty
-                } else
-                  userId.foldMap((participantID: ParticipantId) => {
-                    println(
-                      "inside judge callback construction- round last option: ",
-                      rounds.lastOption
-                    )
-                    val newRounds =
-                      rounds.lastOption match {
-                        case Some(SequentialSpeeches(speeches))
-                            if speeches.size > 0 =>
-                          val newLastRound = SequentialSpeeches(
-                            speeches - (speeches.size - 1)
-                          )
-                          rounds.dropRight(1) :+ newLastRound
-                        case Some(SimultaneousSpeeches(speeches))
-                            if speeches.size > 0 =>
-                          val answerIndex = participantID.role match {
-                            case Debater(debaterIndex) =>
-                              debaterIndex
-                            case _ =>
-                              throw new RuntimeException(
-                                "How did we get here?"
-                              ) // TODO more
-                          }
-                          val newLastRound = SimultaneousSpeeches(
-                            speeches - answerIndex
-                          )
-                          rounds.dropRight(1) :+ newLastRound
-                        case Some(_) =>
-                          println("inside judge stuff")
-                          rounds.dropRight(1)
-                        case _ =>
-                          println("inside _ case")
-                          rounds
-                      }
-                    Callback(println("sending debate")) >> sendDebate(
-                      Debate(setup, rounds = newRounds)
-                    )
-                  })
-              )
+              userId.foldMap((participantID: ParticipantId) => {
+                val newRoundsAndDroppedSpeech =
+                  rounds.lastOption match {
+                    case Some(SequentialSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      undoSequentialSpeech(speeches)
+                    case Some(SimultaneousSpeeches(speeches))
+                        if speeches.size > 0 =>
+                      undoSimultaneousSpeech(speeches, participantID)
+                    case Some(jf: JudgeFeedback) =>
+                      NewRoundsAndDroppedSpeech(
+                        rounds.dropRight(1),
+                        jf.feedback.content
+                      )
+                    case _ =>
+                      // TOD Odoes this make things bad when the user enters something?
+                      NewRoundsAndDroppedSpeech(rounds, "")
+                  }
+                sendDebate(
+                  Debate(setup, rounds = newRoundsAndDroppedSpeech.newRounds)
+                ) >> currentMessage
+                  .setState(droppedSpeech.text)
+              })
 
             <.div(S.col)(
               undoButtonPanel(_ => undoLastSpeech)
@@ -804,12 +795,11 @@ class DebatePanel(
               .whenDefined {
                 case _: DebateTurnType.SimultaneousSpeechesTurn
                     if isUndoAllowed =>
-                  handleSimultaneousSpeechesWhenUserCanUndo()
+                  undoButtonWhenCurrentlyOnSimultaneousSpeech()
                 case _: DebateTurnType.DebaterSpeechTurn if isUndoAllowed =>
-                  handleSequentialSpeechesWhenUserCanUndo()
+                  undoButtonWhenCurrentlyOnSequentialSpeech()
                 case _: DebateTurnType.JudgeFeedbackTurn if isUndoAllowed =>
-                  println("setting up callback for judge feedback")
-                  handleJudgeFeedbackWhenUserCanUndo()
+                  undoButtonWhenCurrentlyOnJudgeFeedback()
                 case _ =>
                   <.div()()
               },
@@ -824,7 +814,6 @@ class DebatePanel(
                     .DebaterSpeechTurn(_: Int, _: Int) =>
                 handleSequentialSpeechesWhenUsersTurn()
 
-              // TODO create a 'allowed undoers' method on a debate
               case DebateTurnType.JudgeFeedbackTurn(
                     _: Boolean,
                     _: Int
