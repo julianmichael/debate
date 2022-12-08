@@ -661,8 +661,8 @@ class DebatePanel(
                 debaterIndex
               case _ =>
                 throw new RuntimeException(
-                  "How did we get here?"
-                ) // TODO more
+                  "How did we get here? Somehow trying to undo a simultaneous speech for a non-debater"
+                )
             }
             val newLastRound = SimultaneousSpeeches(
               speeches - answerIndex
@@ -672,7 +672,6 @@ class DebatePanel(
 
           def undoButtonWhenCurrentlyOnSequentialSpeech() = {
             val undoLastSpeech =
-              // TODO why do we need [foldMap] here? (copied from above)
               userId.foldMap((_: ParticipantId) => {
                 val newRounds =
                   rounds.lastOption match {
@@ -707,7 +706,7 @@ class DebatePanel(
                     case Some(_: JudgeFeedback) =>
                       rounds.dropRight(1)
                     case _ =>
-                      rounds // TODO should we also catch sequential speeches? to handle all debate variants?
+                      rounds // TODO maybe-someday should we also catch sequential speeches? to handle all debate variants?
                   }
 
                 sendDebate(
@@ -772,7 +771,6 @@ class DebatePanel(
               }
             ),
             turnDisplay(role, currentTurnOrResult),
-            // TODO make the undo button populate the textarea with the last message that was sent
             currentTurnOrResult.toOption
               .whenDefined {
                 case _: DebateTurnType.SimultaneousSpeechesTurn
