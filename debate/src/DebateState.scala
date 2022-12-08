@@ -69,22 +69,22 @@ object DebateResult
     case _                          => 0
   }
 
-  def getJudge: ParticipantId = {
-    val participants = setup.roles.keys.map(role => ParticipantId()})
-    participants.find(_.role == Judge).get
-  }
-
-  def whoCanUndo: Set[ParticipantId] = {
+  def whoCanUndo: Set[Role] = {
     rounds.lastOption match {
       case None => Set()
       case Some(round) =>
+        println(rounds)
+        println(round)
         round match {
-          case JudgeFeedback(_, _, _) => Set(getJudge)
+          case JudgeFeedback(_, _, _) => Set(Judge)
           case SequentialSpeeches(speeches) =>
-            val (_, lastSpeech) = speeches.last
-            Set(lastSpeech.speaker)
+            speeches.lastOption match {
+              case None =>
+                Set() // TODO maybe-someday let the judge undo here- requires dropping two rounds in [DebatePanel.scala]
+              case Some((_, speech)) => Set(speech.speaker.role)
+            }
           case SimultaneousSpeeches(speeches) =>
-            (speeches.map({ case (_, speech) => speech.speaker })).toSet
+            (speeches.map({ case (_, speech) => speech.speaker.role })).toSet
         }
     }
   }

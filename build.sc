@@ -39,9 +39,11 @@ val reactVersion = "15.6.1"
 
 trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
 
-  def repositoriesTask = T.task { super.repositoriesTask() ++ Seq(
-    MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
-  ) }
+  def repositoriesTask = T.task {
+    super.repositoriesTask() ++ Seq(
+      MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
+    )
+  }
 
   def scalaVersion = thisScalaVersion
 
@@ -127,17 +129,19 @@ object debate extends Module {
     def runMainFn = T.task { (mainClass: String, args: Seq[String]) =>
       import mill.api.Result
       import mill.modules.Jvm
-      try Result.Success(
-        Jvm.runSubprocess(
-          mainClass,
-          runClasspath().map(_.path),
-          forkArgs(),
-          forkEnv(),
-          args,
-          workingDir = forkWorkingDir(),
-          useCpPassingJar = runUseArgsFile()
+      try
+        Result.Success(
+          Jvm.runSubprocess(
+            mainClass,
+            runClasspath().map(_.path),
+            forkArgs(),
+            forkEnv(),
+            args,
+            workingDir = forkWorkingDir(),
+            useCpPassingJar = runUseArgsFile()
+          )
         )
-      ) catch {
+      catch {
         case e: Exception =>
           Result.Failure("subprocess failed")
       }
@@ -152,11 +156,16 @@ object debate extends Module {
   object dev extends Module {
     def serve(args: String*) = T.command {
       val runMain = jvm.runMainFn()
+      // Turn off optimization in the scalajs linker
+      // so that we can get fast incremental compilation
+      // of the Scala.js code
       runMain(
         "debate.Serve",
         (Seq(
-          "--js",        js.fastOpt().path.toString,
-          "--jsDeps",    js.aggregatedJSDeps().path.toString
+          "--js",
+          js.fastOpt().path.toString,
+          "--jsDeps",
+          js.aggregatedJSDeps().path.toString
         ) ++ args)
       )
     }
@@ -167,9 +176,12 @@ object debate extends Module {
     def serve(args: String*) = T.command {
       val runMain = jvm.runMainFn()
       runMain(
-        "debate.Serve", Seq(
-          "--js",        js.fullOpt().path.toString,
-          "--jsDeps",    js.aggregatedJSDeps().path.toString
+        "debate.Serve",
+        Seq(
+          "--js",
+          js.fullOpt().path.toString,
+          "--jsDeps",
+          js.aggregatedJSDeps().path.toString
         ) ++ args
       )
     }

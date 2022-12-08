@@ -591,7 +591,6 @@ class DebatePanel(
                 ^.onClick --> submit
               )
             )
-            // no undo button because it doesn't make sense to undo in a simultaneous round if it's our turn
           }
 
           def handleSequentialSpeechesWhenUsersTurn() = {
@@ -646,12 +645,7 @@ class DebatePanel(
             )
           }
 
-          /** truth table
-            *
-            * shouldDisplayUndo |
-            */
-
-          def handleSequentialSpeechesWhenNotUsersTurn() = {
+          def handleSequentialSpeechesWhenUserCanUndo() = {
             val undoLastSpeech =
               (
                 if (isUsersTurn)
@@ -669,6 +663,11 @@ class DebatePanel(
                             speeches - (speeches.size - 1)
                           )
                           rounds.dropRight(1) :+ newLastRound
+                        case Some(_: JudgeFeedback) =>
+                          println(
+                            "inside seq speech, dropping judge feedback"
+                          )
+                          rounds.dropRight(1)
                         case _ =>
                           rounds
                       }
@@ -682,7 +681,7 @@ class DebatePanel(
           }
 
           // TODO reduce code duplication with the above function
-          def handleSimultaneousSpeechesWhenNotUsersTurn() = {
+          def handleSimultaneousSpeechesWhenUserCanUndo() = {
             val undoLastSpeech =
               (if (isUsersTurn)
                  Callback.empty
@@ -700,15 +699,16 @@ class DebatePanel(
                                "How did we get here?"
                              ) // TODO more
                          }
-                         println("answer index", answerIndex)
                          val newLastRound = SimultaneousSpeeches(
                            speeches - answerIndex
                          )
                          rounds.dropRight(1) :+ newLastRound
+                       case Some(_: JudgeFeedback) =>
+                         println("inside simul speech, dropping judge feedback")
+                         rounds.dropRight(1)
                        case _ =>
                          rounds
                      }
-                   println("newrounds", newRounds)
                    sendDebate(Debate(setup, rounds = newRounds))
                  }))
 
@@ -717,7 +717,68 @@ class DebatePanel(
             )
           }
 
-          val whoCanUndo = debate
+          val isUndoAllowed = role
+            .map { role =>
+              val wcu = debate.whoCanUndo
+              println("wcu", wcu)
+              wcu.contains(role)
+            }
+            .getOrElse(false)
+
+          println("isUndoAllowed", isUndoAllowed)
+          println("currentturnorreuslt", currentTurnOrResult)
+
+          def handleJudgeFeedbackWhenUserCanUndo() = {
+            val undoLastSpeech =
+              (
+                if (!isUndoAllowed) {
+                  println("can't undo")
+                  Callback.empty
+                } else
+                  userId.foldMap((participantID: ParticipantId) => {
+                    println(
+                      "inside judge callback construction- round last option: ",
+                      rounds.lastOption
+                    )
+                    val newRounds =
+                      rounds.lastOption match {
+                        case Some(SequentialSpeeches(speeches))
+                            if speeches.size > 0 =>
+                          val newLastRound = SequentialSpeeches(
+                            speeches - (speeches.size - 1)
+                          )
+                          rounds.dropRight(1) :+ newLastRound
+                        case Some(SimultaneousSpeeches(speeches))
+                            if speeches.size > 0 =>
+                          val answerIndex = participantID.role match {
+                            case Debater(debaterIndex) =>
+                              debaterIndex
+                            case _ =>
+                              throw new RuntimeException(
+                                "How did we get here?"
+                              ) // TODO more
+                          }
+                          val newLastRound = SimultaneousSpeeches(
+                            speeches - answerIndex
+                          )
+                          rounds.dropRight(1) :+ newLastRound
+                        case Some(_) =>
+                          println("inside judge stuff")
+                          rounds.dropRight(1)
+                        case _ =>
+                          println("inside _ case")
+                          rounds
+                      }
+                    Callback(println("sending debate")) >> sendDebate(
+                      Debate(setup, rounds = newRounds)
+                    )
+                  })
+              )
+
+            <.div(S.col)(
+              undoButtonPanel(_ => undoLastSpeech)
+            )
+          }
 
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
@@ -740,30 +801,17 @@ class DebatePanel(
             turnDisplay(role, currentTurnOrResult),
             // TODO make the undo button populate the textarea with the last message that was sent
             currentTurnOrResult.toOption
-              // TODO .filter(_ => !isUsersTurn)
               .whenDefined {
                 case _: DebateTurnType.SimultaneousSpeechesTurn
-                    if (whoCanUndo.contains(userId)) =>
-                  // TODO rename :)
-                  handleSimultaneousSpeechesWhenNotUsersTurn()
-                case _: DebateTurnType.DebaterSpeechTurn =>
-                  val canUndo = rounds.lastOption match {
-                    case Some(SequentialSpeeches(speeches))
-                        if speeches.size > 0 =>
-                      true
-                    case _ => false
-                  }
-                  role match {
-                    case Some(Debater(_: Int)) if canUndo =>
-                      handleSequentialSpeechesWhenNotUsersTurn()
-                    case _ => <.div()()
-                  }
-                case _: DebateTurnType.JudgeFeedbackTurn =>
-                  role match {
-                    case Some(Judge) =>
-                      <.div()() // TODO anything to say here? i mean we know it's not the judge's turn
-                    case _ => <.div()()
-                  }
+                    if isUndoAllowed =>
+                  handleSimultaneousSpeechesWhenUserCanUndo()
+                case _: DebateTurnType.DebaterSpeechTurn if isUndoAllowed =>
+                  handleSequentialSpeechesWhenUserCanUndo()
+                case _: DebateTurnType.JudgeFeedbackTurn if isUndoAllowed =>
+                  println("setting up callback for judge feedback")
+                  handleJudgeFeedbackWhenUserCanUndo()
+                case _ =>
+                  <.div()()
               },
             currentTurnOrResult.toOption.filter(_ => isUsersTurn).whenDefined {
               case DebateTurnType.SimultaneousSpeechesTurn(
