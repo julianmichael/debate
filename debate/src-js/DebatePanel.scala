@@ -645,20 +645,11 @@ class DebatePanel(
             )
           }
 
-          case class NewRoundsAnDroppedSpeech(
-              newRounds: Vector[DebateRound],
-              droppedSpeech: DebateSpeech
-          )
-
           def undoSequentialSpeech(speeches: Map[Int, DebateSpeech]) = {
             val newLastRound = SequentialSpeeches(
               speeches - (speeches.size - 1)
             )
-            val newRounds = rounds.dropRight(1) :+ newLastRound
-            NewRoundsAnDroppedSpeech(
-              newRounds,
-              speeches(speeches.size - 1)
-            )
+            rounds.dropRight(1) :+ newLastRound
           }
 
           def undoSimultaneousSpeech(
@@ -676,18 +667,14 @@ class DebatePanel(
             val newLastRound = SimultaneousSpeeches(
               speeches - answerIndex
             )
-            val newRounds = rounds.dropRight(1) :+ newLastRound
-            NewRoundsAnDroppedSpeech(
-              newRounds,
-              speeches(answerIndex)
-            )
+            rounds.dropRight(1) :+ newLastRound
           }
 
           def undoButtonWhenCurrentlyOnSequentialSpeech() = {
             val undoLastSpeech =
               // TODO why do we need [foldMap] here? (copied from above)
               userId.foldMap((_: ParticipantId) => {
-                val newRoundsAndDroppedSpeech =
+                val newRounds =
                   rounds.lastOption match {
                     case Some(SequentialSpeeches(speeches))
                         if speeches.size > 0 =>
@@ -698,9 +685,9 @@ class DebatePanel(
                       rounds
                   }
                 sendDebate(
-                  Debate(setup, rounds = newRoundsAndDroppedSpeech.newRounds)
-                ) >> currentMessage
-                  .setState(droppedSpeech.text)
+                  Debate(setup, rounds = newRounds)
+                )
+
               })
 
             <.div(S.col)(
@@ -712,7 +699,7 @@ class DebatePanel(
           def undoButtonWhenCurrentlyOnSimultaneousSpeech() = {
             val undoLastSpeech =
               userId.foldMap((participantID: ParticipantId) => {
-                val newRoundsAndDroppedSpeech =
+                val newRounds =
                   rounds.lastOption match {
                     case Some(SimultaneousSpeeches(speeches))
                         if speeches.size > 0 =>
@@ -724,9 +711,8 @@ class DebatePanel(
                   }
 
                 sendDebate(
-                  Debate(setup, rounds = newRoundsAndDroppedSpeech.newRounds)
-                ) >> currentMessage
-                  .setState(droppedSpeech.text)
+                  Debate(setup, rounds = newRounds)
+                )
               })
 
             <.div(S.col)(
@@ -743,7 +729,7 @@ class DebatePanel(
           def undoButtonWhenCurrentlyOnJudgeFeedback() = {
             val undoLastSpeech =
               userId.foldMap((participantID: ParticipantId) => {
-                val newRoundsAndDroppedSpeech =
+                val newRounds =
                   rounds.lastOption match {
                     case Some(SequentialSpeeches(speeches))
                         if speeches.size > 0 =>
@@ -751,19 +737,15 @@ class DebatePanel(
                     case Some(SimultaneousSpeeches(speeches))
                         if speeches.size > 0 =>
                       undoSimultaneousSpeech(speeches, participantID)
-                    case Some(jf: JudgeFeedback) =>
-                      NewRoundsAndDroppedSpeech(
-                        rounds.dropRight(1),
-                        jf.feedback.content
-                      )
+                    case Some(_: JudgeFeedback) =>
+                      rounds.dropRight(1)
                     case _ =>
-                      // TOD Odoes this make things bad when the user enters something?
-                      NewRoundsAndDroppedSpeech(rounds, "")
+                      rounds
                   }
                 sendDebate(
-                  Debate(setup, rounds = newRoundsAndDroppedSpeech.newRounds)
-                ) >> currentMessage
-                  .setState(droppedSpeech.text)
+                  Debate(setup, rounds = newRounds)
+                )
+
               })
 
             <.div(S.col)(
