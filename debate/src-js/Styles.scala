@@ -163,6 +163,7 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val simpleSelectable = style(
+    cursor.pointer,
     &.hover(
       filter := "brightness(85%)"
     )
