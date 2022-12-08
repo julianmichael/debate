@@ -198,7 +198,6 @@ class DebatePanel(
   def apply(
       roomName: String,
       userId: Option[ParticipantId],
-      setup: DebateSetup,
       debate: Debate,
       sendDebate: Debate => Callback
   ) = {
@@ -306,7 +305,8 @@ class DebatePanel(
     ) = {
       <.div(
         ^.key := s"round-$roundIndex",
-        round.timestamp
+        round
+          .timestamp(setup.numDebaters)
           .whenDefined(timestampHTML)
           .when(
             userId
