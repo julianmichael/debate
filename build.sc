@@ -1,4 +1,3 @@
-import scala.annotation.nowarn
 import $ivy.`com.goyeau::mill-scalafix::0.2.11`
 import com.goyeau.mill.scalafix.ScalafixModule
 import mill.define.{Command, Target, Task}
@@ -102,7 +101,6 @@ trait JsPlatform extends CommonModule with ScalaJSModule {
   // TODO: move this to a non-deprecated API when possible.
   // the point is to give us a `fastestOpt` target that uses no optimization,
   // even when it's set to true in the module.
-  @nowarn
   private def linkTaskCustom(mode: OptimizeMode): Task[PathRef] = T.task {
     link(
       worker = ScalaJSWorkerApi.scalaJSWorker(),
