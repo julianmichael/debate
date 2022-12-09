@@ -214,8 +214,6 @@ object debate extends Module {
 
   object js extends DebateModule with JsPlatform with SimpleJSDeps {
 
-    override def scalaJSOptimizer: Target[Boolean] = T { false }
-
     def mainClass = T(Some("debate.App"))
 
     def ivyDeps = super.ivyDeps() ++ Agg(
