@@ -74,6 +74,17 @@ Relevant libraries to reference:
 smithjessk observed that using `mill -j 0` sped up his builds a lot. (~33% for `mill debate._.compile`).
 (This might use more memory though).
 
+### Setting up a powerful instance to speed up building
+
+Jess Smith did the following to speed up compilation and linking. Note that this is, in his view, surprisingly cheap for the productivity gains.
+
+1. Set up a powerful instance on google cloud platform. (*be sure to shut this down when you're done using it, else you can be billed a lot*) Jess uses a c2d-highcpu-8 instance in us-central1-a using debian-11-bullseye-v20221206. (As of 11 Dec 2022.)
+2. Install homebrew. (This was, in his experience, the least painful way to set up mill.)
+1. Install mill using homebrew.
+4. Use vscode remote ssh to connect to the instance.
+5. Use ssh forwarding to connect to the instance from your local machine. (This lets you use e.g. `localhost:8080` to connect to `server:8080`).
+6. Reminder again to shut down the instance when you're done using it. :) 
+
 ## In case a default profile isn't set up
 
 You can add profiles with the **~secret admin controls~** which you can access by using the developer tools to change the `Styles-adminOnly` and disable `display: none`. You can find the element if you just select the profile dropdown and then scan the elements that come after it
