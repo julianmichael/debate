@@ -2,14 +2,10 @@ package debate.util
 
 import debate._
 
-import scalajs.js.typedarray.ArrayBuffer
-
 import org.scalajs.dom.WebSocket
-import org.scalajs.dom.raw.Blob
 import org.scalajs.dom.raw.CloseEvent
 import org.scalajs.dom.raw.MessageEvent
 import org.scalajs.dom.raw.Event
-import org.scalajs.dom.raw.FileReader
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
@@ -19,6 +15,8 @@ import monocle.macros.Lenses
 import monocle.macros.GenPrism
 
 import cats.implicits._
+import io.circe.Encoder
+import io.circe.Decoder
 
 /** HOC for websocket connections that manage a state variable synced between
   * multiple clients.
@@ -27,69 +25,62 @@ import cats.implicits._
   * @param readResponse
   * @param getRequestFromState
   */
-class SyncedState[Request, State](
+class SyncedState[Request, Response, State](
     sendRequest: (WebSocket, Request) => Callback,
-    readResponse: ArrayBuffer => State,
-    getRequestFromState: State => Request
+    readResponse: MessageEvent => Response,
+    getRequestFromState: State => Request,
+    getStateUpdateFromResponse: Response => Option[State] => State,
 ) {
 
   sealed trait FullState
-  @Lenses case class ConnectedState(socket: WebSocket, state: State) extends FullState
-  case class WaitingState(socket: WebSocket) extends FullState
+    @Lenses case class ConnectedState(socket: WebSocket, stateOpt: Option[State]) extends FullState
 
-  sealed trait Context
+    sealed trait Context
 
-  case class Disconnected(reconnect: Callback, reason: String)
-      extends FullState with Context
-  case object Connecting extends FullState with Context
+    case class Disconnected(reconnect: Callback, reason: String)
+        extends FullState with Context
+    case object Connecting extends FullState with Context
 
-  case class Waiting(sendRequest: Request => Callback) extends Context
-  case class Connected(state: StateSnapshot[State], sendRequest: Request => Callback) extends Context
+    // case class Waiting(sendRequest: Request => Callback) extends Context
+    case class Connected(sendRequest: Request => Callback, stateOpt: Option[StateSnapshot[State]]) extends Context
 
-  object FullState {
-    val connectedState = GenPrism[FullState, ConnectedState]
-  }
+    object FullState {
+      val connectedState = GenPrism[FullState, ConnectedState]
+    }
 
-  case class Props(
-      websocketURI: String,
-      didUpdate: (State, State) => Callback,
-      render: Context => VdomElement
-  )
+    case class Props(
+        websocketURI: String,
+        didUpdate: (Option[State], State) => Callback,
+        onOpen: (Request => Callback) => Callback,
+        onMessage: ((Request => Callback), Response) => Callback,
+        render: Context => VdomElement
+    )
 
   class Backend(scope: BackendScope[Props, FullState]) {
 
     def connect(props: Props): Callback = scope.state >>= {
-      case ConnectedState(_, _) | WaitingState(_) =>
+      case ConnectedState(_, _) =>
         Callback(System.err.println("Already connected."))
       case Disconnected(_, _) | Connecting =>
         scope.setState(Connecting) >> Callback {
           val socket = new WebSocket(props.websocketURI)
+          val send = (r: Request) => sendRequest(socket, r)
           socket.onopen = { (_: Event) =>
-            (scope.setState(WaitingState(socket))).runNow()
+            (scope.setState(ConnectedState(socket, None)) >> props.onOpen(send))
+              .runNow()
           }
           socket.onerror = { (event: Event) =>
             val msg = s"WebSocket connection failure. Error: ${event}"
             System.err.println(msg)
             scope.setState(Disconnected(connect(props), msg)).runNow()
           }
-          // socket.onmessage = { (event: MessageEvent) =>
-          //   props.onMessage(send, responseFromString(event.data.toString)).runNow()
-          // }
           socket.onmessage = { (event: MessageEvent) =>
-            val reader = new FileReader();
-            reader.addEventListener(
-              "loadend",
-              (_: Event) => {
-                val message = readResponse(reader.result.asInstanceOf[ArrayBuffer])
-                scope.modState {
-                  case WaitingState(s) => ConnectedState(s, message)
-                  case ConnectedState(s, _) => ConnectedState(s, message)
-                  case x => x
-                }.runNow()
-              }
-            );
-            // println(event.data) // XXX
-            reader.readAsArrayBuffer(event.data.asInstanceOf[Blob]);
+            val response = readResponse(event)
+            val cb = scope.modState(
+              FullState.connectedState.composeLens(ConnectedState.stateOpt)
+                .modify(curState => Some(getStateUpdateFromResponse(response)(curState)))
+            ) >> props.onMessage(send, response)
+            cb.runNow()
           }
           socket.onclose = { (event: CloseEvent) =>
             val cleanly = if (event.wasClean) "cleanly" else "uncleanly"
@@ -107,7 +98,6 @@ class SyncedState[Request, State](
     def close(s: FullState): Callback = s match {
       case Disconnected(_, _)        => Callback.empty
       case Connecting                => Callback.empty
-      case WaitingState(socket)      => Callback(socket.close(1000))
       case ConnectedState(socket, _) => Callback(socket.close(1000))
     }
 
@@ -115,16 +105,18 @@ class SyncedState[Request, State](
       props.render(
         s match {
           case x @ Disconnected(_, _) => (x: Context)
-          case Connecting         => Connecting
-          case WaitingState(s)    => Waiting(sendRequest(s, _))
-          case ConnectedState(socket, state) =>
+          case Connecting                          => Connecting
+          case ConnectedState(socket, None)        => Connected(sendRequest(socket, _), None)
+          case ConnectedState(socket, Some(state)) =>
             Connected(
-              StateSnapshot(state)(
-                (stateOpt: Option[State], cb: Callback) => stateOpt.foldMap(
-                  state => sendRequest(socket, getRequestFromState(state))
-                ) >> cb
-              ),
-              sendRequest(socket, _)
+              sendRequest(socket, _),
+              Some(
+                StateSnapshot(state)(
+                  (stateOpt: Option[State], cb: Callback) => stateOpt.foldMap(
+                    state => sendRequest(socket, getRequestFromState(state))
+                  ) >> cb
+                )
+              )
             ): Context
         }
       )
@@ -138,16 +130,50 @@ class SyncedState[Request, State](
     .componentWillUnmount($ => $.backend.close($.state))
     .componentDidUpdate($ =>
       ($.prevState, $.currentState) match {
-        case (ConnectedState(_, prevS), ConnectedState(_, curS)) =>
-          $.currentProps.didUpdate(prevS, curS)
-        case _ => Callback.empty
-      }
-    )
-    .build
+        case (ConnectedState(_, prevStateOpt), ConnectedState(_, Some(curState))) =>
+          $.currentProps.didUpdate(prevStateOpt, curState)
+      case _ => Callback.empty
+    }
+  )
+  .build
+
 
   def make(
-    websocketURI: String,
-    didUpdate: (State, State) => Callback = (_, _) => Callback.empty)(
-    render: Context => VdomElement,
-  ) = Component(Props(websocketURI, didUpdate, render))
+      websocketURI: String,
+      didUpdate: (Option[State], State) => Callback = (_, _) => Callback.empty,
+      onOpen: (Request => Callback) => Callback = _ => Callback.empty,
+      onMessage: (((Request => Callback), Response) => Callback) = ((_, _) => Callback.empty))(
+      render: Context => VdomElement
+  ) = Component(Props(websocketURI, didUpdate, onOpen, onMessage, render))
+
+}
+object SyncedState {
+
+  def forString[Request, Response, State](
+    sendRequest: (WebSocket, Request) => Callback,
+    readResponse: String => Response,
+    getRequestFromState: State => Request,
+    getStateUpdateFromResponse: Response => Option[State] => State
+  ) = new SyncedState[
+    Request, Response, State
+  ](
+    sendRequest = sendRequest,
+    readResponse = (event: MessageEvent) => readResponse(event.data.toString),
+    getRequestFromState = getRequestFromState,
+    getStateUpdateFromResponse = getStateUpdateFromResponse
+  )
+
+  // TODO: handle parser errors
+  import io.circe.syntax._
+  def forJsonString[Request: Encoder, Response: Decoder, State](
+    getRequestFromState: State => Request,
+    getStateUpdateFromResponse: Response => Option[State] => State
+  ) = new SyncedState[
+    Request, Response, State
+  ](
+    sendRequest = (socket: WebSocket, r: Request) => Callback(socket.send(r.asJson.noSpaces)),
+    readResponse = (event: MessageEvent) => io.circe.parser.decode[Response](event.data.toString).toOption.get,
+    getRequestFromState = getRequestFromState,
+    getStateUpdateFromResponse = getStateUpdateFromResponse
+  )
 }

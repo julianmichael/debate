@@ -321,8 +321,6 @@ object Serve
     val jsLocation = "out.js"
     val jsMapLocation = jsLocation + ".map"
 
-    import boopickle.Default._
-
     val createLobbyWebsocket = for {
       debaters <- trackedDebaters.get
       officialRooms <- officialDebates.getRoomList

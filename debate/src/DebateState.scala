@@ -257,4 +257,5 @@ object SourceMaterial
       !roleIsAssigned(role) && !userIsAssigned(userName)
     )
 }
-object DebateSetup
+object DebateSetup {
+}

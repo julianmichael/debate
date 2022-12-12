@@ -22,7 +22,7 @@ package object debate extends PackagePlatformExtensions {
 
   val qualityServiceApiEndpoint = "quality"
 
-  @Lenses case class Lobby(
+  @Lenses @JsonCodec case class Lobby(
       trackedDebaters: Set[String],
       officialRooms: Vector[RoomMetadata],
       practiceRooms: Vector[RoomMetadata]
@@ -31,7 +31,7 @@ package object debate extends PackagePlatformExtensions {
     def init = Lobby(Set(), Vector(), Vector())
   }
 
-  sealed trait MainChannelRequest
+  @JsonCodec sealed trait MainChannelRequest
   case class RegisterDebater(debaterName: String) extends MainChannelRequest
   case class RemoveDebater(debaterName: String) extends MainChannelRequest
   case class DeleteRoom(isOfficial: Boolean, roomName: String)

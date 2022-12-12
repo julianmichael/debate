@@ -33,7 +33,7 @@ class FacilitatorPanel(
   val ScoringFunctionConfig = SumConfig[ScoringFunction]()
   val DebateSetupSpecLocal = new LocalState[DebateSetupSpec]
 
-  import scala.concurrent.ExecutionContext.Implicits.global
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
 
   val QuALITYIndexFetch = new CacheCallContent[Unit, Map[String, String]]
   val QuALITYStoryOptFetch =

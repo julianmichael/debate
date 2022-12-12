@@ -6,9 +6,11 @@ import mill.scalalib.scalafmt._
 import coursier.maven.MavenRepository
 import os._
 
+import mill.scalajslib.api.{ModuleKind, ModuleSplitStyle}
+
 // val thisPublishVersion = "0.1.0-SNAPSHOT"
 val thisScalaVersion = "2.13.8"
-val thisScalaJSVersion = "1.6.0"
+val thisScalaJSVersion = "1.12.0"
 
 // plugins
 val kindProjectorVersion = "0.13.2"
@@ -19,7 +21,6 @@ val jjmVersion = "0.2.2-SNAPSHOT"
 // other deps
 val circeVersion = "0.13.0"
 val declineVersion = "1.0.0"
-val boopickleVersion = "1.4.0"
 // testing
 val munitVersion = "0.7.29"
 val munitCatsEffectVersion = "1.0.7"
@@ -32,6 +33,7 @@ val osLibVersion = "0.8.0"
 val scalajsDomVersion = "1.1.0"
 val scalajsJqueryVersion = "1.0.0"
 val scalacssVersion = "0.7.0"
+val scalajsMacrotaskExecutorVersion = "1.0.0"
 
 // raw JS
 val jsCookieVersion = "3.0.1"
@@ -74,7 +76,6 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     ivy"org.julianmichael::jjm-core::$jjmVersion",
     ivy"org.julianmichael::jjm-io::$jjmVersion",
     ivy"io.circe::circe-generic-extras::$circeVersion",
-    ivy"io.suzaku::boopickle::$boopickleVersion",
     // ivy"org.typelevel::kittens::$kittensVersion",
     ivy"io.github.cquiroz::scala-java-time::2.3.0"
   )
@@ -214,6 +215,9 @@ object debate extends Module {
 
   object js extends DebateModule with JsPlatform with SimpleJSDeps {
 
+    // override def moduleSplitStyle = ModuleSplitStyle.SmallModulesFor(List("debate"))
+    // override def moduleKind = ModuleKind.CommonJSModule
+
     def mainClass = T(Some("debate.App"))
 
     def ivyDeps = super.ivyDeps() ++ Agg(
@@ -221,7 +225,8 @@ object debate extends Module {
       ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
       ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
       ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion"
+      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
+      ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion",
     )
 
     def jsDeps = Agg(

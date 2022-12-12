@@ -2,7 +2,7 @@ package debate
 
 import annotation.unused
 
-import scalajs.js.typedarray.TypedArrayBuffer
+// import scalajs.js.typedarray.TypedArrayBuffer
 
 import org.scalajs.dom
 
@@ -15,8 +15,6 @@ import japgolly.scalajs.react.MonocleReact._
 
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
-
-import boopickle.Default._
 
 import scala.util.Try
 
@@ -40,6 +38,8 @@ object App {
     }
   }
 
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
+
   def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = {
     fa.map(x => Vector(<.span(x))).intercalate(Vector(<.span(", ")))
   }
@@ -48,43 +48,11 @@ object App {
     if (dom.document.location.protocol == "https:") "wss:" else "ws:"
   }
 
-  def boopickleWebsocket[A: Pickler, B: Pickler] = {
-    // import scalajs.js.typedarray._
-    import DataConversions._
-    new WebSocketConnection2[A, B](
-      sendRequest = (socket, req) =>
-        Callback {
-          socket.send(Pickle.intoBytes(req))
-        },
-      readResponse = x => {
-        val res = Unpickle[B].fromBytes(TypedArrayBuffer.wrap(x));
-        res
-      }
-    )
-  }
-
-  def boopickleSyncedState[Request: Pickler, State: Pickler](
-      getRequestFromState: State => Request
-  ) = {
-    import DataConversions._
-    new SyncedState[Request, State](
-      sendRequest = (socket, req) =>
-        Callback {
-          socket.send(Pickle.intoBytes(req))
-        },
-      readResponse = x => {
-        val res = Unpickle[State].fromBytes(TypedArrayBuffer.wrap(x));
-        res
-      },
-      getRequestFromState = getRequestFromState
-    )
-  }
-
-  val DebateWebSocket = boopickleWebsocket[DebateState, DebateState]
-  val SyncedDebate =
-    boopickleSyncedState[DebateStateUpdateRequest, DebateState](
-      getRequestFromState = DebateStateUpdateRequest.State(_)
-    )
+  val DebateWebSocket = WebSocketConnection2.forJsonString[DebateState, DebateState]
+  val SyncedDebate = SyncedState.forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
+      getRequestFromState = DebateStateUpdateRequest.State(_),
+      getStateUpdateFromResponse = responseState => _ => responseState
+  )
   def getDebateWebsocketUri(
       isOfficial: Boolean,
       roomName: String,
@@ -94,7 +62,7 @@ object App {
     s"$wsProtocol//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
-  val MainWebSocket = boopickleWebsocket[MainChannelRequest, Lobby]
+  val MainWebSocket = WebSocketConnection2.forJsonString[MainChannelRequest, Lobby]
   val mainWebsocketUri: String = {
     s"$wsProtocol//${dom.document.location.host}/main-ws"
   }
@@ -103,10 +71,6 @@ object App {
   val qualityApiUrl: String = {
     s"$httpProtocol//${dom.document.location.host}/$qualityServiceApiEndpoint"
   }
-  println(mainWebsocketUri)
-  println(qualityApiUrl)
-
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   type DelayedFuture[A] = () => Future[A]
   val toAsyncCallback = {
@@ -251,7 +215,8 @@ object App {
           MainWebSocket.make(
             mainWebsocketUri,
             onOpen = _ => Callback(println("Main socket opened.")),
-            onMessage = (_, msg) => lobby.setState(msg)
+            onMessage = (_, msg) => msg.flatMap(response => lobby.setState(response).asAsyncCallback).toCallback
+            // lobby.setState(msg)
           ) {
             case MainWebSocket.Disconnected(_, reason) =>
               <.div(S.loading)(
@@ -262,7 +227,7 @@ object App {
               )
             case MainWebSocket.Connecting =>
               <.div(S.loading)("Connecting to metadata server...")
-            case MainWebSocket.Connected(sendToMainChannel, _) =>
+            case MainWebSocket.Connected(sendToMainChannel) =>
               LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
                 connectionSpecOpt.value match {
                   case None =>
@@ -510,7 +475,7 @@ object App {
                                 _.currentTurn.foldMap(_.rolesRemaining)
                               )
                             val newRoles =
-                              getRoles(curDebate) -- getRoles(prevDebate)
+                              getRoles(curDebate) -- prevDebate.foldMap(getRoles)
                             if (newRoles.contains(role)) {
                               Callback {
                                 val n = new dom.experimental.Notification(
@@ -530,9 +495,9 @@ object App {
                         )
                       case SyncedDebate.Connecting =>
                         <.div(S.loading)("Connecting to debate data server...")
-                      case SyncedDebate.Waiting(_) =>
+                      case SyncedDebate.Connected(_, None) =>
                         <.div(S.loading)("Waiting for debate data...")
-                      case SyncedDebate.Connected(debateState, sendUpdate) =>
+                      case SyncedDebate.Connected(sendUpdate, Some(debateState)) =>
                         val userId =
                           debateState.value.participants.find(
                             _.name == userName

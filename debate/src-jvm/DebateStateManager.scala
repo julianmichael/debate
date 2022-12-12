@@ -176,8 +176,6 @@ case class DebateStateManager(
 
   }
 
-  import boopickle.Default._
-
   def createWebsocket(roomName: String, participantName: String) = for {
     _ <- addParticipant(roomName, participantName)
     room <- rooms.get.map(_.apply(roomName))

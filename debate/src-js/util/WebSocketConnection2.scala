@@ -12,15 +12,21 @@ import org.scalajs.dom.raw.FileReader
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
-/** HOC for websocket connections. I can't remember why I (apparently) modified
-  * this from the jjm.ui version.
+import scala.concurrent.Promise
+import scala.concurrent.ExecutionContext
+
+import cats.Id
+import io.circe.Encoder
+import io.circe.Decoder
+
+/** HOC for websocket connections.
   *
   * @param sendRequest
   * @param readResponse
   */
-class WebSocketConnection2[Request, Response](
+class WebSocketConnection2[F[_], Request, Response](
     sendRequest: (WebSocket, Request) => Callback,
-    readResponse: ArrayBuffer => Response
+    readResponse: MessageEvent => F[Response]
 ) {
 
   sealed trait State
@@ -29,7 +35,6 @@ class WebSocketConnection2[Request, Response](
   sealed trait Context
   case class Connected(
       send: Request => Callback,
-      setCallback: (Response => Callback) => Callback
   ) extends Context
 
   case class Disconnected(reconnect: Callback, reason: String)
@@ -40,13 +45,11 @@ class WebSocketConnection2[Request, Response](
   case class Props(
       websocketURI: String,
       onOpen: (Request => Callback) => Callback,
-      onMessage: (((Request => Callback), Response) => Callback),
+      onMessage: (((Request => Callback), F[Response]) => Callback),
       render: Context => VdomElement
   )
 
   class Backend(scope: BackendScope[Props, State]) {
-
-    var messageCallbackOpt: Option[Response => Callback] = None
 
     def connect(props: Props): Callback = scope.state >>= {
       case ConnectedState(_) =>
@@ -64,27 +67,8 @@ class WebSocketConnection2[Request, Response](
             System.err.println(msg)
             scope.setState(Disconnected(connect(props), msg)).runNow()
           }
-          // socket.onmessage = { (event: MessageEvent) =>
-          //   props.onMessage(send, responseFromString(event.data.toString)).runNow()
-          // }
           socket.onmessage = { (event: MessageEvent) =>
-            val reader = new FileReader();
-            reader.addEventListener(
-              "loadend",
-              (_: Event) => {
-                // reader.result contains the contents of blob as an ArrayBuffer
-                // println(reader.result) // XXX
-                val message =
-                  readResponse(reader.result.asInstanceOf[ArrayBuffer])
-                // println(message) // XXX
-                // messageCallbackOpt.foreach(messageCallback =>
-                //   messageCallback(message).runNow()
-                // )
-                props.onMessage(send, message).runNow()
-              }
-            );
-            // println(event.data) // XXX
-            reader.readAsArrayBuffer(event.data.asInstanceOf[Blob]);
+            props.onMessage(send, readResponse(event)).runNow()
           }
           socket.onclose = { (event: CloseEvent) =>
             val cleanly = if (event.wasClean) "cleanly" else "uncleanly"
@@ -112,9 +96,7 @@ class WebSocketConnection2[Request, Response](
           case Connecting         => Connecting
           case ConnectedState(socket) =>
             Connected(
-              (req: Request) => sendRequest(socket, req),
-              (cb: (Response => Callback)) =>
-                Callback { messageCallbackOpt = Some(cb) }
+              (req: Request) => sendRequest(socket, req)
             ): Context
         }
       )
@@ -131,9 +113,55 @@ class WebSocketConnection2[Request, Response](
   def make(
       websocketURI: String,
       onOpen: (Request => Callback) => Callback = _ => Callback.empty,
-      onMessage: (((Request => Callback), Response) => Callback) =
+      onMessage: (((Request => Callback), F[Response]) => Callback) =
         ((_, _) => Callback.empty)
   )(
       render: Context => VdomElement
   ) = Component(Props(websocketURI, onOpen, onMessage, render))
+}
+object WebSocketConnection2 {
+  def forArrayBuffer[Request, Response](
+    sendRequest: (WebSocket, Request) => Callback,
+    readResponse: ArrayBuffer => Response)(
+    implicit ec: ExecutionContext
+  ) = new WebSocketConnection2[
+    AsyncCallback, Request, Response
+  ](
+    sendRequest = sendRequest,
+    readResponse = (event: MessageEvent) => {
+      val promise = Promise[Response]()
+      val reader = new FileReader();
+      reader.addEventListener(
+        "loadend",
+        (_: Event) => {
+          // reader.result contains the contents of blob as an ArrayBuffer
+          val message =
+            readResponse(reader.result.asInstanceOf[ArrayBuffer])
+          promise.success(message)
+          // props.onMessage(send, message).runNow()
+        }
+      );
+      reader.readAsArrayBuffer(event.data.asInstanceOf[Blob]);
+      AsyncCallback.fromFuture(promise.future)
+    }
+  )
+
+  def forString[Request, Response](
+    sendRequest: (WebSocket, Request) => Callback,
+    readResponse: String => Response
+  ) = new WebSocketConnection2[
+    Id, Request, Response
+  ](
+    sendRequest = sendRequest,
+    readResponse = (event: MessageEvent) => readResponse(event.data.toString)
+  )
+
+  // TODO: handle parser errors
+  import io.circe.syntax._
+  def forJsonString[Request: Encoder, Response: Decoder] = new WebSocketConnection2[
+    Id, Request, Response
+  ](
+    sendRequest = (socket: WebSocket, r: Request) => Callback(socket.send(r.asJson.noSpaces)),
+    readResponse = (event: MessageEvent) => io.circe.parser.decode[Response](event.data.toString).toOption.get
+  )
 }
