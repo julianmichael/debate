@@ -48,11 +48,13 @@ object App {
     if (dom.document.location.protocol == "https:") "wss:" else "ws:"
   }
 
-  val DebateWebSocket = WebSocketConnection2.forJsonString[DebateState, DebateState]
-  val SyncedDebate = SyncedState.forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
+  val DebateWebSocket =
+    WebSocketConnection2.forJsonString[DebateState, DebateState]
+  val SyncedDebate = SyncedState
+    .forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
       getRequestFromState = DebateStateUpdateRequest.State(_),
       getStateUpdateFromResponse = responseState => _ => responseState
-  )
+    )
   def getDebateWebsocketUri(
       isOfficial: Boolean,
       roomName: String,
@@ -62,7 +64,8 @@ object App {
     s"$wsProtocol//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
-  val MainWebSocket = WebSocketConnection2.forJsonString[MainChannelRequest, Lobby]
+  val MainWebSocket =
+    WebSocketConnection2.forJsonString[MainChannelRequest, Lobby]
   val mainWebsocketUri: String = {
     s"$wsProtocol//${dom.document.location.host}/main-ws"
   }
@@ -215,7 +218,10 @@ object App {
           MainWebSocket.make(
             mainWebsocketUri,
             onOpen = _ => Callback(println("Main socket opened.")),
-            onMessage = (_, msg) => msg.flatMap(response => lobby.setState(response).asAsyncCallback).toCallback
+            onMessage = (_, msg) =>
+              msg
+                .flatMap(response => lobby.setState(response).asAsyncCallback)
+                .toCallback
             // lobby.setState(msg)
           ) {
             case MainWebSocket.Disconnected(_, reason) =>
@@ -475,7 +481,8 @@ object App {
                                 _.currentTurn.foldMap(_.rolesRemaining)
                               )
                             val newRoles =
-                              getRoles(curDebate) -- prevDebate.foldMap(getRoles)
+                              getRoles(curDebate) -- prevDebate
+                                .foldMap(getRoles)
                             if (newRoles.contains(role)) {
                               Callback {
                                 val n = new dom.experimental.Notification(
@@ -497,7 +504,8 @@ object App {
                         <.div(S.loading)("Connecting to debate data server...")
                       case SyncedDebate.Connected(_, None) =>
                         <.div(S.loading)("Waiting for debate data...")
-                      case SyncedDebate.Connected(sendUpdate, Some(debateState)) =>
+                      case SyncedDebate
+                            .Connected(sendUpdate, Some(debateState)) =>
                         val userId =
                           debateState.value.participants.find(
                             _.name == userName
