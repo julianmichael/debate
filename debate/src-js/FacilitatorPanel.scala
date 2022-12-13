@@ -7,7 +7,8 @@ import debate.quality._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot
-import japgolly.scalajs.react.MonocleReact._
+// import japgolly.scalajs.react.MonocleReact._
+import japgolly.scalajs.react.ReactMonocle._
 
 // import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
@@ -258,14 +259,14 @@ class FacilitatorPanel(
             roundTypeConfig(
               "Opening Rounds",
               setup.zoomStateL(
-                DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)
+                DebateSetupSpec.rules.andThen(DebateRules.fixedOpening)
               ),
               minItems = 0
             ),
             roundTypeConfig(
               "Repeated Rounds",
               setup.zoomStateL(
-                DebateSetupSpec.rules.composeLens(
+                DebateSetupSpec.rules.andThen(
                   DebateRules.repeatingStructure
                 )
               ),
@@ -273,7 +274,7 @@ class FacilitatorPanel(
             ),
             scoringFunctionConfig(
               setup.zoomStateL(
-                DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction)
+                DebateSetupSpec.rules.andThen(DebateRules.scoringFunction)
               )
             ),
             <.div(S.mainLabeledInputRow)(
@@ -309,7 +310,7 @@ class FacilitatorPanel(
                     val customSourceMaterialSpec = setup
                       .zoomStateO(
                         DebateSetupSpec.sourceMaterial
-                          .composePrism(SourceMaterialSpec.custom)
+                          .andThen(SourceMaterialSpec.custom)
                       )
                       .get // will succeed bc of match case
                     VdomArray(
@@ -359,8 +360,8 @@ class FacilitatorPanel(
                     case None =>
                       qualityQuestionOpt.setState(None) >>
                         setup.modState(
-                          DebateSetupSpec.question.set("") andThen
-                            DebateSetupSpec.answers.set(Vector("", ""))
+                          DebateSetupSpec.question.replace("") andThen
+                            DebateSetupSpec.answers.replace(Vector("", ""))
                         )
                     case Some(question) =>
                       import io.circe.syntax._
@@ -387,7 +388,7 @@ class FacilitatorPanel(
                   ProfileOptSelect.mod(select = S.customSelect)(
                     choices = profiles,
                     choice = setup.zoomStateL(
-                      DebateSetupSpec.roles.composeLens(
+                      DebateSetupSpec.roles.andThen(
                         Optics.at(Judge: DebateRole)
                       )
                     )
@@ -430,7 +431,7 @@ class FacilitatorPanel(
                         ProfileOptSelect.mod(select = S.customSelect)(
                           choices = profiles,
                           choice = setup.zoomStateL(
-                            DebateSetupSpec.roles.composeLens(
+                            DebateSetupSpec.roles.andThen(
                               Optics.at(Debater(index): DebateRole)
                             )
                           )

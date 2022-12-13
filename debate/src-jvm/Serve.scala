@@ -7,7 +7,7 @@ import java.security.{SecureRandom, KeyStore}
 import javax.net.ssl.{SSLContext, TrustManagerFactory, KeyManagerFactory}
 
 import cats.effect._
-import cats.effect.concurrent.Ref
+import cats.effect.Ref
 import cats.implicits._
 
 import org.http4s._
@@ -341,7 +341,8 @@ object Serve
       res <- WebSocketBuilder[IO].build(
         send = outStream,
         receive = x => {
-          x.through(filterCloseFrames)
+          x
+            .through(filterCloseFrames)
             .map(unpickleFromWSFrame[MainChannelRequest])
             .evalMap {
               case RegisterDebater(name) => registerDebater(name)

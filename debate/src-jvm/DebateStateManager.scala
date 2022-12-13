@@ -7,7 +7,7 @@ import cats.kernel.Order
 import cats.implicits._
 
 import cats.effect.IO
-import cats.effect.concurrent.Ref
+import cats.effect.Ref
 import cats.effect.Concurrent
 
 import monocle.function.{all => Optics}

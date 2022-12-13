@@ -4,7 +4,7 @@ import jjm.implicits._
 
 import scalajs.js
 
-import org.scalajs.jquery.jQuery
+import org.querki.jquery.{$ => jQuery}
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._

@@ -2,7 +2,7 @@ package debate.util
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot
-import japgolly.scalajs.react.MonocleReact._
+import japgolly.scalajs.react.ReactMonocle._
 
 import scalacss.ScalaCssReact._
 

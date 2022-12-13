@@ -9,7 +9,7 @@ import os._
 import mill.scalajslib.api.{ModuleKind, ModuleSplitStyle}
 
 // val thisPublishVersion = "0.1.0-SNAPSHOT"
-val thisScalaVersion = "2.13.8"
+val thisScalaVersion = "2.13.10"
 val thisScalaJSVersion = "1.12.0"
 
 // plugins
@@ -17,10 +17,10 @@ val kindProjectorVersion = "0.13.2"
 
 // scala deps
 // my libs
-val jjmVersion = "0.2.2-SNAPSHOT"
+val jjmVersion = "0.3.0-SNAPSHOT"
 // other deps
-val circeVersion = "0.13.0"
-val declineVersion = "1.0.0"
+val circeVersion = "0.14.3"
+val declineVersion = "2.4.0"
 // testing
 val munitVersion = "0.7.29"
 val munitCatsEffectVersion = "1.0.7"
@@ -30,15 +30,13 @@ val logbackVersion = "1.2.3"
 val osLibVersion = "0.8.0"
 
 // scalajs deps
-val scalajsDomVersion = "1.1.0"
-val scalajsJqueryVersion = "1.0.0"
-val scalacssVersion = "0.7.0"
+val jqueryFacadeVersion = "2.1"
 val scalajsMacrotaskExecutorVersion = "1.0.0"
 
 // raw JS
 val jsCookieVersion = "3.0.1"
 val jqueryVersion = "2.1.4"
-val reactVersion = "15.6.1"
+val reactVersion = "17.0.2"
 
 trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
 
@@ -222,10 +220,7 @@ object debate extends Module {
 
     def ivyDeps = super.ivyDeps() ++ Agg(
       ivy"org.julianmichael::jjm-ui::$jjmVersion",
-      ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
-      ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
-      ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
+      ivy"org.querki::jquery-facade::$jqueryFacadeVersion",
       ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion",
     )
 

@@ -3,9 +3,9 @@ package debate.util
 import debate._
 
 import org.scalajs.dom.WebSocket
-import org.scalajs.dom.raw.CloseEvent
-import org.scalajs.dom.raw.MessageEvent
-import org.scalajs.dom.raw.Event
+import org.scalajs.dom.CloseEvent
+import org.scalajs.dom.MessageEvent
+import org.scalajs.dom.Event
 
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
@@ -25,8 +25,8 @@ import io.circe.Decoder
   * @param readResponse
   * @param getRequestFromState
   */
-class SyncedState[Request, Response, State](
-    sendRequest: (WebSocket, Request) => Callback,
+  class SyncedState[Request, Response, State](
+  sendRequest: (WebSocket, Request) => Callback,
     readResponse: MessageEvent => Response,
     getRequestFromState: State => Request,
     getStateUpdateFromResponse: Response => Option[State] => State,
@@ -77,7 +77,7 @@ class SyncedState[Request, Response, State](
           socket.onmessage = { (event: MessageEvent) =>
             val response = readResponse(event)
             val cb = scope.modState(
-              FullState.connectedState.composeLens(ConnectedState.stateOpt)
+              FullState.connectedState.andThen(ConnectedState.stateOpt)
                 .modify(curState => Some(getStateUpdateFromResponse(response)(curState)))
             ) >> props.onMessage(send, response)
             cb.runNow()

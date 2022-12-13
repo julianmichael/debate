@@ -29,9 +29,9 @@ trait PackagePlatformExtensions {
   // TODO: handle parsing errors
   def unpickleFromWSFrame[A: Decoder](frame: WebSocketFrame): A = {
     val res = for {
-      str <- IO.fromEither(frame.data.decodeUtf8)
-      res <- IO.fromEither(circeDecode[A](str))
-    } yield res
-    res.unsafeRunSync()
+      str <- frame.data.decodeUtf8
+      res2 <- circeDecode[A](str)
+    } yield res2
+    res.get
   }
 }

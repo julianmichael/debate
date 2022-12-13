@@ -6,12 +6,12 @@ import annotation.unused
 
 import org.scalajs.dom
 
-import org.scalajs.jquery.jQuery
+import org.querki.jquery.{$ => jQuery}
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot
-import japgolly.scalajs.react.MonocleReact._
+import japgolly.scalajs.react.ReactMonocle._
 
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
@@ -27,6 +27,7 @@ import debate.util._
 import scala.concurrent.Future
 import jjm.io.HttpUtil
 import jjm.OrWrapped
+import jjm.ui.WebSocketConnection
 
 /** The main webapp. */
 object App {
@@ -48,7 +49,7 @@ object App {
     if (dom.document.location.protocol == "https:") "wss:" else "ws:"
   }
 
-  val DebateWebSocket = WebSocketConnection2.forJsonString[DebateState, DebateState]
+  val DebateWebSocket = WebSocketConnection.forJsonString[DebateState, DebateState]
   val SyncedDebate = SyncedState.forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
       getRequestFromState = DebateStateUpdateRequest.State(_),
       getStateUpdateFromResponse = responseState => _ => responseState
@@ -62,7 +63,7 @@ object App {
     s"$wsProtocol//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
-  val MainWebSocket = WebSocketConnection2.forJsonString[MainChannelRequest, Lobby]
+  val MainWebSocket = WebSocketConnection.forJsonString[MainChannelRequest, Lobby]
   val mainWebsocketUri: String = {
     s"$wsProtocol//${dom.document.location.host}/main-ws"
   }
@@ -478,7 +479,7 @@ object App {
                               getRoles(curDebate) -- prevDebate.foldMap(getRoles)
                             if (newRoles.contains(role)) {
                               Callback {
-                                val n = new dom.experimental.Notification(
+                                val n = new dom.Notification(
                                   s"It's your turn as $role in $roomName!"
                                 )
                                 scalajs.js.timers.setTimeout(7000)(n.close())
@@ -658,8 +659,7 @@ object App {
   }
 
   final def main(args: Array[String]): Unit = jQuery { () =>
-    // get permission for notifications. TODO: only add this in when I'm ready to actually use notifications
-    dom.experimental.Notification.requestPermission(result =>
+    dom.Notification.requestPermission(result =>
       dom.console.log(result)
     )
     setupUI()
