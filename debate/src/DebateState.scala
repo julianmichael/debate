@@ -39,6 +39,7 @@ object DebateState {
   def init = DebateState(None, Set())
 }
 
+// TODO reward for debaters is log probabilities
 @Lenses @JsonCodec case class DebateResult(
     correctAnswerIndex: Int,
     numTurns: Int,
