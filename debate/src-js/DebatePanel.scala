@@ -438,40 +438,36 @@ class DebatePanel(
 
           def handleSimultaneousSpeechesWhenUsersTurn() = {
             val submit =
-              (
-                if (!canSubmit) Callback.empty
-                else
-                  userId.foldMap(userId =>
-                    CallbackTo(System.currentTimeMillis()).flatMap { time =>
-                      val speech = DebateSpeech(
-                        userId,
-                        time,
-                        currentMessageSpeechSegments
-                      )
-                      val newRounds = role match {
-                        case Some(Debater(debaterIndex)) =>
-                          rounds.lastOption match {
-                            // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
-                            case Some(SimultaneousSpeeches(speeches))
-                                if speeches.size < setup.answers.size =>
-                              rounds.updated(
-                                rounds.size - 1,
-                                SimultaneousSpeeches(
-                                  speeches + (debaterIndex -> speech)
-                                )
-                              )
-                            // otherwise, create the record for the turn with our new speech.
-                            case _ =>
-                              rounds :+ SimultaneousSpeeches(
-                                Map(debaterIndex -> speech)
-                              )
-                          }
-                        case _ =>
-                          rounds
-                      }
-                      sendDebate(Debate(setup, newRounds))
-                    } >> currentMessage.setState("")
+              userId.foldMap(userId =>
+                CallbackTo(System.currentTimeMillis()).flatMap { time =>
+                  val speech = DebateSpeech(
+                    userId,
+                    time,
+                    currentMessageSpeechSegments
                   )
+                  val newRounds = role match {
+                    case Some(Debater(debaterIndex)) =>
+                      rounds.lastOption match {
+                        // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
+                        case Some(SimultaneousSpeeches(speeches))
+                            if speeches.size < setup.answers.size =>
+                          rounds.updated(
+                            rounds.size - 1,
+                            SimultaneousSpeeches(
+                              speeches + (debaterIndex -> speech)
+                            )
+                          )
+                        // otherwise, create the record for the turn with our new speech.
+                        case _ =>
+                          rounds :+ SimultaneousSpeeches(
+                            Map(debaterIndex -> speech)
+                          )
+                      }
+                    case _ =>
+                      rounds
+                  }
+                  sendDebate(Debate(setup, newRounds))
+                } >> currentMessage.setState("")
               )
 
             <.div(S.col)(
@@ -479,46 +475,42 @@ class DebatePanel(
               <.button(
                 "Submit",
                 ^.disabled := !canSubmit,
-                ^.onClick --> submit
+                (^.onClick --> submit).when(canSubmit)
               )
             )
           }
 
           def handleSequentialSpeechesWhenUsersTurn() = {
             val submitNewSpeech =
-              (
-                if (!canSubmit) Callback.empty
-                else
-                  userId.foldMap(userId =>
-                    CallbackTo(System.currentTimeMillis()).flatMap { time =>
-                      val speech = DebateSpeech(
-                        userId,
-                        time,
-                        currentMessageSpeechSegments
-                      )
-                      val newRounds = role match {
-                        case Some(Debater(debaterIndex)) =>
-                          rounds.lastOption match {
-                            // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
-                            case Some(SequentialSpeeches(speeches))
-                                if speeches.size < setup.answers.size =>
-                              rounds.updated(
-                                rounds.size - 1,
-                                SequentialSpeeches(
-                                  speeches + (debaterIndex -> speech)
-                                )
-                              )
-                            // otherwise, create the record for the turn with our new speech.
-                            case _ =>
-                              rounds :+ SequentialSpeeches(
-                                Map(debaterIndex -> speech)
-                              )
-                          }
-                        case _ => rounds // TODO should we error here?
-                      }
-                      sendDebate(Debate(setup, newRounds))
-                    } >> currentMessage.setState("")
+              userId.foldMap(userId =>
+                CallbackTo(System.currentTimeMillis()).flatMap { time =>
+                  val speech = DebateSpeech(
+                    userId,
+                    time,
+                    currentMessageSpeechSegments
                   )
+                  val newRounds = role match {
+                    case Some(Debater(debaterIndex)) =>
+                      rounds.lastOption match {
+                        // If we're in the middle of a simultaneous speech round that hasn't finished yet, add/update our speech to the turn
+                        case Some(SequentialSpeeches(speeches))
+                            if speeches.size < setup.answers.size =>
+                          rounds.updated(
+                            rounds.size - 1,
+                            SequentialSpeeches(
+                              speeches + (debaterIndex -> speech)
+                            )
+                          )
+                        // otherwise, create the record for the turn with our new speech.
+                        case _ =>
+                          rounds :+ SequentialSpeeches(
+                            Map(debaterIndex -> speech)
+                          )
+                      }
+                    case _ => rounds // TODO should we error here?
+                  }
+                  sendDebate(Debate(setup, newRounds))
+                } >> currentMessage.setState("")
               )
 
             <.div(S.col)(
@@ -530,7 +522,7 @@ class DebatePanel(
                 <.button(
                   "Submit",
                   ^.disabled := !canSubmit,
-                  ^.onClick --> submitNewSpeech
+                  (^.onClick --> submitNewSpeech).when(canSubmit)
                 )
               )
             )
