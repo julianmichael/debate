@@ -143,7 +143,7 @@ object DisconnectedLobbyPage {
       }
 
       // TODO probably just a val instead of a def
-      def statusDisplay() = {
+      def statusDisplay(status: debate.RoomStatus) = {
         <.div(S.optionTitle)(
           roomMetadata.name,
           " ",
@@ -201,7 +201,7 @@ object DisconnectedLobbyPage {
         else S.simpleUnselectable
       val status = roomMetadata.status
       <.div(S.optionBox, selectableStyle)(
-        statusDisplay(),
+        statusDisplay(status = status),
         assignedParticipants(),
         presentParticipants(),
         deleteRoom(),
@@ -217,12 +217,14 @@ object DisconnectedLobbyPage {
         case MyDebates          => "My Debates"
         case AllOfficialDebates => "All Official Debates"
         case PracticeDebates    => "Practice Debates"
+        case Leaderboard        => "Leadeboard"
       }
     }
     object LobbyTab {
       case object MyDebates extends LobbyTab
       case object AllOfficialDebates extends LobbyTab
       case object PracticeDebates extends LobbyTab
+      case object Leaderboard extends LobbyTab
     }
 
     val LocalString = new LocalState[String]
@@ -272,13 +274,15 @@ object DisconnectedLobbyPage {
               case MyDebates          => myDebates
               case AllOfficialDebates => lobby.value.officialRooms
               case PracticeDebates    => lobby.value.practiceRooms
+              case Leaderboard        => Vector.empty
             }
 
             def lobbySelector() = {
               List(
                 MyDebates,
                 AllOfficialDebates,
-                PracticeDebates
+                PracticeDebates,
+                Leaderboard
               ).toVdomArray(tab =>
                 <.li(c"nav-item")(
                   <.a(
@@ -313,6 +317,69 @@ object DisconnectedLobbyPage {
               )
             }
 
+            def sortTableBy[T, B](
+                ref: StateSnapshot[List[T]],
+                sortBy: T => B
+            )(implicit ordering: Ordering[B]) = {
+              <.button(c"button")(
+                ^.onClick --> {
+                  ref.setState(ref.value.sortBy(sortBy))
+                },
+                "sort" // TODO add descending sort?
+              )
+            }
+
+            def leaderboardTable() = {
+              case class RowEntry(name: String, wins: Int, losses: Int)
+
+              val a = RowEntry(name = "A", wins = 1, losses = 2)
+              val b = RowEntry(name = "B", wins = 2, losses = 1)
+              val c = RowEntry(name = "C", wins = 1, losses = 1)
+
+              val RowState = new LocalState[List[RowEntry]]
+              RowState.make(initialValue = List(a, b, c)) { rowEntries =>
+                <.table(c"table table-striped")(
+                  <.thead(
+                    <.tr(
+                      <.th(
+                        "Name",
+                        sortTableBy(rowEntries, (x: RowEntry) => x.name)
+                      ),
+                      <.th(
+                        "Wins",
+                        sortTableBy(rowEntries, (x: RowEntry) => x.wins)
+                      ),
+                      <.th(
+                        "Losses",
+                        sortTableBy(rowEntries, (x: RowEntry) => x.losses)
+                      ),
+                      <.th(
+                        "Win %",
+                        sortTableBy(
+                          rowEntries,
+                          (x: RowEntry) => x.wins.toDouble / x.losses
+                        )
+                      )
+                    )
+                  ),
+                  <.tbody(
+                    rowEntries.value
+                      // .sortBy(-_._2.wins.toDouble / _._2.losses)
+                      .toVdomArray { case rowEntry =>
+                        <.tr(
+                          <.td(rowEntry.name),
+                          <.td(rowEntry.wins),
+                          <.td(rowEntry.losses),
+                          <.td(
+                            f"${rowEntry.wins.toDouble / rowEntry.losses * 100}%.1f"
+                          )
+                        )
+                      }
+                  )
+                )
+              }
+            }
+
             <.div(c"card", ^.textAlign.center)(
               <.div(c"card-header")(
                 <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
@@ -338,9 +405,14 @@ object DisconnectedLobbyPage {
                       enter = enter,
                       roomNameLive = roomNameLive
                     )
-                  ).when(lobbyTab.value != MyDebates),
+                  ).when(
+                    lobbyTab.value != MyDebates && lobbyTab.value != Leaderboard
+                  ),
                   <.div("No rooms to show.")
-                    .when(currentRooms.isEmpty),
+                    .when(
+                      currentRooms.isEmpty && lobbyTab.value != Leaderboard
+                    ),
+                  leaderboardTable().when(lobbyTab.value == Leaderboard),
                   currentRooms.toVdomArray { case rm: RoomMetadata =>
                     roomManagement(
                       roomMetadata = rm,

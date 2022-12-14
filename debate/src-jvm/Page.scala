@@ -4,9 +4,9 @@ import scalatags.Text.all._
 
 object Page {
   def apply(
-    jsDepsLocation: String,
-    jsLocation: String,
-    roomName: String = "",
+      jsDepsLocation: String,
+      jsLocation: String,
+      roomName: String = ""
   ) = {
     html(
       head(
