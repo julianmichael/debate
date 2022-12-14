@@ -27,10 +27,8 @@ import java.nio.file.{Path => NIOPath}
 import fs2._
 import fs2.concurrent.Topic
 import java.nio.file.Paths
-import java.net.URL
 import jjm.io.HttpUtil
 import jjm.DotKleisli
-import java.nio.file.Files
 
 import scala.concurrent.duration._
 
@@ -119,60 +117,6 @@ object Serve
     }
   }
 
-  val dataPath = Paths.get("data")
-  val qualityDataName = "QuALITY.v1.0.1"
-  val qualityURL = "https://github.com/nyu-mll/quality/blob/main/data/v1.0.1/QuALITY.v1.0.1.zip?raw=true"
-  // val qualityDataPath = Paths.get("data/QuALITY.v1.0.1")
-  def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
-  def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
-  def officialRoomsDir(saveDir: NIOPath) = saveDir.resolve("official")
-
-  def ensureQualityIsDownloaded(blocker: Blocker): IO[Unit] = {
-    val qualityPath = dataPath.resolve(qualityDataName)
-    IO(Files.isDirectory(qualityPath)).ifM(
-      ifTrue = IO.unit, ifFalse = for {
-        _ <- IO(println("Downloading QuALITY data..."))
-        _ <- fs2.io.file.createDirectories[IO](blocker, qualityPath)
-        _ <- {
-          io.readInputStream(IO(new URL(qualityURL).openConnection.getInputStream), 4096, blocker, true)
-            .through(io.file.writeAll(dataPath.resolve(qualityDataName + ".zip"), blocker))
-            .compile.drain
-        }
-        _ <- IO(println("Downloaded QuALITY.")) 
-        // too lazy to unzip in fs2
-        _ <- IO(os.proc("unzip", "../" + qualityDataName + ".zip").call(cwd = os.pwd / dataPath.toString / qualityDataName))
-      } yield ()
-    )
-  }
-
-
-  def cleanStoryText(story: String): String = {
-    val newlineStandin = "###NEWLINE####"
-    story.replaceAll("\n\n\n+", "\n\n")
-      .replaceAll("\n\n", newlineStandin)
-      .replaceAll("\n", " ")
-      .replaceAll(newlineStandin, "\n\n")
-  }
-
-  def readQuALITY(blocker: Blocker): IO[Map[String, QuALITYStory]] = for {
-    _ <- ensureQualityIsDownloaded(blocker)
-    allInstances <- {
-      Stream.emits[IO, String](List("train", "dev", "test"))
-        .flatMap { split =>
-          val filename = s"$qualityDataName.htmlstripped.$split"
-          val filePath = dataPath.resolve(qualityDataName).resolve(filename)
-          FileUtil.readJsonLines[QuALITYInstance](filePath)
-            .map(_.toStory(split))
-            .map(QuALITYStory.article.modify(cleanStoryText))
-        }
-        .compile.toVector
-    }
-    instancesByArticleId = allInstances.toList.groupByNel(_.articleId)
-    storiesByArticleId <- instancesByArticleId.toVector.traverse { case (articleId, instances) =>
-      IO.fromEither(instances.reduceLeftMonadic(_ merge _).map(articleId -> _))
-    }.map(_.toMap)
-  } yield storiesByArticleId
-
   def initializeDebate(qualityDataset: Map[String, QuALITYStory])(setupSpec: DebateSetupSpec): IO[DebateSetup] = {
     val tokenize = simpleTokenize(_)
     val sourceMaterialIO = setupSpec.sourceMaterial match {
@@ -200,6 +144,10 @@ object Serve
     }
   }
 
+  val qualityDataPath = Paths.get("data")
+  def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
+  def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
+  def officialRoomsDir(saveDir: NIOPath) = saveDir.resolve("official")
   /** Initialize the server state and make the HTTP server
     *
     * @param saveDir
@@ -216,7 +164,7 @@ object Serve
       blocker: Blocker
   ) = {
     for {
-      qualityDataset <- readQuALITY(blocker)
+      qualityDataset <- QuALITYUtils.readQuALITY(qualityDataPath, blocker)
       trackedDebaters <- FileUtil
         .readJson[Set[String]](debatersSavePath(saveDir))
         .recoverWith { case e: Throwable =>
