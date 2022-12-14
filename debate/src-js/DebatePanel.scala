@@ -363,36 +363,6 @@ class DebatePanel(
       } ++ curMessageSpans.value.toVector.map(_ -> curHighlightColor)
 
       <.div(S.debatePanel, S.spaceySubcontainer)(
-        // <.div(S.debateSubpanel)(
-        //   SpanSelection2.make(
-        //     true,
-        //     (ispan => curMessageSpans.modState(_ + ispan.toExclusive))
-        //   ) { case (status, context) =>
-        //     val selectingSpanColorOpt =
-        //       SpanSelection2.Status.selecting.getOption(status).map {
-        //         case SpanSelection2.Selecting(begin, end) =>
-        //           ESpan(begin, end + 1) -> midHighlightColor
-        //       }
-        //     val allHighlights = highlights ++ selectingSpanColorOpt
-
-        //     <.div(S.sourceMaterialSubpanel)(
-        //       renderHighlightedTokens(
-        //         setup.sourceMaterial.contents,
-        //         allHighlights,
-        //         setup.sourceMaterial.contents.indices.toVector
-        //           .map(i =>
-        //             i -> ((el: VdomTag) =>
-        //               el(
-        //                 ^.onMouseMove --> context.hover(i),
-        //                 ^.onClick --> context.touch(i)
-        //               )
-        //             )
-        //           )
-        //           .toMap
-        //       )
-        //     )
-        //   }
-        // ).when(shouldShowSourceMaterial),
         StoryPanel.Component(
           StoryPanel.Props(
             setup.sourceMaterial.contents,
