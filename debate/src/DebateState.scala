@@ -181,6 +181,7 @@ object JudgeFeedback
   */
 sealed trait DebateTurnType {
   def charLimit: Int
+  def quoteLimit: Option[Int]
   def rolesRemaining: Set[Role]
 }
 object DebateTurnType {
@@ -198,6 +199,7 @@ object DebateTurnType {
   case class JudgeFeedbackTurn(reportBeliefs: Boolean, charLimit: Int)
       extends DebateTurnType {
     def rolesRemaining = Set(Judge)
+    def quoteLimit = None
   }
 }
 

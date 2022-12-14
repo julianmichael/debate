@@ -223,6 +223,7 @@ class DebatePanel(
         .contains(r)
     )
     val charLimit = currentTurnOrResult.fold(_ => -1, _.charLimit)
+    val quoteLimitOpt = currentTurnOrResult.fold(_ => None, _.quoteLimit)
 
     def makeSimpleVdomFromText(text: String) = {
       <.span(
@@ -426,6 +427,13 @@ class DebatePanel(
           ling.Text.renderSpan(setup.sourceMaterial.contents, span).size
       }
     }
+    def getQuoteLength(speechSegments: Vector[SpeechSegment]) = {
+      speechSegments.foldMap {
+        case SpeechSegment.Text(_) => 0
+        case SpeechSegment.Quote(span) =>
+          ling.Text.renderSpan(setup.sourceMaterial.contents, span).size
+      }
+    }
 
     val scrollDebateToBottom = Callback {
       val newSpeechesJQ = jQuery("#speeches")
@@ -504,6 +512,9 @@ class DebatePanel(
 
           val speechLength = getSpeechLength(currentMessageSpeechSegments)
           val speechIsTooLong = charLimit > 0 && speechLength > charLimit
+          val quoteLength = getQuoteLength(currentMessageSpeechSegments)
+          val quotesAreTooLong = quoteLimitOpt.exists(quoteLength > _)
+          val canSubmit = isUsersTurn && !speechIsTooLong && !quotesAreTooLong
 
           def speechInputPanel(
               submit: Boolean => Callback,
@@ -531,13 +542,20 @@ class DebatePanel(
               ),
               <.div(
                 S.speechLengthPanel,
-                S.invalidTextBackground.when(speechIsTooLong)
+                S.invalidTextBackground.when(speechIsTooLong || quotesAreTooLong)
               )(
                 "Length: ",
                 <.span(S.speechLengthPanelOverage.when(speechIsTooLong))(
                   speechLength.toString
                 ),
-                <.span(" / ", charLimit.toString).when(charLimit > 0)
+                <.span(" / ", charLimit.toString).when(charLimit > 0),
+                ". Quote length: ",
+                <.span(S.speechLengthPanelOverage.when(quotesAreTooLong))(
+                  quoteLength.toString
+                ),
+                quoteLimitOpt.whenDefined { quoteLimit =>
+                  <.span(" / ", quoteLimit.toString)
+                }
               )
             )
           }
@@ -546,14 +564,14 @@ class DebatePanel(
             <.button(
               "Undo",
               ^.onClick --> submit(true),
-              ^.disabled := isUsersTurn
+              ^.disabled := isUsersTurn // TODO(julianmichael): I think this is unnecessary
             )
           }
 
           def handleSimultaneousSpeechesWhenUsersTurn() = {
             val submit =
               (
-                if (!isUsersTurn || speechIsTooLong) Callback.empty
+                if (!canSubmit) Callback.empty
                 else
                   userId.foldMap(userId =>
                     CallbackTo(System.currentTimeMillis()).flatMap { time =>
@@ -592,7 +610,7 @@ class DebatePanel(
               speechInputPanel(_ => submit, true),
               <.button(
                 "Submit",
-                ^.disabled := !isUsersTurn || speechIsTooLong,
+                ^.disabled := !canSubmit,
                 ^.onClick --> submit
               )
             )
@@ -601,7 +619,7 @@ class DebatePanel(
           def handleSequentialSpeechesWhenUsersTurn() = {
             val submitNewSpeech =
               (
-                if (!isUsersTurn || speechIsTooLong) Callback.empty
+                if (!canSubmit) Callback.empty
                 else
                   userId.foldMap(userId =>
                     CallbackTo(System.currentTimeMillis()).flatMap { time =>
@@ -643,7 +661,7 @@ class DebatePanel(
                 ),
                 <.button(
                   "Submit",
-                  ^.disabled := !isUsersTurn || speechIsTooLong,
+                  ^.disabled := !canSubmit,
                   ^.onClick --> submitNewSpeech
                 )
               )
