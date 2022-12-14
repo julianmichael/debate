@@ -32,11 +32,9 @@ object App {
 
   val MainWebSocket =
     WebSocketConnection2.forJsonString[MainChannelRequest, Lobby]
-  val wsProtocol = {
-    if (dom.document.location.protocol == "https:") "wss:" else "ws:"
-  }
+
   val mainWebsocketUri: String = {
-    s"$wsProtocol//${dom.document.location.host}/main-ws"
+    s"${Helpers.wsProtocol()}//${dom.document.location.host}/main-ws"
   }
 
   val httpProtocol = dom.document.location.protocol

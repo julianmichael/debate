@@ -27,9 +27,6 @@ object ConnectedLobbyPage {
       getStateUpdateFromResponse = responseState => _ => responseState
     )
 
-  val wsProtocol = {
-    if (dom.document.location.protocol == "https:") "wss:" else "ws:"
-  }
   val debatePanel = new DebatePanel(S, V)
   val facilitatorPanel = new FacilitatorPanel(S, V)
 
@@ -39,7 +36,7 @@ object ConnectedLobbyPage {
       participantId: String
   ): String = {
     val prefix = if (isOfficial) "official" else "practice"
-    s"$wsProtocol//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
+    s"${Helpers.wsProtocol()}//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
   val httpProtocol = dom.document.location.protocol

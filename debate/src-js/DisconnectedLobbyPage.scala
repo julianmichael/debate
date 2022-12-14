@@ -144,11 +144,12 @@ object DisconnectedLobbyPage {
       val selectableStyle =
         if (canEnterRoom) S.simpleSelectable
         else S.simpleUnselectable
+      val status = roomMetadata.status
       <.div(S.optionBox, selectableStyle)(
         <.div(S.optionTitle)(
           roomMetadata.name,
           " ",
-          <.span(statusStyle)(s"($roomMetadata.status)")
+          <.span(statusStyle)(s"($status)")
         ),
         <.div(
           <.strong("Assigned: "),

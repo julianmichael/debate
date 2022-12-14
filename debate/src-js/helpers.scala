@@ -1,18 +1,11 @@
 package debate
 
-import org.scalajs.dom
-
-import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.extra.StateSnapshot
-
-import scalacss.ScalaCssReact._
 
 import cats.Foldable
 import cats.Functor
 import cats.implicits._
-
-import debate.RoomMetadata
+import org.scalajs.dom
 
 case class ConnectionSpec(
     isOfficial: Boolean,
@@ -31,5 +24,9 @@ object Helpers {
 
   def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = {
     fa.map(x => Vector(<.span(x))).intercalate(Vector(<.span(", ")))
+  }
+
+  def wsProtocol() = {
+    if (dom.document.location.protocol == "https:") "wss:" else "ws:"
   }
 }
