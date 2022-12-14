@@ -22,6 +22,9 @@ import org.http4s.server.websocket._
 import jjm.io.FileUtil
 import java.nio.file.Files
 
+import scala.concurrent.duration._
+import cats.effect.Timer
+
 /** The server state for a debate room.
   *
   * @param debate
@@ -176,13 +179,14 @@ case class DebateStateManager(
 
   }
 
-  def createWebsocket(roomName: String, participantName: String) = for {
+  def createWebsocket(roomName: String, participantName: String)(implicit timer: Timer[IO]) = for {
     _ <- addParticipant(roomName, participantName)
     room <- rooms.get.map(_.apply(roomName))
     outStream = (
       Stream
-        .emit[IO, DebateState](room.debate)
-        .merge(room.channel.subscribe(100))
+        .emit[IO, Option[DebateState]](Some(room.debate))
+        .merge(room.channel.subscribe(100).map(Some(_)))
+        .merge(Stream.awakeEvery[IO](30.seconds).map(_ => None))
         .map(pickleToWSFrame(_))
         .through(filterCloseFrames)
       // .merge(timeUpdateStream)

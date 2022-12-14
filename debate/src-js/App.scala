@@ -31,7 +31,7 @@ object App {
     )
 
   val MainWebSocket =
-    WebSocketConnection2.forJsonString[MainChannelRequest, Lobby]
+    WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
 
   val mainWebsocketUri: String = {
     s"${Helpers.wsProtocol()}//${dom.document.location.host}/main-ws"
@@ -81,11 +81,7 @@ object App {
           MainWebSocket.make(
             mainWebsocketUri,
             onOpen = _ => Callback(println("Main socket opened.")),
-            onMessage = (_, msg) =>
-              msg
-                .flatMap(response => lobby.setState(response).asAsyncCallback)
-                .toCallback
-            // lobby.setState(msg)
+            onMessage = (_, msg: Option[Lobby]) => msg.foldMap(lobby.setState(_))
           ) {
             case MainWebSocket.Disconnected(_, reason) =>
               <.div(S.loading)(

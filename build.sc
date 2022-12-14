@@ -17,7 +17,7 @@ val kindProjectorVersion = "0.13.2"
 
 // scala deps
 // my libs
-val jjmVersion = "0.2.2-SNAPSHOT"
+val jjmVersion = "0.2.2"
 // other deps
 val circeVersion = "0.13.0"
 val declineVersion = "1.0.0"
