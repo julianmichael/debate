@@ -182,22 +182,25 @@ object JudgeFeedback
   */
 sealed trait DebateTurnType {
   def charLimit: Int
+  def quoteLimit: Option[Int]
   def rolesRemaining: Set[Role]
 }
 object DebateTurnType {
   case class SimultaneousSpeechesTurn(
       remainingDebaters: Set[Int],
-      charLimit: Int
+      charLimit: Int,
+      quoteLimit: Option[Int]
   ) extends DebateTurnType {
     def rolesRemaining = remainingDebaters.map(Debater(_))
   }
-  case class DebaterSpeechTurn(debater: Int, charLimit: Int)
+  case class DebaterSpeechTurn(debater: Int, charLimit: Int, quoteLimit: Option[Int])
       extends DebateTurnType {
     def rolesRemaining = Set(Debater(debater))
   }
   case class JudgeFeedbackTurn(reportBeliefs: Boolean, charLimit: Int)
       extends DebateTurnType {
     def rolesRemaining = Set(Judge)
+    def quoteLimit = None
   }
 }
 

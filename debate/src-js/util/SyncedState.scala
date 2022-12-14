@@ -27,7 +27,7 @@ import io.circe.Decoder
   */
 class SyncedState[Request, Response, State](
     sendRequest: (WebSocket, Request) => Callback,
-    readResponse: MessageEvent => Response,
+    readResponse: MessageEvent => Option[Response],
     getRequestFromState: State => Request,
     getStateUpdateFromResponse: Response => Option[State] => State,
 ) {
@@ -75,11 +75,13 @@ class SyncedState[Request, Response, State](
             scope.setState(Disconnected(connect(props), msg)).runNow()
           }
           socket.onmessage = { (event: MessageEvent) =>
-            val response = readResponse(event)
-            val cb = scope.modState(
-              FullState.connectedState.composeLens(ConnectedState.stateOpt)
-                .modify(curState => Some(getStateUpdateFromResponse(response)(curState)))
-            ) >> props.onMessage(send, response)
+            // do nothing if the message was None, which means it's a keepalive
+            val cb = readResponse(event).foldMap { response => 
+              scope.modState(
+                FullState.connectedState.composeLens(ConnectedState.stateOpt)
+                  .modify(curState => Some(getStateUpdateFromResponse(response)(curState)))
+              ) >> props.onMessage(send, response)
+            }
             cb.runNow()
           }
           socket.onclose = { (event: CloseEvent) =>
@@ -151,7 +153,7 @@ object SyncedState {
 
   def forString[Request, Response, State](
     sendRequest: (WebSocket, Request) => Callback,
-    readResponse: String => Response,
+    readResponse: String => Option[Response],
     getRequestFromState: State => Request,
     getStateUpdateFromResponse: Response => Option[State] => State
   ) = new SyncedState[
@@ -172,7 +174,7 @@ object SyncedState {
     Request, Response, State
   ](
     sendRequest = (socket: WebSocket, r: Request) => Callback(socket.send(r.asJson.noSpaces)),
-    readResponse = (event: MessageEvent) => io.circe.parser.decode[Response](event.data.toString).toOption.get,
+    readResponse = (event: MessageEvent) => io.circe.parser.decode[Option[Response]](event.data.toString).toOption.get,
     getRequestFromState = getRequestFromState,
     getStateUpdateFromResponse = getStateUpdateFromResponse
   )

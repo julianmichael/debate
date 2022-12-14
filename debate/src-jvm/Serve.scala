@@ -32,6 +32,8 @@ import jjm.io.HttpUtil
 import jjm.DotKleisli
 import java.nio.file.Files
 
+import scala.concurrent.duration._
+
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
   */
@@ -327,11 +329,14 @@ object Serve
       practiceRooms <- practiceDebates.getRoomList
       outStream = (
         Stream
-          .emit[IO, Lobby](
-            Lobby(debaters, officialRooms, practiceRooms)
+          .emit[IO, Option[Lobby]](
+            Some(Lobby(debaters, officialRooms, practiceRooms))
           ) // send the current set of debaters and rooms on connect
           .merge(
-            mainChannel.subscribe(100)
+            Stream.awakeEvery[IO](30.seconds).map(_ => None),
+          ) // send a heartbeat every 30s
+          .merge(
+            mainChannel.subscribe(100).map(Some(_))
           ) // and subscribe to the main channel
           .map(pickleToWSFrame(_))
           .through(
