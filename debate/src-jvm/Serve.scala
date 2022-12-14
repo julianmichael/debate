@@ -147,7 +147,11 @@ object Serve
 
 
   def cleanStoryText(story: String): String = {
+    val newlineStandin = "###NEWLINE####"
     story.replaceAll("\n\n\n+", "\n\n")
+      .replaceAll("\n\n", newlineStandin)
+      .replaceAll("\n", " ")
+      .replaceAll(newlineStandin, "\n\n")
   }
 
   def readQuALITY(blocker: Blocker): IO[Map[String, QuALITYStory]] = for {

@@ -136,6 +136,8 @@ object StoryPanel {
     addSpan: ESpan => Callback
   )
 
+  val minimumSegmentLength = 100
+
   val Component = ScalaComponent
     .builder[Props]("Story Panel")
     .render { $ =>
@@ -143,7 +145,7 @@ object StoryPanel {
         val initSegs = NonEmptyList.of(emptySeg)
         val segments = $.props.tokens.zipWithIndex.foldLeft(initSegs) {
             case (NonEmptyList(headSeg, tailSegs), token) =>
-                if (token._1 == "\n" && headSeg.length > 50) {
+                if (token._1 == "\n" && headSeg.length > minimumSegmentLength) {
                     NonEmptyList(emptySeg, headSeg :: tailSegs)
                 } else NonEmptyList(headSeg :+ token, tailSegs)
         }.reverse
