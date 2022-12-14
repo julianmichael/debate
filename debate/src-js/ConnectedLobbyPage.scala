@@ -18,12 +18,7 @@ import jjm.io.HttpUtil
 
 object ConnectedLobbyPage {
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
-  implicit class ClassSetInterpolator(val sc: StringContext) extends AnyVal {
-    def c(args: Any*) = {
-      // concatenate everything: use the built-in S method (which happens to be used in the S interpolator)
-      ^.classSet1(sc.s(args: _*))
-    }
-  }
+  import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
   val SyncedDebate = SyncedState

@@ -25,7 +25,7 @@ class FacilitatorPanel(
     val V: jjm.ui.View
 ) {
 
-  import App.ClassSetInterpolator
+  import Helpers.ClassSetInterpolator
 
   val RoundTypeList =
     ListConfig[DebateRoundType](DebateRoundType.SequentialSpeechesRound(500))

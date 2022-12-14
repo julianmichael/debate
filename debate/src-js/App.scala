@@ -22,15 +22,6 @@ import jjm.OrWrapped
 
 /** The main webapp. */
 object App {
-  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
-
-  implicit class ClassSetInterpolator(val sc: StringContext) extends AnyVal {
-    def c(args: Any*) = {
-      // concatenate everything: use the built-in S method (which happens to be used in the S interpolator)
-      ^.classSet1(sc.s(args: _*))
-    }
-  }
-
   val DebateWebSocket =
     WebSocketConnection2.forJsonString[DebateState, DebateState]
   val SyncedDebate = SyncedState
@@ -111,7 +102,7 @@ object App {
               LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
                 connectionSpecOpt.value match {
                   case None =>
-                    Helpers.makeLobbyPageWhenNotConnected(
+                    DisconnectedLobbyPage.make(
                       lobby = lobby,
                       sendToMainChannel = sendToMainChannel,
                       connectionSpecOpt = connectionSpecOpt
