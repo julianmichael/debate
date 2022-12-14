@@ -110,18 +110,6 @@ case class DebateStateManager(
     _ <- rooms.update(_ - roomName)
     _ <- IO(Files.delete(saveDir.resolve(roomName + ".json")))
     _ <- pushUpdate
-    // roomOpt <- rooms.get.map(_.get(roomName))
-    // _ <- IO(roomOpt.nonEmpty).ifM(
-    //   ifTrue = IO.unit,
-    //   ifFalse = DebateRoom
-    //     .create()
-    //     .flatMap(room =>
-    //       rooms.update(rooms =>
-    //         if (rooms.contains(roomName)) rooms
-    //         else rooms + (roomName -> room)
-    //       ) >> pushUpdate
-    //     )
-    // )
   } yield ()
 
   def addParticipant(roomName: String, participantId: String) = for {
@@ -189,7 +177,6 @@ case class DebateStateManager(
         .merge(Stream.awakeEvery[IO](30.seconds).map(_ => None))
         .map(pickleToWSFrame(_))
         .through(filterCloseFrames)
-      // .merge(timeUpdateStream)
     )
     res <- WebSocketBuilder[IO].build(
       send = outStream,

@@ -129,7 +129,6 @@ object App {
   }
 
   final def main(args: Array[String]): Unit = jQuery { () =>
-    // get permission for notifications. TODO: only add this in when I'm ready to actually use notifications
     dom.experimental.Notification.requestPermission(result =>
       dom.console.log(result)
     )
