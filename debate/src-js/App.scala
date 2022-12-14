@@ -2,8 +2,6 @@ package debate
 
 import annotation.unused
 
-// import scalajs.js.typedarray.TypedArrayBuffer
-
 import org.scalajs.dom
 
 import org.scalajs.jquery.jQuery
@@ -19,8 +17,6 @@ import scalacss.ScalaCssReact._
 import scala.util.Try
 
 import cats.~>
-import cats.Foldable
-import cats.Functor
 import cats.implicits._
 
 import debate.util._
@@ -30,18 +26,13 @@ import jjm.OrWrapped
 
 /** The main webapp. */
 object App {
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
 
   implicit class ClassSetInterpolator(val sc: StringContext) extends AnyVal {
     def c(args: Any*) = {
       // concatenate everything: use the built-in S method (which happens to be used in the S interpolator)
       ^.classSet1(sc.s(args: _*))
     }
-  }
-
-  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
-
-  def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = {
-    fa.map(x => Vector(<.span(x))).intercalate(Vector(<.span(", ")))
   }
 
   val wsProtocol = {
@@ -93,26 +84,6 @@ object App {
 
   import jjm.ui.LocalState
 
-  case class ConnectionSpec(
-      isOfficial: Boolean,
-      roomName: String,
-      participantName: String
-  )
-
-  sealed trait LobbyTab extends Product with Serializable {
-    import LobbyTab._
-    override def toString = this match {
-      case MyDebates          => "My Debates"
-      case AllOfficialDebates => "All Official Debates"
-      case PracticeDebates    => "Practice Debates"
-    }
-  }
-  object LobbyTab {
-    case object MyDebates extends LobbyTab
-    case object AllOfficialDebates extends LobbyTab
-    case object PracticeDebates extends LobbyTab
-  }
-
   val defaultRoomName: String =
     jQuery("#defaultRoomName").attr("value").toOption.getOrElse("")
 
@@ -123,7 +94,6 @@ object App {
 
   // instantiate the HOCs we need
 
-  val LocalLobbyTab = new LocalState[LobbyTab]
   val LocalString = new LocalState[String]
   val LocalDouble = new LocalState[Double]
   val LocalStringOpt = new LocalState[Option[String]]
@@ -173,7 +143,7 @@ object App {
         S.simpleSelected.when(isCurrent)
       )(
         <.div(S.optionTitle)("Facilitators"),
-        commaSeparatedSpans(facilitators.toList.sorted).toVdomArray,
+        Helpers.commaSeparatedSpans(facilitators.toList.sorted).toVdomArray,
         ^.onClick --> tryAssumingRole(Facilitator)
       )
     }
@@ -188,7 +158,7 @@ object App {
         S.simpleSelected.when(isCurrent)
       )(
         <.div(S.optionTitle)("Observers"),
-        commaSeparatedSpans(observers.toList.sorted).toVdomArray,
+        Helpers.commaSeparatedSpans(observers.toList.sorted).toVdomArray,
         ^.onClick --> tryAssumingRole(Observer)
       )
     }
@@ -237,237 +207,11 @@ object App {
               LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
                 connectionSpecOpt.value match {
                   case None =>
-                    def enterRoom(
-                        isOfficial: Boolean,
-                        roomName: String,
-                        participantName: String
-                    ) =
-                      connectionSpecOpt.setState(
-                        Some(
-                          ConnectionSpec(isOfficial, roomName, participantName)
-                        )
-                      )
-                    // TODO change page title? maybe do this on mount for the debate room component instead
-                    // >> Callback(dom.window.document.title = makePageTitle(roomName)) >>
-                    // Callback(dom.window.history.replaceState("", makePageTitle(roomName), roomName))
-                    // roomName.setState(roomNameLive.value)
-
-                    val noProfileString = "(select profile)"
-                    val profileCookieId = "debate-profile"
-
-                    LocalString.make(initialValue =
-                      getCookie(profileCookieId).getOrElse("")
-                    ) { userName =>
-                      <.div(S.lobbyContainer, S.spaceyContainer)(
-                        <.div(c"form-group row")(
-                          <.label(c"col-sm-2 col-form-label")("Profile:"),
-                          V.Select.String.modFull(
-                            TagMod(c"col-sm-10", S.customSelect)
-                          )(
-                            choices =
-                              noProfileString +: lobby.value.trackedDebaters.toList.sorted,
-                            curChoice =
-                              if (
-                                lobby.value.trackedDebaters
-                                  .contains(userName.value)
-                              ) {
-                                userName.value
-                              } else noProfileString,
-                            setChoice = (name: String) => {
-                              val adjustedName =
-                                if (name == noProfileString) "" else name
-                              userName.setState(adjustedName) >> Callback(
-                                setCookie(
-                                  profileCookieId,
-                                  adjustedName,
-                                  expires = 5
-                                )
-                              )
-                            }
-                          )
-                        ),
-                        V.LiveTextField.String.mod(
-                          span = TagMod(c"form-group row", Styles.adminOnly),
-                          label = c"col-sm-2 col-form-label",
-                          input = c"col-sm-10 form-control"
-                        )(userName, labelOpt = Some("Name: ")),
-                        <.div(c"form-group row", Styles.adminOnly) {
-                          val name = userName.value
-                          val isDisabled =
-                            (lobby.value.trackedDebaters + "" + "(no profile)")
-                              .contains(name)
-                          <.button(c"btn btn-primary btn-block")(
-                            "Create profile",
-                            ^.disabled := isDisabled,
-                            (^.onClick --> sendToMainChannel(
-                              RegisterDebater(userName.value)
-                            )).when(!isDisabled)
-                          )
-                        },
-                        <.div(c"form-group row", Styles.adminOnly) {
-                          val name = userName.value
-                          val isEnabled =
-                            lobby.value.trackedDebaters.contains(name)
-                          <.button(c"btn btn-danger btn-block")(
-                            "Delete profile",
-                            ^.disabled := !isEnabled,
-                            (^.onClick --> sendToMainChannel(
-                              RemoveDebater(userName.value)
-                            )).when(isEnabled)
-                          )
-                        },
-                        LocalLobbyTab.make(LobbyTab.MyDebates) { lobbyTab =>
-                          import LobbyTab._
-                          val myDebates = lobby.value.officialRooms
-                            .filter(
-                              _.assignedParticipants.contains(userName.value)
-                            )
-                          val isOfficial = lobbyTab.value match {
-                            case PracticeDebates => false
-                            case _               => true
-                          }
-                          val currentRooms = lobbyTab.value match {
-                            case MyDebates          => myDebates
-                            case AllOfficialDebates => lobby.value.officialRooms
-                            case PracticeDebates    => lobby.value.practiceRooms
-                          }
-                          <.div(c"card", ^.textAlign.center)(
-                            <.div(c"card-header")(
-                              <.ul(c"nav nav-fill nav-tabs card-header-tabs")(
-                                List(
-                                  MyDebates,
-                                  AllOfficialDebates,
-                                  PracticeDebates
-                                ).toVdomArray(tab =>
-                                  <.li(c"nav-item")(
-                                    <.a(
-                                      ^.classSet1(
-                                        "nav-link",
-                                        "active" -> (tab == lobbyTab.value)
-                                      )
-                                    )(
-                                      ^.href := "#",
-                                      ^.onClick --> lobbyTab.setState(tab),
-                                      tab.toString
-                                    )
-                                  )
-                                )
-                              )
-                            ),
-                            LocalString.make("") { roomNameLive =>
-                              val canEnter =
-                                roomNameLive.value.nonEmpty && userName.value.nonEmpty
-                              val enter =
-                                if (canEnter)
-                                  enterRoom(
-                                    isOfficial,
-                                    roomNameLive.value,
-                                    userName.value
-                                  )
-                                else Callback.empty
-                              <.div(c"card-body", S.spaceySubcontainer)(
-                                <.div(c"input-group", ^.width.auto)(
-                                  V.LiveTextField.String.modInput(
-                                    input = TagMod(
-                                      c"form-control",
-                                      ^.onKeyDown ==> (
-                                        (e: ReactKeyboardEvent) =>
-                                          if (
-                                            e.keyCode == dom.ext.KeyCode.Enter
-                                          ) enter
-                                          else Callback.empty
-                                      )
-                                    )
-                                  )(
-                                    roomNameLive,
-                                    placeholderOpt = Some("Room")
-                                  ),
-                                  <.div(c"input-group-append")(
-                                    <.button(c"btn btn-primary")(
-                                      (
-                                        (if (
-                                           currentRooms.exists(
-                                             _.name == roomNameLive.value
-                                           )
-                                         ) "Join"
-                                         else "Create") +
-                                          " " +
-                                          (if (isOfficial) "Official Debate"
-                                           else "Practice Debate")
-                                      ),
-                                      ^.`type` := "button",
-                                      ^.disabled := !canEnter,
-                                      ^.onClick --> enter
-                                    )
-                                  )
-                                ).when(lobbyTab.value != MyDebates),
-                                <.div("No rooms to show.")
-                                  .when(currentRooms.isEmpty),
-                                currentRooms.toVdomArray {
-                                  case RoomMetadata(
-                                        roomName,
-                                        assignedParticipants,
-                                        currentParticipants,
-                                        status
-                                      ) =>
-                                    val canEnterRoom =
-                                      userName.value.nonEmpty && !currentParticipants
-                                        .contains(userName.value)
-                                    val statusStyle = {
-                                      import RoomStatus._
-                                      status match {
-                                        case SettingUp => S.settingUpStatusLabel
-                                        case InProgress =>
-                                          S.inProgressStatusLabel
-                                        case Complete => S.completeStatusLabel
-                                      }
-                                    }
-                                    val selectableStyle =
-                                      if (canEnterRoom) S.simpleSelectable
-                                      else S.simpleUnselectable
-                                    <.div(S.optionBox, selectableStyle)(
-                                      <.div(S.optionTitle)(
-                                        roomName,
-                                        " ",
-                                        <.span(statusStyle)(s"($status)")
-                                      ),
-                                      <.div(
-                                        <.strong("Assigned: "),
-                                        commaSeparatedSpans(
-                                          assignedParticipants.toList.sorted
-                                        ).toVdomArray
-                                      ).when(assignedParticipants.nonEmpty),
-                                      <.div(
-                                        <.strong("Present: "),
-                                        commaSeparatedSpans(
-                                          currentParticipants.toList.sorted
-                                        ).toVdomArray
-                                      ).when(currentParticipants.nonEmpty),
-                                      <.button(
-                                        c"btn btn-block btn-danger",
-                                        S.adminOnly
-                                      )(
-                                        "Delete room",
-                                        ^.onClick ==> ((e: ReactMouseEvent) => {
-                                          e.stopPropagation();
-                                          sendToMainChannel(
-                                            DeleteRoom(isOfficial, roomName)
-                                          )
-                                        })
-                                      ),
-                                      (^.onClick --> enterRoom(
-                                        isOfficial,
-                                        roomName,
-                                        userName.value
-                                      )).when(canEnterRoom)
-                                    )
-                                }
-                              )
-                            }
-                          )
-                        }
-                      )
-                    }
+                    Helpers.makeLobbyPageWhenNotConnected(
+                      lobby = lobby,
+                      sendToMainChannel = sendToMainChannel,
+                      connectionSpecOpt = connectionSpecOpt
+                    )
                   case Some(ConnectionSpec(isOfficial, roomName, userName)) =>
                     SyncedDebate.make(
                       getDebateWebsocketUri(isOfficial, roomName, userName),
