@@ -357,8 +357,10 @@ object Styles extends jjm.ui.View.Styles {
 
   val inDebateRoleBox = style(
     backgroundColor.white,
+    flexBasis := "0",
+    flexGrow(1),
     // width(100 %%),
-    fontSize(14 pt),
+    fontSize(12 pt),
     textAlign.left,
     borderRadius(commonBorderRadius),
     // margin(mainHalfPadding),
@@ -395,8 +397,6 @@ object Styles extends jjm.ui.View.Styles {
 
   val answerBox = styleF.int(0 to 4)(i =>
     styleS(
-      flexBasis := "0",
-      flexGrow(1),
       inDebateRoleBox,
       color(answerColors(i))
     )
@@ -409,8 +409,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val answerBoxCurrent = styleF.int(0 to 4)(i =>
     styleS(
-      width(75 %%),
-      flexGrow(1),
+      // flexGrow(1),
       inDebateRoleBox,
       color.white,
       answerBg(i)
