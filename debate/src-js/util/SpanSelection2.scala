@@ -53,11 +53,11 @@ object SpanSelection2 {
 
   class Backend(scope: BackendScope[Props, Status]) {
 
-    def hover(endpoint: Int) =
-      scope.modState {
-        case Selecting(anchor, _) => Selecting(anchor, endpoint)
-        case x                    => x
-      }
+    def hover(state: Status)(endpoint: Int) = state match {
+        case Selecting(_, `endpoint`) => Callback.empty
+        case NoSpan                   => Callback.empty
+        case Selecting(anchor, _)     => scope.setState(Selecting(anchor, endpoint))
+    }
 
     def touch(props: Props, state: Status)(wordIndex: Int): Callback =
       state match {
@@ -75,7 +75,7 @@ object SpanSelection2 {
       props.render(
         state,
         Context(
-          hover,
+          hover(state),
           touch(props, state),
           cancel
         )

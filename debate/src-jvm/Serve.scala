@@ -170,7 +170,7 @@ object Serve
   } yield storiesByArticleId
 
   def initializeDebate(qualityDataset: Map[String, QuALITYStory])(setupSpec: DebateSetupSpec): IO[DebateSetup] = {
-    val tokenize = bigTokenize(_)
+    val tokenize = simpleTokenize(_)
     val sourceMaterialIO = setupSpec.sourceMaterial match {
       case CustomSourceMaterialSpec(title, contents) =>
         IO.pure(CustomSourceMaterial(title, tokenize(contents)))

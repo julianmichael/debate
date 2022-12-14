@@ -1,9 +1,5 @@
 package debate
 
-import jjm.implicits._
-
-import scalajs.js
-
 import org.scalajs.jquery.jQuery
 
 import japgolly.scalajs.react._
@@ -15,18 +11,12 @@ import cats.implicits._
 
 import org.scalajs.dom.ext.KeyCode
 
-import cats.data.NonEmptyList
-
-import jjm.ling
-import jjm.ling.Span
 import jjm.ling.ESpan
 
 import jjm.ui.Rgba
 import jjm.ui.LocalState
 
 import java.time.{Instant, ZoneId}
-
-import debate.util._
 
 class DebatePanel(
     S: Styles.type,
@@ -38,7 +28,6 @@ class DebatePanel(
   val LocalBool = new LocalState[Boolean]
 
   val curHighlightColor = Rgba(255, 255, 0, 0.8)
-  val midHighlightColor = Rgba(255, 128, 0, 0.8)
   val spanColorsByDebaterIndex = Map(
     0 -> Rgba(0, 0, 139, 0.4),
     1 -> Rgba(139, 0, 0, 0.4),
@@ -51,103 +40,6 @@ class DebatePanel(
     case Facilitator    => Rgba(285, 293, 200, 0.5)
     case Judge          => Rgba(0, 100, 0, 0.4)
     case Debater(index) => spanColorsByDebaterIndex(index)
-  }
-
-  /** Render a list of tokens into HTML, highlighting subspans of that list with
-    * various colors.
-    *
-    * @param tokens
-    * @param highlights
-    * @param getRenderer
-    * @return
-    *   a VdomArray of token spans
-    */
-  def renderHighlightedTokens(
-      tokens: Vector[String],
-      highlights: Vector[(Span, Rgba)],
-      getRenderer: Int => (VdomTag => VdomTag) = Map()
-  ) = {
-    case class ColorLayering(rgba: Rgba, add: Boolean) // false == remove
-
-    val colorLayerings = highlights
-      .flatMap { case (span, color) =>
-        Vector(
-          span.begin -> ColorLayering(color, true),
-          span.endExclusive -> ColorLayering(color, false)
-        )
-      }
-      .sortBy(_._1) :+ (tokens.length -> ColorLayering(
-      Rgba.transparent,
-      true
-    )) // final fake color stack to get it to render out the full content
-    case class Acc(
-        remainingTokens: Vector[String],
-        curOffset: Int,
-        colorStack: Vector[Rgba],
-        spans: Vector[VdomTag]
-    )
-    colorLayerings
-      .foldLeft(Acc(tokens, 0, Vector(), Vector())) {
-        case (
-              Acc(text, offset, colors, spans),
-              (index, ColorLayering(color, shouldAdd))
-            ) =>
-          val nextColorSet =
-            if (shouldAdd) colors :+ color
-            else colors.remove(colors.indexOf(color))
-          require(index >= offset) // should never fail bc of sorting property
-          if (index == offset) {
-            Acc(text, offset, nextColorSet, spans)
-          } else {
-            val nextIndex = index - offset
-            val colorStr = NonEmptyList(Rgba.transparent, colors.toList)
-              .reduce((x: Rgba, y: Rgba) => x add y)
-              .toColorStyleString
-            val endingColorStr =
-              if (shouldAdd) colorStr
-              else {
-                NonEmptyList(Rgba.transparent, nextColorSet.toList)
-                  .reduce((x: Rgba, y: Rgba) => x add y)
-                  .toColorStyleString
-              }
-            Acc(
-              text.drop(nextIndex),
-              index,
-              nextColorSet,
-              spans ++ text.take(nextIndex).zipWithIndex.flatMap {
-                case (token, i) =>
-                  val nextSpaceColorStr =
-                    if (i == nextIndex - 1) endingColorStr else colorStr
-                  if (token == "\n")
-                    Vector(<.br(^.key := s"word-${i + offset}"))
-                  else
-                    Vector[Option[VdomTag]](
-                      Option(
-                        getRenderer(i + offset)(
-                          <.span(
-                            ^.key := s"word-${i + offset}",
-                            ^.style := js.Dynamic
-                              .literal("backgroundColor" -> colorStr),
-                            token
-                          )
-                        )
-                      ),
-                      Option(
-                        <.span(
-                          ^.key := s"space-${i + offset}",
-                          ^.style := js.Dynamic.literal(
-                            "backgroundColor" -> nextSpaceColorStr
-                          ),
-                          " "
-                        )
-                      ).filter(_ => i + offset != tokens.size - 1)
-                    ).flatten[VdomTag]
-              }
-            )
-          }
-      }
-      .spans
-      .toVdomArray
   }
 
   /** Show whose turn it is. */
@@ -252,7 +144,6 @@ class DebatePanel(
     }
 
     def timestampHTML(timestamp: Long) = {
-      println(debate.startTime)
       debate.startTime.whenDefined { startTime =>
         val relTime = timestamp - startTime
         val humanReadableTimeUTC = {
@@ -293,7 +184,7 @@ class DebatePanel(
       <.span(
         <.span(S.quoteText)(
           breakNewlines(
-            ling.Text.renderSpan(setup.sourceMaterial.contents, span)
+            Helpers.renderSpan(setup.sourceMaterial.contents, span)
           )
         ),
         <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
@@ -424,14 +315,14 @@ class DebatePanel(
       speechSegments.foldMap {
         case SpeechSegment.Text(text) => text.size
         case SpeechSegment.Quote(span) =>
-          ling.Text.renderSpan(setup.sourceMaterial.contents, span).size
+          Helpers.renderSpan(setup.sourceMaterial.contents, span).size
       }
     }
     def getQuoteLength(speechSegments: Vector[SpeechSegment]) = {
       speechSegments.foldMap {
         case SpeechSegment.Text(_) => 0
         case SpeechSegment.Quote(span) =>
-          ling.Text.renderSpan(setup.sourceMaterial.contents, span).size
+          Helpers.renderSpan(setup.sourceMaterial.contents, span).size
       }
     }
 
@@ -472,35 +363,42 @@ class DebatePanel(
       } ++ curMessageSpans.value.toVector.map(_ -> curHighlightColor)
 
       <.div(S.debatePanel, S.spaceySubcontainer)(
-        <.div(S.debateSubpanel)(
-          SpanSelection2.make(
-            true,
-            (ispan => curMessageSpans.modState(_ + ispan.toExclusive))
-          ) { case (status, context) =>
-            val selectingSpanColorOpt =
-              SpanSelection2.Status.selecting.getOption(status).map {
-                case SpanSelection2.Selecting(begin, end) =>
-                  ESpan(begin, end + 1) -> midHighlightColor
-              }
-            val allHighlights = highlights ++ selectingSpanColorOpt
+        // <.div(S.debateSubpanel)(
+        //   SpanSelection2.make(
+        //     true,
+        //     (ispan => curMessageSpans.modState(_ + ispan.toExclusive))
+        //   ) { case (status, context) =>
+        //     val selectingSpanColorOpt =
+        //       SpanSelection2.Status.selecting.getOption(status).map {
+        //         case SpanSelection2.Selecting(begin, end) =>
+        //           ESpan(begin, end + 1) -> midHighlightColor
+        //       }
+        //     val allHighlights = highlights ++ selectingSpanColorOpt
 
-            <.div(S.sourceMaterialSubpanel)(
-              renderHighlightedTokens(
-                setup.sourceMaterial.contents,
-                allHighlights,
-                setup.sourceMaterial.contents.indices.toVector
-                  .map(i =>
-                    i -> ((el: VdomTag) =>
-                      el(
-                        ^.onMouseMove --> context.hover(i),
-                        ^.onClick --> context.touch(i)
-                      )
-                    )
-                  )
-                  .toMap
-              )
-            )
-          }
+        //     <.div(S.sourceMaterialSubpanel)(
+        //       renderHighlightedTokens(
+        //         setup.sourceMaterial.contents,
+        //         allHighlights,
+        //         setup.sourceMaterial.contents.indices.toVector
+        //           .map(i =>
+        //             i -> ((el: VdomTag) =>
+        //               el(
+        //                 ^.onMouseMove --> context.hover(i),
+        //                 ^.onClick --> context.touch(i)
+        //               )
+        //             )
+        //           )
+        //           .toMap
+        //       )
+        //     )
+        //   }
+        // ).when(shouldShowSourceMaterial),
+        StoryPanel.Component(
+          StoryPanel.Props(
+            setup.sourceMaterial.contents,
+            highlights,
+            span => curMessageSpans.modState(_ + span)
+          )
         ).when(shouldShowSourceMaterial),
         LocalQuotingMessage.make(
           curMessageSpans,
