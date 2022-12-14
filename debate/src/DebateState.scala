@@ -186,11 +186,12 @@ sealed trait DebateTurnType {
 object DebateTurnType {
   case class SimultaneousSpeechesTurn(
       remainingDebaters: Set[Int],
-      charLimit: Int
+      charLimit: Int,
+      quoteLimit: Option[Int]
   ) extends DebateTurnType {
     def rolesRemaining = remainingDebaters.map(Debater(_))
   }
-  case class DebaterSpeechTurn(debater: Int, charLimit: Int)
+  case class DebaterSpeechTurn(debater: Int, charLimit: Int, quoteLimit: Option[Int])
       extends DebateTurnType {
     def rolesRemaining = Set(Debater(debater))
   }

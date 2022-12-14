@@ -19,6 +19,7 @@ import jjm.OrWrapped
 import monocle.function.{all => Optics}
 
 import cats.implicits._
+import monocle.Iso
 
 class FacilitatorPanel(
     val S: Styles.type,
@@ -28,7 +29,7 @@ class FacilitatorPanel(
   import Helpers.ClassSetInterpolator
 
   val RoundTypeList =
-    ListConfig[DebateRoundType](DebateRoundType.SequentialSpeechesRound(500))
+    ListConfig[DebateRoundType](DebateRoundType.SequentialSpeechesRound(500, None))
   val RoundTypeConfig = SumConfig[DebateRoundType]()
   val ScoringFunctionConfig = SumConfig[ScoringFunction]()
   val DebateSetupSpecLocal = new LocalState[DebateSetupSpec]
@@ -57,6 +58,8 @@ class FacilitatorPanel(
 
   val ProfileOptSelect = new V.OptionalSelect[String](show = _.toString)
 
+  val defaultQuoteLimit = 100
+
   /** Config panel for setting a list of round types. */
   def roundTypeSelect(
       roundTypes: StateSnapshot[Vector[DebateRoundType]],
@@ -70,7 +73,7 @@ class FacilitatorPanel(
         <.span(remove, " "), // (S.inputRowItem)
         RoundTypeConfig.mod(div = S.inputRowContents)(roundType)(
           "Simultaneous Speeches" -> SumConfigOption(
-            DebateRoundType.SimultaneousSpeechesRound(500),
+            DebateRoundType.SimultaneousSpeechesRound(500, None),
             DebateRoundType.simultaneousSpeechesRound
           ) { simulSpeeches =>
             VdomArray(
@@ -80,12 +83,29 @@ class FacilitatorPanel(
                   simulSpeeches.zoomStateL(
                     DebateRoundType.SimultaneousSpeechesRound.charLimit
                   )
-                )
+                ),
+              ),
+              <.div(S.row)(
+                V.Checkbox.mod(label = S.inputLabel, span = TagMod(c"ml-3 pl-3 my-auto"))(
+                  simulSpeeches.zoomStateL(
+                    DebateRoundType.SimultaneousSpeechesRound.quoteLimit.composeIso(
+                      Iso[Option[Int], Boolean](_.nonEmpty)(b => if(b) Some(defaultQuoteLimit) else None)
+                    )
+                  ),
+                  Some("Quote character limit")
+                ),
+                V.NumberField.mod(input = TagMod(c"form-control", ^.disabled := simulSpeeches.value.quoteLimit.isEmpty))(
+                  simulSpeeches.zoomStateL(
+                    DebateRoundType.SimultaneousSpeechesRound.quoteLimit.composeIso(
+                      Iso[Option[Int], Int](_.getOrElse(defaultQuoteLimit))(Some(_))
+                    )
+                  )
+                ),
               )
             )
           },
           "Sequential Speeches" -> SumConfigOption(
-            DebateRoundType.SequentialSpeechesRound(500),
+            DebateRoundType.SequentialSpeechesRound(500, None),
             DebateRoundType.sequentialSpeechesRound
           ) { seqSpeeches =>
             VdomArray(
@@ -96,6 +116,23 @@ class FacilitatorPanel(
                     DebateRoundType.SequentialSpeechesRound.charLimit
                   )
                 )
+              ),
+              <.div(S.row)(
+                V.Checkbox.mod(label = S.inputLabel, span = TagMod(c"ml-3 pl-3 my-auto"))(
+                  seqSpeeches.zoomStateL(
+                    DebateRoundType.SequentialSpeechesRound.quoteLimit.composeIso(
+                      Iso[Option[Int], Boolean](_.nonEmpty)(b => if(b) Some(defaultQuoteLimit) else None)
+                    )
+                  ),
+                  Some("Quote character limit")
+                ),
+                V.NumberField.mod(input = TagMod(c"form-control", ^.disabled := seqSpeeches.value.quoteLimit.isEmpty))(
+                  seqSpeeches.zoomStateL(
+                    DebateRoundType.SequentialSpeechesRound.quoteLimit.composeIso(
+                      Iso[Option[Int], Int](_.getOrElse(defaultQuoteLimit))(Some(_))
+                    )
+                  )
+                ),
               )
             )
           },

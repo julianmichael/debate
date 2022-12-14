@@ -33,11 +33,11 @@ object DebateRules {
   def default: DebateRules = DebateRules(
     Vector(
       DebateRoundType.JudgeFeedbackRound(true, 500),
-      DebateRoundType.SimultaneousSpeechesRound(500),
+      DebateRoundType.SimultaneousSpeechesRound(500, None),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
     Vector(
-      DebateRoundType.SequentialSpeechesRound(500),
+      DebateRoundType.SequentialSpeechesRound(500, None),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
     ScoringFunction.LogScoreWithLinearPenalty.default
@@ -58,13 +58,13 @@ object DebateTurnTypeResult {
   def getFirstTurn(numDebaters: Int): DebateTurnType = {
     require(numDebaters > 0)
     this match {
-      case SimultaneousSpeechesRound(charLimit) =>
+      case SimultaneousSpeechesRound(charLimit, quoteLimit) =>
         DebateTurnType.SimultaneousSpeechesTurn(
           (0 until numDebaters).toSet,
-          charLimit
+          charLimit, quoteLimit
         )
-      case SequentialSpeechesRound(charLimit) =>
-        DebateTurnType.DebaterSpeechTurn(0, charLimit)
+      case SequentialSpeechesRound(charLimit, quoteLimit) =>
+        DebateTurnType.DebaterSpeechTurn(0, charLimit, quoteLimit)
       case JudgeFeedbackRound(reportBeliefs, charLimit) =>
         DebateTurnType.JudgeFeedbackTurn(reportBeliefs, charLimit)
     }
@@ -74,7 +74,7 @@ object DebateTurnTypeResult {
   def getTurn(round: DebateRound, numDebaters: Int): DebateTurnTypeResult =
     (this, round) match {
       case (
-            SimultaneousSpeechesRound(charLimit),
+            SimultaneousSpeechesRound(charLimit, quoteLimit),
             SimultaneousSpeeches(speeches)
           ) =>
         if (speeches.size == numDebaters) DebateTurnTypeResult.Next
@@ -82,17 +82,17 @@ object DebateTurnTypeResult {
           DebateTurnTypeResult.Turn(
             DebateTurnType.SimultaneousSpeechesTurn(
               (0 until numDebaters).toSet -- speeches.keySet,
-              charLimit
+              charLimit, quoteLimit
             )
           )
         }
-      case (SequentialSpeechesRound(charLimit), SequentialSpeeches(speeches)) =>
+      case (SequentialSpeechesRound(charLimit, quoteLimit), SequentialSpeeches(speeches)) =>
         val remainingDebaters = (0 until numDebaters).toSet -- speeches.keySet
         remainingDebaters.minOption.fold(
           DebateTurnTypeResult.Next: DebateTurnTypeResult
         ) { nextDebater =>
           DebateTurnTypeResult.Turn(
-            DebateTurnType.DebaterSpeechTurn(nextDebater, charLimit)
+            DebateTurnType.DebaterSpeechTurn(nextDebater, charLimit, quoteLimit)
           )
         }
       case (JudgeFeedbackRound(_, _), JudgeFeedback(judgment, _, endDebate)) =>
@@ -102,11 +102,11 @@ object DebateTurnTypeResult {
     }
 }
 object DebateRoundType {
-  @Lenses @JsonCodec case class SimultaneousSpeechesRound(charLimit: Int)
+  @Lenses @JsonCodec case class SimultaneousSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
       extends DebateRoundType
   val simultaneousSpeechesRound =
     GenPrism[DebateRoundType, SimultaneousSpeechesRound]
-  @Lenses @JsonCodec case class SequentialSpeechesRound(charLimit: Int)
+  @Lenses @JsonCodec case class SequentialSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
       extends DebateRoundType
   val sequentialSpeechesRound =
     GenPrism[DebateRoundType, SequentialSpeechesRound]

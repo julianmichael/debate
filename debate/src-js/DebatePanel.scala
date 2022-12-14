@@ -163,7 +163,7 @@ class DebatePanel(
         )
       case Right(turn) =>
         turn match {
-          case DebateTurnType.SimultaneousSpeechesTurn(remainingDebaters, _) =>
+          case DebateTurnType.SimultaneousSpeechesTurn(remainingDebaters, _, _) =>
             roleOpt match {
               case Some(Debater(index)) =>
                 if (remainingDebaters.contains(index)) {
@@ -178,7 +178,7 @@ class DebatePanel(
               case _ =>
                 <.span("All debaters are constructing simultaneous speeches.")
             }
-          case DebateTurnType.DebaterSpeechTurn(index, _) =>
+          case DebateTurnType.DebaterSpeechTurn(index, _, _) =>
             roleOpt match {
               case Some(Debater(`index`)) =>
                 <.span("It is YOUR TURN to make a speech.")
@@ -791,12 +791,12 @@ class DebatePanel(
             currentTurnOrResult.toOption.filter(_ => isUsersTurn).whenDefined {
               case DebateTurnType.SimultaneousSpeechesTurn(
                     _: Set[Int],
-                    _: Int
+                    _: Int,
+                    _: Option[Int]
                   ) =>
                 handleSimultaneousSpeechesWhenUsersTurn()
 
-              case DebateTurnType
-                    .DebaterSpeechTurn(_: Int, _: Int) =>
+              case DebateTurnType.DebaterSpeechTurn(_, _, _) =>
                 handleSequentialSpeechesWhenUsersTurn()
 
               case DebateTurnType.JudgeFeedbackTurn(
