@@ -55,17 +55,21 @@ object Serve
     help = "Where to get the JS main file."
   )
 
-  val portO = Opts.option[Int](
-    "port",
-    metavar = "<port number>",
-    help = "Port where to host the server."
-  ).withDefault(8080)
+  val portO = Opts
+    .option[Int](
+      "port",
+      metavar = "<port number>",
+      help = "Port where to host the server."
+    )
+    .withDefault(8080)
 
-  val saveO = Opts.option[NIOPath](
-    "save",
-    metavar = "<directory path>",
-    help = "Directory in which to save the debates."
-  ).withDefault(Paths.get("save"))
+  val saveO = Opts
+    .option[NIOPath](
+      "save",
+      metavar = "<directory path>",
+      help = "Directory in which to save the debates."
+    )
+    .withDefault(Paths.get("save"))
 
   val sslO = Opts
     .flag(
@@ -121,7 +125,8 @@ object Serve
 
   val dataPath = Paths.get("data")
   val qualityDataName = "QuALITY.v1.0.1"
-  val qualityURL = "https://github.com/nyu-mll/quality/blob/main/data/v1.0.1/QuALITY.v1.0.1.zip?raw=true"
+  val qualityURL =
+    "https://github.com/nyu-mll/quality/blob/main/data/v1.0.1/QuALITY.v1.0.1.zip?raw=true"
   // val qualityDataPath = Paths.get("data/QuALITY.v1.0.1")
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
   def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
@@ -130,21 +135,31 @@ object Serve
   def ensureQualityIsDownloaded(blocker: Blocker): IO[Unit] = {
     val qualityPath = dataPath.resolve(qualityDataName)
     IO(Files.isDirectory(qualityPath)).ifM(
-      ifTrue = IO.unit, ifFalse = for {
+      ifTrue = IO.unit,
+      ifFalse = for {
         _ <- IO(println("Downloading QuALITY data..."))
         _ <- fs2.io.file.createDirectories[IO](blocker, qualityPath)
         _ <- {
-          io.readInputStream(IO(new URL(qualityURL).openConnection.getInputStream), 4096, blocker, true)
-            .through(io.file.writeAll(dataPath.resolve(qualityDataName + ".zip"), blocker))
-            .compile.drain
+          io.readInputStream(
+            IO(new URL(qualityURL).openConnection.getInputStream),
+            4096,
+            blocker,
+            true
+          ).through(
+            io.file
+              .writeAll(dataPath.resolve(qualityDataName + ".zip"), blocker)
+          ).compile
+            .drain
         }
-        _ <- IO(println("Downloaded QuALITY.")) 
+        _ <- IO(println("Downloaded QuALITY."))
         // too lazy to unzip in fs2
-        _ <- IO(os.proc("unzip", "../" + qualityDataName + ".zip").call(cwd = os.pwd / dataPath.toString / qualityDataName))
+        _ <- IO(
+          os.proc("unzip", "../" + qualityDataName + ".zip")
+            .call(cwd = os.pwd / dataPath.toString / qualityDataName)
+        )
       } yield ()
     )
   }
-
 
   def cleanStoryText(story: String): String = {
     story.replaceAll("\n\n\n+", "\n\n")
@@ -153,23 +168,32 @@ object Serve
   def readQuALITY(blocker: Blocker): IO[Map[String, QuALITYStory]] = for {
     _ <- ensureQualityIsDownloaded(blocker)
     allInstances <- {
-      Stream.emits[IO, String](List("train", "dev", "test"))
+      Stream
+        .emits[IO, String](List("train", "dev", "test"))
         .flatMap { split =>
           val filename = s"$qualityDataName.htmlstripped.$split"
           val filePath = dataPath.resolve(qualityDataName).resolve(filename)
-          FileUtil.readJsonLines[QuALITYInstance](filePath)
+          FileUtil
+            .readJsonLines[QuALITYInstance](filePath)
             .map(_.toStory(split))
             .map(QuALITYStory.article.modify(cleanStoryText))
         }
-        .compile.toVector
+        .compile
+        .toVector
     }
     instancesByArticleId = allInstances.toList.groupByNel(_.articleId)
-    storiesByArticleId <- instancesByArticleId.toVector.traverse { case (articleId, instances) =>
-      IO.fromEither(instances.reduceLeftMonadic(_ merge _).map(articleId -> _))
-    }.map(_.toMap)
+    storiesByArticleId <- instancesByArticleId.toVector
+      .traverse { case (articleId, instances) =>
+        IO.fromEither(
+          instances.reduceLeftMonadic(_ merge _).map(articleId -> _)
+        )
+      }
+      .map(_.toMap)
   } yield storiesByArticleId
 
-  def initializeDebate(qualityDataset: Map[String, QuALITYStory])(setupSpec: DebateSetupSpec): IO[DebateSetup] = {
+  def initializeDebate(
+      qualityDataset: Map[String, QuALITYStory]
+  )(setupSpec: DebateSetupSpec): IO[DebateSetup] = {
     val tokenize = bigTokenize(_)
     val sourceMaterialIO = setupSpec.sourceMaterial match {
       case CustomSourceMaterialSpec(title, contents) =>
@@ -333,7 +357,7 @@ object Serve
             Some(Lobby(debaters, officialRooms, practiceRooms))
           ) // send the current set of debaters and rooms on connect
           .merge(
-            Stream.awakeEvery[IO](30.seconds).map(_ => None),
+            Stream.awakeEvery[IO](30.seconds).map(_ => None)
           ) // send a heartbeat every 30s
           .merge(
             mainChannel.subscribe(100).map(Some(_))
@@ -350,9 +374,9 @@ object Serve
             .map(unpickleFromWSFrame[MainChannelRequest])
             .evalMap {
               case RegisterDebater(name) => registerDebater(name)
-              case RemoveDebater(name) => removeDebater(name)
+              case RemoveDebater(name)   => removeDebater(name)
               case DeleteRoom(isOfficial, roomName) =>
-                if(isOfficial) officialDebates.deleteDebate(roomName)
+                if (isOfficial) officialDebates.deleteDebate(roomName)
                 else practiceDebates.deleteDebate(roomName)
             }
         },
@@ -379,7 +403,9 @@ object Serve
             participantName
           ) =>
         officialDebates.createWebsocket(roomName, participantName)
-      case GET -> Root / "practice-ws" / roomName :? NameParam(participantName) =>
+      case GET -> Root / "practice-ws" / roomName :? NameParam(
+            participantName
+          ) =>
         practiceDebates.createWebsocket(roomName, participantName)
 
       case req @ GET -> Root / `staticFilePrefix` / `jsDepsLocation` =>
