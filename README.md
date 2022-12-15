@@ -5,12 +5,17 @@ Web interface for information-asymmetric debates.
 
 Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
 
-You can run the server in one of two ways:
-* For development, run with e.g. `mill -i debate.dev.serve --port 8080 --save save`.
-* For production, run with e.g. `mill -i debate.prod.serve --port 8080 --save save`.
+For development you must run 3 commands in separate terminals in the root directory of the project:
+ - `mill --no-server -j 8 -w js.publcDev` to start incremental compilation of the frontend.
+The `-w` flag means that it will watch for changes and recompile automatically.
+ - `mill --no-server -j 8 -w jvm [args]` to start incremental compilation of the backend
+and run the backend server on port 8080.
+ - `npm run dev` to start the Vite with live reloading.
 
-This will host your server by HTTP on port 8080 and save all of the relevant server state under
-`save/`.
+For production you can start the backend with the same command as above, but without the `-w` flag.
+The frontend is built with `mill js.publicProd` and then served with any static file server.
+
+All of the relevant server state under is saved under `save/` by default.
 To run HTTPS, there is also an `--ssl` flag which has the server look for a `keystore.jks` and
 `password` under `debate/resources`, but I normally run behind a proxy which takes care of this.
 The difference between development and production is that production mode uses fully-optimized JS
