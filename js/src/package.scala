@@ -2,7 +2,7 @@ package debate
 
 
 import cats.Monoid
-
+import debate.facades.Cookies
 import japgolly.scalajs.react.Callback
 
 import scalajs.js
@@ -14,13 +14,14 @@ trait PackagePlatformExtensions {
     override def combine(x: Callback, y: Callback): Callback = x >> y
   }
 
+
   def getCookie(cookieId: String) =
-      js.Dynamic.global.Cookies.get(cookieId)
+      Cookies.get(cookieId)
         .asInstanceOf[scalajs.js.UndefOr[String]]
         .toOption
 
     def setCookie(cookieId: String, message: String, expires: Int) =
-      js.Dynamic.global.Cookies.set(
+      Cookies.set(
         cookieId, message, js.Dynamic.literal(expires = expires)
       )
 

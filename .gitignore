@@ -4,6 +4,7 @@ out
 .ammonite
 .bloop
 .metals
+.DS_Store
 
 *.~undo-tree~
 .#*
@@ -12,3 +13,4 @@ out
 .bsp/
 save/
 scratch/
+node_modules/

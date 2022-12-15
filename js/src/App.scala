@@ -1,24 +1,25 @@
 package debate
 
 import annotation.unused
-
 import org.scalajs.dom
 
-import org.scalajs.jquery.jQuery
-
+import scala.scalajs.js
+import scala.scalajs.js.annotation.{JSExportTopLevel, JSImport}
+import org.scalajs.jquery.JQueryStatic
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
 import scala.util.Try
-
 import cats.~>
 import cats.implicits._
-
 import debate.util._
 import jjm.OrWrapped
+
+@js.native
+@JSImport("jquery", JSImport.Namespace)
+object jQuery extends JQueryStatic
 
 /** The main webapp. */
 object App {
@@ -34,7 +35,7 @@ object App {
     WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
 
   val mainWebsocketUri: String = {
-    s"${Helpers.wsProtocol()}//${dom.document.location.host}/main-ws"
+    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:8080/main-ws"
   }
 
   val httpProtocol = dom.document.location.protocol
@@ -124,11 +125,12 @@ object App {
   def setupUI(): Unit = {
     Styles.addToDocument()
     Component().renderIntoDOM(
-      org.scalajs.dom.document.getElementById("contents")
+      org.scalajs.dom.document.getElementById("app")
     )
   }
 
-  final def main(args: Array[String]): Unit = jQuery { () =>
+  @JSExportTopLevel("main")
+  final def main(): Unit = jQuery { () =>
     dom.experimental.Notification.requestPermission(result =>
       dom.console.log(result)
     )

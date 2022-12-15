@@ -36,12 +36,12 @@ object ConnectedLobbyPage {
       participantId: String
   ): String = {
     val prefix = if (isOfficial) "official" else "practice"
-    s"${Helpers.wsProtocol()}//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
+    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:8080/$prefix-ws/$roomName?name=$participantId"
   }
 
   val httpProtocol = dom.document.location.protocol
   val qualityApiUrl: String = {
-    s"$httpProtocol//${dom.document.location.host}/$qualityServiceApiEndpoint"
+    s"$httpProtocol//${dom.document.location.hostname}:8080/$qualityServiceApiEndpoint"
   }
   type DelayedFuture[A] = () => Future[A]
   val toAsyncCallback = {
@@ -140,7 +140,7 @@ object ConnectedLobbyPage {
               S.simpleSelectable.when(canAssumeRole(Facilitator)),
               S.simpleSelected.when(isCurrent)
             )(
-              <.div(S.optionTitle)("Facilitators"),
+              <.div(S.optionTitle)("88838 Facilitators"),
               Helpers
                 .commaSeparatedSpans(facilitators.toList.sorted)
                 .toVdomArray,
