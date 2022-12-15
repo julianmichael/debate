@@ -34,52 +34,54 @@ case class LeaderboardForRoleType(
 }
 
 object LeaderboardForRoleType {
-  def ofDebateState(
+  def ofDebateState( // TODO rename
       debateStates: Iterable[DebateState]
   ): LeaderboardForRoleType = {
-    val x = debateStates.map({ (debateState: DebateState) =>
-      debateState.debate match {
-        case None => None
-        case Some(debate: debate.Debate) =>
-          debate.rounds.lastOption match {
-            case Some(JudgeFeedback(distribution, _, true)) =>
-              println("inside happy case")
-              Some(debateState.participants, distribution)
-            case _ => None
-          }
+    val x: Iterable[Tuple2[Map[DebateRole, String], Iterable[Double]]] =
+      debateStates.foldLeft(
+        List[Tuple2[Map[DebateRole, String], Iterable[Double]]]()
+      )({ case (list, debateState) =>
+        debateState.debate match {
+          case None => list
+          case Some(debate: debate.Debate) =>
+            debate.rounds.lastOption match {
+              case Some(JudgeFeedback(distribution, _, true)) =>
+                println("inside happy case")
+                list :+ (debate.setup.roles, distribution)
+              case _ => list
+            }
 
-      }
-    })
+        }
+      })
+
     println("x", x)
-    val y: Map[String, List[Double]] = x.foldLeft(Map[String, List[Double]]())({
-      case (map, elt) =>
-        elt match {
-          case None => map
-          case Some((participants, distribution)) =>
-            println("inside happy case 2", participants)
-            participants.foldLeft(map)({ case (map, participant) =>
-              participant.role match {
-                case Judge => map
-                // TODO segment this by role
-                // TODO judge accuracy is calculated differently
-                case Debater(idx) =>
-                  println("inside happy case 3")
-                  val prob = distribution(idx)
-                  map.get(participant.name) match {
-                    case None => map + (participant.name -> List(prob))
-                    case Some(probs) =>
-                      map + (participant.name -> (prob :: probs))
-                  }
-                case _ => map
+    val y: Map[String, List[Double]] =
+      x.foldLeft(Map[String, List[Double]]())({
+        case (map, (assignedRoles, distribution)) =>
+          println("inside happy case 2", assignedRoles)
+          // TODO judge accuracy is calculated differently
+          val kvPairsToInsert =
+            distribution.zipWithIndex.map({ case (prob, idx) =>
+              assignedRoles.get(Debater(idx)) match {
+                case None              => None // no assigned role
+                case Some(profileName) => Some(profileName, prob)
               }
             })
-        }
-    })
+          kvPairsToInsert.foldLeft(map)({ case (map, elt) =>
+            elt match {
+              case None => map
+              case Some((profileName, prob)) =>
+                map.get(profileName) match {
+                  case None => map + (profileName -> List(prob))
+                  case Some(probs) =>
+                    map + (profileName -> (prob :: probs))
+                }
+            }
+          })
+      })
     LeaderboardForRoleType(y)
   }
 }
-
-// TODO encode practice / official debates
 
 @JsonCodec
 case class Leaderboard(

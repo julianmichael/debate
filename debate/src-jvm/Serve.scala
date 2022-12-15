@@ -426,16 +426,30 @@ object Serve
           .getOrElseF(NotFound())
 
       case GET -> Root / "leaderboard" =>
-        // TODO add official debates
-        val pio = practiceDebates.rooms.get.map(innerMap => {
-          val states = innerMap.values.map(_.debate)
-          LeaderboardForRoleType.ofDebateState(states)
-        })
+        // TODO segment this by role- this is just the debater accuracy
+        def leaderboard(
+            x: DebateStateManager
+        ): IO[LeaderboardForRoleType] = {
+          x.rooms.get.map({ roomMap =>
+            LeaderboardForRoleType.ofDebateState(
+              roomMap.values.map {
+                _.debate
+              }
+            )
+          })
+        }
         import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
-        val y: IO[CirceJson] = pio.map(pio => {
-          Map(
-            "practice" -> pio
-          ).asJson
+        val combined: IO[(LeaderboardForRoleType)] =
+          // TODO clean this up given that we're not including practice debates
+          for {
+            o <- leaderboard(officialDebates)
+          } yield (o)
+        val y: IO[CirceJson] = combined.map({
+          case (o) => {
+            Map(
+              "official" -> o.asJson
+            ).asJson
+          }
         })
         Ok(y)
       /*          Ok(
