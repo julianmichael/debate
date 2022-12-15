@@ -426,10 +426,10 @@ object Serve
           .getOrElseF(NotFound())
 
       case GET -> Root / "leaderboard" =>
-        // TODO test this with curl
         // TODO add official debates
         val pio = practiceDebates.rooms.get.map(innerMap => {
-          innerMap.mapVals(room => room.debate.asJson)
+          val states = innerMap.values.map(_.debate)
+          LeaderboardForRoleType.ofDebateState(states)
         })
         import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
         val y: IO[CirceJson] = pio.map(pio => {
