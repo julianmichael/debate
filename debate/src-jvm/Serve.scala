@@ -1,5 +1,9 @@
 package debate
 
+// fs2 imports "io" below
+import io.circe.syntax._
+import io.circe.{Json => CirceJson}
+
 import debate.quality._
 
 import java.io.InputStream
@@ -420,6 +424,24 @@ object Serve
         StaticFile
           .fromString(jsPath.toString + ".map", blocker, Some(req))
           .getOrElseF(NotFound())
+
+      case GET -> Root / "leaderboard" =>
+        // TODO test this with curl
+        // TODO add official debates
+        val pio = practiceDebates.rooms.get.map(innerMap => {
+          innerMap.mapVals(room => room.debate.asJson)
+        })
+        import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
+        val y: IO[CirceJson] = pio.map(pio => {
+          Map(
+            "practice" -> pio
+          ).asJson
+        })
+        Ok(y)
+      /*          Ok(
+            lb.toString(),
+            Header("Content-Type", "text/json") // TODO html or json?
+          )*/
     }
   }
 
