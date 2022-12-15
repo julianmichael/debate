@@ -1,5 +1,6 @@
-import $ivy.`com.goyeau::mill-scalafix::0.2.11`
-import com.goyeau.mill.scalafix.ScalafixModule
+import $ivy.`com.goyeau::mill-scalafix::0.2.11`, com.goyeau.mill.scalafix.ScalafixModule
+import $ivy.`io.github.nafg.millbundler::jsdeps::0.1.0`, io.github.nafg.millbundler.jsdeps._
+import $ivy.`io.github.nafg.millbundler::millbundler::0.1.0`, io.github.nafg.millbundler._ 
 import mill.define.{Command, Target, Task}
 import mill._, mill.scalalib._, mill.scalalib.publish._, mill.scalajslib._
 import mill.scalalib.scalafmt._
@@ -31,7 +32,7 @@ val osLibVersion = "0.8.0"
 
 // scalajs deps
 val scalajsDomVersion = "1.1.0"
-val scalajsJqueryVersion = "1.0.0"
+val jqueryFacadeVersion = "2.0"
 val scalacssVersion = "0.7.0"
 val scalajsMacrotaskExecutorVersion = "1.0.0"
 
@@ -63,7 +64,8 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     "-feature",
     "-language:higherKinds",
     "-Ymacro-annotations",
-    "-Ywarn-unused"
+    "-Ywarn-unused",
+    "-Wunused:nowarn"
   )
 
   override def scalacPluginIvyDeps = super.scalacPluginIvyDeps() ++ Agg(
@@ -182,16 +184,13 @@ object debate extends Module {
   object dev extends Module {
     def serve(args: String*) = T.command {
       val runMain = jvm.runMainFn()
-      // Turn off optimization in the scalajs linker
-      // so that we can get fast incremental compilation
-      // of the Scala.js code
       runMain(
         "debate.Serve",
         (Seq(
           "--js",
-          js.fastestOpt().path.toString,
+          js.devBundle().head.path.toString,
           "--jsDeps",
-          js.aggregatedJSDeps().path.toString
+          js.jsDepsDir().path.toString
         ) ++ args)
       )
     }
@@ -201,22 +200,24 @@ object debate extends Module {
   object prod extends Module {
     def serve(args: String*) = T.command {
       val runMain = jvm.runMainFn()
+      js.prodBundle()
       runMain(
         "debate.Serve",
         Seq(
           "--js",
-          js.fullOpt().path.toString,
+          js.jsDepsDir().path.toString,
           "--jsDeps",
-          js.aggregatedJSDeps().path.toString
+          js.jsDepsDir().path.toString
         ) ++ args
       )
     }
   }
 
-  object js extends DebateModule with JsPlatform with SimpleJSDeps {
+  // object js extends DebateModule with JsPlatform with SimpleJSDeps {
+  object js extends DebateModule with JsPlatform with ScalaJSWebpackModule.AsApplication {
 
     // override def moduleSplitStyle = ModuleSplitStyle.SmallModulesFor(List("debate"))
-    // override def moduleKind = ModuleKind.CommonJSModule
+    override def moduleKind = ModuleKind.ESModule
 
     def mainClass = T(Some("debate.App"))
 
@@ -225,15 +226,26 @@ object debate extends Module {
       ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
       ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
       ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
+      ivy"org.querki::jquery-facade::$jqueryFacadeVersion",
       ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion",
     )
 
-    def jsDeps = Agg(
-      s"https://cdn.jsdelivr.net/npm/js-cookie@$jsCookieVersion/dist/js.cookie.min.js",
-      s"https://code.jquery.com/jquery-$jqueryVersion.min.js",
-      s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react.js",
-      s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react-dom.js"
-    )
+    override def jsDeps =
+      super.jsDeps() ++
+        JsDeps(
+          dependencies = Map(
+            "js-cookie" -> jsCookieVersion,
+            "jquery" -> jqueryVersion,
+            "react" -> reactVersion,
+            "react-dom" -> reactVersion,
+          ),
+          // examples of other things you can add. see mill-bundler repo
+          // devDependencies = Map(
+          //   "typescript" -> "*"
+          // ),
+          // jsSources = Map(
+          //   "demo.js" -> "console.log('hello world')"
+          // )
+        )
   }
 }

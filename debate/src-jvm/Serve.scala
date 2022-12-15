@@ -41,12 +41,6 @@ object Serve
       header = "Serve the live chat app."
     ) {
 
-  val jsDepsPathO = Opts.option[NIOPath](
-    "jsDeps",
-    metavar = "path",
-    help = "Where to get the JS deps file."
-  )
-
   val jsPathO = Opts.option[NIOPath](
     "js",
     metavar = "path",
@@ -99,12 +93,12 @@ object Serve
     *   the process's exit code.
     */
   def main: Opts[IO[ExitCode]] = {
-    (jsPathO, jsDepsPathO, portO, saveO, sslO).mapN {
-      (jsPath, jsDepsPath, port, save, ssl) =>
+    (jsPathO, portO, saveO, sslO).mapN {
+      (jsPath, port, save, ssl) =>
         for {
           builder <- getBuilder(ssl)
           _ <- Blocker[IO].use { blocker =>
-            makeHttpApp(jsPath, jsDepsPath, save, blocker).flatMap(app =>
+            makeHttpApp(jsPath, save, blocker).flatMap(app =>
               builder
                 .bindHttp(port, "0.0.0.0")
                 .withHttpApp(app)
@@ -159,7 +153,6 @@ object Serve
     */
   def makeHttpApp(
       jsPath: NIOPath,
-      jsDepsPath: NIOPath,
       saveDir: NIOPath,
       blocker: Blocker
   ) = {
@@ -222,7 +215,6 @@ object Serve
           s"/$qualityServiceApiEndpoint" -> qualityService,
           "/" -> service(
             jsPath,
-            jsDepsPath,
             saveDir,
             mainChannel,
             trackedDebatersRef,
@@ -245,7 +237,6 @@ object Serve
     */
   def service(
       jsPath: NIOPath,
-      jsDepsPath: NIOPath,
       saveDir: NIOPath, // where to save the debates as JSON
       mainChannel: Topic[IO, Lobby], // channel for updates to
       trackedDebaters: Ref[IO, Set[String]],
@@ -271,7 +262,6 @@ object Serve
       _ <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
     } yield ()
 
-    val jsDepsLocation = "deps.js"
     val jsLocation = "out.js"
     val jsMapLocation = jsLocation + ".map"
 
@@ -317,7 +307,7 @@ object Serve
       case GET -> Root =>
         Ok(
           debate
-            .Page(jsDepsLocation = jsDepsLocation, jsLocation = jsLocation)
+            .Page(jsLocation = jsLocation)
             .render,
           Header("Content-Type", "text/html")
         )
@@ -334,10 +324,6 @@ object Serve
       case GET -> Root / "practice-ws" / roomName :? NameParam(participantName) =>
         practiceDebates.createWebsocket(roomName, participantName)
 
-      case req @ GET -> Root / `staticFilePrefix` / `jsDepsLocation` =>
-        StaticFile
-          .fromString(jsDepsPath.toString, blocker, Some(req))
-          .getOrElseF(NotFound())
       case req @ GET -> Root / `staticFilePrefix` / `jsLocation` =>
         StaticFile
           .fromString(jsPath.toString, blocker, Some(req))

@@ -4,7 +4,7 @@ import annotation.unused
 
 import org.scalajs.dom
 
-import org.scalajs.jquery.jQuery
+import org.querki.jquery._
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
@@ -46,7 +46,7 @@ object App {
   import jjm.ui.LocalState
 
   val defaultRoomName: String =
-    jQuery("#defaultRoomName").attr("value").toOption.getOrElse("")
+    $("#defaultRoomName").attr("value").toOption.getOrElse("")
 
   // Shortcuts for styles and view elements
 
@@ -128,7 +128,7 @@ object App {
     )
   }
 
-  final def main(args: Array[String]): Unit = jQuery { () =>
+  final def main(args: Array[String]): Unit = $ { () =>
     dom.experimental.Notification.requestPermission(result =>
       dom.console.log(result)
     )

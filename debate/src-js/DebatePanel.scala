@@ -1,6 +1,6 @@
 package debate
 
-import org.scalajs.jquery.jQuery
+import org.querki.jquery._
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
@@ -327,14 +327,14 @@ class DebatePanel(
     }
 
     val scrollDebateToBottom = Callback {
-      val newSpeechesJQ = jQuery("#speeches")
+      val newSpeechesJQ = $("#speeches")
       val newSpeechesDiv = newSpeechesJQ(0)
       newSpeechesJQ.scrollTop(
         newSpeechesDiv.scrollHeight - newSpeechesDiv.clientHeight
       )
     }
     def maybeScrollDebateToBottom = {
-      val speechesJQ = jQuery("#speeches")
+      val speechesJQ = $("#speeches")
       val speechesDiv = speechesJQ(0)
       val isScrolledToBottom =
         speechesDiv.scrollHeight - speechesJQ.scrollTop() - speechesJQ

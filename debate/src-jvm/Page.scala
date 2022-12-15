@@ -4,7 +4,6 @@ import scalatags.Text.all._
 
 object Page {
   def apply(
-    jsDepsLocation: String,
     jsLocation: String,
     roomName: String = "",
   ) = {
@@ -27,14 +26,13 @@ object Page {
         div(id := "defaultRoomName", value := roomName),
         // This div is where the React app will go.
         div(id := "contents"),
-        // the filenames here match the outputs of the Mill build artifacts from JS build steps,
-        // which we're including in the resource path in the Mill build.
+        // this is included as a workaround for a linking problem I (julianmichael) haven't figured out
         script(
-          src := s"$staticFilePrefix/$jsDepsLocation"
-        ), // from SimpleJSDepsBuild#aggregatedJSDeps
+          src := "https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"
+        ),
         script(
           src := s"$staticFilePrefix/$jsLocation"
-        ), // from fastOptJS / fullOptJS -- the JS 'main'
+        ), // from devBundle / prodBundle -- the JS 'main'
         script(
           src := s"$staticFilePrefix/$jsLocation.map"
         ) // source map
