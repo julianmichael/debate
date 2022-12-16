@@ -46,7 +46,11 @@ object LeaderboardForRoleType {
   type Assigned = Map[DebateRole, String]
   type Scores = Map[String, List[Double]]
   // TODO rename
-  case class Intermediate(p: Probabilities, a: Assigned)
+  case class Intermediate(
+      p: Probabilities,
+      d: Assigned, // TODO maybe generalize to pack in the setup
+      correctAnswerIndex: Int
+  )
 
   def finishedDebatesWithAssignedParticipants(
       states: States
@@ -61,7 +65,11 @@ object LeaderboardForRoleType {
             case Some(JudgeFeedback(distribution, _, true))
                 if !debate.setup.roles.isEmpty =>
               println("inside happy case")
-              list :+ Intermediate(distribution, debate.setup.roles)
+              list :+ Intermediate(
+                distribution,
+                debate.setup.roles,
+                debate.setup.correctAnswerIndex
+              )
             case _ => list
           }
 
@@ -81,15 +89,18 @@ object LeaderboardForRoleType {
       assignedRoles: Map[DebateRole, String],
       idx: Int,
       prob: Double,
-      map: OuterMap
+      map: OuterMap,
+      correctAnswerIndex: Int
   ) = {
     assignedRoles.get(Debater(idx)) match {
       case None => map // no assigned role
       case Some(profileName) =>
+        val isHonestDebater = correctAnswerIndex == idx
         val leaderboardCategory =
-          LeaderboardCategories.DishonestDebater // TODO implement
+          if (isHonestDebater) LeaderboardCategories.HonestDebater
+          else
+            LeaderboardCategories.DishonestDebater
         map.get(leaderboardCategory) match {
-          // TODO i think this calculates judge scores incorrectly but will do it
           case None =>
             map + (leaderboardCategory -> Map(profileName -> List(prob)))
           case Some(innerMap) =>
@@ -109,10 +120,21 @@ object LeaderboardForRoleType {
       x: List[Intermediate]
   ): OuterMap = {
     val base: OuterMap = Map()
-    x.foldLeft(base)({ case (map, Intermediate(distribution, assignedRoles)) =>
-      distribution.zipWithIndex.foldLeft(map)({ case (map, (prob, idx)) =>
-        foldInAssignedRole(assignedRoles, idx, prob, map)
-      })
+    x.foldLeft(base)({
+      case (
+            map,
+            Intermediate(distribution, assignedRoles, correctAnswerIndex)
+          ) =>
+        // TODO include the judge hopefully using repeated code
+        distribution.zipWithIndex.foldLeft(map)({ case (map, (prob, idx)) =>
+          foldInAssignedRole(
+            assignedRoles,
+            idx,
+            prob,
+            map,
+            correctAnswerIndex = correctAnswerIndex
+          )
+        })
     })
   }
 
