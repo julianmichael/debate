@@ -1,4 +1,7 @@
 package debate
+
+import debate.{Leaderboard => LeadboardDatastructure}
+
 import scala.language.existentials // see https://github.com/suzaku-io/diode/issues/50
 
 import org.scalajs.dom
@@ -356,15 +359,9 @@ object DisconnectedLobbyPage {
               val b = RowEntry(name = "B", wins = 2, losses = 1)
               val c = RowEntry(name = "C", wins = 1, losses = 1)
 
-              val RowState = new LocalState[List[RowEntry]]
-              RowState.make(initialValue = List(a, b, c)) { rowEntries =>
-                val x = for {
-                  f <- AsyncCallback.fromFuture(loadLeaderboard())
-                  _ = println(f)
-                  _ = println("i love debugging, PSYCH!")
-                  _ <- rowEntries.setState(List()).async
-                } yield ()
-                x.runNow()
+              val Cls = new LeaderboardTable[List[RowEntry]]
+
+              def render(rowEntries: StateSnapshot[List[RowEntry]]) = {
                 <.table(c"table table-striped")(
                   <.thead(
                     <.tr(
@@ -405,6 +402,23 @@ object DisconnectedLobbyPage {
                   )
                 )
               }
+
+              // TODO is this right? i think im confused about callbacks
+              def onMount: AsyncCallback[List[RowEntry]] = {
+                // TODO mutate
+                (for {
+                  f <- AsyncCallback.fromFuture(loadLeaderboard())
+                  _ = println(f)
+                  _ = println("i love debugging, PSYCH!")
+                } yield List())
+              }
+
+              Cls.make(
+                initialValue = List(),
+                render = render,
+                onMount = onMount,
+                shouldRefresh = _ => true
+              )
             }
 
             <.div(c"card", ^.textAlign.center)(

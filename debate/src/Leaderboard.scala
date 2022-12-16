@@ -206,4 +206,12 @@ object Leaderboard {
       )
     )
   }
+
+  def empty = {
+    Leaderboard(
+      judge = LeaderboardForRoleType(Map()),
+      honest = LeaderboardForRoleType(Map()),
+      dishonest = LeaderboardForRoleType(Map())
+    )
+  }
 }
