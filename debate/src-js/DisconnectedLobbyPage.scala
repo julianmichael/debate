@@ -8,13 +8,35 @@ import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot
 import scalacss.ScalaCssReact._
 
+import cats.~>
 import cats.implicits._
+import scala.concurrent.Future
 
 object DisconnectedLobbyPage {
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
 
   import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
+
+  // TODO copy-pasta'd
+  type DelayedFuture[A] = () => Future[A]
+  val toAsyncCallback = {
+    λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
+  }
+
+  /** performs a GET request to /leaderboard and returns a parsed Leaderboard
+    * object
+    */
+  def loadLeaderboard(): Future[Leaderboard] = {
+    org.scalajs.dom.ext.Ajax
+      .get(url = "/leaderboard")
+      .map(resp => io.circe.parser.decode[Leaderboard](resp.responseText))
+      .flatMap {
+        case Right(res) => Future.successful(res)
+        case Left(fail) => Future.failed(new RuntimeException(fail))
+      }
+  }
 
   def make(
       lobby: StateSnapshot[Lobby],
@@ -322,9 +344,7 @@ object DisconnectedLobbyPage {
                 sortBy: T => B
             )(implicit ordering: Ordering[B]) = {
               <.button(c"button")(
-                ^.onClick --> {
-                  ref.setState(ref.value.sortBy(sortBy))
-                },
+                ^.onClick --> ref.setState(ref.value.sortBy(sortBy)),
                 "sort" // TODO add descending sort?
               )
             }
@@ -338,6 +358,13 @@ object DisconnectedLobbyPage {
 
               val RowState = new LocalState[List[RowEntry]]
               RowState.make(initialValue = List(a, b, c)) { rowEntries =>
+                val x = for {
+                  f <- AsyncCallback.fromFuture(loadLeaderboard())
+                  _ = println(f)
+                  _ = println("i love debugging, PSYCH!")
+                  _ <- rowEntries.setState(List()).async
+                } yield ()
+                x.runNow()
                 <.table(c"table table-striped")(
                   <.thead(
                     <.tr(
@@ -412,7 +439,8 @@ object DisconnectedLobbyPage {
                     .when(
                       currentRooms.isEmpty && lobbyTab.value != Leaderboard
                     ),
-                  leaderboardTable().when(lobbyTab.value == Leaderboard),
+                  leaderboardTable()
+                    .when(lobbyTab.value == Leaderboard),
                   currentRooms.toVdomArray { case rm: RoomMetadata =>
                     roomManagement(
                       roomMetadata = rm,
