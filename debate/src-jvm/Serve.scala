@@ -2,7 +2,6 @@ package debate
 
 // fs2 imports "io" below
 import io.circe.syntax._
-import io.circe.{Json => CirceJson}
 
 import debate.quality._
 
@@ -361,24 +360,8 @@ object Serve
           .getOrElseF(NotFound())
 
       case GET -> Root / "leaderboard" =>
-        def leaderboard(
-            x: DebateStateManager
-        ) = {
-          x.rooms.get.map({ roomMap =>
-            Leaderboard.ofDebateStates(
-              roomMap.values.map {
-                _.debate
-              }
-            )
-          })
-        }
         import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
-        val y: IO[CirceJson] = leaderboard(officialDebates).map(_.asJson)
-        Ok(y)
-      /*          Ok(
-            lb.toString(),
-            Header("Content-Type", "text/json") // TODO html or json?
-          )*/
+        Ok(officialDebates.toLeaderboard.map(_.asJson))
     }
   }
 
