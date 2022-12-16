@@ -4,6 +4,7 @@ import monocle.macros.Lenses
 import io.circe.generic.JsonCodec
 
 import cats.implicits._
+import jjm.DotPair
 
 /** The full data object maintained on the server for each debate. Sent to the
   * client in full each time there's a change to the debate.
@@ -21,7 +22,7 @@ import cats.implicits._
   def status: RoomStatus = debate match {
     case None => RoomStatus.SettingUp
     case Some(debate) =>
-      debate.currentTurn.fold(
+      debate.currentTransitions.fold(
         _ => RoomStatus.Complete,
         _ => RoomStatus.InProgress
       )
@@ -39,6 +40,26 @@ object DebateState {
   def init = DebateState(None, Set())
 }
 
+case class DebateSpeechContent(
+  speakerName: String,
+  timestamp: Long,
+  speech: Vector[SpeechSegment]
+)
+
+case class JudgeFeedbackContent(
+    speakerName: String,
+    timestamp: Long,
+    speech: Vector[SpeechSegment],
+    distribution: Vector[Double], // probability distribution
+    endDebate: Boolean
+)
+
+/** Set of operations available to a particular role. */
+case class DebateTransitionSet(
+  undo: Option[() => Debate],
+  giveSpeech: Option[DotPair[Lambda[A => A => Debate], DebateTurnType]]
+)
+
 @Lenses @JsonCodec case class DebateResult(
     correctAnswerIndex: Int,
     numTurns: Int,
@@ -46,6 +67,7 @@ object DebateState {
     judgeReward: Double
 )
 object DebateResult
+
 
 /** The state of a debate. Persists when people leave; this is the saveable data
   * object.
@@ -66,7 +88,7 @@ object DebateResult
   def startTime: Option[Long] =
     rounds.headOption.flatMap(_.timestamp(setup.numDebaters))
 
-  def result: Option[DebateResult] = currentTurn.left.toOption
+  def result: Option[DebateResult] = currentTransitions.left.toOption
   def isOver: Boolean = result.nonEmpty
   def finalJudgment: Option[Vector[Double]] = result.map(_.finalJudgment)
 
@@ -93,24 +115,37 @@ object DebateResult
     }
   }
 
-  /** Whose turn it is and what they need to submit. */
-  def currentTurn: Either[DebateResult, DebateTurnType] = {
-    // TODO: validate that the debate follows the specified structure?
+  /** Whose turn(s) it is, what they can do, and how to compute the results. */
+  def currentTransitions: Either[DebateResult, Map[Role, DebateTransitionSet]] = {
+
     // turn sequence is always nonempty
     val numDebaters = setup.answers.size
-    val roundSequence = setup.rules.roundTypes // (setup.answers.size)
-    if (rounds.isEmpty) Right(roundSequence.head.getFirstTurn(numDebaters))
-    else {
-      val lastRoundTypeAndRest = roundSequence.drop(rounds.size - 1)
-      val lastRound = rounds.last
-      lastRoundTypeAndRest.head.getTurn(lastRound, numDebaters) match {
-        case DebateTurnTypeResult.Next =>
-          Right(
-            lastRoundTypeAndRest.tail.head.getFirstTurn(
-              numDebaters
-            ) // there should always be more turns
+    val roundSequence = setup.rules.roundTypes
+
+    def newRound(undoResult: Option[() => Debate]) = Right {
+      val firstTurn = roundSequence.head.getFirstTurn(numDebaters)
+      firstTurn.rolesRemaining.map(role =>
+        (role: Role) -> DebateTransitionSet(
+          undo = undoResult,
+          giveSpeech = Some(
+            DotPair[Lambda[I => I => Debate]](
+              firstTurn)(
+              firstTurn.newRoundTransition(role).andThen(
+                round => Debate.rounds.modify(_ :+ round)(this)
+              )
+            )
           )
-        case DebateTurnTypeResult.Turn(turn) => Right(turn)
+        )
+      ).toMap
+    }
+
+    // TODO: validate that the debate follows the specified structure?
+    if (rounds.isEmpty) newRound(None) else {
+      val lastRoundType #:: futureRoundTypes = roundSequence.drop(rounds.size - 1)
+      val lastRound = rounds.last
+      lastRoundType.getTurn(lastRound, numDebaters) match {
+        case DebateTurnTypeResult.Next => newRound(???) // TODO get undo info
+        case DebateTurnTypeResult.Turn(turn) => Right(???) // TODO get turn change info
         case DebateTurnTypeResult.End(finalJudgment) =>
           val numTurns = numContinues
           val judgeReward = setup.rules.scoringFunction.eval(
@@ -180,9 +215,14 @@ object JudgeFeedback
 /** Specifies who gets to speak next and what kind of input they should provide.
   */
 sealed trait DebateTurnType {
+  type AllowedRole <: Role
+  type Input // type of input the turn expects from a participant of one of the admissible roles
+  type Out = Input // for jjm.Dot stuff
   def charLimit: Int
   def quoteLimit: Option[Int]
-  def rolesRemaining: Set[Role]
+  def rolesRemaining: Set[AllowedRole]
+
+  def newRoundTransition(role: AllowedRole): Input => DebateRound
 }
 object DebateTurnType {
   case class SimultaneousSpeechesTurn(
@@ -190,16 +230,59 @@ object DebateTurnType {
       charLimit: Int,
       quoteLimit: Option[Int]
   ) extends DebateTurnType {
+    type AllowedRole = Debater
+    type Input = DebateSpeechContent
     def rolesRemaining = remainingDebaters.map(Debater(_))
+
+    def newRoundTransition(role: AllowedRole) = {
+      case DebateSpeechContent(name, timestamp, contents) =>
+        SimultaneousSpeeches(
+          Map(role.answerIndex -> DebateSpeech(
+              ParticipantId(name, role),
+              timestamp,
+              contents
+            )
+          )
+        )
+    }
   }
   case class DebaterSpeechTurn(debater: Int, charLimit: Int, quoteLimit: Option[Int])
       extends DebateTurnType {
+    type AllowedRole = Debater
+    type Input = DebateSpeechContent
     def rolesRemaining = Set(Debater(debater))
+
+    def newRoundTransition(role: AllowedRole) = {
+      case DebateSpeechContent(name, timestamp, contents) =>
+        SequentialSpeeches(
+          Map(role.answerIndex -> DebateSpeech(
+              ParticipantId(name, role),
+              timestamp,
+              contents
+            )
+          )
+        )
+    }
   }
   case class JudgeFeedbackTurn(reportBeliefs: Boolean, charLimit: Int)
       extends DebateTurnType {
+    type AllowedRole = Judge.type
+    type Input = JudgeFeedbackContent
     def rolesRemaining = Set(Judge)
     def quoteLimit = None
+
+    def newRoundTransition(role: AllowedRole) = {
+      case JudgeFeedbackContent(name, timestamp, contents, distribution, endDebate) =>
+        JudgeFeedback(
+          distribution = distribution,
+          DebateSpeech(
+            ParticipantId(name, role),
+            timestamp,
+            contents
+          ),
+          endDebate = endDebate
+        )
+    }
   }
 }
 
