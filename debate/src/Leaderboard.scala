@@ -85,7 +85,7 @@ object LeaderboardForRoleType {
       InnerMap
     ] // TODO proper case class?
 
-  def foldInAssignedRole(
+  def foldInAssignedDebaterRole(
       assignedRoles: Map[DebateRole, String],
       idx: Int,
       prob: Double,
@@ -116,6 +116,33 @@ object LeaderboardForRoleType {
     }
   }
 
+  def foldInJudge(
+      profileName: String,
+      map: OuterMap,
+      correctAnswerIndex: Int,
+      distribution: Seq[Double]
+  ) = {
+    val judgeProb = distribution(correctAnswerIndex)
+    val judge = LeaderboardCategories.Judge
+    map.get(judge) match {
+      case None =>
+        map + (judge -> Map(
+          profileName -> List(
+            judgeProb
+          )
+        ))
+      case Some(innerMap) =>
+        innerMap.get(profileName) match {
+          case None =>
+            map + (judge -> (innerMap + (profileName -> List(
+              judgeProb
+            ))))
+          case Some(probs) =>
+            map + (judge -> (innerMap + (profileName -> (judgeProb :: probs))))
+        }
+    }
+  }
+
   def profileNameToRoleToProbabilities(
       x: List[Intermediate]
   ): OuterMap = {
@@ -125,20 +152,30 @@ object LeaderboardForRoleType {
             map,
             Intermediate(distribution, assignedRoles, correctAnswerIndex)
           ) =>
-        // TODO include the judge hopefully using repeated code
-        distribution.zipWithIndex.foldLeft(map)({ case (map, (prob, idx)) =>
-          foldInAssignedRole(
-            assignedRoles,
-            idx,
-            prob,
-            map,
-            correctAnswerIndex = correctAnswerIndex
-          )
-        })
+        val mapAfterDebaters =
+          distribution.zipWithIndex.foldLeft(map)({ case (map, (prob, idx)) =>
+            foldInAssignedDebaterRole(
+              assignedRoles,
+              idx,
+              prob,
+              map,
+              correctAnswerIndex = correctAnswerIndex
+            )
+          })
+        assignedRoles.get(Judge) match {
+          case None => mapAfterDebaters // no assigned judge
+          case Some(profileName) =>
+            foldInJudge(
+              profileName = profileName,
+              map = mapAfterDebaters,
+              correctAnswerIndex = correctAnswerIndex,
+              distribution = distribution.toSeq // TODO ugh! yuck!
+            )
+        }
     })
   }
 
-  def ofDebateState( // TODO rename
+  def ofDebateStates(
       debateStates: Iterable[DebateState]
   ): OuterMap = {
     val x = finishedDebatesWithAssignedParticipants(debateStates)
@@ -155,8 +192,8 @@ case class Leaderboard(
 )
 
 object Leaderboard {
-  def ofDebateState(debateStates: Iterable[DebateState]) = {
-    val all = LeaderboardForRoleType.ofDebateState(debateStates)
+  def ofDebateStates(debateStates: Iterable[DebateState]) = {
+    val all = LeaderboardForRoleType.ofDebateStates(debateStates)
     Leaderboard(
       judge = LeaderboardForRoleType(
         all.getOrElse(LeaderboardCategories.Judge, Map())
