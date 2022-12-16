@@ -429,9 +429,9 @@ object Serve
         // TODO segment this by role- this is just the debater accuracy
         def leaderboard(
             x: DebateStateManager
-        ): IO[LeaderboardForRoleType] = {
+        ) = {
           x.rooms.get.map({ roomMap =>
-            LeaderboardForRoleType.ofDebateState(
+            Leaderboard.ofDebateState(
               roomMap.values.map {
                 _.debate
               }
@@ -439,7 +439,7 @@ object Serve
           })
         }
         import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
-        val combined: IO[(LeaderboardForRoleType)] =
+        val combined =
           // TODO clean this up given that we're not including practice debates
           for {
             o <- leaderboard(officialDebates)
