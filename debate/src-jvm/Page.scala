@@ -19,6 +19,11 @@ object Page {
           rel := "stylesheet",
           href := "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
         ),
+        // bootstrap icons <link rel="stylesheet" href="
+        link(
+          rel := "stylesheet",
+          href := "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css"
+        ),
         scalatags.Text.tags2.title(makePageTitle(roomName))
       ),
       body(

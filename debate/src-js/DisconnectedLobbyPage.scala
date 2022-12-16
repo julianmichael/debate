@@ -354,13 +354,23 @@ object DisconnectedLobbyPage {
                 maker: (State, List[T]) => State,
                 by: T => B
             )(implicit ordering: Ordering[B]) = {
-              <.button(c"button")(
-                ^.onClick --> {
-                  val newList = getter(ref.value).sortBy(by)
-                  val newValue = maker(ref.value, newList)
-                  ref.setState(newValue)
-                },
-                "sort" // TODO add descending sort?
+              <.div()(
+                <.i(c"bi bi-caret-down-fill")(
+                  ^.onClick --> {
+                    val newList = getter(ref.value).sortBy(by)
+                    val newValue = maker(ref.value, newList)
+                    ref.setState(newValue)
+                  }
+                ),
+                <.i(c"bi bi-caret-up-fill")(
+                  ^.onClick --> {
+                    implicit val reverseOrdering: Ordering[B] =
+                      ordering.reverse
+                    val newList = getter(ref.value).sortBy(by)(reverseOrdering)
+                    val newValue = maker(ref.value, newList)
+                    ref.setState(newValue)
+                  }
+                )
               )
             }
 
