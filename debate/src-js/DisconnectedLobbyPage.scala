@@ -1,7 +1,5 @@
 package debate
 
-import debate.{Leaderboard => LeadboardDatastructure}
-
 import scala.language.existentials // see https://github.com/suzaku-io/diode/issues/50
 
 import org.scalajs.dom
@@ -342,52 +340,70 @@ object DisconnectedLobbyPage {
               )
             }
 
+            // TODO clean up this lol
+            case class RowEntry(name: String, wins: Int, losses: Int)
+            case class State(
+                judge: List[RowEntry],
+                honest: List[RowEntry],
+                dishonest: List[RowEntry]
+            )
+
             def sortTableBy[T, B](
-                ref: StateSnapshot[List[T]],
-                sortBy: T => B
+                ref: StateSnapshot[State],
+                getter: State => List[T],
+                maker: (State, List[T]) => State,
+                by: T => B
             )(implicit ordering: Ordering[B]) = {
               <.button(c"button")(
-                ^.onClick --> ref.setState(ref.value.sortBy(sortBy)),
+                ^.onClick --> {
+                  val newList = getter(ref.value).sortBy(by)
+                  val newValue = maker(ref.value, newList)
+                  ref.setState(newValue)
+                },
                 "sort" // TODO add descending sort?
               )
             }
 
             def leaderboardTable() = {
-              case class RowEntry(name: String, wins: Int, losses: Int)
 
-              val a = RowEntry(name = "A", wins = 1, losses = 2)
-              val b = RowEntry(name = "B", wins = 2, losses = 1)
-              val c = RowEntry(name = "C", wins = 1, losses = 1)
+              val Cls = new LeaderboardTable[State]
 
-              val Cls = new LeaderboardTable[List[RowEntry]]
+              def renderRowEntries(
+                  ref: StateSnapshot[
+                    State
+                  ], // used to make callbacks for sorting,
+                  getter: State => List[RowEntry],
+                  maker: (State, List[RowEntry]) => State
+              ) = {
+                def ourSort[B](
+                    by: RowEntry => B
+                )(implicit ordering: Ordering[B]) =
+                  sortTableBy(ref, getter, maker, by)
 
-              def render(rowEntries: StateSnapshot[List[RowEntry]]) = {
                 <.table(c"table table-striped")(
                   <.thead(
                     <.tr(
                       <.th(
                         "Name",
-                        sortTableBy(rowEntries, (x: RowEntry) => x.name)
+                        ourSort(_.name)
                       ),
                       <.th(
                         "Wins",
-                        sortTableBy(rowEntries, (x: RowEntry) => x.wins)
+                        ourSort(_.wins)
                       ),
                       <.th(
                         "Losses",
-                        sortTableBy(rowEntries, (x: RowEntry) => x.losses)
+                        ourSort(_.losses)
                       ),
+                      // TODO i think sorting is broken?
                       <.th(
                         "Win %",
-                        sortTableBy(
-                          rowEntries,
-                          (x: RowEntry) => x.wins.toDouble / x.losses
-                        )
+                        ourSort(x => { x.wins.toDouble / (x.losses + x.wins) })
                       )
                     )
                   ),
                   <.tbody(
-                    rowEntries.value
+                    getter(ref.value)
                       // .sortBy(-_._2.wins.toDouble / _._2.losses)
                       .toVdomArray { case rowEntry =>
                         <.tr(
@@ -395,7 +411,7 @@ object DisconnectedLobbyPage {
                           <.td(rowEntry.wins),
                           <.td(rowEntry.losses),
                           <.td(
-                            f"${rowEntry.wins.toDouble / rowEntry.losses * 100}%.1f"
+                            f"${rowEntry.wins.toDouble / (rowEntry.losses + rowEntry.wins) * 100}%.1f"
                           )
                         )
                       }
@@ -403,18 +419,58 @@ object DisconnectedLobbyPage {
                 )
               }
 
+              def render(s: StateSnapshot[State]) = {
+                <.div(
+                  <.h3("Judge"),
+                  renderRowEntries(
+                    ref = s,
+                    getter = _.judge,
+                    maker = (x, y) => x.copy(judge = y)
+                  ),
+                  <.h3("Honest"),
+                  renderRowEntries(
+                    ref = s,
+                    getter = _.honest,
+                    maker = (x, y) => x.copy(honest = y)
+                  ),
+                  <.h3("Dishonest"),
+                  renderRowEntries(
+                    ref = s,
+                    getter = _.dishonest,
+                    maker = (x, y) => x.copy(dishonest = y)
+                  )
+                )
+              }
+
+              def leaderboardToRows(
+                  x: LeaderboardForRoleType
+              ) = {
+                val init: List[RowEntry] = List()
+                x.perProfile.foldLeft(init) {
+                  case ((acc: List[RowEntry]), (k: String, v: List[Double])) =>
+                    val wins = v.filter(_ > 0.5).length
+                    val losses = v.filter(_ < 0.5).length
+                    acc :+ RowEntry(k, wins, losses)
+                }
+              }
+
               // TODO is this right? i think im confused about callbacks
-              def onMount: AsyncCallback[List[RowEntry]] = {
+              def onMount: AsyncCallback[State] = {
                 // TODO mutate
                 (for {
                   f <- AsyncCallback.fromFuture(loadLeaderboard())
                   _ = println(f)
                   _ = println("i love debugging, PSYCH!")
-                } yield List())
+                } yield State(
+                  judge = leaderboardToRows(f.judge),
+                  honest = leaderboardToRows(f.honest),
+                  dishonest = leaderboardToRows(f.dishonest)
+                ))
               }
 
               Cls.make(
-                initialValue = List(),
+                initialValue =
+                  State(judge = List(), honest = List(), dishonest = List()),
                 render = render,
                 onMount = onMount,
                 shouldRefresh = _ => true

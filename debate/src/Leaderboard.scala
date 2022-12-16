@@ -13,6 +13,14 @@ case class LeaderboardForRoleType(
   // TODO handle deprecation?
   def nDebatesPerProfile() = perProfile.mapValues(_.size)
 
+  def nWins() = {
+    val nDebates = nDebatesPerProfile()
+    val nWins = perProfile.mapValues(_.count(_ > 0.5))
+    nWins.map({ case (debater, n) =>
+      (debater, n)
+    })
+  }
+
   def accuracy() = {
     val nDebates = nDebatesPerProfile()
     val nCorrect = perProfile.mapValues(_.count(_ > 0.5))
