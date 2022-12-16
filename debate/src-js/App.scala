@@ -104,8 +104,8 @@ object App {
                   case Some(cs: ConnectionSpec) =>
                     ConnectedLobbyPage.make(
                       lobby = lobby,
-                      connectionSpecOpt = connectionSpecOpt,
-                      connectionSpec = cs
+                      connectionSpec = cs,
+                      disconnect = connectionSpecOpt.setState(None),
                     )
                 }
               }

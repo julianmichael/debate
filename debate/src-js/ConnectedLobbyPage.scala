@@ -57,8 +57,8 @@ object ConnectedLobbyPage {
 
   def make(
       lobby: StateSnapshot[Lobby],
-      connectionSpecOpt: StateSnapshot[Option[ConnectionSpec]],
-      connectionSpec: ConnectionSpec
+      connectionSpec: ConnectionSpec,
+      disconnect: Callback
   ) = {
     val isOfficial = connectionSpec.isOfficial
     val roomName = connectionSpec.roomName
@@ -185,7 +185,7 @@ object ConnectedLobbyPage {
             userName,
             roomName,
             debateState,
-            disconnect = connectionSpecOpt.setState(None)
+            disconnect = disconnect
           ),
           // userInfoRow(roomName, userName, userId),
           debateState.value.debate match {
