@@ -9,7 +9,6 @@ import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot
 import scalacss.ScalaCssReact._
 
-import cats.~>
 import cats.implicits._
 import scala.concurrent.Future
 
@@ -19,12 +18,6 @@ object DisconnectedLobbyPage {
   import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
-
-  // TODO copy-pasta'd
-  type DelayedFuture[A] = () => Future[A]
-  val toAsyncCallback = {
-    λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
-  }
 
   /** performs a GET request to /leaderboard and returns a parsed Leaderboard
     * object
@@ -362,6 +355,7 @@ object DisconnectedLobbyPage {
                     ref.setState(newValue)
                   }
                 ),
+                // TODO add average score
                 <.i(c"bi bi-caret-up-fill")(
                   ^.onClick --> {
                     implicit val reverseOrdering: Ordering[B] =
@@ -405,7 +399,7 @@ object DisconnectedLobbyPage {
                         "Losses",
                         ourSort(_.losses)
                       ),
-                      // TODO i think sorting is broken?
+                      // TODO someday unify this code with the sortBy bits and the rows
                       <.th(
                         "Win %",
                         ourSort(x => { x.wins.toDouble / (x.losses + x.wins) })
@@ -414,7 +408,6 @@ object DisconnectedLobbyPage {
                   ),
                   <.tbody(
                     getter(ref.value)
-                      // .sortBy(-_._2.wins.toDouble / _._2.losses)
                       .toVdomArray { case rowEntry =>
                         <.tr(
                           <.td(rowEntry.name),
@@ -464,13 +457,9 @@ object DisconnectedLobbyPage {
                 }
               }
 
-              // TODO is this right? i think im confused about callbacks
               def onMount: AsyncCallback[State] = {
-                // TODO mutate
                 (for {
                   f <- AsyncCallback.fromFuture(loadLeaderboard())
-                  _ = println(f)
-                  _ = println("i love debugging, PSYCH!")
                 } yield State(
                   judge = leaderboardToRows(f.judge),
                   honest = leaderboardToRows(f.honest),
