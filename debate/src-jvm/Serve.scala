@@ -361,6 +361,7 @@ object Serve
 
       case GET -> Root / "leaderboard" =>
         import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
+        import Leaderboard._
         Ok(officialDebates.toLeaderboard.map(_.asJson))
     }
   }

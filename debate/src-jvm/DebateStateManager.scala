@@ -197,12 +197,11 @@ case class DebateStateManager(
     )
   } yield res
 
-  def toLeaderboard: IO[Leaderboard] = {
+  def toLeaderboard = {
     rooms.get.map({ roomMap =>
       Leaderboard.ofDebateStates(
-        roomMap.values.map {
-          _.debate
-        }
+        roomMap.values.toList
+          .flatMap(_.debate.debate.toList)
       )
     })
   }
