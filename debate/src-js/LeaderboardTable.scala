@@ -24,7 +24,12 @@ object LeaderboardTable {
       }
   }
 
-  case class RowEntry(name: String, wins: Int, losses: Int)
+  case class RowEntry(
+      name: String,
+      wins: Int,
+      losses: Int,
+      customRewardValue: Double // e.g. either log prob or the application or the scoring function
+  )
   case class State(
       judge: List[RowEntry],
       honest: List[RowEntry],
@@ -45,7 +50,6 @@ object LeaderboardTable {
           ref.setState(newValue)
         }
       ),
-      // TODO add average score
       <.i(c"bi bi-caret-up-fill")(
         ^.onClick --> {
           implicit val reverseOrdering: Ordering[B] =
@@ -58,15 +62,17 @@ object LeaderboardTable {
     )
   }
 
+  // TODO add scoring function for judge and average log probs for debaters
+
   def make() = {
-    val Cls = new MountingWithLocalState[State]
 
     def renderRowEntries(
         ref: StateSnapshot[
           State
         ], // used to make callbacks for sorting,
         getter: State => List[RowEntry],
-        maker: (State, List[RowEntry]) => State
+        maker: (State, List[RowEntry]) => State,
+        customColumn: String
     ) = {
       def ourSort[B](
           by: RowEntry => B
@@ -88,11 +94,12 @@ object LeaderboardTable {
               "Losses",
               ourSort(_.losses)
             ),
-            // TODO someday unify this code with the sortBy bits and the rows
+            // TODO someday unify this code with the sortBy bits and the rows; one nasty bit is handling the variable printf specifications
             <.th(
               "Win %",
               ourSort(x => { x.wins.toDouble / (x.losses + x.wins) })
-            )
+            ),
+            <.th(customColumn, ourSort(_.customRewardValue))
           )
         ),
         <.tbody(
@@ -104,7 +111,8 @@ object LeaderboardTable {
                 <.td(rowEntry.losses),
                 <.td(
                   f"${rowEntry.wins.toDouble / (rowEntry.losses + rowEntry.wins) * 100}%.1f"
-                )
+                ),
+                <.td(f"${rowEntry.customRewardValue}%.2f")
               )
             }
         )
@@ -117,32 +125,56 @@ object LeaderboardTable {
         renderRowEntries(
           ref = s,
           getter = _.judge,
-          maker = (x, y) => x.copy(judge = y)
+          maker = (x, y) => x.copy(judge = y),
+          customColumn = "Average Reward"
         ),
         <.h3("Honest"),
         renderRowEntries(
           ref = s,
           getter = _.honest,
-          maker = (x, y) => x.copy(honest = y)
+          maker = (x, y) => x.copy(honest = y),
+          customColumn = "Average Log Prob"
         ),
         <.h3("Dishonest"),
         renderRowEntries(
           ref = s,
           getter = _.dishonest,
-          maker = (x, y) => x.copy(dishonest = y)
+          maker = (x, y) => x.copy(dishonest = y),
+          customColumn = "Average Log Prob"
         )
       )
     }
 
     def leaderboardToRows(
-        x: LeaderboardForRoleType
+        x: LeaderboardForRoleType,
+        category: LeaderboardCategories.LeaderboardCategory,
+        setup: DebateSetup
     ) = {
       val init: List[RowEntry] = List()
       x.perProfile.foldLeft(init) {
         case ((acc: List[RowEntry]), (k: String, v: List[Double])) =>
           val wins = v.filter(_ > 0.5).length
           val losses = v.filter(_ < 0.5).length
-          acc :+ RowEntry(k, wins, losses)
+          // TODO this is duplicate computation
+          val averageLogProb = v.map(math.log).sum / v.length
+          val averageScore = setup.rules.scoringFunction.eval(
+            // TODO where does numTurns come from
+            turnNumber = numTurns,
+            correctAnswerIndex = correctAnswerIndex,
+            lastProbability = v.last
+          )
+          acc :+ RowEntry(
+            name = k,
+            wins = wins,
+            losses = losses,
+            customRewardValue = {
+              category match {
+                case LeaderboardCategories.Judge            => averageScore
+                case LeaderboardCategories.HonestDebater    => averageLogProb
+                case LeaderboardCategories.DishonestDebater => averageLogProb
+              }
+            }
+          )
       }
     }
 
@@ -156,7 +188,7 @@ object LeaderboardTable {
       ))
     }
 
-    Cls.make(
+    (new MountingWithLocalState[State]).make(
       initialValue = State(judge = List(), honest = List(), dishonest = List()),
       render = render,
       onMount = onMount,

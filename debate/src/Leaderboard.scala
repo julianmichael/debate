@@ -2,15 +2,158 @@ package debate
 
 import io.circe.generic.JsonCodec
 
+/** I think this could be made simpler/easier by computing a single stats object
+  * holding all of the relevant info for each debate, which can then be combined
+  * using a monoid to get all the leaderboard info in a single object. Using the
+  * Chosen, Accuracy, and Numbers classes in jjm.metrics, the full object would
+  * look something like Chosen[LeaderboardCategory, Chosen[String, DebateStats]]
+  * where the String param there is the profile name, and the value is case
+  * class DebateStats(wins: Accuracy.Stats, rewards: Numbers[Double]) with a
+  * monoid instance that just uses the monoids of its members (you can
+  * auto-generate this instance using eg cats.derived.semiauto.monoid).
+  *
+  * All you would need to do to compute the full set of leaderboards is define a
+  * function Debate => Chosen[LeaderboardCategory, Chosen[String, DebateStats]]
+  * which computes the stats for all the assigned roles in a debate, and then
+  * foldMap this function over all of the debates. I haven't fully followed how
+  * you did it in the code here but I think my suggestion might be a simpler way
+  * of doing it.
+  *
+  * (sorry, I mixed up the types the first time i wrote this comment, should be
+  * fixed now)
+  */
+
+object Experimental {
+  import jjm.metrics._
+  import cats._
+  import cats.implicits._
+
+  case class DebateStats(wins: Accuracy.Stats, rewards: Numbers[Double])
+
+  implicit val debateStatsMonoid: Monoid[DebateStats] =
+    cats.derived.semiauto.monoid[DebateStats]
+
+  def h(
+      x: (DebateRole, String)
+  ): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
+    String,
+    DebateStats
+  ]] = {
+    // TODO make this accurate
+    x match {
+      case (debate.Debater(_), name) =>
+        Chosen(
+          Map(
+            LeaderboardCategories.HonestDebater ->
+              Chosen(
+                Map(name -> DebateStats(Accuracy.Stats(1, 0), Numbers(0)))
+              )
+          )
+        )
+      /*       case (DebateRole.DishonestDebater, name) =>
+        Chosen(
+          LeaderboardCategories.DishonestDebater,
+          Chosen(name, DebateStats(Accuracy.Stats(0, 1), Numbers(0.0, 0)))
+        ) */
+      case (Judge, name) =>
+        Chosen(
+          Map(
+            LeaderboardCategories.Judge ->
+              Chosen(Map(name -> DebateStats(Accuracy.Stats(0, 0), Numbers(0))))
+          )
+        )
+    }
+
+  }
+
+  def f(d: Debate): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
+    String,
+    DebateStats
+  ]] = {
+    d.setup.roles.toList.foldMap(h)
+  }
+
+  def g(finishedDebates: List[Debate]): Chosen[
+    LeaderboardCategories.LeaderboardCategory,
+    Chosen[String, DebateStats]
+  ] = {
+    finishedDebates.foldMap(f)
+  }
+}
+
+// a sketch of a new way to implement this
+
+/* trait LeaderboardType {
+  def customColumnName
+      : String // e.g. "Average Log Probability" or "Average Score"
+  def customColumnValue: Double
+
+  /** guarantee: nDebates = wins + losses */
+  def wins: Int
+
+  /** guarantee: nDebates = wins + losses */
+  def losses: Int
+  def leaderboardType: LeaderboardCategories.LeaderboardCategory
+}
+
+abstract class Debater(probabilities: Vector[Double]) extends LeaderboardType {
+  def customColumnName = "Average Log Prob"
+  def customColumnValue =
+    (probabilities.map(math.log).sum / probabilities.length)
+  def wins = (probabilities.filter(_ > 0.5)).length
+  def losses = probabilities.length - wins
+}
+
+class HonestDebater(probabilities: Vector[Double])
+    extends Debater(probabilities) {
+  def leaderboardType = LeaderboardCategories.HonestDebater
+}
+
+class DishonestDebater(probabilities: Vector[Double])
+    extends Debater(probabilities) {
+  def leaderboardType = LeaderboardCategories.DishonestDebater
+}
+
+/** precondition that the lists are the same length- TODO maybe enforce this in
+ * code
+ */
+class Judge(
+    numTurns: Vector[Int],
+    finalDistribution: Vector[Vector[Double]],
+    function: ScoringFunction,
+    correctAnswerIndices: Vector[Int]
+) extends LeaderboardType {
+  def customColumnName = "Average Score"
+
+  def wins = finalDistribution
+    .zip(correctAnswerIndices)
+    .map({ case (l, c) => l(c) })
+    .filter(_ > 0.5)
+    .length
+
+  def losses = correctAnswerIndices.length - wins
+
+  def customColumnValue: Double = {
+    val scores: Vector[Double] = finalDistribution
+      .zip(correctAnswerIndices)
+      .zip(numTurns)
+      .map({ case ((l, c), numTurns) =>
+        function
+          .eval(turnNumber = numTurns, distribution = l, outcome = c)
+      })
+      .toVector
+    scores.sum / scores.length
+  }
+}
+
 // Enumerated over judge, honest, and dishonest debaters
 @JsonCodec
 case class LeaderboardForRoleType(
     perProfile: Map[String, List[
       Double
-    ]] // final probability of winning, TODO maybe enforce 0-1?
-) // string keys are debater names, TODO should they be ints?
+    ]] // final probability of winning, TODO someday maybe enforce 0-1?
+) // string keys are debater names
 {
-  // TODO handle deprecation?
   def nDebatesPerProfile() = perProfile.mapValues(_.size)
 
   def nWins() = {
@@ -39,7 +182,7 @@ case class LeaderboardForRoleType(
     })
   }
 
-}
+} */
 
 object LeaderboardCategories {
   sealed trait LeaderboardCategory
@@ -53,10 +196,9 @@ object LeaderboardForRoleType {
   type Probabilities = Iterable[Double]
   type Assigned = Map[DebateRole, String]
   type Scores = Map[String, List[Double]]
-  // TODO rename
   case class Intermediate(
       p: Probabilities,
-      d: Assigned, // TODO maybe generalize to pack in the setup
+      d: Assigned,
       correctAnswerIndex: Int
   )
 
@@ -91,7 +233,7 @@ object LeaderboardForRoleType {
     Map[
       LeaderboardCategories.LeaderboardCategory,
       InnerMap
-    ] // TODO proper case class?
+    ]
 
   def foldInAssignedDebaterRole(
       assignedRoles: Map[DebateRole, String],
@@ -128,7 +270,7 @@ object LeaderboardForRoleType {
       profileName: String,
       map: OuterMap,
       correctAnswerIndex: Int,
-      distribution: Seq[Double]
+      distribution: Vector[Double]
   ) = {
     val judgeProb = distribution(correctAnswerIndex)
     val judge = LeaderboardCategories.Judge
@@ -177,7 +319,7 @@ object LeaderboardForRoleType {
               profileName = profileName,
               map = mapAfterDebaters,
               correctAnswerIndex = correctAnswerIndex,
-              distribution = distribution.toSeq // TODO ugh! yuck!
+              distribution = distribution.toVector
             )
         }
     })
