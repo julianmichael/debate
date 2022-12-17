@@ -14,43 +14,68 @@ object DebateStats {
     cats.derived.semiauto.monoid[DebateStats]
 
   def h(
+      debateResult: DebateResult
+  )(
       x: (DebateRole, String)
   ): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
     String,
     DebateStats
   ]] = {
-    // TODO make this accurate
-    x match {
-      case (debate.Debater(_), name) =>
-        Chosen(
-          Map(
-            LeaderboardCategories.HonestDebater ->
-              Chosen(
-                Map(name -> DebateStats(Accuracy.Stats(1, 0), Numbers(0)))
+    val (debaterKey, inner) =
+      x match {
+        case (debate.Debater(index), name) =>
+          val correct = if (debateResult.finalJudgement(index) > 0.5) { 1 }
+          else { 0 }
+          val incorrect = 1 - correct
+          val reward = math.log(debateResult.finalJudgement(index))
+          val debaterKey = if (index == debateResult.correctAnswerIndex) {
+            LeaderboardCategories.HonestDebater
+          } else {
+            LeaderboardCategories.DishonestDebater
+          }
+          (
+            debaterKey,
+            Map(
+              name -> DebateStats(
+                Accuracy.Stats(correct, incorrect),
+                Numbers(reward)
               )
+            )
           )
-        )
-      /*       case (DebateRole.DishonestDebater, name) =>
-        Chosen(
-          LeaderboardCategories.DishonestDebater,
-          Chosen(name, DebateStats(Accuracy.Stats(0, 1), Numbers(0.0, 0)))
-        ) */
-      case (Judge, name) =>
-        Chosen(
-          Map(
-            LeaderboardCategories.Judge ->
-              Chosen(Map(name -> DebateStats(Accuracy.Stats(0, 0), Numbers(0))))
+        case (Judge, name) =>
+          val correct =
+            if (
+              debateResult.finalJudgement(debateResult.correctAnswerIndex) > 0.5
+            ) { 1 }
+            else { 0 }
+          val incorrect = 1 - correct
+          (
+            LeaderboardCategories.Judge,
+            Map(
+              name -> DebateStats(
+                Accuracy.Stats(correct, incorrect),
+                Numbers(debateResult.judgeReward)
+              )
+            )
           )
-        )
-    }
+      }
 
+    Chosen(Map(debaterKey -> Chosen(inner)))
   }
 
   def f(d: Debate): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
     String,
     DebateStats
   ]] = {
-    d.setup.roles.toList.foldMap(h)
+    d.result match {
+      case None => Chosen(Map.empty)
+      case Some(result) =>
+        d.setup.roles.toList.foldMap(
+          h(
+            result
+          )
+        )
+    }
   }
 
   def g(finishedDebates: List[Debate]): Chosen[

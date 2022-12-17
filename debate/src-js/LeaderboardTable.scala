@@ -120,7 +120,6 @@ object LeaderboardTable {
     }
 
     def render(s: StateSnapshot[State]) = {
-      println("s.value", s.value)
       <.div(
         <.h3("Judge"),
         renderRowEntries(
@@ -168,16 +167,12 @@ object LeaderboardTable {
         safeLeaderboardGenerator =
           (key: LeaderboardCategory) =>
             leaderboardToRows(f.data.getOrElse(key, Map()))
-        () = println("hi", f)
-        () = println(f.data.keys)
-        // TODO someday this swallows exceptions
-        rezzy = State(
+        result = State(
           judge = safeLeaderboardGenerator(Judge),
           honest = safeLeaderboardGenerator(HonestDebater),
           dishonest = safeLeaderboardGenerator(DishonestDebater)
         )
-        () = println("rezzy", rezzy)
-      } yield rezzy
+      } yield result
     }
 
     (new MountingWithLocalState[State]).make(

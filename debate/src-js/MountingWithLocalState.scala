@@ -26,12 +26,10 @@ class MountingWithLocalState[A] {
       val ace =
         for {
           a <- $.props.onMount
-          () = println("a", a)
           _ <- $.setState(a).async
         } yield ()
       ace.toCallback
     })
-    // TODO what type is the dollar sign? can we just call an internal [render]?
     .componentDidUpdate { $ =>
       if (
         $.prevProps.initialValue != $.currentProps.initialValue &&

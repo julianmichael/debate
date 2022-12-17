@@ -39,7 +39,6 @@ object DebateState {
   def init = DebateState(None, Set())
 }
 
-// TODO reward for debaters is log probabilities
 @Lenses @JsonCodec case class DebateResult(
     correctAnswerIndex: Int,
     numTurns: Int,
@@ -193,8 +192,11 @@ object DebateTurnType {
   ) extends DebateTurnType {
     def rolesRemaining = remainingDebaters.map(Debater(_))
   }
-  case class DebaterSpeechTurn(debater: Int, charLimit: Int, quoteLimit: Option[Int])
-      extends DebateTurnType {
+  case class DebaterSpeechTurn(
+      debater: Int,
+      charLimit: Int,
+      quoteLimit: Option[Int]
+  ) extends DebateTurnType {
     def rolesRemaining = Set(Debater(debater))
   }
   case class JudgeFeedbackTurn(reportBeliefs: Boolean, charLimit: Int)
