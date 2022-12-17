@@ -26,6 +26,7 @@ class MountingWithLocalState[A] {
       val ace =
         for {
           a <- $.props.onMount
+          () = println("a", a)
           _ <- $.setState(a).async
         } yield ()
       ace.toCallback

@@ -120,6 +120,7 @@ object LeaderboardTable {
     }
 
     def render(s: StateSnapshot[State]) = {
+      println("s.value", s.value)
       <.div(
         <.h3("Judge"),
         renderRowEntries(
@@ -146,46 +147,37 @@ object LeaderboardTable {
     }
 
     def leaderboardToRows(
-        x: LeaderboardForRoleType,
-        category: LeaderboardCategories.LeaderboardCategory,
-        setup: DebateSetup
+        x: Map[String, SerializableDebateStats]
     ) = {
       val init: List[RowEntry] = List()
-      x.perProfile.foldLeft(init) {
-        case ((acc: List[RowEntry]), (k: String, v: List[Double])) =>
-          val wins = v.filter(_ > 0.5).length
-          val losses = v.filter(_ < 0.5).length
-          // TODO this is duplicate computation
-          val averageLogProb = v.map(math.log).sum / v.length
-          val averageScore = setup.rules.scoringFunction.eval(
-            // TODO where does numTurns come from
-            turnNumber = numTurns,
-            correctAnswerIndex = correctAnswerIndex,
-            lastProbability = v.last
-          )
+      x.foldLeft(init) {
+        case ((acc: List[RowEntry]), (k: String, v: SerializableDebateStats)) =>
           acc :+ RowEntry(
             name = k,
-            wins = wins,
-            losses = losses,
-            customRewardValue = {
-              category match {
-                case LeaderboardCategories.Judge            => averageScore
-                case LeaderboardCategories.HonestDebater    => averageLogProb
-                case LeaderboardCategories.DishonestDebater => averageLogProb
-              }
-            }
+            wins = v.wins,
+            losses = v.losses,
+            customRewardValue = v.averageReward
           )
       }
     }
 
     def onMount: AsyncCallback[State] = {
-      (for {
+      import LeaderboardCategories._
+      for {
         f <- AsyncCallback.fromFuture(loadLeaderboard())
-      } yield State(
-        judge = leaderboardToRows(f.judge),
-        honest = leaderboardToRows(f.honest),
-        dishonest = leaderboardToRows(f.dishonest)
-      ))
+        safeLeaderboardGenerator =
+          (key: LeaderboardCategory) =>
+            leaderboardToRows(f.data.getOrElse(key, Map()))
+        () = println("hi", f)
+        () = println(f.data.keys)
+        // TODO someday this swallows exceptions
+        rezzy = State(
+          judge = safeLeaderboardGenerator(Judge),
+          honest = safeLeaderboardGenerator(HonestDebater),
+          dishonest = safeLeaderboardGenerator(DishonestDebater)
+        )
+        () = println("rezzy", rezzy)
+      } yield rezzy
     }
 
     (new MountingWithLocalState[State]).make(

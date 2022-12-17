@@ -63,7 +63,9 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     "-feature",
     "-language:higherKinds",
     "-Ymacro-annotations",
-    "-Ywarn-unused"
+    "-Ywarn-unused",
+    "-Vimplicits",
+    "-Vtype-diffs"
   )
 
   override def scalacPluginIvyDeps = super.scalacPluginIvyDeps() ++ Agg(
