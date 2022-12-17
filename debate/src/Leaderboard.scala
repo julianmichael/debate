@@ -13,7 +13,7 @@ object DebateStats {
   implicit val debateStatsMonoid: Monoid[DebateStats] =
     cats.derived.semiauto.monoid[DebateStats]
 
-  def h(
+  def combineAssignedUsers(
       debateResult: DebateResult
   )(
       x: (DebateRole, String)
@@ -63,7 +63,7 @@ object DebateStats {
     Chosen(Map(debaterKey -> Chosen(inner)))
   }
 
-  def f(d: Debate): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
+  def foldOverDebate(d: Debate): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
     String,
     DebateStats
   ]] = {
@@ -71,18 +71,18 @@ object DebateStats {
       case None => Chosen(Map.empty)
       case Some(result) =>
         d.setup.roles.toList.foldMap(
-          h(
+          combineAssignedUsers(
             result
           )
         )
     }
   }
 
-  def g(finishedDebates: List[Debate]): Chosen[
+  def foldOverDebates(finishedDebates: List[Debate]): Chosen[
     LeaderboardCategories.LeaderboardCategory,
     Chosen[String, DebateStats]
   ] = {
-    finishedDebates.foldMap(f)
+    finishedDebates.foldMap(foldOverDebate)
   }
 }
 
@@ -145,7 +145,7 @@ object Leaderboard {
   def ofDebateStates(d: List[Debate]) = {
     Leaderboard(
       DebateStats
-        .g(d)
+        .foldOverDebates(d)
         .data
         .mapValues(
           _.data.mapValues(SerializableDebateStats.ofDebateStats).toMap
