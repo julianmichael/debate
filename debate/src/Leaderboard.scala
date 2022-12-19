@@ -63,7 +63,9 @@ object DebateStats {
     Chosen(Map(debaterKey -> Chosen(inner)))
   }
 
-  def foldOverDebate(d: Debate): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
+  def foldOverDebate(
+      d: Debate
+  ): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
     String,
     DebateStats
   ]] = {
@@ -94,12 +96,7 @@ object LeaderboardCategories {
   case object HonestDebater extends LeaderboardCategory
   case object DishonestDebater extends LeaderboardCategory
 
-  import io.circe._, io.circe.generic.semiauto._
-
-  implicit val lcDecoder: Decoder[LeaderboardCategory] =
-    deriveDecoder[LeaderboardCategory]
-  implicit val lcEncoder: Encoder[LeaderboardCategory] =
-    deriveEncoder[LeaderboardCategory]
+  import io.circe._
 
   implicit val keyEncoder: KeyEncoder[LeaderboardCategory] =
     KeyEncoder.instance(_.toString)
@@ -128,8 +125,6 @@ object SerializableDebateStats {
     )
 
   import io.circe.generic.semiauto._
-  implicit val a = deriveDecoder[SerializableDebateStats]
-  implicit val b = deriveEncoder[SerializableDebateStats]
 }
 
 @JsonCodec
