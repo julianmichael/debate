@@ -217,7 +217,7 @@ object DisconnectedLobbyPage {
         case MyDebates          => "My Debates"
         case AllOfficialDebates => "All Official Debates"
         case PracticeDebates    => "Practice Debates"
-        case Leaderboard        => "Leadeboard"
+        case Leaderboard        => "Leaderboard"
       }
     }
     object LobbyTab {
