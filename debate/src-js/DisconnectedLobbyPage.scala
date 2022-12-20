@@ -1,4 +1,5 @@
 package debate
+
 import scala.language.existentials // see https://github.com/suzaku-io/diode/issues/50
 
 import org.scalajs.dom
@@ -11,7 +12,6 @@ import scalacss.ScalaCssReact._
 import cats.implicits._
 
 object DisconnectedLobbyPage {
-
   import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
@@ -141,16 +141,17 @@ object DisconnectedLobbyPage {
           case Complete => S.completeStatusLabel
         }
       }
-      val selectableStyle =
-        if (canEnterRoom) S.simpleSelectable
-        else S.simpleUnselectable
-      val status = roomMetadata.status
-      <.div(S.optionBox, selectableStyle)(
+
+      // TODO probably just a val instead of a def
+      def statusDisplay(status: debate.RoomStatus) = {
         <.div(S.optionTitle)(
           roomMetadata.name,
           " ",
           <.span(statusStyle)(s"($status)")
-        ),
+        )
+      }
+
+      def assignedParticipants() = {
         <.div(
           <.strong("Assigned: "),
           Helpers
@@ -158,7 +159,10 @@ object DisconnectedLobbyPage {
               roomMetadata.assignedParticipants.toList.sorted
             )
             .toVdomArray
-        ).when(roomMetadata.assignedParticipants.nonEmpty),
+        ).when(roomMetadata.assignedParticipants.nonEmpty)
+      }
+
+      def presentParticipants() = {
         <.div(
           <.strong("Present: "),
           Helpers
@@ -166,7 +170,10 @@ object DisconnectedLobbyPage {
               roomMetadata.currentParticipants.toList.sorted
             )
             .toVdomArray
-        ).when(roomMetadata.currentParticipants.nonEmpty),
+        ).when(roomMetadata.currentParticipants.nonEmpty)
+      }
+
+      def deleteRoom() = {
         <.button(
           c"btn btn-block btn-danger",
           S.adminOnly
@@ -178,12 +185,27 @@ object DisconnectedLobbyPage {
               DeleteRoom(isOfficial, roomMetadata.name)
             )
           })
-        ),
+        )
+      }
+
+      def enterRoomButton() = {
         (^.onClick --> enterRoom(
           isOfficial,
           roomMetadata.name,
           userName.value
         )).when(canEnterRoom)
+      }
+
+      val selectableStyle =
+        if (canEnterRoom) S.simpleSelectable
+        else S.simpleUnselectable
+      val status = roomMetadata.status
+      <.div(S.optionBox, selectableStyle)(
+        statusDisplay(status = status),
+        assignedParticipants(),
+        presentParticipants(),
+        deleteRoom(),
+        enterRoomButton()
       )
     }
 
@@ -195,36 +217,47 @@ object DisconnectedLobbyPage {
         case MyDebates          => "My Debates"
         case AllOfficialDebates => "All Official Debates"
         case PracticeDebates    => "Practice Debates"
+        case Leaderboard        => "Leaderboard"
       }
     }
     object LobbyTab {
       case object MyDebates extends LobbyTab
       case object AllOfficialDebates extends LobbyTab
       case object PracticeDebates extends LobbyTab
+      case object Leaderboard extends LobbyTab
     }
 
     val LocalString = new LocalState[String]
 
     val LocalLobbyTab = new LocalState[LobbyTab]
+
+    def profileSelector(userName: StateSnapshot[String]) = {
+      <.div(c"form-group row")(
+        <.label(c"col-sm-2 col-form-label")("Profile:"),
+        V.Select.String.modFull(
+          TagMod(c"col-sm-10", S.customSelect)
+        )(
+          choices =
+            noProfileString +: lobby.value.trackedDebaters.toList.sorted,
+          curChoice = curChoice(userName),
+          setChoice = setChoice(userName)
+        )
+      )
+    }
+
+    def nameInput(userName: StateSnapshot[String]) = {
+      V.LiveTextField.String.mod(
+        span = TagMod(c"form-group row", Styles.adminOnly),
+        label = c"col-sm-2 col-form-label",
+        input = c"col-sm-10 form-control"
+      )(userName, labelOpt = Some("Name: "))
+    }
+
     LocalString.make(initialValue = getCookie(profileCookieId).getOrElse("")) {
       userName =>
         <.div(S.lobbyContainer, S.spaceyContainer)(
-          <.div(c"form-group row")(
-            <.label(c"col-sm-2 col-form-label")("Profile:"),
-            V.Select.String.modFull(
-              TagMod(c"col-sm-10", S.customSelect)
-            )(
-              choices =
-                noProfileString +: lobby.value.trackedDebaters.toList.sorted,
-              curChoice = curChoice(userName),
-              setChoice = setChoice(userName)
-            )
-          ),
-          V.LiveTextField.String.mod(
-            span = TagMod(c"form-group row", Styles.adminOnly),
-            label = c"col-sm-2 col-form-label",
-            input = c"col-sm-10 form-control"
-          )(userName, labelOpt = Some("Name: ")),
+          profileSelector(userName = userName),
+          nameInput(userName = userName),
           createProfileButton(userName),
           deleteProfileButton(userName),
           LocalLobbyTab.make(LobbyTab.MyDebates) { lobbyTab =>
@@ -241,29 +274,52 @@ object DisconnectedLobbyPage {
               case MyDebates          => myDebates
               case AllOfficialDebates => lobby.value.officialRooms
               case PracticeDebates    => lobby.value.practiceRooms
+              case Leaderboard        => Vector.empty
             }
-            <.div(c"card", ^.textAlign.center)(
-              <.div(c"card-header")(
-                <.ul(c"nav nav-fill nav-tabs card-header-tabs")(
-                  List(
-                    MyDebates,
-                    AllOfficialDebates,
-                    PracticeDebates
-                  ).toVdomArray(tab =>
-                    <.li(c"nav-item")(
-                      <.a(
-                        ^.classSet1(
-                          "nav-link",
-                          "active" -> (tab == lobbyTab.value)
-                        )
-                      )(
-                        ^.href := "#",
-                        ^.onClick --> lobbyTab.setState(tab),
-                        tab.toString
-                      )
+
+            def lobbySelector() = {
+              List(
+                MyDebates,
+                AllOfficialDebates,
+                PracticeDebates,
+                Leaderboard
+              ).toVdomArray(tab =>
+                <.li(c"nav-item")(
+                  <.a(
+                    ^.classSet1(
+                      "nav-link",
+                      "active" -> (tab == lobbyTab.value)
                     )
+                  )(
+                    ^.href := "#",
+                    ^.onClick --> lobbyTab.setState(tab),
+                    tab.toString
                   )
                 )
+              )
+            }
+
+            def roomNameInput(
+                roomNameLive: StateSnapshot[String],
+                enter: Callback
+            ) = {
+              V.LiveTextField.String.modInput(
+                input = TagMod(
+                  c"form-control",
+                  ^.onKeyDown ==> ((e: ReactKeyboardEvent) =>
+                    if (e.keyCode == dom.ext.KeyCode.Enter) enter
+                    else Callback.empty
+                  )
+                )
+              )(
+                roomNameLive,
+                placeholderOpt = Some("Room")
+              )
+            }
+
+            <.div(c"card", ^.textAlign.center)(
+              <.div(c"card-header")(
+                <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
               ),
               LocalString.make("") { roomNameLive =>
                 val canEnter =
@@ -278,18 +334,7 @@ object DisconnectedLobbyPage {
                   else Callback.empty
                 <.div(c"card-body", S.spaceySubcontainer)(
                   <.div(c"input-group", ^.width.auto)(
-                    V.LiveTextField.String.modInput(
-                      input = TagMod(
-                        c"form-control",
-                        ^.onKeyDown ==> ((e: ReactKeyboardEvent) =>
-                          if (e.keyCode == dom.ext.KeyCode.Enter) enter
-                          else Callback.empty
-                        )
-                      )
-                    )(
-                      roomNameLive,
-                      placeholderOpt = Some("Room")
-                    ),
+                    roomNameInput(enter = enter, roomNameLive = roomNameLive),
                     joinOrCreateDebate(
                       currentRooms = currentRooms,
                       isOfficial = isOfficial,
@@ -297,9 +342,16 @@ object DisconnectedLobbyPage {
                       enter = enter,
                       roomNameLive = roomNameLive
                     )
-                  ).when(lobbyTab.value != MyDebates),
+                  ).when(
+                    lobbyTab.value != MyDebates && lobbyTab.value != Leaderboard
+                  ),
                   <.div("No rooms to show.")
-                    .when(currentRooms.isEmpty),
+                    .when(
+                      currentRooms.isEmpty && lobbyTab.value != Leaderboard
+                    ),
+                  LeaderboardTable
+                    .make()
+                    .when(lobbyTab.value == Leaderboard),
                   currentRooms.toVdomArray { case rm: RoomMetadata =>
                     roomManagement(
                       roomMetadata = rm,

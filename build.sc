@@ -151,7 +151,8 @@ object debate extends Module {
       ivy"com.monovore::decline::$declineVersion",
       ivy"com.monovore::decline-effect::$declineVersion",
       // java dependencies
-      ivy"ch.qos.logback:logback-classic:$logbackVersion"
+      ivy"ch.qos.logback:logback-classic:$logbackVersion",
+      ivy"io.circe::circe-generic-extras::$circeVersion"
     )
 
     def runMainFn = T.task { (mainClass: String, args: Seq[String]) =>
@@ -228,7 +229,7 @@ object debate extends Module {
       ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
       ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
       ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
-      ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion",
+      ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion"
     )
 
     def jsDeps = Agg(
