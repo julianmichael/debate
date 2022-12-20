@@ -37,7 +37,10 @@ while prev_story_iter != story:
     story = story.replace('\n ', '\n')
     story = story.replace(' \n', '\n')
     story = story.replace('\n\n\n', '\n\n')
-print(story)
+    # comment the next 3 lines if you want to preserve line breaks
+    story = story.replace('\n\n', '<keepbr\>')
+    story = story.replace('\n', ' ')
+    story = story.replace('<keepbr\>', '\n\n')
 for set in story_data:
     for q_json in set['questions']:
         if q_json['difficult'] > 0:
