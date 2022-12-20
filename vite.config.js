@@ -18,9 +18,9 @@ export default defineConfig({
       target: 'http://localhost:8080',
       rewrite: (path) => path.replace(/^\/api/, '')
     },
-    '/api': {
+    '/ws': {
       target: 'ws://localhost:8080',
-      rewrite: (path) => path.replace(/^\/api/, ''),
+      rewrite: (path) => path.replace(/^\/ws/, ''),
       ws: true
     }
   },
