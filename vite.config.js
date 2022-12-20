@@ -9,9 +9,25 @@ var alias = isDev()
 console.log("alias", alias);
 
 export default defineConfig({
-    plugins: [react()],
+  server: {
+    port: 7777,
+    strictPort: true,
+  },
+  proxy: {
+    '/api': {
+      target: 'http://localhost:8080',
+      rewrite: (path) => path.replace(/^\/api/, '')
+    },
+    '/api': {
+      target: 'ws://localhost:8080',
+      rewrite: (path) => path.replace(/^\/api/, ''),
+      ws: true
+    }
+  },
+
+  plugins: [react()],
   resolve: {
-        alias: alias,
+    alias: alias,
   },
 });
 

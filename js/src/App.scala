@@ -37,7 +37,7 @@ object App {
     WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
 
   val mainWebsocketUri: String = {
-    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:8080/main-ws"
+    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:7777/ws/main-ws"
   }
 
   val httpProtocol = dom.document.location.protocol

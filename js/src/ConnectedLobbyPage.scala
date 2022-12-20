@@ -36,12 +36,12 @@ object ConnectedLobbyPage {
       participantId: String
   ): String = {
     val prefix = if (isOfficial) "official" else "practice"
-    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:8080/$prefix-ws/$roomName?name=$participantId"
+    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:7777/ws/$prefix-ws/$roomName?name=$participantId"
   }
 
   val httpProtocol = dom.document.location.protocol
   val qualityApiUrl: String = {
-    s"$httpProtocol//${dom.document.location.hostname}:8080/$qualityServiceApiEndpoint"
+    s"$httpProtocol//${dom.document.location.hostname}:7777/api/$qualityServiceApiEndpoint"
   }
   type DelayedFuture[A] = () => Future[A]
   val toAsyncCallback = {
