@@ -33,8 +33,8 @@ object LocalQuotingMessage {
     .initialStateFromProps(p => getCookie(p.messageCookieId).getOrElse(""))
     .render { $ => $.props.render(StateSnapshot.of($)) }
     .componentWillReceiveProps { $ =>
-      val messageSpans: Set[ESpan] = SpeechSegment
-        .getSegmentsFromString($.state)
+      val messageSpans: Set[ESpan] = SpeechSegments
+        .getFromString($.state)
         .collect { case SpeechSegment.Quote(span) => span }
         .toSet
       val newSpans = $.nextProps.spans.value -- messageSpans
@@ -43,8 +43,8 @@ object LocalQuotingMessage {
       } else Callback.empty
     }
     .componentDidUpdate { $ =>
-      val messageSpans = SpeechSegment
-        .getSegmentsFromString($.currentState)
+      val messageSpans = SpeechSegments
+        .getFromString($.currentState)
         .collect { case SpeechSegment.Quote(span) => span }
         .toSet
 

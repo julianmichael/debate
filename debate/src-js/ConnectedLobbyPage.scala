@@ -27,7 +27,6 @@ object ConnectedLobbyPage {
       getStateUpdateFromResponse = responseState => _ => responseState
     )
 
-  val debatePanel = new DebatePanel(S, V)
   val facilitatorPanel = new FacilitatorPanel(S, V)
 
   def getDebateWebsocketUri(
@@ -72,7 +71,7 @@ object ConnectedLobbyPage {
           .fold(Callback.empty) { role =>
             def getRoles(debate: DebateState) =
               debate.debate.foldMap(
-                _.currentTurn.foldMap(_.rolesRemaining)
+                _.currentTransitions.foldMap(_.currentSpeakers)
               )
             val newRoles =
               getRoles(curDebate) -- prevDebate
@@ -294,7 +293,7 @@ object ConnectedLobbyPage {
                       )
                   }
                 ),
-                debatePanel(
+                DebatePanel(
                   roomName,
                   userId,
                   debate,

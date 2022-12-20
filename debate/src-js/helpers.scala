@@ -6,8 +6,6 @@ import cats.Foldable
 import cats.Functor
 import cats.implicits._
 import org.scalajs.dom
-import jjm.ling.Span
-import jjm.ling.Text
 
 case class ConnectionSpec(
     isOfficial: Boolean,
@@ -26,11 +24,6 @@ object Helpers {
 
   def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = {
     fa.map(x => Vector(<.span(x))).intercalate(Vector(<.span(", ")))
-  }
-
-  // more efficient than the jjm default, which I didn't even realize was a problem haha
-  def renderSpan(tokens: Vector[String], span: Span) = {
-    Text.render(tokens.slice(span.begin, span.endExclusive))
   }
 
   def wsProtocol() = {

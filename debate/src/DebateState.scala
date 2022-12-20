@@ -6,7 +6,9 @@ import monocle.macros.GenPrism
 import io.circe.generic.JsonCodec
 
 import cats.implicits._
+
 import jjm.DotPair
+import jjm.implicits._
 
 import monocle.function.{all => Optics}
 
@@ -62,7 +64,10 @@ case class JudgeFeedbackContent(
 case class DebateTransitionSet(
   undo: Map[Role, (Vector[SpeechSegment], Debate)],
   giveSpeech: Map[Role, DotPair[Lambda[A => A => Debate], DebateTurnType]]
-)
+) {
+  def currentSpeakers = giveSpeech.keySet
+  def currentTurns = giveSpeech.mapVals(_.fst)
+}
 
 
 @Lenses @JsonCodec case class DebateResult(
@@ -101,24 +106,6 @@ object DebateResult
     case JudgeFeedback(_, _, false) => 1
     case _                          => 0
   }
-
-  // def whoCanUndo: Set[Role] = {
-  //   rounds.lastOption match {
-  //     case None => Set()
-  //     case Some(round) =>
-  //       round match {
-  //         case JudgeFeedback(_, _, _) => Set(Judge)
-  //         case SequentialSpeeches(speeches) =>
-  //           speeches.lastOption match {
-  //             case None =>
-  //               Set() // TODO maybe-someday let the judge undo here- requires dropping two rounds in [DebatePanel.scala]
-  //             case Some((_, speech)) => Set(speech.speaker.role)
-  //           }
-  //         case SimultaneousSpeeches(speeches) =>
-  //           (speeches.map({ case (_, speech) => speech.speaker.role })).toSet
-  //       }
-  //   }
-  // }
 
   /** Whose turn(s) it is, what they can do, and how to compute the results. */
   def currentTransitions: Either[DebateResult, DebateTransitionSet] = {

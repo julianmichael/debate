@@ -3,6 +3,8 @@ package debate
 import io.circe.generic.JsonCodec
 import jjm.ling.ESpan
 
+import cats.implicits._
+
 /** A single contiguous argument by a debater.
   *
   * @param speaker
@@ -35,37 +37,40 @@ object SpeechSegment {
   @JsonCodec case class Quote(span: ESpan) extends SpeechSegment {
     def isEmpty = span.begin == span.endExclusive
   }
+}
 
+object SpeechSegments {
   val CharRange = "([0-9]+)-([0-9]+)".r
 
-  private[this] def getSegmentsFromStringAux(
+  private[this] def getFromStringAux(
       content: String
   ): Vector[SpeechSegment] = {
     val indexOfStartTag = content.indexOf("<<")
-    if (indexOfStartTag < 0) Vector(Text(content))
+    if (indexOfStartTag < 0) Vector(SpeechSegment.Text(content))
     else { // no quotes
       val postStartTag = content.substring(indexOfStartTag + 2)
       val indexOfEndTag = postStartTag.indexOf(">>")
-      if (indexOfEndTag < 0) Vector(Text(content))
+      if (indexOfEndTag < 0) Vector(SpeechSegment.Text(content))
       else { // tag wasn't closed
         val tagContent = postStartTag.substring(0, indexOfEndTag)
         val postEndTag = postStartTag.substring(indexOfEndTag + 2)
         tagContent match {
           case CharRange(begin, end) =>
             Vector(
-              Text(content.substring(0, indexOfStartTag)),
-              Quote(ESpan(begin.toInt, end.toInt))
-            ) ++ getSegmentsFromStringAux(postEndTag)
+              SpeechSegment.Text(content.substring(0, indexOfStartTag)),
+              SpeechSegment.Quote(ESpan(begin.toInt, end.toInt))
+            ) ++ getFromStringAux(postEndTag)
           case _ =>
             Vector(
-              Text(content.substring(0, indexOfStartTag + 2))
-            ) ++ getSegmentsFromStringAux(postStartTag)
+              SpeechSegment.Text(content.substring(0, indexOfStartTag + 2))
+            ) ++ getFromStringAux(postStartTag)
         }
       }
 
     }
   }
   def collapse(segments: Vector[SpeechSegment]): Vector[SpeechSegment] = {
+    import SpeechSegment.Text
     segments
       .filterNot(s => s.isEmpty)
       .foldLeft(List.empty[SpeechSegment]) {
@@ -75,7 +80,34 @@ object SpeechSegment {
       .toVector
       .reverse
   }
-  def getSegmentsFromString(content: String): Vector[SpeechSegment] = {
-    collapse(getSegmentsFromStringAux(content))
+  def getFromString(content: String): Vector[SpeechSegment] = {
+    collapse(getFromStringAux(content))
   }
+
+  def getSpeechLength(
+    source: Vector[String],
+    speechSegments: Vector[SpeechSegment]
+  ) = {
+    speechSegments.foldMap {
+      case SpeechSegment.Text(text) => text.size
+      case SpeechSegment.Quote(span) =>
+        Utils.renderSpan(source, span).size
+    }
+  }
+  def getQuoteLength(
+    source: Vector[String],
+    speechSegments: Vector[SpeechSegment],
+  ) = {
+    speechSegments.foldMap {
+      case SpeechSegment.Text(_) => 0
+      case SpeechSegment.Quote(span) =>
+        Utils.renderSpan(source, span).size
+    }
+  }
+
+  def getString(speechSegments: Vector[SpeechSegment]) = speechSegments.foldMap {
+    case SpeechSegment.Text(text) => text
+    case SpeechSegment.Quote(span) => span2text(span)
+  }
+
 }
