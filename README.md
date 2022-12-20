@@ -3,16 +3,20 @@ Web interface for information-asymmetric debates.
 
 ## Usage
 
-Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
+### Requirements
+* Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
+* Install [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
 
-For development you must run 3 commands in separate terminals in the root directory of the project:
+### Running
+
+For development, you must run 3 commands in separate terminals in the root directory of the project:
  - `mill --no-server -j 8 -w js.publcDev` to start incremental compilation of the frontend.
 The `-w` flag means that it will watch for changes and recompile automatically.
  - `mill --no-server -j 8 -w jvm [args]` to start incremental compilation of the backend
 and run the backend server on port 8080.
  - `npm run dev` to start the Vite with live reloading.
 
-For production you can start the backend with the same command as above, but without the `-w` flag.
+For production, you can start the backend with the same command as above, but without the `-w` flag.
 The frontend is built with `mill js.publicProd` and then served with any static file server.
 
 All of the relevant server state under is saved under `save/` by default.
@@ -21,14 +25,15 @@ To run HTTPS, there is also an `--ssl` flag which has the server look for a `key
 The difference between development and production is that production mode uses fully-optimized JS
 compilation, which takes longer but produces a much smaller and faster-running JS file.
 
-To run all unit tests, do `mill __.test`.
+To run all unit tests, use `mill __.test`.
 
 ## Contents
 
 * `build.sc`, `build-scripts/`: Build files.
-* `debate/{src,src-js,src-jvm}`: Source code (cross-platform, JS only, and JVM only, respectively).
+* `{shared,js,jvm}`: Source code and resources for all platforms.
 * `print_story.py`, `requirements.txt`: A quick script for printing the text of QuALITY stories from
   their HTML.
+* `package.json`: JavaScript dependencies.
 
 ## Development
 
@@ -81,4 +86,4 @@ smithjessk observed that using `mill -j 0` sped up his builds a lot. (~33% for `
 
 ## In case a default profile isn't set up
 
-You can add profiles with the **~secret admin controls~** which you can access by using the developer tools to change the `Styles-adminOnly` and disable `display: none`. You can find the element if you just select the profile dropdown and then scan the elements that come after it
+You can add profiles with the **~secret admin controls~** which you can access by using the developer tools to change the `Styles-adminOnly` and disable `display: none`. You can find the element if you just select the profile dropdown and then scan the elements that come after it.

@@ -3,9 +3,6 @@ package debate
 import annotation.unused
 import org.scalajs.dom
 
-import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSExportTopLevel, JSImport}
-import org.scalajs.jquery.JQueryStatic
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.DevDefaults._
@@ -16,6 +13,11 @@ import cats.~>
 import cats.implicits._
 import debate.util._
 import jjm.OrWrapped
+
+import org.scalajs.jquery.JQueryStatic
+import scala.scalajs.js
+import scala.scalajs.js.annotation.JSImport
+import scala.scalajs.js.annotation.JSExportTopLevel
 
 @js.native
 @JSImport("jquery", JSImport.Namespace)
@@ -45,9 +47,6 @@ object App {
   }
 
   import jjm.ui.LocalState
-
-  val defaultRoomName: String =
-    jQuery("#defaultRoomName").attr("value").toOption.getOrElse("")
 
   // Shortcuts for styles and view elements
 

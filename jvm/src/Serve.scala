@@ -212,8 +212,7 @@ object Serve
             trackedDebatersRef,
             officialDebates,
             practiceDebates,
-            pushUpdate,
-            blocker
+            pushUpdate
           )
         )
       ).orNotFound
@@ -233,8 +232,7 @@ object Serve
       trackedDebaters: Ref[IO, Set[String]],
       officialDebates: DebateStateManager,
       practiceDebates: DebateStateManager,
-      pushUpdate: IO[Unit],
-      blocker: Blocker
+      pushUpdate: IO[Unit]
   ) = {
 
     // Operations executed by the server

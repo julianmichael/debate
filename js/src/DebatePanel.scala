@@ -1,7 +1,5 @@
 package debate
 
-import org.scalajs.jquery.jQuery
-
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 
