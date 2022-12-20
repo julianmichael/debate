@@ -2,11 +2,14 @@ package debate
 
 import scala.language.existentials
 
+import jjm.ui.CacheCallContent
+import jjm.ui.LocalState
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.extra.StateSnapshot
 import scala.concurrent.Future
 import Helpers.ClassSetInterpolator
+import jjm.OrWrapped
+import japgolly.scalajs.react.extra.StateSnapshot
 
 object LeaderboardTable {
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -30,80 +33,101 @@ object LeaderboardTable {
       losses: Int,
       customRewardValue: Double // e.g. either log prob or the application or the scoring function
   )
-  case class State(
+  case class ParsedResponse(
       judge: List[RowEntry],
       honest: List[RowEntry],
       dishonest: List[RowEntry]
   )
 
-  def sortTableBy[T, B](
-      ref: StateSnapshot[State],
-      getter: State => List[T],
-      maker: (State, List[T]) => State,
-      by: T => B
-  )(implicit ordering: Ordering[B]) = {
+  sealed trait SortableColumn
+  object SortableColumn {
+    case object Name extends SortableColumn
+    case object Wins extends SortableColumn
+    case object Losses extends SortableColumn
+    case object WinPercentage extends SortableColumn
+    case object CustomRewardValue extends SortableColumn
+  }
+  case class SortingOrder(isAscending: Boolean, column: SortableColumn)
+
+  def sortButtons[T, B](
+      sortOrderRef: StateSnapshot[SortingOrder],
+      sortableColumn: SortableColumn
+  ) = {
     <.div()(
       <.i(c"bi bi-caret-down-fill")(
         ^.onClick --> {
-          val newList = getter(ref.value).sortBy(by)
-          val newValue = maker(ref.value, newList)
-          ref.setState(newValue)
+          sortOrderRef.setState(
+            SortingOrder(isAscending = true, column = sortableColumn)
+          )
         }
       ),
       <.i(c"bi bi-caret-up-fill")(
         ^.onClick --> {
-          implicit val reverseOrdering: Ordering[B] =
-            ordering.reverse
-          val newList = getter(ref.value).sortBy(by)(reverseOrdering)
-          val newValue = maker(ref.value, newList)
-          ref.setState(newValue)
+          sortOrderRef.setState(
+            SortingOrder(isAscending = false, column = sortableColumn)
+          )
         }
       )
     )
   }
 
-  // TODO add scoring function for judge and average log probs for debaters
-
   def make() = {
+    def sortBy(s: SortingOrder, rows: List[RowEntry]) = {
+      val (isAscending, column) = (s.isAscending, s.column)
+      val ordering = column match {
+        case SortableColumn.Name   => Ordering.by[RowEntry, String](_.name)
+        case SortableColumn.Wins   => Ordering.by[RowEntry, Int](_.wins)
+        case SortableColumn.Losses => Ordering.by[RowEntry, Int](_.losses)
+        case SortableColumn.WinPercentage =>
+          Ordering.by[RowEntry, Double] { rowEntry =>
+            rowEntry.wins.toDouble / (rowEntry.wins + rowEntry.losses)
+          }
+        case SortableColumn.CustomRewardValue =>
+          Ordering.by[RowEntry, Double](_.customRewardValue)
+      }
+      if (isAscending) rows.sorted(ordering)
+      else rows.sorted(ordering.reverse)
+    }
 
     def renderRowEntries(
-        ref: StateSnapshot[
-          State
-        ], // used to make callbacks for sorting,
-        getter: State => List[RowEntry],
-        maker: (State, List[RowEntry]) => State,
-        customColumn: String
+        rows: List[RowEntry],
+        sortOrderRef: StateSnapshot[SortingOrder],
+        customColumnName: String
     ) = {
-      def ourSort[B](
-          by: RowEntry => B
-      )(implicit ordering: Ordering[B]) =
-        sortTableBy(ref, getter, maker, by)
-
+      def ourSortButtons(x: SortableColumn) =
+        sortButtons(
+          sortableColumn = x,
+          sortOrderRef = sortOrderRef
+        )
+      val sortedRows = sortBy(sortOrderRef.value, rows)
       <.table(c"table table-striped")(
         <.thead(
           <.tr(
             <.th(
               "Name",
-              ourSort(_.name)
+              ourSortButtons(SortableColumn.Name)
             ),
             <.th(
               "Wins",
-              ourSort(_.wins)
+              ourSortButtons(SortableColumn.Wins)
             ),
             <.th(
               "Losses",
-              ourSort(_.losses)
+              ourSortButtons(SortableColumn.Losses)
             ),
             // TODO someday unify this code with the sortBy bits and the rows; one nasty bit is handling the variable printf specifications
             <.th(
               "Win %",
-              ourSort(x => { x.wins.toDouble / (x.losses + x.wins) })
+              ourSortButtons(SortableColumn.WinPercentage)
             ),
-            <.th(customColumn, ourSort(_.customRewardValue))
+            <.th(
+              customColumnName,
+              ourSortButtons(SortableColumn.CustomRewardValue)
+            )
           )
         ),
         <.tbody(
-          getter(ref.value)
+          sortedRows
             .toVdomArray { case rowEntry =>
               <.tr(
                 <.td(rowEntry.name),
@@ -119,30 +143,53 @@ object LeaderboardTable {
       )
     }
 
-    def render(s: StateSnapshot[State]) = {
-      <.div(
-        <.h3("Judge"),
-        renderRowEntries(
-          ref = s,
-          getter = _.judge,
-          maker = (x, y) => x.copy(judge = y),
-          customColumn = "Average Reward"
-        ),
-        <.h3("Honest"),
-        renderRowEntries(
-          ref = s,
-          getter = _.honest,
-          maker = (x, y) => x.copy(honest = y),
-          customColumn = "Average Log Prob"
-        ),
-        <.h3("Dishonest"),
-        renderRowEntries(
-          ref = s,
-          getter = _.dishonest,
-          maker = (x, y) => x.copy(dishonest = y),
-          customColumn = "Average Log Prob"
-        )
-      )
+    def renderLoaded(parsedResponse: ParsedResponse) = {
+      // TODO add the ability to highlight the sorted column
+      val baseSortingOrder =
+        SortingOrder(isAscending = true, SortableColumn.Name)
+      (new LocalState[SortingOrder]).make(baseSortingOrder) { judgeSortOrder =>
+        (new LocalState[SortingOrder]).make(baseSortingOrder) {
+          honestSortOrder =>
+            (new LocalState[SortingOrder]).make(baseSortingOrder) {
+              dishonestSortOrder =>
+                import LeaderboardCategories._
+                def f(x: LeaderboardCategory, name: String) = {
+                  val (sortOrder, rows) = x match {
+                    case Judge => (judgeSortOrder, parsedResponse.judge)
+                    case HonestDebater =>
+                      (honestSortOrder, parsedResponse.honest)
+                    case DishonestDebater =>
+                      (dishonestSortOrder, parsedResponse.dishonest)
+                  }
+                  renderRowEntries(
+                    rows = rows,
+                    sortOrderRef = sortOrder,
+                    customColumnName = name
+                  )
+                }
+                <.div(
+                  <.h3("Judge"),
+                  f(Judge, "Average Reward"),
+                  <.h3("Honest"),
+                  f(HonestDebater, "Average Log Prob"),
+                  <.h3("Dishonest"),
+                  f(DishonestDebater, "Average Log Prob")
+                )
+            }
+        }
+      }
+    }
+
+    val C = (new CacheCallContent[Unit, ParsedResponse]())
+    def render(state: C.State): japgolly.scalajs.react.vdom.VdomElement = {
+      state match {
+        case C.Loading =>
+          <.div(
+            <.h3("Loading Leaderboard...")
+          )
+        case C.Loaded(x) =>
+          renderLoaded(x)
+      }
     }
 
     def leaderboardToRows(
@@ -160,26 +207,25 @@ object LeaderboardTable {
       }
     }
 
-    def onMount: AsyncCallback[State] = {
+    // TODO not sure why i had to put a () in here :O
+    def sendRequest(x: Unit) = {
       import LeaderboardCategories._
-      for {
+      val f = for {
         f <- AsyncCallback.fromFuture(loadLeaderboard())
         safeLeaderboardGenerator =
           (key: LeaderboardCategory) =>
             leaderboardToRows(f.data.getOrElse(key, Map()))
-        result = State(
+        result = ParsedResponse(
           judge = safeLeaderboardGenerator(Judge),
           honest = safeLeaderboardGenerator(HonestDebater),
           dishonest = safeLeaderboardGenerator(DishonestDebater)
         )
       } yield result
+
+      OrWrapped.wrapped(f)
     }
 
-    (new MountingWithLocalState[State]).make(
-      initialValue = State(judge = List(), honest = List(), dishonest = List()),
-      render = render,
-      onMount = onMount,
-      shouldRefresh = _ => true
-    )
+    C.make(request = (), sendRequest = sendRequest)(render)
+
   }
 }
