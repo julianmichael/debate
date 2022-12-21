@@ -79,6 +79,7 @@ case class DebateStateManager(
   def getRoomList = rooms.get.map {
     _.toVector
       .sortBy(_._2)
+      .sortBy(_._2.debate.debate.map { x => x.startTime })
       .map { case (roomName, room) =>
         RoomMetadata(
           roomName,

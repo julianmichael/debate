@@ -28,21 +28,9 @@ case class Props(
       .contains(userName.value)
   }
 
-  def statusStyle = {
-    import RoomStatus._
-    roomMetadata.status match {
-      case SettingUp => S.settingUpStatusLabel
-      case InProgress =>
-        S.inProgressStatusLabel
-      case Complete => S.completeStatusLabel
-    }
-  }
-
   def statusDisplay = {
     <.div(S.optionTitle)(
-      roomMetadata.name,
-      " ",
-      <.span(statusStyle)(s"(${roomMetadata.status})")
+      roomMetadata.name
     )
   }
 

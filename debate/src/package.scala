@@ -45,6 +45,12 @@ package object debate extends PackagePlatformExtensions {
       case Complete   => "complete"
     }
 
+    def toStringForTitle = this match {
+      case SettingUp  => "Setting Up"
+      case InProgress => "In Progress"
+      case Complete   => "Complete"
+    }
+
     def isComplete = this match {
       case Complete => true
       case _        => false

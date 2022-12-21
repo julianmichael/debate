@@ -247,6 +247,34 @@ object DisconnectedLobbyPage {
                       userName.value
                     )
                   else Callback.empty
+
+                def makeMetadatas(r: RoomStatus) = {
+                  val statusStyle = {
+                    import RoomStatus._
+                    r match {
+                      case SettingUp => S.settingUpStatusLabel
+                      case InProgress =>
+                        S.inProgressStatusLabel
+                      case Complete => S.completeStatusLabel
+                    }
+                  }
+                  val rooms =
+                    currentRooms.filter(_.status == r)
+                  <.div(
+                    <.h5(statusStyle)(r.toStringForTitle),
+                    rooms.toVdomArray { case rm: RoomMetadata =>
+                      DebateMetadata.make(
+                        roomMetadata = rm,
+                        isOfficial = isOfficial,
+                        userName = userName,
+                        sendToMainChannel = sendToMainChannel,
+                        enterRoom = enterRoom
+                      )
+                    },
+                    <.hr
+                  )
+                }
+
                 <.div(c"card-body", S.spaceySubcontainer)(
                   <.div(c"input-group", ^.width.auto)(
                     roomNameInput(enter = enter, roomNameLive = roomNameLive),
@@ -267,15 +295,9 @@ object DisconnectedLobbyPage {
                   LeaderboardTable
                     .make()
                     .when(lobbyTab.value == Leaderboard),
-                  currentRooms.toVdomArray { case rm: RoomMetadata =>
-                    DebateMetadata.make(
-                      roomMetadata = rm,
-                      isOfficial = isOfficial,
-                      userName = userName,
-                      sendToMainChannel = sendToMainChannel,
-                      enterRoom = enterRoom
-                    )
-                  }
+                  makeMetadatas(RoomStatus.InProgress),
+                  makeMetadatas(RoomStatus.SettingUp),
+                  makeMetadatas(RoomStatus.Complete)
                 )
               }
             )
