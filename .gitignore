@@ -12,3 +12,4 @@ out
 .bsp/
 save/
 scratch/
+node_modules/
