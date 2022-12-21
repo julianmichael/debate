@@ -268,7 +268,7 @@ object DisconnectedLobbyPage {
                     .make()
                     .when(lobbyTab.value == Leaderboard),
                   currentRooms.toVdomArray { case rm: RoomMetadata =>
-                    DebateMetadata.roomManagement(
+                    DebateMetadata.make(
                       roomMetadata = rm,
                       isOfficial = isOfficial,
                       userName = userName,
