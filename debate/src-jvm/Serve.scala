@@ -124,19 +124,31 @@ object Serve
     }
   }
 
+  def tokenizeStory(x: String): Vector[String] = {
+    val res = x
+      .split("\n")
+      .toVector
+      .map(
+        (x: String) => jjm.corenlp.Tokenizer.tokenize(x).map(_.token)
+      )
+      .intercalate(Vector("\n"))
+      .filter(_.nonEmpty)
+    res
+  }
+
+
   def initializeDebate(
       qualityDataset: Map[String, QuALITYStory]
   )(setupSpec: DebateSetupSpec): IO[DebateSetup] = {
-    val tokenize = simpleTokenize(_)
     val sourceMaterialIO = setupSpec.sourceMaterial match {
       case CustomSourceMaterialSpec(title, contents) =>
-        IO.pure(CustomSourceMaterial(title, tokenize(contents)))
+        IO.pure(CustomSourceMaterial(title, tokenizeStory(contents)))
       case QuALITYSourceMaterialSpec(articleId) =>
         IO(qualityDataset(articleId)).map { qualityStory =>
           QuALITYSourceMaterial(
             articleId = articleId,
             title = qualityStory.title,
-            contents = tokenize(qualityStory.article)
+            contents = tokenizeStory(qualityStory.article)
           )
         }
     }

@@ -145,6 +145,7 @@ object debate extends Module {
   trait JvmBase extends DebateModule with JvmPlatform {
 
     def ivyDeps = super.ivyDeps() ++ Agg(
+      ivy"org.julianmichael::jjm-corenlp::$jjmVersion",
       ivy"com.lihaoyi::os-lib:$osLibVersion",
       // ivy"com.lihaoyi::scalatags:0.8.2",
       ivy"com.lihaoyi::scalatags:0.8.2",

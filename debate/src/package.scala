@@ -89,41 +89,6 @@ package object debate extends PackagePlatformExtensions {
     res
   }
 
-  def bigTokenize(x: String): Vector[String] = {
-    val res = x
-      .split("\n")
-      .toVector
-      .map(Vector(_))
-      .intercalate(Vector("\n"))
-      .filter(_.nonEmpty)
-      .flatMap(
-        _.split("""(?<=[\\.!?;]) +""").toVector
-      )
-    res
-  }
-
-  // TODO lol
-  def biggTokenize(x: String): Vector[String] = {
-    val res = x
-      .split("\n")
-      .toVector
-      .map(Vector(_))
-      .intercalate(Vector("\n"))
-      .filter(_.nonEmpty)
-    res
-  }
-
-  // TODO loll
-  def bigggTokenize(x: String): Vector[String] = {
-    val res = x
-      .split("\n\n")
-      .toVector
-      .map(Vector(_))
-      .intercalate(Vector("\n\n"))
-      .filter(_.nonEmpty)
-    res
-  }
-
   implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {
     // version of reduceLeftM which takes advantage of Monad.pure
     def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] = {
