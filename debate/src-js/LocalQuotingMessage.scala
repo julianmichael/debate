@@ -61,7 +61,7 @@ object LocalQuotingMessage {
       spans: StateSnapshot[Set[ESpan]],
       messageCookieId: String,
       shouldRefresh: String => Boolean = (_: String) => true,
-      didUpdate: String => Callback
+      didUpdate: String => Callback = _ => Callback.empty
   )(
       render: StateSnapshot[String] => VdomElement
   ) = {

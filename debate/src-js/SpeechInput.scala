@@ -62,10 +62,7 @@ object SpeechInput {
                 submitCB
               })
             )
-          )(
-            currentMessage
-            // didUpdateValue = _ => maybeScrollDebateToBottom
-          ),
+          )(currentMessage),
           <.div(
             S.speechLengthPanel,
             S.invalidTextBackground.when(speechIsTooLong || quotesAreTooLong)
