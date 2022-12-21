@@ -124,7 +124,6 @@ object SerializableDebateStats {
       averageReward = d.rewards.stats.mean
     )
 
-  import io.circe.generic.semiauto._
 }
 
 @JsonCodec
@@ -142,8 +141,8 @@ object Leaderboard {
       DebateStats
         .foldOverDebates(d)
         .data
-        .mapValues(
-          _.data.mapValues(SerializableDebateStats.ofDebateStats).toMap
+        .view.mapValues(
+          _.data.view.mapValues(SerializableDebateStats.ofDebateStats).toMap
         )
         .toMap
     )
