@@ -87,7 +87,7 @@ object ConnectedLobbyPage {
       val isScrolledToBottom =
         speechesDiv.scrollHeight - speechesJQ.scrollTop() - speechesJQ
           .outerHeight() < 1
-      if (isScrolledToBottom) scrollDebateToBottom else Callback.empty
+      if (!isScrolledToBottom) scrollDebateToBottom else Callback.empty
     }
   }.flatten
 
