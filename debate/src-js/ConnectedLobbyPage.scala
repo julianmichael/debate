@@ -18,6 +18,9 @@ import jjm.io.HttpUtil
 
 import org.scalajs.jquery.jQuery
 
+import monocle.function.{all => Optics}
+import monocle.std.{all => StdOptics}
+
 object ConnectedLobbyPage {
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
   import Helpers.ClassSetInterpolator
@@ -272,14 +275,31 @@ object ConnectedLobbyPage {
               def showRoleNames(role: DebateRole) = {
                 setup.roles.get(role) match {
                   case Some(name) =>
+                    val nameDisplay = userId.map(_.role) match {
+                      case Some(Facilitator) =>
+                        V.Select.String.mod( select = TagMod(S.customSelect))(
+                          choices =
+                            lobby.value.trackedDebaters.toList.sorted,
+                          debateState.zoomStateO(
+                            DebateState.debate
+                              .composePrism(StdOptics.some)
+                              .composeLens(Debate.setup)
+                              .composeLens(DebateSetup.roles)
+                              .composeOptional(Optics.index(role))
+                          ).get
+                        )
+                      case _ =>
+                        <.span(name)
+                    }
+
                     if (
                       !debateState.value.participants
                         .contains(ParticipantId(name, role))
                     ) {
                       <.span(S.missingParticipant)(
-                        name + " (not here)"
+                        nameDisplay, " (not here)"
                       )
-                    } else <.span(name)
+                    } else nameDisplay
                   case None =>
                     debateState.value.participants.collect {
                       case ParticipantId(name, `role`) =>
