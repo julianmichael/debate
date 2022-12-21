@@ -180,7 +180,7 @@ object LeaderboardTable {
       }
     }
 
-    val C = (new CacheCallContent[Unit, ParsedResponse]())
+    val C = new CacheCallContent[Unit, ParsedResponse]()
     def render(state: C.State): japgolly.scalajs.react.vdom.VdomElement = {
       state match {
         case C.Loading =>
@@ -207,8 +207,7 @@ object LeaderboardTable {
       }
     }
 
-    // TODO not sure why i had to put a () in here :O
-    def sendRequest(x: Unit) = {
+    def sendRequest = {
       import LeaderboardCategories._
       val f = for {
         f <- AsyncCallback.fromFuture(loadLeaderboard())
@@ -225,7 +224,7 @@ object LeaderboardTable {
       OrWrapped.wrapped(f)
     }
 
-    C.make(request = (), sendRequest = sendRequest)(render)
+    C.make(request = (), sendRequest = _ => sendRequest)(render)
 
   }
 }
