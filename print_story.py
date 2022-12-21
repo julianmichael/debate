@@ -5,14 +5,14 @@ import re
 file = sys.argv[1]
 title = sys.argv[2]
 
-story_data = None
+story_data = []
 with open(file) as f:
     for line in f:
         tmp_story_data = json.loads(line)
         if title.lower() == tmp_story_data['title'].lower():
-            story_data = tmp_story_data
+            story_data = story_data + [tmp_story_data]
 
-if story_data is None:
+if not story_data:
     exit(1)
 
 
@@ -24,7 +24,7 @@ spacing_tags = [
 ]
 
 #print(story)
-story = story_data['article']
+story = story_data[0]['article']
 prev_story_iter = None
 story = re.sub(r'[\n ]+<i>[\n ]+(.*?)[\n ]+</i>[\n ]+', ' *\\1* ', story)
 story = re.sub(r'[\n ]+<br/>[\n ]+', r'\n', story)
@@ -37,10 +37,14 @@ while prev_story_iter != story:
     story = story.replace('\n ', '\n')
     story = story.replace(' \n', '\n')
     story = story.replace('\n\n\n', '\n\n')
-print(story)
-for q_json in story_data['questions']:
-    if q_json['difficult'] > 0:
-        print('(Difficult:) ', end='')
-    print(q_json['question'])
-    for option in q_json['options']:
-        print('\t' + option)
+    # comment the next 3 lines if you want to preserve line breaks
+    story = story.replace('\n\n', '<keepbr\>')
+    story = story.replace('\n', ' ')
+    story = story.replace('<keepbr\>', '\n\n')
+for set in story_data:
+    for q_json in set['questions']:
+        if q_json['difficult'] > 0:
+            print('(Difficult:) ', end='')
+        print(q_json['question'])
+        for option in q_json['options']:
+            print('\t' + option)
