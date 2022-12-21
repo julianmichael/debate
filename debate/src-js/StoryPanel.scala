@@ -152,11 +152,11 @@ object StoryPanel {
         def intersectSpans(span1: Span, span2: Span): ESpan = {
             ESpan(
                 math.max(span1.begin, span2.begin),
-                math.min(span2.endExclusive, span2.endExclusive)
+                math.min(span1.endExclusive, span2.endExclusive)
             )
         }
         val segmentsWithHighlights = segments.map { seg =>
-            val segSpan = ESpan(seg.head._2, seg.last._2)
+            val segSpan = ISpan(seg.head._2, seg.last._2)
             seg -> $.props.highlights
                 .filter(_._1.overlaps(segSpan))
                 .map(Optics.first[(Span, Rgba), Span].modify(intersectSpans(segSpan, _)))
