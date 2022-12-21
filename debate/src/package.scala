@@ -76,19 +76,6 @@ package object debate extends PackagePlatformExtensions {
 
   def span2text(span: ESpan): String = s"<<${span.begin}-${span.endExclusive}>>"
 
-  def simpleTokenize(x: String): Vector[String] = {
-    val res = x
-      .split("\n")
-      .toVector
-      .map(Vector(_))
-      .intercalate(Vector("\n"))
-      .filter(_.nonEmpty)
-      .flatMap(
-        _.split(" +").toVector
-      )
-    res
-  }
-
   implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {
     // version of reduceLeftM which takes advantage of Monad.pure
     def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] = {
