@@ -1,5 +1,8 @@
 package debate
 
+// fs2 imports "io" below
+import io.circe.syntax._
+
 import debate.quality._
 
 import java.io.InputStream
@@ -53,17 +56,21 @@ object Serve
     help = "Where to get the JS main file."
   )
 
-  val portO = Opts.option[Int](
-    "port",
-    metavar = "<port number>",
-    help = "Port where to host the server."
-  ).withDefault(8080)
+  val portO = Opts
+    .option[Int](
+      "port",
+      metavar = "<port number>",
+      help = "Port where to host the server."
+    )
+    .withDefault(8080)
 
-  val saveO = Opts.option[NIOPath](
-    "save",
-    metavar = "<directory path>",
-    help = "Directory in which to save the debates."
-  ).withDefault(Paths.get("save"))
+  val saveO = Opts
+    .option[NIOPath](
+      "save",
+      metavar = "<directory path>",
+      help = "Directory in which to save the debates."
+    )
+    .withDefault(Paths.get("save"))
 
   val sslO = Opts
     .flag(
@@ -117,7 +124,9 @@ object Serve
     }
   }
 
-  def initializeDebate(qualityDataset: Map[String, QuALITYStory])(setupSpec: DebateSetupSpec): IO[DebateSetup] = {
+  def initializeDebate(
+      qualityDataset: Map[String, QuALITYStory]
+  )(setupSpec: DebateSetupSpec): IO[DebateSetup] = {
     val tokenize = simpleTokenize(_)
     val sourceMaterialIO = setupSpec.sourceMaterial match {
       case CustomSourceMaterialSpec(title, contents) =>
@@ -148,6 +157,7 @@ object Serve
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
   def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
   def officialRoomsDir(saveDir: NIOPath) = saveDir.resolve("official")
+
   /** Initialize the server state and make the HTTP server
     *
     * @param saveDir
@@ -285,7 +295,7 @@ object Serve
             Some(Lobby(debaters, officialRooms, practiceRooms))
           ) // send the current set of debaters and rooms on connect
           .merge(
-            Stream.awakeEvery[IO](30.seconds).map(_ => None),
+            Stream.awakeEvery[IO](30.seconds).map(_ => None)
           ) // send a heartbeat every 30s
           .merge(
             mainChannel.subscribe(100).map(Some(_))
@@ -302,9 +312,9 @@ object Serve
             .map(unpickleFromWSFrame[MainChannelRequest])
             .evalMap {
               case RegisterDebater(name) => registerDebater(name)
-              case RemoveDebater(name) => removeDebater(name)
+              case RemoveDebater(name)   => removeDebater(name)
               case DeleteRoom(isOfficial, roomName) =>
-                if(isOfficial) officialDebates.deleteDebate(roomName)
+                if (isOfficial) officialDebates.deleteDebate(roomName)
                 else practiceDebates.deleteDebate(roomName)
             }
         },
@@ -331,7 +341,9 @@ object Serve
             participantName
           ) =>
         officialDebates.createWebsocket(roomName, participantName)
-      case GET -> Root / "practice-ws" / roomName :? NameParam(participantName) =>
+      case GET -> Root / "practice-ws" / roomName :? NameParam(
+            participantName
+          ) =>
         practiceDebates.createWebsocket(roomName, participantName)
 
       case req @ GET -> Root / `staticFilePrefix` / `jsDepsLocation` =>
@@ -346,6 +358,10 @@ object Serve
         StaticFile
           .fromString(jsPath.toString + ".map", blocker, Some(req))
           .getOrElseF(NotFound())
+
+      case GET -> Root / "leaderboard" =>
+        import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
+        Ok(officialDebates.toLeaderboard.map(_.asJson))
     }
   }
 

@@ -48,7 +48,7 @@ sealed trait DebateTurnTypeResult extends Product with Serializable
 object DebateTurnTypeResult {
   case class Turn(turn: DebateTurnType) extends DebateTurnTypeResult
   case object Next extends DebateTurnTypeResult
-  case class End(finalJudgment: Vector[Double]) extends DebateTurnTypeResult
+  case class End(finalJudgement: Vector[Double]) extends DebateTurnTypeResult
   case object Mismatch extends DebateTurnTypeResult
 }
 

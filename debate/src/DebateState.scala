@@ -73,7 +73,7 @@ case class DebateTransitionSet(
 @Lenses @JsonCodec case class DebateResult(
     correctAnswerIndex: Int,
     numTurns: Int,
-    finalJudgment: Vector[Double],
+    finalJudgement: Vector[Double],
     judgeReward: Double
 )
 object DebateResult
@@ -100,7 +100,7 @@ object DebateResult
 
   def result: Option[DebateResult] = currentTransitions.left.toOption
   def isOver: Boolean = result.nonEmpty
-  def finalJudgment: Option[Vector[Double]] = result.map(_.finalJudgment)
+  def finalJudgement: Option[Vector[Double]] = result.map(_.finalJudgement)
 
   def numContinues = rounds.foldMap {
     case JudgeFeedback(_, _, false) => 1
@@ -224,18 +224,18 @@ object DebateResult
             curRoundSpeeches(turn)
           )
         )
-        case DebateTurnTypeResult.End(finalJudgment) =>
+        case DebateTurnTypeResult.End(finalJudgement) =>
           val numTurns = numContinues
           val judgeReward = setup.rules.scoringFunction.eval(
             numTurns,
-            finalJudgment,
+            finalJudgement,
             setup.correctAnswerIndex
           )
           Left(
             DebateResult(
               correctAnswerIndex = setup.correctAnswerIndex,
               numTurns = numTurns,
-              finalJudgment = finalJudgment,
+              finalJudgement = finalJudgement,
               judgeReward = judgeReward
             )
           )
@@ -423,5 +423,4 @@ object SourceMaterial
       !roleIsAssigned(role) && !userIsAssigned(userName)
     )
 }
-object DebateSetup {
-}
+object DebateSetup {}

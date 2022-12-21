@@ -11,3 +11,5 @@ out
 .vscode/
 .bsp/
 save/
+scratch/
+node_modules/
