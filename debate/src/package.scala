@@ -67,14 +67,15 @@ package object debate extends PackagePlatformExtensions {
 
   @Lenses @JsonCodec case class RoomMetadata(
       name: String,
-      assignedParticipants: Set[String],
+      assignedParticipants: Map[DebateRole, String],
       currentParticipants: Set[String],
       // latestUpdateTime: Long, // TODO
       status: RoomStatus,
-      storyTitle: String,
-      roleAssignments: Map[DebateRole, String],
+      storyTitle: Option[String],
+      // TODO someday wrap these two options up into an Either, as such
+      //      currentTransitions: Option[Either[DebateResult, Set[Role]]]
       debateResult: Option[DebateResult],
-      whoseTurnIsNext: Set[DebateRole]
+      currentSpeakers: Option[Set[Role]]
   )
 
   def makePageTitle(x: String) = {

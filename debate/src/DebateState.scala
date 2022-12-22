@@ -1,6 +1,5 @@
 package debate
 
-
 import monocle.macros.Lenses
 import monocle.macros.GenPrism
 import io.circe.generic.JsonCodec
@@ -47,9 +46,9 @@ object DebateState {
 }
 
 case class DebateSpeechContent(
-  speakerName: String,
-  timestamp: Long,
-  speech: Vector[SpeechSegment]
+    speakerName: String,
+    timestamp: Long,
+    speech: Vector[SpeechSegment]
 )
 
 case class JudgeFeedbackContent(
@@ -62,13 +61,12 @@ case class JudgeFeedbackContent(
 
 /** Set of operations available to a particular role. */
 case class DebateTransitionSet(
-  undo: Map[Role, (Vector[SpeechSegment], Debate)],
-  giveSpeech: Map[Role, DotPair[Lambda[A => A => Debate], DebateTurnType]]
+    undo: Map[Role, (Vector[SpeechSegment], Debate)],
+    giveSpeech: Map[Role, DotPair[Lambda[A => A => Debate], DebateTurnType]]
 ) {
   def currentSpeakers = giveSpeech.keySet
   def currentTurns = giveSpeech.mapVals(_.fst)
 }
-
 
 @Lenses @JsonCodec case class DebateResult(
     correctAnswerIndex: Int,
@@ -77,7 +75,6 @@ case class DebateTransitionSet(
     judgeReward: Double
 )
 object DebateResult
-
 
 /** The state of a debate. Persists when people leave; this is the saveable data
   * object.
@@ -116,28 +113,31 @@ object DebateResult
 
     def newRoundSpeeches(roundType: DebateRoundType) = {
       val turn = roundType.getFirstTurn(numDebaters)
-      turn.rolesRemaining.map(role =>
-        (role: Role) -> DotPair[Lambda[I => I => Debate]](
-          turn)(
-          turn.newRoundTransition(role).andThen(
-            round => Debate.rounds.modify(_ :+ round)(this)
+      turn.rolesRemaining
+        .map(role =>
+          (role: Role) -> DotPair[Lambda[I => I => Debate]](turn)(
+            turn
+              .newRoundTransition(role)
+              .andThen(round => Debate.rounds.modify(_ :+ round)(this))
           )
         )
-      ).toMap
+        .toMap
     }
 
     import DebateTurnType._
     def curRoundSpeeches(
-      turnType: DebateTurnType
-    ): Map[Role, DotPair[Lambda[I => I => Debate], DebateTurnType]] = turnType match {
-      case JudgeFeedbackTurn(_, _) =>
-        // no more speeches this round (shouldn't get here)
-        require(false)
-        Map()
-      case turn @ SimultaneousSpeechesTurn(remainingDebaters, _, _) => 
-        remainingDebaters.map { speakerIndex => 
-          (Debater(speakerIndex): Role) -> DotPair[Lambda[I => I => Debate]](turn) {
-            case DebateSpeechContent(name, timestamp, contents) =>
+        turnType: DebateTurnType
+    ): Map[Role, DotPair[Lambda[I => I => Debate], DebateTurnType]] =
+      turnType match {
+        case JudgeFeedbackTurn(_, _) =>
+          // no more speeches this round (shouldn't get here)
+          require(false)
+          Map()
+        case turn @ SimultaneousSpeechesTurn(remainingDebaters, _, _) =>
+          remainingDebaters.map { speakerIndex =>
+            (Debater(speakerIndex): Role) -> DotPair[Lambda[I => I => Debate]](
+              turn
+            ) { case DebateSpeechContent(name, timestamp, contents) =>
               val speech = DebateSpeech(
                 ParticipantId(name, Debater(speakerIndex)),
                 timestamp,
@@ -148,12 +148,13 @@ object DebateResult
                 .composePrism(DebateRound.simultaneousSpeeches)
                 .composeLens(SimultaneousSpeeches.speeches)
                 .modify(_ + (speakerIndex -> speech))(this)
-          }.widen[DebateTurnType]
-        }.toMap
-      case turn @ DebaterSpeechTurn(speakerIndex, _, _) => 
-        Map(
-          (Debater(speakerIndex): Role) -> DotPair[Lambda[I => I => Debate]](turn) {
-            case DebateSpeechContent(name, timestamp, contents) =>
+            }.widen[DebateTurnType]
+          }.toMap
+        case turn @ DebaterSpeechTurn(speakerIndex, _, _) =>
+          Map(
+            (Debater(speakerIndex): Role) -> DotPair[Lambda[I => I => Debate]](
+              turn
+            ) { case DebateSpeechContent(name, timestamp, contents) =>
               val speech = DebateSpeech(
                 ParticipantId(name, Debater(speakerIndex)),
                 timestamp,
@@ -164,51 +165,60 @@ object DebateResult
                 .composePrism(DebateRound.simultaneousSpeeches)
                 .composeLens(SimultaneousSpeeches.speeches)
                 .modify(_ + (speakerIndex -> speech))(this)
-          }.widen[DebateTurnType]
-        )
-    }
-
+            }.widen[DebateTurnType]
+          )
+      }
 
     // round is done, so we can create a new round with the possibility of undo
-    def lastRoundUndos = rounds.lastOption.map {
-      case JudgeFeedback(_, feedback, _) => 
-        Map((Judge: Role) -> (feedback.content -> Debate.rounds.modify(_.init)(this)))
-      case SimultaneousSpeeches(speeches) => 
-        val isOnlySpeech = speeches.size == 1
-        speeches.map { case (speakerIndex, speech) => 
-          val newDebate = if(isOnlySpeech) {
-            Debate.rounds.modify(_.init)(this)
-          } else Debate.rounds
-            .composeOptional(Optics.lastOption)
-            .set(SimultaneousSpeeches(speeches - speakerIndex))(this)
-
-          (Debater(speakerIndex): Role) -> (
-            speech.content -> newDebate
+    def lastRoundUndos = rounds.lastOption
+      .map {
+        case JudgeFeedback(_, feedback, _) =>
+          Map(
+            (Judge: Role) -> (feedback.content -> Debate.rounds
+              .modify(_.init)(this))
           )
-        }
-      case SequentialSpeeches(speeches) =>
-        val isOnlySpeech = speeches.size == 1
-        speeches.map { case (speakerIndex, speech) => 
-          val newDebate = if(isOnlySpeech) {
-            Debate.rounds.modify(_.init)(this)
-          } else Debate.rounds
-            .composeOptional(Optics.lastOption)
-            .set(SequentialSpeeches(speeches - speakerIndex))(this)
+        case SimultaneousSpeeches(speeches) =>
+          val isOnlySpeech = speeches.size == 1
+          speeches.map { case (speakerIndex, speech) =>
+            val newDebate = if (isOnlySpeech) {
+              Debate.rounds.modify(_.init)(this)
+            } else
+              Debate.rounds
+                .composeOptional(Optics.lastOption)
+                .set(SimultaneousSpeeches(speeches - speakerIndex))(this)
 
-          (Debater(speakerIndex): Role) -> (
-            speech.content -> newDebate
-          )
-        }
-    }.getOrElse(Map())
+            (Debater(speakerIndex): Role) -> (
+              speech.content -> newDebate
+            )
+          }
+        case SequentialSpeeches(speeches) =>
+          val isOnlySpeech = speeches.size == 1
+          speeches.map { case (speakerIndex, speech) =>
+            val newDebate = if (isOnlySpeech) {
+              Debate.rounds.modify(_.init)(this)
+            } else
+              Debate.rounds
+                .composeOptional(Optics.lastOption)
+                .set(SequentialSpeeches(speeches - speakerIndex))(this)
+
+            (Debater(speakerIndex): Role) -> (
+              speech.content -> newDebate
+            )
+          }
+      }
+      .getOrElse(Map())
 
     // TODO: validate that the debate follows the specified structure?
-    if (rounds.isEmpty) Right(
-      DebateTransitionSet(
-        Map(),
-        newRoundSpeeches(roundSequence.head)
+    if (rounds.isEmpty)
+      Right(
+        DebateTransitionSet(
+          Map(),
+          newRoundSpeeches(roundSequence.head)
+        )
       )
-    ) else {
-      val lastRoundType #:: futureRoundTypes = roundSequence.drop(rounds.size - 1)
+    else {
+      val lastRoundType #:: futureRoundTypes =
+        roundSequence.drop(rounds.size - 1)
       val lastRound = rounds.last
       lastRoundType.getTurn(lastRound, numDebaters) match {
         case DebateTurnTypeResult.Next =>
@@ -218,12 +228,13 @@ object DebateResult
               newRoundSpeeches(futureRoundTypes.head)
             )
           )
-        case DebateTurnTypeResult.Turn(turn) => Right(
-          DebateTransitionSet(
-            lastRoundUndos,
-            curRoundSpeeches(turn)
+        case DebateTurnTypeResult.Turn(turn) =>
+          Right(
+            DebateTransitionSet(
+              lastRoundUndos,
+              curRoundSpeeches(turn)
+            )
           )
-        )
         case DebateTurnTypeResult.End(finalJudgement) =>
           val numTurns = numContinues
           val judgeReward = setup.rules.scoringFunction.eval(
@@ -317,7 +328,8 @@ object DebateTurnType {
     def newRoundTransition(role: AllowedRole) = {
       case DebateSpeechContent(name, timestamp, contents) =>
         SimultaneousSpeeches(
-          Map(role.answerIndex -> DebateSpeech(
+          Map(
+            role.answerIndex -> DebateSpeech(
               ParticipantId(name, role),
               timestamp,
               contents
@@ -326,8 +338,11 @@ object DebateTurnType {
         )
     }
   }
-  case class DebaterSpeechTurn(debater: Int, charLimit: Int, quoteLimit: Option[Int])
-      extends DebateTurnType {
+  case class DebaterSpeechTurn(
+      debater: Int,
+      charLimit: Int,
+      quoteLimit: Option[Int]
+  ) extends DebateTurnType {
     type AllowedRole = Debater
     type Input = DebateSpeechContent
     def rolesRemaining = Set(Debater(debater))
@@ -335,7 +350,8 @@ object DebateTurnType {
     def newRoundTransition(role: AllowedRole) = {
       case DebateSpeechContent(name, timestamp, contents) =>
         SequentialSpeeches(
-          Map(role.answerIndex -> DebateSpeech(
+          Map(
+            role.answerIndex -> DebateSpeech(
               ParticipantId(name, role),
               timestamp,
               contents
@@ -352,7 +368,13 @@ object DebateTurnType {
     def quoteLimit = None
 
     def newRoundTransition(role: AllowedRole) = {
-      case JudgeFeedbackContent(name, timestamp, contents, distribution, endDebate) =>
+      case JudgeFeedbackContent(
+            name,
+            timestamp,
+            contents,
+            distribution,
+            endDebate
+          ) =>
         JudgeFeedback(
           distribution = distribution,
           DebateSpeech(

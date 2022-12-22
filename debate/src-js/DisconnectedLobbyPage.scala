@@ -179,7 +179,7 @@ object DisconnectedLobbyPage {
             import LobbyTab._
             val myDebates = lobby.value.officialRooms
               .filter(
-                _.assignedParticipants.contains(userName.value)
+                _.assignedParticipants.values.toSet.contains(userName.value)
               )
             val isOfficial = lobbyTab.value match {
               case PracticeDebates => false

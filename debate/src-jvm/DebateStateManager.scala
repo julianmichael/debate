@@ -81,11 +81,22 @@ case class DebateStateManager(
       .sortBy(_._2)
       .sortBy(_._2.debate.debate.map { x => x.startTime })
       .map { case (roomName, room) =>
+        val (debateResult, currentSpeakers) =
+          room.debate.debate.map(_.currentTransitions) match {
+            case None                     => (None, None)
+            case Some(Left(debateResult)) => (Some(debateResult), None)
+            case Some(Right(debateTransitionSet)) =>
+              (None, Some(debateTransitionSet.currentSpeakers))
+          }
         RoomMetadata(
-          roomName,
-          room.debate.debate.unorderedFoldMap(_.setup.roles.values.toSet),
-          room.debate.participants.map(_.name),
-          room.debate.status
+          name = roomName,
+          assignedParticipants =
+            room.debate.debate.map(_.setup.roles).getOrElse(Map()),
+          currentParticipants = room.debate.participants.map(_.name),
+          status = room.debate.status,
+          storyTitle = room.debate.debate.map(_.setup.sourceMaterial.title),
+          debateResult = debateResult,
+          currentSpeakers = currentSpeakers
         )
       }
   }

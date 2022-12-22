@@ -39,7 +39,7 @@ case class Props(
       <.strong("Assigned: "),
       Helpers
         .commaSeparatedSpans(
-          roomMetadata.assignedParticipants.toList.sorted
+          roomMetadata.assignedParticipants.values.toList.sorted
         )
         .toVdomArray
     ).when(roomMetadata.assignedParticipants.nonEmpty)
