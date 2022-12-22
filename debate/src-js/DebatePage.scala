@@ -21,7 +21,7 @@ import org.scalajs.jquery.jQuery
 import monocle.function.{all => Optics}
 import monocle.std.{all => StdOptics}
 
-object ConnectedLobbyPage {
+object DebatePage {
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
   import Helpers.ClassSetInterpolator
   val S = Styles
@@ -277,7 +277,7 @@ object ConnectedLobbyPage {
                   case Some(name) =>
                     val nameDisplay = userId.map(_.role) match {
                       case Some(Facilitator) =>
-                        V.Select.String.mod( select = TagMod(S.customSelect))(
+                        V.Select.String.mod(select = TagMod(S.customSelect))(
                           choices =
                             lobby.value.trackedDebaters.toList.sorted,
                           debateState.zoomStateO(

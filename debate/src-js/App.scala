@@ -96,13 +96,13 @@ object App {
               LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
                 connectionSpecOpt.value match {
                   case None =>
-                    DisconnectedLobbyPage.make(
+                    LobbyPage.make(
                       lobby = lobby,
                       sendToMainChannel = sendToMainChannel,
                       connectionSpecOpt = connectionSpecOpt
                     )
                   case Some(cs: ConnectionSpec) =>
-                    ConnectedLobbyPage.make(
+                    DebatePage.make(
                       lobby = lobby,
                       connectionSpec = cs,
                       disconnect = connectionSpecOpt.setState(None),

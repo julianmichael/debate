@@ -11,7 +11,7 @@ import scalacss.ScalaCssReact._
 
 import cats.implicits._
 
-object DisconnectedLobbyPage {
+object LobbyPage {
   import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
