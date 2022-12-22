@@ -260,17 +260,18 @@ object DisconnectedLobbyPage {
                   }
                   val rooms =
                     currentRooms.filter(_.status == r)
-                  <.div(
+                  <.div()(
                     <.h5(statusStyle)(r.toStringForTitle),
-                    rooms.toVdomArray { case rm: RoomMetadata =>
-                      DebateMetadata.make(
-                        roomMetadata = rm,
-                        isOfficial = isOfficial,
-                        userName = userName,
-                        sendToMainChannel = sendToMainChannel,
-                        enterRoom = enterRoom
-                      )
-                    },
+                    <.div(S.debateMetadataContainer)(rooms.toVdomArray {
+                      case rm: RoomMetadata =>
+                        DebateMetadata.make(
+                          roomMetadata = rm,
+                          isOfficial = isOfficial,
+                          userName = userName,
+                          sendToMainChannel = sendToMainChannel,
+                          enterRoom = enterRoom
+                        )
+                    }),
                     <.hr
                   )
                 }

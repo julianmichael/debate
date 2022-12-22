@@ -615,4 +615,13 @@ object Styles extends jjm.ui.View.Styles {
     color.red
   )
 
+  val debateMetadata = style(
+    flexBasis := "33.333333%"
+  )
+
+  val debateMetadataContainer = style(
+    display.flex,
+    flexDirection.row,
+    flexWrap.wrap
+  )
 }

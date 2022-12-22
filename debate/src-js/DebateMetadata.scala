@@ -109,7 +109,7 @@ object DebateMetadata {
     val selectableStyle =
       if (props.canEnterRoom) S.simpleSelectable
       else S.simpleUnselectable
-    <.div(S.optionBox, selectableStyle)(
+    <.div(S.optionBox, selectableStyle, S.debateMetadata)(
       props.statusDisplay,
       props.assignedParticipants,
       props.presentParticipants,
