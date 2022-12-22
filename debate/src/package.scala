@@ -40,15 +40,17 @@ package object debate extends PackagePlatformExtensions {
   @JsonCodec sealed trait RoomStatus {
     import RoomStatus._
     override def toString = this match {
-      case SettingUp  => "setting up"
-      case InProgress => "in progress"
-      case Complete   => "complete"
+      case SettingUp      => "setting up"
+      case InProgress     => "in progress"
+      case Complete       => "complete"
+      case WaitingToBegin => "waiting to begin"
     }
 
     def toStringForTitle = this match {
-      case SettingUp  => "Setting Up"
-      case InProgress => "In Progress"
-      case Complete   => "Complete"
+      case SettingUp      => "Setting Up"
+      case InProgress     => "In Progress"
+      case Complete       => "Complete"
+      case WaitingToBegin => "Waiting to Begin"
     }
 
     def isComplete = this match {
