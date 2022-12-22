@@ -58,6 +58,9 @@ package object debate extends PackagePlatformExtensions {
   }
   object RoomStatus {
     case object SettingUp extends RoomStatus
+    // TODO make sure this is properly handled in all matches
+    // TODO make sure this is properly set up- no rounds (speeches?) but set up complete
+    case object WaitingToBegin extends RoomStatus
     case object InProgress extends RoomStatus
     case object Complete extends RoomStatus
   }
@@ -67,7 +70,11 @@ package object debate extends PackagePlatformExtensions {
       assignedParticipants: Set[String],
       currentParticipants: Set[String],
       // latestUpdateTime: Long, // TODO
-      status: RoomStatus
+      status: RoomStatus,
+      storyTitle: String,
+      roleAssignments: Map[DebateRole, String],
+      debateResult: Option[DebateResult],
+      whoseTurnIsNext: Set[DebateRole]
   )
 
   def makePageTitle(x: String) = {
