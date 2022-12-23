@@ -23,6 +23,7 @@ object DebateStats {
     String,
     DebateStats
   ]] = {
+    def bool2int(b: Boolean) = if(b) 1 else 0
     val leaderboardCategory = role match {
         case Debater(index) =>
           if(index == debateResult.correctAnswerIndex) {
@@ -32,16 +33,13 @@ object DebateStats {
     }
     val userStats = role match {
       case Debater(index) =>
-        val correct = if (debateResult.finalJudgement(index) > 0.5) { 1 }
-        else { 0 }
-        val incorrect = 1 - correct
+        val correct = debateResult.finalJudgement(index) > 0.5
         val reward = math.log(debateResult.finalJudgement(index))
         DebateStats(
-          Proportion.Stats(correct, incorrect),
+          Proportion.Stats(bool2int(correct), bool2int(!correct)),
           Numbers(reward)
         )
       case Judge =>
-        def bool2int(b: Boolean) = if(b) 1 else 0
         val correct = debateResult.finalJudgement(debateResult.correctAnswerIndex) > 0.5
         DebateStats(
           Proportion.Stats(bool2int(correct), bool2int(!correct)),
