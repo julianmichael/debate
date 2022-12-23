@@ -89,23 +89,30 @@ object DebateStats {
 }
 
 @JsonCodec
-sealed trait LeaderboardCategory
+sealed trait LeaderboardCategory {
+  import LeaderboardCategory._
+  override def toString = this match {
+    case Judge => "Judge"
+    case HonestDebater => "Honest Debater"
+    case DishonestDebater => "Dishonest Debater"
+  }
+}
 object LeaderboardCategory {
   case object Judge extends LeaderboardCategory
   case object HonestDebater extends LeaderboardCategory
   case object DishonestDebater extends LeaderboardCategory
+
+  def all = List(Judge, HonestDebater, DishonestDebater)
+
+  def fromString(x: String): Option[LeaderboardCategory] =
+    all.find(_.toString == x)
 
   import io.circe._
 
   implicit val keyEncoder: KeyEncoder[LeaderboardCategory] =
     KeyEncoder.instance(_.toString)
   implicit val keyDecoder: KeyDecoder[LeaderboardCategory] =
-    KeyDecoder.instance {
-      case "Judge"            => Some(Judge)
-      case "HonestDebater"    => Some(HonestDebater)
-      case "DishonestDebater" => Some(DishonestDebater)
-      case _                  => None
-    }
+    KeyDecoder.instance(fromString)
 }
 
 @JsonCodec
