@@ -125,7 +125,7 @@ class SyncedState[Request, Response, State](
   }
 
   val Component = ScalaComponent
-    .builder[Props]("WebSocket")
+    .builder[Props]("Synced State")
     .initialState(Connecting: FullState)
     .renderBackend[Backend]
     .componentDidMount($ => $.backend.connect($.props))

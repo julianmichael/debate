@@ -17,7 +17,7 @@ object DebateStats {
       debateResult: DebateResult
   )(
       x: (DebateRole, String)
-  ): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
+  ): Chosen[LeaderboardCategory, Chosen[
     String,
     DebateStats
   ]] = {
@@ -29,9 +29,9 @@ object DebateStats {
           val incorrect = 1 - correct
           val reward = math.log(debateResult.finalJudgement(index))
           val debaterKey = if (index == debateResult.correctAnswerIndex) {
-            LeaderboardCategories.HonestDebater
+            LeaderboardCategory.HonestDebater
           } else {
-            LeaderboardCategories.DishonestDebater
+            LeaderboardCategory.DishonestDebater
           }
           (
             debaterKey,
@@ -50,7 +50,7 @@ object DebateStats {
             else { 0 }
           val incorrect = 1 - correct
           (
-            LeaderboardCategories.Judge,
+            LeaderboardCategory.Judge,
             Map(
               name -> DebateStats(
                 Accuracy.Stats(correct, incorrect),
@@ -65,7 +65,7 @@ object DebateStats {
 
   def foldOverDebate(
       d: Debate
-  ): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
+  ): Chosen[LeaderboardCategory, Chosen[
     String,
     DebateStats
   ]] = {
@@ -81,17 +81,16 @@ object DebateStats {
   }
 
   def foldOverDebates(finishedDebates: List[Debate]): Chosen[
-    LeaderboardCategories.LeaderboardCategory,
+    LeaderboardCategory,
     Chosen[String, DebateStats]
   ] = {
     finishedDebates.foldMap(foldOverDebate)
   }
 }
 
-object LeaderboardCategories {
-  @JsonCodec
-  sealed trait LeaderboardCategory
-
+@JsonCodec
+sealed trait LeaderboardCategory
+object LeaderboardCategory {
   case object Judge extends LeaderboardCategory
   case object HonestDebater extends LeaderboardCategory
   case object DishonestDebater extends LeaderboardCategory
@@ -129,7 +128,7 @@ object SerializableDebateStats {
 @JsonCodec
 case class Leaderboard(
     data: Map[
-      LeaderboardCategories.LeaderboardCategory,
+      LeaderboardCategory,
       Map[String, SerializableDebateStats]
     ]
 )

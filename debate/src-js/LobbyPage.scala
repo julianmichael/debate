@@ -338,7 +338,7 @@ object LobbyPage {
                         currentRooms.isEmpty && lobbyTab.value != Leaderboard
                       ),
                     LeaderboardTable
-                      .make()
+                      .make(lobby.value.leaderboard)
                       .when(lobbyTab.value == Leaderboard),
                     currentRooms.toVdomArray { case rm: RoomMetadata =>
                       roomManagement(

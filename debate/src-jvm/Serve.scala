@@ -1,8 +1,5 @@
 package debate
 
-// fs2 imports "io" below
-import io.circe.syntax._
-
 import debate.quality._
 
 import java.io.InputStream
@@ -211,16 +208,18 @@ object Serve
       officialRooms <- officialDebates.getRoomList
       practiceRooms <- practiceDebates.getRoomList
       // channel to update all clients on the lobby state
+      leaderboard <- officialDebates.toLeaderboard
       mainChannel <- Topic[IO, Lobby](
-        Lobby(trackedDebaters, officialRooms, practiceRooms)
+        Lobby(trackedDebaters, officialRooms, practiceRooms, leaderboard)
       )
       pushUpdate = {
         for {
           debaters <- trackedDebatersRef.get
           officialRoomList <- officialDebates.getRoomList
           practiceRoomList <- practiceDebates.getRoomList
+          leaderboard <- officialDebates.toLeaderboard
           _ <- mainChannel.publish1(
-            Lobby(debaters, officialRoomList, practiceRoomList)
+            Lobby(debaters, officialRoomList, practiceRoomList, leaderboard)
           )
         } yield ()
       }
@@ -301,10 +300,11 @@ object Serve
       debaters <- trackedDebaters.get
       officialRooms <- officialDebates.getRoomList
       practiceRooms <- practiceDebates.getRoomList
+      leaderboard <- officialDebates.toLeaderboard
       outStream = (
         Stream
           .emit[IO, Option[Lobby]](
-            Some(Lobby(debaters, officialRooms, practiceRooms))
+            Some(Lobby(debaters, officialRooms, practiceRooms, leaderboard))
           ) // send the current set of debaters and rooms on connect
           .merge(
             Stream.awakeEvery[IO](30.seconds).map(_ => None)
@@ -333,6 +333,11 @@ object Serve
         onClose = IO.unit
       )
     } yield res
+
+
+    // _root_ prefix because fs2 imports "io"
+    // import _root_.io.circe.syntax._
+    // import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
 
     HttpRoutes.of[IO] {
       // Land on the actual webapp.
@@ -370,10 +375,6 @@ object Serve
         StaticFile
           .fromString(jsPath.toString + ".map", blocker, Some(req))
           .getOrElseF(NotFound())
-
-      case GET -> Root / "leaderboard" =>
-        import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
-        Ok(officialDebates.toLeaderboard.map(_.asJson))
     }
   }
 
