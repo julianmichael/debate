@@ -199,7 +199,7 @@ case class DebateStateManager(
 
   def toLeaderboard = {
     rooms.get.map({ roomMap =>
-      Leaderboard.ofDebateStates(
+      Leaderboard.fromDebates(
         roomMap.values.toList
           .flatMap(_.debate.debate.toList)
       )

@@ -23,14 +23,12 @@ object LeaderboardTable {
 
     def getOrdering: Ordering[RowData] = this match {
       case SortableColumn.Name   => Ordering.by[RowData, String](_.name)
-      case SortableColumn.Wins   => Ordering.by[RowData, Int](_.stats.wins)
-      case SortableColumn.Losses => Ordering.by[RowData, Int](_.stats.losses)
+      case SortableColumn.Wins   => Ordering.by[RowData, Int](_.stats.wins.included)
+      case SortableColumn.Losses => Ordering.by[RowData, Int](_.stats.wins.excluded)
       case SortableColumn.WinPercentage =>
-        Ordering.by[RowData, Double] { row =>
-          row.stats.wins.toDouble / (row.stats.wins + row.stats.losses)
-        }
+        Ordering.by[RowData, Double](_.stats.wins.proportion)
       case SortableColumn.CustomRewardValue =>
-        Ordering.by[RowData, Double](_.stats.averageReward)
+        Ordering.by[RowData, Double](_.stats.rewards.stats.mean)
     }
   }
   object SortableColumn {
@@ -74,12 +72,12 @@ object LeaderboardTable {
 
   case class RowData(
     name: String,
-    stats: SerializableDebateStats
+    stats: DebateStats
   )
 
   def renderRows(
     category: LeaderboardCategory,
-    stats: Map[String, SerializableDebateStats],
+    stats: Map[String, DebateStats],
     sortOrder: StateSnapshot[SortingOrder]
   ) = {
     val rows = stats.toVector.map { case (name, stats) => RowData(name, stats) }
@@ -102,15 +100,13 @@ object LeaderboardTable {
       ),
       <.tbody(
         sortedRows
-          .toVdomArray { case rowEntry =>
+          .toVdomArray { case row =>
             <.tr(
-              <.td(rowEntry.name),
-              <.td(rowEntry.stats.wins),
-              <.td(rowEntry.stats.losses),
-              <.td(
-                f"${rowEntry.stats.wins.toDouble / (rowEntry.stats.losses + rowEntry.stats.wins) * 100}%.1f"
-              ),
-              <.td(f"${rowEntry.stats.averageReward}%.2f")
+              <.td(row.name),
+              <.td(row.stats.wins.included),
+              <.td(row.stats.wins.excluded),
+              <.td(f"${row.stats.wins.proportion * 100}%.1f"),
+              <.td(f"${row.stats.rewards.stats.mean}%.2f")
             )
           }
       )
@@ -124,7 +120,7 @@ object LeaderboardTable {
 
   def renderSingleLeaderboard(
     category: LeaderboardCategory,
-    stats: Map[String, SerializableDebateStats]
+    stats: Map[String, DebateStats]
   ) = {
     LocalSortingOrder.make(defaultSortingOrder) { sortOrder =>
       <.div(
