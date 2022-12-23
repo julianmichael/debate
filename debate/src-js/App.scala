@@ -100,7 +100,7 @@ object App {
                     LobbyPage.make(
                       lobby = lobby,
                       sendToMainChannel = sendToMainChannel,
-                      connectionSpecOpt = connectionSpecOpt
+                      connect = (cs: ConnectionSpec) => connectionSpecOpt.setState(Some(cs))
                     )
                   case Some(cs: ConnectionSpec) =>
                     DebatePage.make(

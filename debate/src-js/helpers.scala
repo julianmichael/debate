@@ -31,4 +31,6 @@ object Helpers {
   def wsProtocol() = {
     if (dom.document.location.protocol == "https:") "wss:" else "ws:"
   }
+
+  def makePageTitle(x: String) = s"$x | Debate"
 }

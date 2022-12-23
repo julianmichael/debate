@@ -156,7 +156,7 @@ object DebatePanel {
         ).when(shouldShowSourceMaterial),
         LocalQuotingMessage.make(
           curMessageSpans,
-          s"debate-cookie-$roomName"
+          s"debate-message-$roomName"
         ) { currentMessage =>
           val currentMessageSpeechSegments =
             SpeechSegments.getFromString(currentMessage.value)
