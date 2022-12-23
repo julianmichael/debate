@@ -199,6 +199,17 @@ object Styles extends jjm.ui.View.Styles {
     color.darkgreen
   )
 
+  val judgeColor = darkgreen
+  val judgeColorLight = green
+  val debaterColor = darkblue
+
+  val judgeAssigment = style(
+    color(judgeColor)
+  )
+  val debaterAssignment = style(
+    color(debaterColor)
+  )
+
   val loading = style(
     gridRow := "1/-1",
     gridColumn := "1/-1",
@@ -246,9 +257,6 @@ object Styles extends jjm.ui.View.Styles {
     margin(2 px),
     fontWeight.bold
   )
-
-  val judgeColor = darkgreen
-  val judgeColorLight = green
 
   val answerColors = Vector(
     darkblue,

@@ -276,7 +276,6 @@ object LobbyPage {
               }
 
               // TODO what about debates with the same name?
-              println("currentRooms: " + currentRooms)
               <.div(c"card-body", S.spaceySubcontainer)(
                 <.div(c"input-group", ^.width.auto)(
                   roomNameInput(enter = enter, roomNameLive = roomNameLive),

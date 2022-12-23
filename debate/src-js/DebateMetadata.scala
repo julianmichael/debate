@@ -34,14 +34,35 @@ case class Props(
     )
   }
 
-  def assignedParticipants = {
+  def roleAssigments = {
+
+    // TODO there *has* to be a cleaner way to do this, but i got frustrated
+    // fighting with the type system & scalacss / scalajs / tagmod/ etc.
+    // might well refactor soon
+    val baseList = roomMetadata.assignedParticipants.toList
+    val elements = baseList.zipWithIndex
+      .map { case ((role, name), index) =>
+        val base: VdomNode =
+          role match {
+            case Debater(_) => <.span(S.debaterAssignment)(s"$role: $name")
+            case Judge =>
+              <.span(S.judgeAssigment)
+              (s"$role: $name")
+          }
+        if (index != baseList.length - 1) {
+          List(base, <.span(", "))
+        } else {
+          List(base)
+        }
+      }
+      .flatten
+      .toVdomArray { (v: VdomNode) =>
+        v
+      }
+
     <.div(
-      <.strong("Assigned: "),
-      Helpers
-        .commaSeparatedSpans(
-          roomMetadata.assignedParticipants.values.toList.sorted
-        )
-        .toVdomArray
+      <.strong("Roles: "),
+      elements
     ).when(roomMetadata.assignedParticipants.nonEmpty)
   }
 
@@ -132,7 +153,7 @@ object DebateMetadata {
       else S.simpleUnselectable
     <.div(S.optionBox, selectableStyle, S.debateMetadata)(
       props.statusDisplay,
-      props.assignedParticipants,
+      props.roleAssigments,
       props.presentParticipants,
       props.boldedTurnDisplay,
       props.deleteRoom,
