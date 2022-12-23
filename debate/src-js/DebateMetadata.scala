@@ -45,7 +45,8 @@ case class Props(
         val base: VdomNode =
           role match {
             case Debater(_) => <.span(S.debaterAssignment)(s"$role: $name")
-            case Judge =>
+            case Judge      =>
+              // TODO why does judge assignment not work?
               <.span(S.judgeAssigment)
               (s"$role: $name")
           }
