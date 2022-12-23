@@ -78,6 +78,27 @@ case class Props(
       userName.value
     )).when(canEnterRoom)
   }
+
+  def boldedTurnDisplay = {
+    val speakers = roomMetadata.currentSpeakers.getOrElse(Set())
+    val myRole =
+      roomMetadata.assignedParticipants.map(_.swap).get(userName.value)
+    val speakerElements = speakers collect {
+      case (speaker: DebateRole)
+          if roomMetadata.assignedParticipants.contains(speaker) => {
+        val isMyTurn = myRole.map(_ == speaker).getOrElse(false)
+        val speakerName = roomMetadata.assignedParticipants(speaker)
+        <.span(
+          speakerName,
+          ^.fontWeight := (if (isMyTurn) "bold" else "normal")
+        )
+      }
+    }
+    <.div(
+      <.strong("Turn: "),
+      speakerElements.toVdomArray
+    ).when(speakerElements.nonEmpty)
+  }
 }
 
 object DebateMetadata {
@@ -113,6 +134,7 @@ object DebateMetadata {
       props.statusDisplay,
       props.assignedParticipants,
       props.presentParticipants,
+      props.boldedTurnDisplay,
       props.deleteRoom,
       props.enterRoomButton
     )
