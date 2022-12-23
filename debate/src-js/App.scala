@@ -55,10 +55,8 @@ object App {
 
   // instantiate the HOCs we need
 
-  val LocalString = new LocalState[String]
   val LocalDouble = new LocalState[Double]
-  val LocalStringOpt = new LocalState[Option[String]]
-  val LocalConnectionSpecOpt = new LocalState[Option[ConnectionSpec]]
+  val LocalConnectionSpecOpt = new LocalState2[Option[ConnectionSpec]]
   val LocalLobby = new LocalState[Lobby]
 
   val StringOptField = V.LiveTextField[Option[String]](
@@ -93,7 +91,10 @@ object App {
             case MainWebSocket.Connecting =>
               <.div(S.loading)("Connecting to metadata server...")
             case MainWebSocket.Connected(sendToMainChannel) =>
-              LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
+              LocalConnectionSpecOpt.syncedWithLocalStorage(
+                key = "connection-details",
+                defaultValue = None
+              ) { connectionSpecOpt =>
                 connectionSpecOpt.value match {
                   case None =>
                     LobbyPage.make(
@@ -103,7 +104,7 @@ object App {
                     )
                   case Some(cs: ConnectionSpec) =>
                     DebatePage.make(
-                      lobby = lobby,
+                      profiles = lobby.value.trackedDebaters,
                       connectionSpec = cs,
                       disconnect = connectionSpecOpt.setState(None),
                     )

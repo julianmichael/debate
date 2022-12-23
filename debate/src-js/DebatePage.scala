@@ -122,7 +122,7 @@ object DebatePage {
   }
 
   def make(
-      lobby: StateSnapshot[Lobby],
+      profiles: Set[String],
       connectionSpec: ConnectionSpec,
       disconnect: Callback
   ) = {
@@ -242,7 +242,7 @@ object DebatePage {
                 case Some(Facilitator) =>
                   facilitatorPanel(
                     mustAssignRoles = isOfficial,
-                    profiles = lobby.value.trackedDebaters,
+                    profiles = profiles,
                     qualityService = qualityStoryService,
                     sendUpdate = sendUpdate
                   )
@@ -278,8 +278,7 @@ object DebatePage {
                     val nameDisplay = userId.map(_.role) match {
                       case Some(Facilitator) =>
                         V.Select.String.mod(select = TagMod(S.customSelect))(
-                          choices =
-                            lobby.value.trackedDebaters.toList.sorted,
+                          choices = profiles.toList.sorted,
                           debateState.zoomStateO(
                             DebateState.debate
                               .composePrism(StdOptics.some)

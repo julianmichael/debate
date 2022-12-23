@@ -5,6 +5,8 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
 import jjm.ling.ESpan
 
+import org.scalajs.dom
+
 import cats.implicits._
 import scala.annotation.nowarn
 
@@ -22,7 +24,7 @@ object LocalQuotingMessage {
   type Context = String => Callback
   case class Props(
       spans: StateSnapshot[Set[ESpan]],
-      messageCookieId: String,
+      messageKeyId: String,
       shouldRefresh: String => Boolean,
       didUpdate: String => Callback,
       render: StateSnapshot[String] => VdomElement
@@ -30,7 +32,7 @@ object LocalQuotingMessage {
 
   @nowarn val Component = ScalaComponent
     .builder[Props]("Local Quoting Message")
-    .initialStateFromProps(p => getCookie(p.messageCookieId).getOrElse(""))
+    .initialStateFromProps(p => Option(dom.window.localStorage.getItem(p.messageKeyId)).getOrElse(""))
     .render { $ => $.props.render(StateSnapshot.of($)) }
     .componentWillReceiveProps { $ =>
       val messageSpans: Set[ESpan] = SpeechSegments
@@ -52,19 +54,19 @@ object LocalQuotingMessage {
         $.currentProps.spans.setState(messageSpans)
       } else Callback.empty
 
-      Callback(setCookie($.currentProps.messageCookieId, $.currentState, expires = 5)) >>
+      Callback(dom.window.localStorage.setItem($.currentProps.messageKeyId, $.currentState)) >>
         spanCb >> $.currentProps.didUpdate($.currentState)
     }
     .build
 
   def make(
       spans: StateSnapshot[Set[ESpan]],
-      messageCookieId: String,
+      messageKeyId: String,
       shouldRefresh: String => Boolean = (_: String) => true,
       didUpdate: String => Callback = _ => Callback.empty
   )(
       render: StateSnapshot[String] => VdomElement
   ) = {
-    Component(Props(spans, messageCookieId, shouldRefresh, didUpdate, render))
+    Component(Props(spans, messageKeyId, shouldRefresh, didUpdate, render))
   }
 }

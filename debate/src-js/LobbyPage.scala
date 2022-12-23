@@ -1,4 +1,5 @@
 package debate
+import debate.util.LocalState2
 
 import scala.language.existentials // see https://github.com/suzaku-io/diode/issues/50
 
@@ -10,6 +11,7 @@ import japgolly.scalajs.react.extra.StateSnapshot
 import scalacss.ScalaCssReact._
 
 import cats.implicits._
+import io.circe.generic.JsonCodec
 
 object LobbyPage {
   import Helpers.ClassSetInterpolator
@@ -39,20 +41,12 @@ object LobbyPage {
     // roomName.setState(roomNameLive.value)
 
     val noProfileString = "(select profile)"
-    val profileCookieId = "debate-profile"
 
     def setChoice(
         userName: StateSnapshot[String]
     )(name: String) = {
-      val adjustedName =
-        if (name == noProfileString) "" else name
-      userName.setState(adjustedName) >> Callback(
-        setCookie(
-          profileCookieId,
-          adjustedName,
-          expires = 5
-        )
-      )
+      val adjustedName = if (name == noProfileString) "" else name
+      userName.setState(adjustedName)
     }
 
     def curChoice(userName: StateSnapshot[String]) = {
@@ -209,8 +203,7 @@ object LobbyPage {
       )
     }
 
-    import jjm.ui.LocalState
-
+    @JsonCodec
     sealed trait LobbyTab extends Product with Serializable {
       import LobbyTab._
       override def toString = this match {
@@ -227,9 +220,9 @@ object LobbyPage {
       case object Leaderboard extends LobbyTab
     }
 
-    val LocalString = new LocalState[String]
+    val LocalString = new LocalState2[String]
 
-    val LocalLobbyTab = new LocalState[LobbyTab]
+    val LocalLobbyTab = new LocalState2[LobbyTab]
 
     def profileSelector(userName: StateSnapshot[String]) = {
       <.div(c"form-group row")(
@@ -253,14 +246,20 @@ object LobbyPage {
       )(userName, labelOpt = Some("Name: "))
     }
 
-    LocalString.make(initialValue = getCookie(profileCookieId).getOrElse("")) {
+    LocalString.syncedWithLocalStorage(
+      key = "profile",
+      defaultValue = ""
+    ) {
       userName =>
         <.div(S.lobbyContainer, S.spaceyContainer)(
           profileSelector(userName = userName),
           nameInput(userName = userName),
           createProfileButton(userName),
           deleteProfileButton(userName),
-          LocalLobbyTab.make(LobbyTab.MyDebates) { lobbyTab =>
+          LocalLobbyTab.syncedWithSessionStorage(
+            key = "lobby-tab",
+            defaultValue = LobbyTab.MyDebates
+          ) { lobbyTab =>
             import LobbyTab._
             val myDebates = lobby.value.officialRooms
               .filter(
