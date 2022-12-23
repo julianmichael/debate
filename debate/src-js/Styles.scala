@@ -189,6 +189,9 @@ object Styles extends jjm.ui.View.Styles {
   val settingUpStatusLabel = style(
     color.gold
   )
+  val waitingToBeginStatusLabel = style(
+    color.darkblue
+  )
   val inProgressStatusLabel = style(
     color.darkorange
   )

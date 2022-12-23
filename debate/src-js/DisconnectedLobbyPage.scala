@@ -255,7 +255,8 @@ object DisconnectedLobbyPage {
                       case SettingUp => S.settingUpStatusLabel
                       case InProgress =>
                         S.inProgressStatusLabel
-                      case Complete => S.completeStatusLabel
+                      case Complete       => S.completeStatusLabel
+                      case WaitingToBegin => S.waitingToBeginStatusLabel
                     }
                   }
                   val rooms =
@@ -276,6 +277,8 @@ object DisconnectedLobbyPage {
                   )
                 }
 
+                // TODO what about debates with the same name?
+                println("currentRooms: " + currentRooms)
                 <.div(c"card-body", S.spaceySubcontainer)(
                   <.div(c"input-group", ^.width.auto)(
                     roomNameInput(enter = enter, roomNameLive = roomNameLive),
@@ -296,8 +299,9 @@ object DisconnectedLobbyPage {
                   LeaderboardTable
                     .make()
                     .when(lobbyTab.value == Leaderboard),
-                  makeMetadatas(RoomStatus.InProgress),
                   makeMetadatas(RoomStatus.SettingUp),
+                  makeMetadatas(RoomStatus.WaitingToBegin),
+                  makeMetadatas(RoomStatus.InProgress),
                   makeMetadatas(RoomStatus.Complete)
                 )
               }

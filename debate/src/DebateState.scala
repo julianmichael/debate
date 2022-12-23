@@ -24,13 +24,19 @@ import monocle.function.{all => Optics}
     participants: Set[ParticipantId]
 ) {
 
-  def status: RoomStatus = debate match {
-    case None => RoomStatus.SettingUp
-    case Some(debate) =>
-      debate.currentTransitions.fold(
-        _ => RoomStatus.Complete,
-        _ => RoomStatus.InProgress
-      )
+  def status = {
+    import RoomStatus._
+    debate match {
+      // TODO i can't seem to get any debates to appear under 'setitng up?'
+      case None => SettingUp
+      case Some(debate) =>
+        debate.currentTransitions.fold(
+          (_: DebateResult) => Complete,
+          (_: DebateTransitionSet) =>
+            if (debate.rounds.isEmpty) WaitingToBegin
+            else InProgress
+        )
+    }
   }
 
   /** Add a participant. If the participant is already present, potentially
