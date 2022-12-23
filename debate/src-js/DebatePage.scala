@@ -16,7 +16,12 @@ import debate.util._
 import scala.concurrent.Future
 import jjm.io.HttpUtil
 
-object ConnectedLobbyPage {
+import org.scalajs.jquery.jQuery
+
+import monocle.function.{all => Optics}
+import monocle.std.{all => StdOptics}
+
+object DebatePage {
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
   import Helpers.ClassSetInterpolator
   val S = Styles
@@ -54,8 +59,70 @@ object ConnectedLobbyPage {
       .andThenK(toAsyncCallback)
   )
 
+  val scrollDebateToBottom = Callback {
+    val newSpeechesJQ = jQuery("#speeches")
+    val newSpeechesDiv = newSpeechesJQ(0)
+    newSpeechesJQ.scrollTop(
+      newSpeechesDiv.scrollHeight - newSpeechesDiv.clientHeight
+    )
+  }
+  def maybeScrollDebateToBottom(
+    userName: String,
+    prevDebateOpt: Option[DebateState],
+    curDebate: DebateState
+  ) = CallbackTo {
+    val prevRoleOpt = prevDebateOpt.flatMap(
+      _.participants
+        .find(_.name == userName)
+        .map(_.role)
+    )
+    val curRoleOpt = curDebate.participants
+      .find(_.name == userName)
+      .map(_.role)
+
+    val shouldScroll = prevDebateOpt.fold(true)(prevDebate =>
+      prevDebate.debate.foldMap(DebatePanel.visibleRounds(prevRoleOpt, _)) !=
+        curDebate.debate.foldMap(DebatePanel.visibleRounds(curRoleOpt, _))
+    )
+    if(!shouldScroll) Callback.empty else {
+      val speechesJQ = jQuery("#speeches")
+      val speechesDiv = speechesJQ(0)
+      val isScrolledToBottom =
+        speechesDiv.scrollHeight - speechesJQ.scrollTop() - speechesJQ
+          .outerHeight() < 1
+      if (!isScrolledToBottom) scrollDebateToBottom else Callback.empty
+    }
+  }.flatten
+
+  def maybeSendTurnNotification(
+    userName: String,
+    roomName: String,
+    prevDebate: Option[DebateState],
+    curDebate: DebateState
+  ): Callback = {
+    curDebate.participants
+      .find(_.name == userName)
+      .map(_.role)
+      .fold(Callback.empty) { role =>
+        def getRoles(debate: DebateState) =
+          debate.debate.foldMap(
+            _.currentTransitions.foldMap(_.currentSpeakers)
+          )
+        val newRoles =
+          getRoles(curDebate) -- prevDebate.foldMap(getRoles)
+        if (newRoles.contains(role)) {
+          Callback {
+            val n = new dom.experimental.Notification(
+              s"It's your turn as $role in $roomName!"
+            )
+            scalajs.js.timers.setTimeout(7000)(n.close())
+          }
+        } else Callback.empty
+      }
+  }
+
   def make(
-      lobby: StateSnapshot[Lobby],
+      profiles: Set[String],
       connectionSpec: ConnectionSpec,
       disconnect: Callback
   ) = {
@@ -65,26 +132,9 @@ object ConnectedLobbyPage {
     SyncedDebate.make(
       getDebateWebsocketUri(isOfficial, roomName, userName),
       didUpdate = (prevDebate, curDebate) => {
-        curDebate.participants
-          .find(_.name == userName)
-          .map(_.role)
-          .fold(Callback.empty) { role =>
-            def getRoles(debate: DebateState) =
-              debate.debate.foldMap(
-                _.currentTransitions.foldMap(_.currentSpeakers)
-              )
-            val newRoles =
-              getRoles(curDebate) -- prevDebate
-                .foldMap(getRoles)
-            if (newRoles.contains(role)) {
-              Callback {
-                val n = new dom.experimental.Notification(
-                  s"It's your turn as $role in $roomName!"
-                )
-                scalajs.js.timers.setTimeout(7000)(n.close())
-              }
-            } else Callback.empty
-          }
+        maybeSendTurnNotification(
+          userName, roomName, prevDebate, curDebate
+        ) >> maybeScrollDebateToBottom(userName, prevDebate, curDebate)
       }
     ) {
       case SyncedDebate.Disconnected(_, reason) =>
@@ -186,14 +236,13 @@ object ConnectedLobbyPage {
             debateState,
             disconnect = disconnect
           ),
-          // userInfoRow(roomName, userName, userId),
           debateState.value.debate match {
             case None =>
               userId.map(_.role) match {
                 case Some(Facilitator) =>
                   facilitatorPanel(
                     mustAssignRoles = isOfficial,
-                    profiles = lobby.value.trackedDebaters,
+                    profiles = profiles,
                     qualityService = qualityStoryService,
                     sendUpdate = sendUpdate
                   )
@@ -226,14 +275,30 @@ object ConnectedLobbyPage {
               def showRoleNames(role: DebateRole) = {
                 setup.roles.get(role) match {
                   case Some(name) =>
+                    val nameDisplay = userId.map(_.role) match {
+                      case Some(Facilitator) =>
+                        V.Select.String.mod(select = TagMod(S.customSelect))(
+                          choices = profiles.toList.sorted,
+                          debateState.zoomStateO(
+                            DebateState.debate
+                              .composePrism(StdOptics.some)
+                              .composeLens(Debate.setup)
+                              .composeLens(DebateSetup.roles)
+                              .composeOptional(Optics.index(role))
+                          ).get
+                        )
+                      case _ =>
+                        <.span(name)
+                    }
+
                     if (
                       !debateState.value.participants
                         .contains(ParticipantId(name, role))
                     ) {
                       <.span(S.missingParticipant)(
-                        name + " (not here)"
+                        nameDisplay, " (not here)"
                       )
-                    } else <.span(name)
+                    } else nameDisplay
                   case None =>
                     debateState.value.participants.collect {
                       case ParticipantId(name, `role`) =>

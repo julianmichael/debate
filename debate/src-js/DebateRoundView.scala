@@ -138,11 +138,9 @@ object DebateRoundView {
       roleOpt: Option[Role],
       debateStartTime: Option[Long],
       numDebaters: Int,
-      round: DebateRound,
-      roundIndex: Int
+      round: DebateRound
     ) = {
       <.div(
-        ^.key := s"round-$roundIndex",
         round
           .timestamp(numDebaters)
           .whenDefined(roundTime =>

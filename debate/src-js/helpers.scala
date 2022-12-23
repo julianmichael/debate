@@ -6,7 +6,9 @@ import cats.Foldable
 import cats.Functor
 import cats.implicits._
 import org.scalajs.dom
+import io.circe.generic.JsonCodec
 
+@JsonCodec
 case class ConnectionSpec(
     isOfficial: Boolean,
     roomName: String,

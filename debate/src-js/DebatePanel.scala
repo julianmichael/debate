@@ -1,7 +1,5 @@
 package debate
 
-import org.scalajs.jquery.jQuery
-
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 
@@ -87,6 +85,18 @@ object DebatePanel {
     }
   )
 
+  def visibleRounds(
+    roleOpt: Option[Role],
+    debate: Debate
+  ) = {
+    debate.rounds.filter { round =>
+      val isFacilitatorOrDebater = roleOpt.collect {
+        case Facilitator | Debater(_) => ()
+      }.nonEmpty
+      isFacilitatorOrDebater || round.isComplete(debate.setup.numDebaters)
+    }
+  }
+
   /** Show the debate. */
   def apply(
       roomName: String,
@@ -108,62 +118,6 @@ object DebatePanel {
       case Some(Debater(index)) =>
         TagMod(S.answerOutline(index), S.debateWidthOffset(index))
     }
-
-    // val isUsersTurn = role.exists(r =>
-    //   currentTransitions.toOption
-    //     .flatMap(_.giveSpeech.get(r))
-    //     .nonEmpty
-    // )
-    // val charLimit = currentTransitions.fold(_ => -1, _.charLimit)
-    // val quoteLimitOpt = currentTransitions.fold(_ => None, _.quoteLimit)
-
-    val scrollDebateToBottom = Callback {
-      val newSpeechesJQ = jQuery("#speeches")
-      val newSpeechesDiv = newSpeechesJQ(0)
-      newSpeechesJQ.scrollTop(
-        newSpeechesDiv.scrollHeight - newSpeechesDiv.clientHeight
-      )
-    }
-    // def maybeScrollDebateToBottom = {
-    //   val speechesJQ = jQuery("#speeches")
-    //   val speechesDiv = speechesJQ(0)
-    //   val isScrolledToBottom =
-    //     speechesDiv.scrollHeight - speechesJQ.scrollTop() - speechesJQ
-    //       .outerHeight() < 1
-    //   if (isScrolledToBottom) scrollDebateToBottom else Callback.empty
-    // }
-
-
-    // def getSpeechLength(speechSegments: Vector[SpeechSegment]) = {
-    //   speechSegments.foldMap {
-    //     case SpeechSegment.Text(text) => text.size
-    //     case SpeechSegment.Quote(span) =>
-    //       Helpers.renderSpan(setup.sourceMaterial.contents, span).size
-    //   }
-    // }
-    // def getQuoteLength(speechSegments: Vector[SpeechSegment]) = {
-    //   speechSegments.foldMap {
-    //     case SpeechSegment.Text(_) => 0
-    //     case SpeechSegment.Quote(span) =>
-    //       Helpers.renderSpan(setup.sourceMaterial.contents, span).size
-    //   }
-    // }
-
-    // val scrollDebateToBottom = Callback {
-    //   val newSpeechesJQ = jQuery("#speeches")
-    //   val newSpeechesDiv = newSpeechesJQ(0)
-    //   newSpeechesJQ.scrollTop(
-    //     newSpeechesDiv.scrollHeight - newSpeechesDiv.clientHeight
-    //   )
-    // }
-    // def maybeScrollDebateToBottom = {
-    //   val speechesJQ = jQuery("#speeches")
-    //   val speechesDiv = speechesJQ(0)
-    //   val isScrolledToBottom =
-    //     speechesDiv.scrollHeight - speechesJQ.scrollTop() - speechesJQ
-    //       .outerHeight() < 1
-    //   if (isScrolledToBottom) scrollDebateToBottom else Callback.empty
-    // }
 
     val debateSpansWithSpeaker = rounds.flatMap { round =>
       if (round.isComplete(setup.answers.size)) {
@@ -202,8 +156,7 @@ object DebatePanel {
         ).when(shouldShowSourceMaterial),
         LocalQuotingMessage.make(
           curMessageSpans,
-          s"debate-cookie-$roomName",
-          didUpdate = _ => scrollDebateToBottom
+          s"debate-cookie-$roomName"
         ) { currentMessage =>
           val currentMessageSpeechSegments =
             SpeechSegments.getFromString(currentMessage.value)
@@ -211,19 +164,15 @@ object DebatePanel {
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
               ^.id := "speeches",
-              rounds.zipWithIndex.flatMap { case (round, roundIndex) =>
-                Option(DebateRoundView.makeRoundHtml(
-                  source = setup.sourceMaterial.contents,
-                  roleOpt = roleOpt,
-                  debateStartTime = debate.startTime,
-                  numDebaters = setup.answers.size,
-                  round,
-                  roundIndex
-                )).filter(_ =>
-                  roleOpt.collect { case Facilitator | Debater(_) =>
-                    ()
-                  }.nonEmpty ||
-                    round.isComplete(setup.answers.size)
+              visibleRounds(roleOpt, debate).zipWithIndex.flatMap { case (round, roundIndex) =>
+                Option(
+                  DebateRoundView.makeRoundHtml(
+                    source = setup.sourceMaterial.contents,
+                    roleOpt = roleOpt,
+                    debateStartTime = debate.startTime,
+                    numDebaters = setup.answers.size,
+                    round
+                  )(^.key := s"round-$roundIndex")
                 )
               }.toVdomArray,
               userId.whenDefined { userId =>
