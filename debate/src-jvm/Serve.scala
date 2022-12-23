@@ -208,7 +208,7 @@ object Serve
       officialRooms <- officialDebates.getRoomList
       practiceRooms <- practiceDebates.getRoomList
       // channel to update all clients on the lobby state
-      leaderboard <- officialDebates.toLeaderboard
+      leaderboard <- officialDebates.getLeaderboard
       mainChannel <- Topic[IO, Lobby](
         Lobby(trackedDebaters, officialRooms, practiceRooms, leaderboard)
       )
@@ -217,7 +217,7 @@ object Serve
           debaters <- trackedDebatersRef.get
           officialRoomList <- officialDebates.getRoomList
           practiceRoomList <- practiceDebates.getRoomList
-          leaderboard <- officialDebates.toLeaderboard
+          leaderboard <- officialDebates.getLeaderboard
           _ <- mainChannel.publish1(
             Lobby(debaters, officialRoomList, practiceRoomList, leaderboard)
           )
@@ -300,7 +300,7 @@ object Serve
       debaters <- trackedDebaters.get
       officialRooms <- officialDebates.getRoomList
       practiceRooms <- practiceDebates.getRoomList
-      leaderboard <- officialDebates.toLeaderboard
+      leaderboard <- officialDebates.getLeaderboard
       outStream = (
         Stream
           .emit[IO, Option[Lobby]](

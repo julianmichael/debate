@@ -197,7 +197,7 @@ case class DebateStateManager(
     )
   } yield res
 
-  def toLeaderboard = {
+  def getLeaderboard = {
     rooms.get.map({ roomMap =>
       Leaderboard.fromDebates(
         roomMap.values.toList
