@@ -18,35 +18,31 @@ case class ListConfig[A](defaultItem: A) {
   val S = debate.Styles
 
   def mod(
-      listDiv: TagMod = S.listConfigListDiv,
-      removeItemSpan: TagMod = S.listConfigRemoveItemSpan,
-      addItemDiv: TagMod = S.listConfigAddItemDiv,
-      addItemSpan: TagMod = S.listConfigAddItemSpan
+    listDiv: TagMod = S.listConfigListDiv,
+    removeItemSpan: TagMod = S.listConfigRemoveItemSpan,
+    addItemDiv: TagMod = S.listConfigAddItemDiv,
+    addItemSpan: TagMod = S.listConfigAddItemSpan
   )(values: StateSnapshot[Vector[A]], minItems: Int = 0)(
-      renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
-  ) = <.div(listDiv)(
-    values.value.zipWithIndex.toVdomArray { case (_, index) =>
-      // safe since we're in zipWithIndex
-      val itemSnapshot = values.zoomStateO(Optics.index(index)).get
-      val removeItemElement = <.span(removeItemSpan)(
-        "(-)",
-        ^.onClick --> values.modState(_.remove(index))
-      ).when(values.value.size > minItems)
+    renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
+  ) =
+    <.div(listDiv)(
+      values
+        .value
+        .zipWithIndex
+        .toVdomArray { case (_, index) =>
+          // safe since we're in zipWithIndex
+          val itemSnapshot = values.zoomStateO(Optics.index(index)).get
+          val removeItemElement = <
+            .span(removeItemSpan)("(-)", ^.onClick --> values.modState(_.remove(index)))
+            .when(values.value.size > minItems)
 
-      renderItem(removeItemElement, itemSnapshot, index)(
-        ^.key := s"item-$index"
-      )
-    },
-    <.div(addItemDiv)(
-      <.span(addItemSpan)(
-        "(+)",
-        ^.onClick --> values.modState(_ :+ defaultItem)
-      )
+          renderItem(removeItemElement, itemSnapshot, index)(^.key := s"item-$index")
+        },
+      <.div(addItemDiv)(<.span(addItemSpan)("(+)", ^.onClick --> values.modState(_ :+ defaultItem)))
     )
-  )
 
   def apply(values: StateSnapshot[Vector[A]], minItems: Int = 0)(
-      renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
+    renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
   ) = mod()(values, minItems)(renderItem)
 }
 object ListConfig {

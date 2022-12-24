@@ -16,17 +16,15 @@ import jjm.ui.LocalState
   */
 case class SumConfig[A]() {
 
-  val S = debate.Styles
-  val V = new jjm.ui.View(S)
+  val S           = debate.Styles
+  val V           = new jjm.ui.View(S)
   val LocalString = new LocalState[String]
 
   def mod(
-      div: TagMod = S.sumConfigOuterDiv,
-      // innerDiv: TagMod = S.sumConfigInnerDiv,
-      select: TagMod = S.sumConfigSelect
-  )(item: StateSnapshot[A])(
-      options: (String, SumConfigOption[A])*
-  ) = {
+    div: TagMod = S.sumConfigOuterDiv,
+    // innerDiv: TagMod = S.sumConfigInnerDiv,
+    select: TagMod = S.sumConfigSelect
+  )(item: StateSnapshot[A])(options: (String, SumConfigOption[A])*) = {
     val initialValue = options
       .flatMap { case (label, option) =>
         option.prism.getOption(item.value).map(_ => label)
@@ -36,32 +34,36 @@ case class SumConfig[A]() {
     val optionsMap = options.toMap
     LocalString.make(initialValue) { optionName =>
       <.div(div)(
-        V.Select.String.modFull(select)(
-          options.map(_._1).toList,
-          optionName.value,
-          choice =>
-            optionName.setState(choice) >> item.setState {
-              val option = optionsMap(choice)
-              val projectedDefault = option.prism.apply(option.default)
-              projectedDefault
-            }
-        ),
+        V.Select
+          .String
+          .modFull(select)(
+            options.map(_._1).toList,
+            optionName.value,
+            choice =>
+              optionName.setState(choice) >>
+                item.setState {
+                  val option           = optionsMap(choice)
+                  val projectedDefault = option.prism.apply(option.default)
+                  projectedDefault
+                }
+          ),
         options
           .find(_._1 == optionName.value)
           .map(_._2)
           .flatMap { option =>
-            item.zoomStateO(option.prism.asOptional).map { subItem =>
-              option.render(subItem)
-            }
+            item
+              .zoomStateO(option.prism.asOptional)
+              .map { subItem =>
+                option.render(subItem)
+              }
           }
           .whenDefined
       )
     }
   }
 
-  def apply(item: StateSnapshot[A])(
-      options: (String, SumConfigOption[A])*
-  ) = mod()(item)(options: _*)
+  def apply(item: StateSnapshot[A])(options: (String, SumConfigOption[A])*) =
+    mod()(item)(options: _*)
 }
 sealed trait SumConfigOption[A] {
   type Subtype
@@ -71,14 +73,15 @@ sealed trait SumConfigOption[A] {
 }
 object SumConfigOption {
   private[this] case class SumConfigOptionImpl[A, S](
-      default: S,
-      prism: Prism[A, S],
-      render: StateSnapshot[S] => VdomArray
+    default: S,
+    prism: Prism[A, S],
+    render: StateSnapshot[S] => VdomArray
   ) extends SumConfigOption[A] {
     type Subtype = S
   }
   def apply[A, S](default: S, prism: Prism[A, S])(
-      render: StateSnapshot[S] => VdomArray
-  ): SumConfigOption[A] { type Subtype = S } =
-    SumConfigOptionImpl(default, prism, render)
+    render: StateSnapshot[S] => VdomArray
+  ): SumConfigOption[A] {
+    type Subtype = S
+  } = SumConfigOptionImpl(default, prism, render)
 }

@@ -21,54 +21,66 @@ import jjm.ling.ESpan
   * things at the wall. This can probably be removed at some point.
   */
 object LocalQuotingMessage {
-  type State = String
+  type State   = String
   type Context = String => Callback
   case class Props(
-      spans: StateSnapshot[Set[ESpan]],
-      messageKeyId: String,
-      shouldRefresh: String => Boolean,
-      didUpdate: String => Callback,
-      render: StateSnapshot[String] => VdomElement
+    spans: StateSnapshot[Set[ESpan]],
+    messageKeyId: String,
+    shouldRefresh: String => Boolean,
+    didUpdate: String => Callback,
+    render: StateSnapshot[String] => VdomElement
   )
 
   @nowarn("msg=deprecated")
-  val Component = ScalaComponent
-    .builder[Props]("Local Quoting Message")
-    .initialStateFromProps(p => Option(dom.window.localStorage.getItem(p.messageKeyId)).getOrElse(""))
-    .render { $ => $.props.render(StateSnapshot.of($)) }
-    .componentWillReceiveProps { $ =>
-      val messageSpans: Set[ESpan] = SpeechSegments
-        .getFromString($.state)
-        .collect { case SpeechSegment.Quote(span) => span }
-        .toSet
-      val newSpans = $.nextProps.spans.value -- messageSpans
-      if (newSpans.nonEmpty) {
-        $.modState(_ + newSpans.toVector.sorted.foldMap(span2text))
-      } else Callback.empty
-    }
-    .componentDidUpdate { $ =>
-      val messageSpans = SpeechSegments
-        .getFromString($.currentState)
-        .collect { case SpeechSegment.Quote(span) => span }
-        .toSet
+  val Component =
+    ScalaComponent
+      .builder[Props]("Local Quoting Message")
+      .initialStateFromProps(p =>
+        Option(dom.window.localStorage.getItem(p.messageKeyId)).getOrElse("")
+      )
+      .render { $ =>
+        $.props.render(StateSnapshot.of($))
+      }
+      .componentWillReceiveProps { $ =>
+        val messageSpans: Set[ESpan] =
+          SpeechSegments
+            .getFromString($.state)
+            .collect { case SpeechSegment.Quote(span) =>
+              span
+            }
+            .toSet
+        val newSpans = $.nextProps.spans.value -- messageSpans
+        if (newSpans.nonEmpty) {
+          $.modState(_ + newSpans.toVector.sorted.foldMap(span2text))
+        } else
+          Callback.empty
+      }
+      .componentDidUpdate { $ =>
+        val messageSpans =
+          SpeechSegments
+            .getFromString($.currentState)
+            .collect { case SpeechSegment.Quote(span) =>
+              span
+            }
+            .toSet
 
-      val spanCb = if (messageSpans != $.currentProps.spans.value) {
-        $.currentProps.spans.setState(messageSpans)
-      } else Callback.empty
+        val spanCb =
+          if (messageSpans != $.currentProps.spans.value) {
+            $.currentProps.spans.setState(messageSpans)
+          } else
+            Callback.empty
 
-      Callback(dom.window.localStorage.setItem($.currentProps.messageKeyId, $.currentState)) >>
-        spanCb >> $.currentProps.didUpdate($.currentState)
-    }
-    .build
+        Callback(dom.window.localStorage.setItem($.currentProps.messageKeyId, $.currentState)) >>
+          spanCb >> $.currentProps.didUpdate($.currentState)
+      }
+      .build
 
   def make(
-      spans: StateSnapshot[Set[ESpan]],
-      messageKeyId: String,
-      shouldRefresh: String => Boolean = (_: String) => true,
-      didUpdate: String => Callback = _ => Callback.empty
-  )(
-      render: StateSnapshot[String] => VdomElement
-  ) = {
-    Component(Props(spans, messageKeyId, shouldRefresh, didUpdate, render))
-  }
+    spans: StateSnapshot[Set[ESpan]],
+    messageKeyId: String,
+    shouldRefresh: String => Boolean = (_: String) => true,
+    didUpdate: String => Callback = _ => Callback.empty
+  )(render: StateSnapshot[String] => VdomElement) = Component(
+    Props(spans, messageKeyId, shouldRefresh, didUpdate, render)
+  )
 }

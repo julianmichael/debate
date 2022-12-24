@@ -7,7 +7,8 @@ import io.circe.generic.JsonCodec
 /** Identifier for a debate participant, including the role they're currently
   * playing.
   */
-@JsonCodec case class ParticipantId(name: String, role: Role)
+@JsonCodec
+case class ParticipantId(name: String, role: Role)
 
 /** The role someone plays in a debate.
   *   - Facilitators set things up.
@@ -15,15 +16,18 @@ import io.circe.generic.JsonCodec
   *   - The judge ... judges.
   *   - Observer can't do anything, just watches.
   */
-@JsonCodec sealed trait Role extends Product with Serializable
+@JsonCodec
+sealed trait Role extends Product with Serializable
 case object Observer extends Role {
   override def toString = "Observer"
 }
 case object Facilitator extends Role {
   override def toString = "Facilitator"
 }
-@JsonCodec sealed trait DebateRole extends Role
-@JsonCodec case class Debater(answerIndex: Int) extends DebateRole {
+@JsonCodec
+sealed trait DebateRole extends Role
+@JsonCodec
+case class Debater(answerIndex: Int) extends DebateRole {
   override def toString = s"Debater ${answerLetter(answerIndex)}"
 }
 case object Judge extends DebateRole {
@@ -31,23 +35,31 @@ case object Judge extends DebateRole {
 }
 object DebateRole {
   object DebaterIndex {
-    def unapply(x: String) = if(x.length == 1 && x.charAt(0).isLetter) {
-      Some(x.charAt(0) - 'A')
-    } else None
+    def unapply(x: String) =
+      if (x.length == 1 && x.charAt(0).isLetter) {
+        Some(x.charAt(0) - 'A')
+      } else
+        None
   }
 
   implicit val debateRoleKeyEncoder = KeyEncoder.instance[DebateRole](_.toString)
   implicit val debateRoleKeyDecoder = KeyDecoder.instance[DebateRole] {
-    case "Judge" => Some(Judge)
-    case s"Debater ${DebaterIndex(index)}" => Some(Debater(index))
-    case _ => None
+    case "Judge" =>
+      Some(Judge)
+    case s"Debater ${DebaterIndex(index)}" =>
+      Some(Debater(index))
+    case _ =>
+      None
   }
 }
 object Role {
   implicit val roleKeyEncoder = KeyEncoder.instance[Role](_.toString)
   implicit val roleKeyDecoder = KeyDecoder.instance[Role] {
-    case "Observer" => Some(Observer)
-    case "Facilitator" => Some(Facilitator)
-    case x => DebateRole.debateRoleKeyDecoder(x)
+    case "Observer" =>
+      Some(Observer)
+    case "Facilitator" =>
+      Some(Facilitator)
+    case x =>
+      DebateRole.debateRoleKeyDecoder(x)
   }
 }

@@ -15,66 +15,54 @@ import monocle.macros.Lenses
   * to incentivize efficient information-gathering and encourage the judge to
   * end the debate when they believe it is no longer useful to continue.
   */
-@JsonCodec sealed trait ScoringFunction {
+@JsonCodec
+sealed trait ScoringFunction {
   def max: Double
   def eval(turnNumber: Int, distribution: Vector[Double], outcome: Int): Double
   def perTurnPenalty: Double
 
-  def expectedValue(distribution: Vector[Double], turnNumber: Int): Double = {
-    distribution.zipWithIndex.foldMap { case (p, i) => p * eval(turnNumber, distribution, i) }
-  }
+  def expectedValue(distribution: Vector[Double], turnNumber: Int): Double = distribution
+    .zipWithIndex
+    .foldMap { case (p, i) =>
+      p * eval(turnNumber, distribution, i)
+    }
 }
 object ScoringFunction {
-  @Lenses @JsonCodec case class SphericalScoreWithLinearPenalty(
-      baseCoefficient: Double,
-      perTurnPenalty: Double
-  ) extends ScoringFunction {
+  @Lenses
+  @JsonCodec
+  case class SphericalScoreWithLinearPenalty(baseCoefficient: Double, perTurnPenalty: Double)
+      extends ScoringFunction {
     def max: Double = baseCoefficient
-    def eval(
-        turnNumber: Int,
-        distribution: Vector[Double],
-        outcome: Int
-    ): Double = {
+    def eval(turnNumber: Int, distribution: Vector[Double], outcome: Int): Double = {
       val norm = math.sqrt(distribution.foldMap(math.pow(_, 2)))
-      baseCoefficient * distribution(
-        outcome
-      ) / norm - (perTurnPenalty * turnNumber)
+      baseCoefficient * distribution(outcome) / norm - (perTurnPenalty * turnNumber)
     }
   }
 
-  @Lenses @JsonCodec case class QuadraticScoreWithLinearPenalty(
-      baseCoefficient: Double,
-      perTurnPenalty: Double
-  ) extends ScoringFunction {
+  @Lenses
+  @JsonCodec
+  case class QuadraticScoreWithLinearPenalty(baseCoefficient: Double, perTurnPenalty: Double)
+      extends ScoringFunction {
     def max: Double = baseCoefficient
-    def eval(
-        turnNumber: Int,
-        distribution: Vector[Double],
-        outcome: Int
-    ): Double = {
+    def eval(turnNumber: Int, distribution: Vector[Double], outcome: Int): Double = {
       val sqNorm = distribution.foldMap(math.pow(_, 2))
-      baseCoefficient * ((2 * distribution(
-        outcome
-      )) - sqNorm) - (perTurnPenalty * turnNumber)
+      baseCoefficient * ((2 * distribution(outcome)) - sqNorm) - (perTurnPenalty * turnNumber)
     }
   }
 
-  @Lenses @JsonCodec case class LogScoreWithLinearPenalty(
-      baseCoefficient: Double,
-      constant: Double, // in order to make it a bit nicer since log score is always negative.
-      logBase: Double,
-      perTurnPenalty: Double
+  @Lenses
+  @JsonCodec
+  case class LogScoreWithLinearPenalty(
+    baseCoefficient: Double,
+    constant: Double, // in order to make it a bit nicer since log score is always negative.
+    logBase: Double,
+    perTurnPenalty: Double
   ) extends ScoringFunction {
     def max: Double = constant
-    def eval(
-        turnNumber: Int,
-        distribution: Vector[Double],
-        outcome: Int
-    ): Double = {
-      baseCoefficient * (math.log(distribution(outcome)) / math.log(
-        logBase
-      )) + constant - (perTurnPenalty * turnNumber)
-    }
+    def eval(turnNumber: Int, distribution: Vector[Double], outcome: Int): Double =
+      baseCoefficient *
+        (math.log(distribution(outcome)) / math.log(logBase)) + constant -
+        (perTurnPenalty * turnNumber)
   }
   object LogScoreWithLinearPenalty {
     def default = LogScoreWithLinearPenalty(
@@ -85,13 +73,9 @@ object ScoringFunction {
     )
   }
 
-  val sphericalScoreWithLinearPenalty =
-    GenPrism[ScoringFunction, SphericalScoreWithLinearPenalty]
-  val quadraticScoreWithLinearPenalty =
-    GenPrism[ScoringFunction, QuadraticScoreWithLinearPenalty]
-  val logScoreWithLinearPenalty =
-    GenPrism[ScoringFunction, LogScoreWithLinearPenalty]
-
+  val sphericalScoreWithLinearPenalty = GenPrism[ScoringFunction, SphericalScoreWithLinearPenalty]
+  val quadraticScoreWithLinearPenalty = GenPrism[ScoringFunction, QuadraticScoreWithLinearPenalty]
+  val logScoreWithLinearPenalty       = GenPrism[ScoringFunction, LogScoreWithLinearPenalty]
 
   /**
     * Return a vector of the absolute increase in probability of each option that would be required
@@ -108,31 +92,28 @@ object ScoringFunction {
     turnNum: Int
   ): Vector[Option[Double]] = {
     val currentEV = scoringFunction.expectedValue(probs, turnNum)
-    val hypotheticalScores = probs.indices.map(index =>
-      scoringFunction
-        .eval(turnNum + 1, probs, index)
-    )
+    val hypotheticalScores = probs
+      .indices
+      .map(index => scoringFunction.eval(turnNum + 1, probs, index))
 
     // just do it by guess and check starting low
     val reqdProbDeltas =
-      probs.indices.map { answerIndex =>
-        val scoresNextTurnAfterDeltaIncrease = LazyList
-          .from(0 to 100)
-          .map(_.toDouble / 100.0)
-          .map { delta =>
-            delta -> scoringFunction.expectedValue(
-              Utils.adjustProbability(
-                probs,
-                answerIndex,
-                probs(answerIndex) + delta
-              ),
-              turnNum + 1
-            )
-          }
-        scoresNextTurnAfterDeltaIncrease
-          .find(_._2 >= currentEV)
-          .map(_._1)
-      }.toVector
+      probs
+        .indices
+        .map { answerIndex =>
+          val scoresNextTurnAfterDeltaIncrease = LazyList
+            .from(0 to 100)
+            .map(_.toDouble / 100.0)
+            .map { delta =>
+              delta ->
+                scoringFunction.expectedValue(
+                  Utils.adjustProbability(probs, answerIndex, probs(answerIndex) + delta),
+                  turnNum + 1
+                )
+            }
+          scoresNextTurnAfterDeltaIncrease.find(_._2 >= currentEV).map(_._1)
+        }
+        .toVector
 
     reqdProbDeltas
   }
