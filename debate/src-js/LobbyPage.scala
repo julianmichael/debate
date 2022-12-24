@@ -289,6 +289,8 @@ object LobbyPage {
                         else
                           Callback.empty
 
+                      val visibleRooms = currentRooms.filter(_.matchesQuery(roomNameLive.value))
+
                       <.div(c"card-body", S.spaceySubcontainer)(
                         <.div(c"input-group", ^.width.auto)(
                             roomNameInput(enter = enter, roomNameLive = roomNameLive),
@@ -302,7 +304,7 @@ object LobbyPage {
                           )
                           .when(lobbyTab.value != MyDebates),
                         <.div("No rooms to show.").when(currentRooms.isEmpty),
-                        currentRooms.toVdomArray { case rm: RoomMetadata =>
+                        visibleRooms.toVdomArray { case rm: RoomMetadata =>
                           roomManagement(
                             roomMetadata = rm,
                             isOfficial = isOfficial,

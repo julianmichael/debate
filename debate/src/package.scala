@@ -63,13 +63,21 @@ package object debate extends PackagePlatformExtensions {
     currentParticipants: Set[String],
     // latestUpdateTime: Long, // TODO
     status: RoomStatus
-  )
+  ) {
+    private[this] def matchesKeyword(keyword: String) = {
+      val k     = keyword.toLowerCase
+      val words = assignedParticipants ++ currentParticipants + name + status.toString
+      words.exists(_.toLowerCase.contains(k))
+    }
+    def matchesQuery(query: String) = {
+      val keywords = query.split("\\s+").toSet
+      keywords.forall(matchesKeyword)
+    }
+  }
 
   def makePageTitle(x: String) =
-    (if (x.isEmpty)
-       ""
-     else
-       s"$x | ") + "Debate"
+    Option(x.trim).filter(_.nonEmpty).map(_ + " | ").combineAll + "Debate"
+
   def answerLetter(index: Int) = ('A' + index).toChar.toString
 
   def vectorEnd[A]: Lens[Vector[A], Option[A]] =
