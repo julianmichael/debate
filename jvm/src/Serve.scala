@@ -41,18 +41,6 @@ object Serve
       header = "Serve the live chat app."
     ) {
 
-  val jsDepsPathO = Opts.option[NIOPath](
-    "jsDeps",
-    metavar = "path",
-    help = "Where to get the JS deps file."
-  )
-
-  val jsPathO = Opts.option[NIOPath](
-    "js",
-    metavar = "path",
-    help = "Where to get the JS main file."
-  )
-
   val portO = Opts
     .option[Int](
       "port",
@@ -103,12 +91,12 @@ object Serve
     *   the process's exit code.
     */
   def main: Opts[IO[ExitCode]] = {
-    (jsPathO, jsDepsPathO, portO, saveO, sslO).mapN {
-      (jsPath, jsDepsPath, port, save, ssl) =>
+    (portO, saveO, sslO).mapN {
+      (port, save, ssl) =>
         for {
           builder <- getBuilder(ssl)
           _ <- Blocker[IO].use { blocker =>
-            makeHttpApp(jsPath, jsDepsPath, save, blocker).flatMap(app =>
+            makeHttpApp(save, blocker).flatMap(app =>
               builder
                 .bindHttp(port, "0.0.0.0")
                 .withHttpApp(app)
@@ -177,8 +165,6 @@ object Serve
     *   the full HTTP app
     */
   def makeHttpApp(
-      jsPath: NIOPath,
-      jsDepsPath: NIOPath,
       saveDir: NIOPath,
       blocker: Blocker
   ) = {
@@ -242,15 +228,12 @@ object Serve
         Router(
           s"/$qualityServiceApiEndpoint" -> qualityService,
           "/" -> service(
-            jsPath,
-            jsDepsPath,
             saveDir,
             mainChannel,
             trackedDebatersRef,
             officialDebates,
             practiceDebates,
-            pushUpdate,
-            blocker
+            pushUpdate
           )
         )
       ).orNotFound
@@ -265,15 +248,12 @@ object Serve
     * webapp's functionality.
     */
   def service(
-      jsPath: NIOPath,
-      jsDepsPath: NIOPath,
       saveDir: NIOPath, // where to save the debates as JSON
       mainChannel: Topic[IO, Lobby], // channel for updates to
       trackedDebaters: Ref[IO, Set[String]],
       officialDebates: DebateStateManager,
       practiceDebates: DebateStateManager,
-      pushUpdate: IO[Unit],
-      blocker: Blocker
+      pushUpdate: IO[Unit]
   ) = {
 
     // Operations executed by the server
@@ -291,10 +271,6 @@ object Serve
       debaters <- trackedDebaters.get
       _ <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
     } yield ()
-
-    val jsDepsLocation = "deps.js"
-    val jsLocation = "out.js"
-    val jsMapLocation = jsLocation + ".map"
 
     val createLobbyWebsocket = for {
       debaters <- trackedDebaters.get
@@ -340,15 +316,6 @@ object Serve
     // import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
 
     HttpRoutes.of[IO] {
-      // Land on the actual webapp.
-      case GET -> Root =>
-        Ok(
-          debate
-            .Page(jsDepsLocation = jsDepsLocation, jsLocation = jsLocation)
-            .render,
-          Header("Content-Type", "text/html")
-        )
-
       // connect to the lobby to see open rooms / who's in them, etc.
       case GET -> Root / "main-ws" => createLobbyWebsocket
 
@@ -363,18 +330,6 @@ object Serve
           ) =>
         practiceDebates.createWebsocket(roomName, participantName)
 
-      case req @ GET -> Root / `staticFilePrefix` / `jsDepsLocation` =>
-        StaticFile
-          .fromString(jsDepsPath.toString, blocker, Some(req))
-          .getOrElseF(NotFound())
-      case req @ GET -> Root / `staticFilePrefix` / `jsLocation` =>
-        StaticFile
-          .fromString(jsPath.toString, blocker, Some(req))
-          .getOrElseF(NotFound())
-      case req @ GET -> Root / `staticFilePrefix` / `jsMapLocation` =>
-        StaticFile
-          .fromString(jsPath.toString + ".map", blocker, Some(req))
-          .getOrElseF(NotFound())
     }
   }
 

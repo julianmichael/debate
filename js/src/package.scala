@@ -2,7 +2,7 @@ package debate
 
 
 import cats.Monoid
-
+import debate.facades.Cookies
 import japgolly.scalajs.react.Callback
 
 trait PackagePlatformExtensions {

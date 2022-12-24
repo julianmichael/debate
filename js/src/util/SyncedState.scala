@@ -1,6 +1,5 @@
-package debate.util
-
-import debate._
+package debate
+package util
 
 import org.scalajs.dom.WebSocket
 import org.scalajs.dom.raw.CloseEvent

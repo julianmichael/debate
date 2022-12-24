@@ -1,14 +1,11 @@
 import $ivy.`com.goyeau::mill-scalafix::0.2.11`
 import com.goyeau.mill.scalafix.ScalafixModule
-import mill.define.{Command, Target, Task}
-import mill._, mill.scalalib._, mill.scalalib.publish._, mill.scalajslib._
+import mill._, mill.scalalib._, mill.scalajslib._
+import mill.scalajslib.api.{ModuleKind, ModuleSplitStyle, Report}
 import mill.scalalib.scalafmt._
+import mill.define.Task
 import coursier.maven.MavenRepository
-import os._
 
-import mill.scalajslib.api.{ModuleKind, ModuleSplitStyle}
-
-// val thisPublishVersion = "0.1.0-SNAPSHOT"
 val thisScalaVersion = "2.13.8"
 val thisScalaJSVersion = "1.12.0"
 
@@ -35,26 +32,18 @@ val scalajsJqueryVersion = "1.0.0"
 val scalacssVersion = "0.7.0"
 val scalajsMacrotaskExecutorVersion = "1.0.0"
 
-// raw JS
-val jqueryVersion = "2.1.4"
-val reactVersion = "15.6.1"
+def public(jsTask: Task[Report]): Task[Map[String, os.Path]] = T.task {
+  Map("@public" -> jsTask().dest.path)
+}
 
 trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
+  def scalaVersion = thisScalaVersion
 
-  def repositoriesTask = T.task {
+  override def repositoriesTask = T.task {
     super.repositoriesTask() ++ Seq(
       MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
     )
   }
-
-  def scalaVersion = thisScalaVersion
-
-  def platformSegment: String
-
-  override def sources = T.sources(
-    millSourcePath / "src",
-    millSourcePath / s"src-$platformSegment"
-  )
 
   override def scalacOptions = Seq(
     "-unchecked",
@@ -62,13 +51,10 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     "-feature",
     "-language:higherKinds",
     "-Ymacro-annotations",
-    "-Ywarn-unused",
-    "-Vimplicits",
-    "-Vtype-diffs"
+    "-Ywarn-unused"
   )
 
   override def scalacPluginIvyDeps = super.scalacPluginIvyDeps() ++ Agg(
-    // ivy"io.tryp:::splain:$splainVersion",
     ivy"org.typelevel:::kind-projector:$kindProjectorVersion"
   )
 
@@ -77,7 +63,6 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     ivy"org.julianmichael::jjm-core::$jjmVersion",
     ivy"org.julianmichael::jjm-io::$jjmVersion",
     ivy"io.circe::circe-generic-extras::$circeVersion",
-    // ivy"org.typelevel::kittens::$kittensVersion",
     ivy"io.github.cquiroz::scala-java-time::2.3.0"
   )
 
@@ -89,153 +74,52 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
   }
 }
 
-trait JsPlatform extends CommonModule with ScalaJSModule {
-  def scalaJSVersion = T(thisScalaJSVersion)
-  def platformSegment = "js"
+object js extends CommonModule with ScalaJSModule {
+  def scalaJSVersion = thisScalaJSVersion
+  override def sources = T.sources(
+    build.millSourcePath / "shared" / "src",
+    build.millSourcePath / "js" / "src"
+  )
+  override def moduleKind = ModuleKind.ESModule
+  override def moduleSplitStyle =
+    ModuleSplitStyle.SmallModulesFor(List("debate"))
 
-  import mill.scalajslib.{ScalaJSWorkerApi}
-  import mill.scalajslib.api.{OptimizeMode, FastOpt}
-  // copied from
-  // https://github.com/com-lihaoyi/mill/blob/0.10.3/scalajslib/src/ScalaJSModule.scala
-  // TODO: move this to a non-deprecated API when possible.
-  // the point is to give us a `fastestOpt` target that uses no optimization,
-  // even when it's set to true in the module.
-  private def linkTaskCustom(mode: OptimizeMode): Task[PathRef] = T.task {
-    link(
-      worker = ScalaJSWorkerApi.scalaJSWorker(),
-      toolsClasspath = scalaJSToolsClasspath(),
-      runClasspath = runClasspath(),
-      mainClass = finalMainClassOpt().toOption,
-      testBridgeInit = false,
-      mode = mode,
-      moduleKind = moduleKind(),
-      esFeatures = esFeatures()
-    )
+  override def ivyDeps = super.ivyDeps() ++ Agg(
+    ivy"org.julianmichael::jjm-ui::$jjmVersion",
+    ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
+    ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
+    ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
+    ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
+    ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion"
+  )
+
+  def publicDev = T {
+    public(fastLinkJS)()
   }
 
-  def fastestOpt: Target[PathRef] = T {
-    linkTaskCustom(mode = FastOpt)()
-  }
-
-  trait Tests extends super.Tests with CommonTestModule {
-    override def scalaVersion = thisScalaVersion
-    def scalaJSVersion = T(thisScalaJSVersion)
-    def platformSegment = "js"
-    def moduleKind = T(mill.scalajslib.api.ModuleKind.CommonJSModule)
+  def publicProd = T {
+    public(fullLinkJS)()
   }
 }
 
-trait JvmPlatform extends CommonModule {
-  def platformSegment = "jvm"
+object jvm extends CommonModule {
+  override def sources = T.sources(
+    build.millSourcePath / "shared" / "src",
+    build.millSourcePath / "jvm" / "src"
+  )
 
-  trait Tests extends super.Tests with CommonTestModule {
+  override def ivyDeps = super.ivyDeps() ++ Agg(
+    ivy"org.julianmichael::jjm-corenlp::$jjmVersion",
+    ivy"com.lihaoyi::os-lib:$osLibVersion",
+    ivy"com.lihaoyi::scalatags:0.8.2",
+    ivy"com.monovore::decline::$declineVersion",
+    ivy"com.monovore::decline-effect::$declineVersion",
+    // java dependencies
+    ivy"ch.qos.logback:logback-classic:$logbackVersion",
+    ivy"io.circe::circe-generic-extras::$circeVersion"
+  )
+
+  object test extends super.Tests with CommonTestModule {
     override def scalaVersion = thisScalaVersion
-    def platformSegment = "jvm"
-  }
-}
-
-import $file.`build-scripts`.SimpleJSDepsBuild, SimpleJSDepsBuild.SimpleJSDeps
-
-object debate extends Module {
-  trait DebateModule extends CommonModule {
-    def millSourcePath = build.millSourcePath / "debate"
-  }
-
-  trait JvmBase extends DebateModule with JvmPlatform {
-
-    def ivyDeps = super.ivyDeps() ++ Agg(
-      ivy"org.julianmichael::jjm-corenlp::$jjmVersion",
-      ivy"com.lihaoyi::os-lib:$osLibVersion",
-      // ivy"com.lihaoyi::scalatags:0.8.2",
-      ivy"com.lihaoyi::scalatags:0.8.2",
-      ivy"com.monovore::decline::$declineVersion",
-      ivy"com.monovore::decline-effect::$declineVersion",
-      // java dependencies
-      ivy"ch.qos.logback:logback-classic:$logbackVersion",
-      ivy"io.circe::circe-generic-extras::$circeVersion"
-    )
-
-    def runMainFn = T.task { (mainClass: String, args: Seq[String]) =>
-      import mill.api.Result
-      import mill.modules.Jvm
-      try
-        Result.Success(
-          Jvm.runSubprocess(
-            mainClass,
-            runClasspath().map(_.path),
-            forkArgs(),
-            forkEnv(),
-            args,
-            workingDir = forkWorkingDir(),
-            useCpPassingJar = runUseArgsFile()
-          )
-        )
-      catch {
-        case e: Exception =>
-          Result.Failure("subprocess failed")
-      }
-    }
-
-  }
-
-  object jvm extends JvmBase {
-    object test extends Tests
-  }
-
-  object dev extends Module {
-    def serve(args: String*) = T.command {
-      val runMain = jvm.runMainFn()
-      // Turn off optimization in the scalajs linker
-      // so that we can get fast incremental compilation
-      // of the Scala.js code
-      runMain(
-        "debate.Serve",
-        (Seq(
-          "--js",
-          js.fastestOpt().path.toString,
-          "--jsDeps",
-          js.aggregatedJSDeps().path.toString
-        ) ++ args)
-      )
-    }
-  }
-
-  // deploy using fullOpt JS, it's MUCH more compact
-  object prod extends Module {
-    def serve(args: String*) = T.command {
-      val runMain = jvm.runMainFn()
-      runMain(
-        "debate.Serve",
-        Seq(
-          "--js",
-          js.fullOpt().path.toString,
-          "--jsDeps",
-          js.aggregatedJSDeps().path.toString
-        ) ++ args
-      )
-    }
-  }
-
-  object js extends DebateModule with JsPlatform with SimpleJSDeps {
-
-    // override def moduleSplitStyle = ModuleSplitStyle.SmallModulesFor(List("debate"))
-    // override def moduleKind = ModuleKind.CommonJSModule
-
-    def mainClass = T(Some("debate.App"))
-
-    def ivyDeps = super.ivyDeps() ++ Agg(
-      ivy"org.julianmichael::jjm-ui::$jjmVersion",
-      ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
-      ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
-      ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
-      ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion"
-    )
-
-    def jsDeps = Agg(
-      s"https://code.jquery.com/jquery-$jqueryVersion.min.js",
-      s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react.js",
-      s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react-dom.js"
-    )
   }
 }
