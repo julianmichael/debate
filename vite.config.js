@@ -3,8 +3,8 @@ import { defineConfig } from "vite";
 import react from '@vitejs/plugin-react'
 
 var alias = isDev()
-  ? runMillCommand("js.publicDev")
-  : runMillCommand("js.publicProd");
+  ? runMillCommand("debate.js.publicDev")
+  : runMillCommand("debate.js.publicProd");
 
 console.log("alias", alias);
 

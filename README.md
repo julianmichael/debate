@@ -10,14 +10,14 @@ Web interface for information-asymmetric debates.
 ### Running
 
 For development, you must run 3 commands in separate terminals in the root directory of the project:
- - `mill --no-server -j 8 -w js.publcDev` to start incremental compilation of the frontend.
+ - `mill --no-server -j 8 -w debate.js.publcDev` to start incremental compilation of the frontend.
 The `-w` flag means that it will watch for changes and recompile automatically.
- - `mill --no-server -j 8 -w jvm [args]` to start incremental compilation of the backend
+ - `mill --no-server -j 8 -w debate.jvm [args]` to start incremental compilation of the backend
 and run the backend server on port 8080.
  - `npm run dev` to start the Vite with live reloading.
 
 For production, you can start the backend with the same command as above, but without the `-w` flag.
-The frontend is built with `mill js.publicProd` and then served with any static file server.
+The frontend is built with `mill debate.js.publicProd` and then served with any static file server.
 
 All of the relevant server state under is saved under `save/` by default.
 To run HTTPS, there is also an `--ssl` flag which has the server look for a `keystore.jks` and

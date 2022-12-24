@@ -39,6 +39,13 @@ def public(jsTask: Task[Report]): Task[Map[String, os.Path]] = T.task {
 trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
   def scalaVersion = thisScalaVersion
 
+  def platformSegment: String
+
+  override def sources = T.sources(
+    millSourcePath / "src",
+    millSourcePath / s"src-$platformSegment"
+  )
+
   override def repositoriesTask = T.task {
     super.repositoriesTask() ++ Seq(
       MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
@@ -74,52 +81,62 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
   }
 }
 
-object js extends CommonModule with ScalaJSModule {
-  def scalaJSVersion = thisScalaJSVersion
-  override def sources = T.sources(
-    build.millSourcePath / "shared" / "src",
-    build.millSourcePath / "js" / "src"
-  )
-  override def moduleKind = ModuleKind.ESModule
-  override def moduleSplitStyle =
-    ModuleSplitStyle.SmallModulesFor(List("debate"))
+object debate extends Module {
 
-  override def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"org.julianmichael::jjm-ui::$jjmVersion",
-    ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
-    ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
-    ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-    ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
-    ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion"
-  )
+  object js extends CommonModule with ScalaJSModule {
+    def millSourcePath = build.millSourcePath / "debate"
+    def platformSegment = "js"
+    def scalaJSVersion = thisScalaJSVersion
 
-  def publicDev = T {
-    public(fastLinkJS)()
+    override def moduleKind = ModuleKind.ESModule
+    override def moduleSplitStyle =
+      ModuleSplitStyle.SmallModulesFor(List("debate"))
+
+    override def ivyDeps = super.ivyDeps() ++ Agg(
+      ivy"org.julianmichael::jjm-ui::$jjmVersion",
+      ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
+      ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
+      ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
+      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
+      ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion"
+    )
+
+    def publicDev = T {
+      public(fastLinkJS)()
+    }
+
+    def publicProd = T {
+      public(fullLinkJS)()
+    }
+    object test extends super.Tests with CommonTestModule {
+      def platformSegment = "js"
+      override def scalaVersion = thisScalaVersion
+      def scalaJSVersion = T(thisScalaJSVersion)
+      def moduleKind = T(ModuleKind.ESModule)
+    }
   }
 
-  def publicProd = T {
-    public(fullLinkJS)()
+  object jvm extends CommonModule {
+    def millSourcePath = build.millSourcePath / "debate"
+    def platformSegment = "jvm"
+
+    override def mainClass = T(Some("debate.Serve"))
+
+    override def ivyDeps = super.ivyDeps() ++ Agg(
+      ivy"org.julianmichael::jjm-corenlp::$jjmVersion",
+      ivy"com.lihaoyi::os-lib:$osLibVersion",
+      ivy"com.lihaoyi::scalatags:0.8.2",
+      ivy"com.monovore::decline::$declineVersion",
+      ivy"com.monovore::decline-effect::$declineVersion",
+      // java dependencies
+      ivy"ch.qos.logback:logback-classic:$logbackVersion",
+      ivy"io.circe::circe-generic-extras::$circeVersion"
+    )
+
+    object test extends super.Tests with CommonTestModule {
+      def platformSegment = "jvm"
+      override def scalaVersion = thisScalaVersion
+    }
   }
 }
 
-object jvm extends CommonModule {
-  override def sources = T.sources(
-    build.millSourcePath / "shared" / "src",
-    build.millSourcePath / "jvm" / "src"
-  )
-
-  override def ivyDeps = super.ivyDeps() ++ Agg(
-    ivy"org.julianmichael::jjm-corenlp::$jjmVersion",
-    ivy"com.lihaoyi::os-lib:$osLibVersion",
-    ivy"com.lihaoyi::scalatags:0.8.2",
-    ivy"com.monovore::decline::$declineVersion",
-    ivy"com.monovore::decline-effect::$declineVersion",
-    // java dependencies
-    ivy"ch.qos.logback:logback-classic:$logbackVersion",
-    ivy"io.circe::circe-generic-extras::$circeVersion"
-  )
-
-  object test extends super.Tests with CommonTestModule {
-    override def scalaVersion = thisScalaVersion
-  }
-}
