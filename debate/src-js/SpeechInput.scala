@@ -1,14 +1,14 @@
 package debate
 
-import jjm.DotPair
-import japgolly.scalajs.react.extra.StateSnapshot
+import cats.implicits._
 
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom.ext.KeyCode
 import scalacss.ScalaCssReact._
 
-import cats.implicits._
-import org.scalajs.dom.ext.KeyCode
+import jjm.DotPair
 import jjm.ui.LocalState
 
 object SpeechInput {

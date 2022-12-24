@@ -1,11 +1,11 @@
 package debate
 package util
 
-import japgolly.scalajs.react.vdom.html_<^._
+import io.circe.Decoder
+import io.circe.Encoder
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
-import io.circe.Encoder
-import io.circe.Decoder
+import japgolly.scalajs.react.vdom.html_<^._
 
 class LocalState2[A] {
   type State = A

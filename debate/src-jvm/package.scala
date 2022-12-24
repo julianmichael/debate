@@ -1,10 +1,9 @@
 package debate
 
-import org.http4s.websocket.WebSocketFrame
+import cats.effect.IO
 
 import fs2.Pipe
-
-import cats.effect.IO
+import org.http4s.websocket.WebSocketFrame
 
 trait PackagePlatformExtensions {
 

@@ -1,9 +1,10 @@
 package debate
 
-import io.circe.generic.JsonCodec
-import jjm.ling.ESpan
-
 import cats.implicits._
+
+import io.circe.generic.JsonCodec
+
+import jjm.ling.ESpan
 
 /** A single contiguous argument by a debater.
   *

@@ -1,25 +1,23 @@
 package debate
 
-import org.scalajs.dom
+import scala.concurrent.Future
+
+import cats.implicits._
+import cats.~>
 
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.MonocleReact._
-
-import scalacss.ScalaCssReact._
-
-import cats.~>
-import cats.implicits._
-
-import debate.util._
-import scala.concurrent.Future
-import jjm.io.HttpUtil
-
-import org.scalajs.jquery.jQuery
-
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.html_<^._
 import monocle.function.{all => Optics}
 import monocle.std.{all => StdOptics}
+import org.scalajs.dom
+import org.scalajs.jquery.jQuery
+import scalacss.ScalaCssReact._
+
+import jjm.io.HttpUtil
+
+import debate.util._
 
 object DebatePage {
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._

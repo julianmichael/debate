@@ -1,36 +1,37 @@
 package debate
 
-import debate.quality._
-
 import java.io.InputStream
-import java.security.{SecureRandom, KeyStore}
-import javax.net.ssl.{SSLContext, TrustManagerFactory, KeyManagerFactory}
+import java.nio.file.{Path => NIOPath}
+import java.nio.file.Paths
+import java.security.KeyStore
+import java.security.SecureRandom
+
+import scala.concurrent.duration._
 
 import cats.effect._
 import cats.effect.concurrent.Ref
 import cats.implicits._
 
+import _root_.org.http4s.server.middleware.HttpsRedirect
+import com.monovore.decline._
+import com.monovore.decline.effect._
+import fs2._
+import fs2.concurrent.Topic
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
 import org.http4s._
+import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.websocket.WebSocketBuilder
-import org.http4s.implicits._
 
-import com.monovore.decline._
-import com.monovore.decline.effect._
-import _root_.org.http4s.server.middleware.HttpsRedirect
-
+import jjm.DotKleisli
 import jjm.implicits._
 import jjm.io.FileUtil
-import java.nio.file.{Path => NIOPath}
-
-import fs2._
-import fs2.concurrent.Topic
-import java.nio.file.Paths
 import jjm.io.HttpUtil
-import jjm.DotKleisli
 
-import scala.concurrent.duration._
+import debate.quality._
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.

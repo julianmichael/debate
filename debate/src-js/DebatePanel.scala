@@ -1,16 +1,14 @@
 package debate
 
-import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.html_<^._
-
-import scalacss.ScalaCssReact._
-
 import cats.implicits._
 
-import jjm.ling.ESpan
+import japgolly.scalajs.react._
+import japgolly.scalajs.react.vdom.html_<^._
+import scalacss.ScalaCssReact._
 
-import jjm.ui.Rgba
+import jjm.ling.ESpan
 import jjm.ui.LocalState
+import jjm.ui.Rgba
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._

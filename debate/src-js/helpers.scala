@@ -1,12 +1,12 @@
 package debate
 
-import japgolly.scalajs.react.vdom.html_<^._
-
 import cats.Foldable
 import cats.Functor
 import cats.implicits._
-import org.scalajs.dom
+
 import io.circe.generic.JsonCodec
+import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom
 
 @JsonCodec
 case class ConnectionSpec(

@@ -1,13 +1,11 @@
 package debate
 package util
 
-import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.MonocleReact._
-
-import scalacss.ScalaCssReact._
-
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.html_<^._
 import monocle.function.{all => Optics}
+import scalacss.ScalaCssReact._
 
 import jjm.implicits._
 

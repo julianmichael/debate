@@ -1,23 +1,24 @@
 package debate
 
-import annotation.unused
-import org.scalajs.dom
+import scala.annotation.unused
+import scala.scalajs.js
+import scala.scalajs.js.annotation.JSExportTopLevel
+import scala.scalajs.js.annotation.JSImport
+import scala.util.Try
+
+import cats.implicits._
+import cats.~>
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom
+import org.scalajs.jquery.JQueryStatic
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
-import scala.util.Try
-import cats.~>
-import cats.implicits._
-import debate.util._
 import jjm.OrWrapped
 
-import org.scalajs.jquery.JQueryStatic
-import scala.scalajs.js
-import scala.scalajs.js.annotation.JSImport
-import scala.scalajs.js.annotation.JSExportTopLevel
+import debate.util._
 
 @js.native
 @JSImport("jquery", JSImport.Namespace)

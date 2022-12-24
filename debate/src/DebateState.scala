@@ -1,17 +1,16 @@
 package debate
 
 
-import monocle.macros.Lenses
-import monocle.macros.GenPrism
-import io.circe.generic.JsonCodec
-
 import cats.implicits._
+
+import io.circe.generic.JsonCodec
+import monocle.Prism
+import monocle.function.{all => Optics}
+import monocle.macros.GenPrism
+import monocle.macros.Lenses
 
 import jjm.DotPair
 import jjm.implicits._
-
-import monocle.function.{all => Optics}
-import monocle.Prism
 
 /** The full data object maintained on the server for each debate. Sent to the
   * client in full each time there's a change to the debate.

@@ -1,10 +1,12 @@
 package debate.quality
 
-import jjm.DotKleisli
-import jjm.{DotEncoder, DotDecoder}
-
-import io.circe.{Encoder, Decoder}
+import io.circe.Decoder
+import io.circe.Encoder
 import io.circe.generic.JsonCodec
+
+import jjm.DotDecoder
+import jjm.DotEncoder
+import jjm.DotKleisli
 
 trait QuALITYService[F[_]] {
   def getIndex: F[Map[String, String]]

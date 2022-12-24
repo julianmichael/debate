@@ -1,11 +1,11 @@
 package debate
 
+import cats._
+import cats.implicits._
+
 import io.circe.generic.JsonCodec
 
 import jjm.metrics._
-
-import cats._
-import cats.implicits._
 
 @JsonCodec
 case class DebateStats(wins: Proportion.Stats, rewards: Numbers[Double])

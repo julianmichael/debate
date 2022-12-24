@@ -1,11 +1,9 @@
 package debate
 
-import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
-
+import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
-
 
 import jjm.ui.LocalState
 

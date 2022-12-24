@@ -1,14 +1,12 @@
 package debate
 package util
 
-import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.MonocleReact._
-
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.html_<^._
+import monocle.Prism
 import scalacss.ScalaCssReact._
 
-
-import monocle.Prism
 import jjm.ui.LocalState
 
 /** HOC middleman for sum types producing a config panel controlled with a

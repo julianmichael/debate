@@ -1,17 +1,17 @@
 package debate.quality
 
+import java.net.URL
+import java.nio.file.{Path => NIOPath}
+import java.nio.file.Files
+
+import cats.effect.Blocker
+import cats.effect.ContextShift
 import cats.effect.IO
 import cats.implicits._
 
-// import jjm.implicits._
-import jjm.io.FileUtil
-import java.nio.file.{Path => NIOPath}
-import java.nio.file.Files
-import cats.effect.Blocker
-import cats.effect.ContextShift
-import java.net.URL
-
 import fs2.Stream
+
+import jjm.io.FileUtil
 
 object QuALITYUtils {
 

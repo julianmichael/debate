@@ -1,8 +1,8 @@
 package debate
 
-import monocle.macros.Lenses
 import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism
+import monocle.macros.Lenses
 
 /** Rules of the debate. I expect to want to add more stuff here as we want to
   * vary the debates on different dimensions.

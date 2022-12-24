@@ -1,8 +1,8 @@
 package debate
 
-import io.circe.generic.JsonCodec
-import io.circe.KeyEncoder
 import io.circe.KeyDecoder
+import io.circe.KeyEncoder
+import io.circe.generic.JsonCodec
 
 /** Identifier for a debate participant, including the role they're currently
   * playing.

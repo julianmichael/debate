@@ -9,8 +9,9 @@ import coursier.maven.MavenRepository
 val thisScalaVersion = "2.13.8"
 val thisScalaJSVersion = "1.12.0"
 
-// plugins
+// plugins etc.
 val kindProjectorVersion = "0.13.2"
+val organizeImportsVersion = "0.6.0"
 
 // scala deps
 // my libs
@@ -18,6 +19,7 @@ val jjmVersion = "0.2.3"
 // other deps
 val circeVersion = "0.13.0"
 val declineVersion = "1.0.0"
+val scalaJavaTimeVersion = "2.3.0"
 // testing
 val munitVersion = "0.7.29"
 val munitCatsEffectVersion = "1.0.7"
@@ -65,15 +67,18 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     ivy"org.typelevel:::kind-projector:$kindProjectorVersion"
   )
 
+  def scalafixIvyDeps = Agg(ivy"com.github.liancheng::organize-imports:$organizeImportsVersion")
+
   override def ivyDeps = Agg(
     // most of the FP dependencies are pulled in by JJM
     ivy"org.julianmichael::jjm-core::$jjmVersion",
     ivy"org.julianmichael::jjm-io::$jjmVersion",
     ivy"io.circe::circe-generic-extras::$circeVersion",
-    ivy"io.github.cquiroz::scala-java-time::2.3.0"
+    ivy"io.github.cquiroz::scala-java-time::$scalaJavaTimeVersion"
   )
 
   trait CommonTestModule extends CommonModule with TestModule.Munit {
+    override def scalaVersion = thisScalaVersion
     override def ivyDeps = Agg(
       ivy"org.scalameta::munit::$munitVersion",
       ivy"org.typelevel::munit-cats-effect-2::$munitCatsEffectVersion"
@@ -110,7 +115,6 @@ object debate extends Module {
     }
     object test extends super.Tests with CommonTestModule {
       def platformSegment = "js"
-      override def scalaVersion = thisScalaVersion
       def scalaJSVersion = T(thisScalaJSVersion)
       def moduleKind = T(ModuleKind.ESModule)
     }
@@ -125,7 +129,6 @@ object debate extends Module {
     override def ivyDeps = super.ivyDeps() ++ Agg(
       ivy"org.julianmichael::jjm-corenlp::$jjmVersion",
       ivy"com.lihaoyi::os-lib:$osLibVersion",
-      ivy"com.lihaoyi::scalatags:0.8.2",
       ivy"com.monovore::decline::$declineVersion",
       ivy"com.monovore::decline-effect::$declineVersion",
       // java dependencies
@@ -135,7 +138,6 @@ object debate extends Module {
 
     object test extends super.Tests with CommonTestModule {
       def platformSegment = "jvm"
-      override def scalaVersion = thisScalaVersion
     }
   }
 }

@@ -1,10 +1,11 @@
 package debate
 
-import jjm.ui.LocalState
-// import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.html_<^._
-import Helpers.ClassSetInterpolator
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.html_<^._
+
+import jjm.ui.LocalState
+
+import debate.Helpers.ClassSetInterpolator
 
 object LeaderboardTable {
 

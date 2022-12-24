@@ -1,7 +1,8 @@
 package debate
 
-import scalacss.DevDefaults._
 import scala.language.postfixOps
+
+import scalacss.DevDefaults._
 import scalacss.internal.ValueT
 
 /** Stylesheet for the webapp. Inherits default styles for the default view

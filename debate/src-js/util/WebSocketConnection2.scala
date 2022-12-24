@@ -1,24 +1,22 @@
 package debate
 package util
 
-import scalajs.js.typedarray.ArrayBuffer
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Promise
+import scala.scalajs.js.typedarray.ArrayBuffer
 
+import cats.Id
+
+import io.circe.Decoder
+import io.circe.Encoder
+import japgolly.scalajs.react._
+import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom.WebSocket
 import org.scalajs.dom.raw.Blob
 import org.scalajs.dom.raw.CloseEvent
-import org.scalajs.dom.raw.MessageEvent
 import org.scalajs.dom.raw.Event
 import org.scalajs.dom.raw.FileReader
-
-import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react._
-
-import scala.concurrent.Promise
-import scala.concurrent.ExecutionContext
-
-import cats.Id
-import io.circe.Encoder
-import io.circe.Decoder
+import org.scalajs.dom.raw.MessageEvent
 
 /** HOC for websocket connections.
   *

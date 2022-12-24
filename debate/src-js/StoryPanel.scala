@@ -1,24 +1,17 @@
 package debate
-import debate.util._
-
-// import org.scalajs.dom
+import cats.data.NonEmptyList
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-// import japgolly.scalajs.react.extra.StateSnapshot
-// // import japgolly.scalajs.react.MonocleReact._
-
-// import scalacss.DevDefaults._
+import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
-import monocle.function.{all => Optics}
-
 import jjm.ling.ESpan
-import jjm.ui.Rgba
-import jjm.ling.Span
-
-import cats.data.NonEmptyList
 import jjm.ling.ISpan
+import jjm.ling.Span
+import jjm.ui.Rgba
+
+import debate.util._
 
 object StoryPanel {
 

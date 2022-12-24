@@ -1,14 +1,15 @@
 package debate
 
-import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react._
-import japgolly.scalajs.react.extra.StateSnapshot
-import jjm.ling.ESpan
-
-import org.scalajs.dom
+import scala.annotation.nowarn
 
 import cats.implicits._
-import scala.annotation.nowarn
+
+import japgolly.scalajs.react._
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom
+
+import jjm.ling.ESpan
 
 /** Local state HOC for the speech a debater is currently constructing. This
   * exists to keep in sync the overlying `spans` state (of currently highlighted
@@ -30,7 +31,8 @@ object LocalQuotingMessage {
       render: StateSnapshot[String] => VdomElement
   )
 
-  @nowarn val Component = ScalaComponent
+  @nowarn("msg=deprecated")
+  val Component = ScalaComponent
     .builder[Props]("Local Quoting Message")
     .initialStateFromProps(p => Option(dom.window.localStorage.getItem(p.messageKeyId)).getOrElse(""))
     .render { $ => $.props.render(StateSnapshot.of($)) }

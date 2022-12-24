@@ -1,21 +1,19 @@
 package debate
 package util
 
-import org.scalajs.dom.WebSocket
-import org.scalajs.dom.raw.CloseEvent
-import org.scalajs.dom.raw.MessageEvent
-import org.scalajs.dom.raw.Event
+import cats.implicits._
 
-import japgolly.scalajs.react.vdom.html_<^._
+import io.circe.Decoder
+import io.circe.Encoder
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
-
-import monocle.macros.Lenses
+import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros.GenPrism
-
-import cats.implicits._
-import io.circe.Encoder
-import io.circe.Decoder
+import monocle.macros.Lenses
+import org.scalajs.dom.WebSocket
+import org.scalajs.dom.raw.CloseEvent
+import org.scalajs.dom.raw.Event
+import org.scalajs.dom.raw.MessageEvent
 
 /** HOC for websocket connections that manage a state variable synced between
   * multiple clients.

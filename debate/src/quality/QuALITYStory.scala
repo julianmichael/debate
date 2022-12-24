@@ -1,9 +1,9 @@
 package debate.quality
 
-import io.circe.generic.extras.ConfiguredJsonCodec
-import io.circe.generic.extras.Configuration
-import monocle.macros.Lenses
 import io.circe.generic.JsonCodec
+import io.circe.generic.extras.Configuration
+import io.circe.generic.extras.ConfiguredJsonCodec
+import monocle.macros.Lenses
 
 @Lenses @JsonCodec case class QuALITYStory(
     articleId: String,

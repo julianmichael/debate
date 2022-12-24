@@ -1,9 +1,10 @@
 package debate
 
 import cats.implicits._
-import monocle.macros.Lenses
+
 import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism
+import monocle.macros.Lenses
 
 /** Scoring function for the judge (currently, logically applies at the end of
   * the debate). These are based on proper scoring rules to elicit calibrated

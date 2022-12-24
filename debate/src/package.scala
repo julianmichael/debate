@@ -1,16 +1,15 @@
 /** Cross-platform code used by both the JVM and JS packages.
   */
 
+import cats.Monad
+import cats.Reducible
+import cats.implicits._
+
+import io.circe.generic.JsonCodec
 import monocle.Lens
 import monocle.macros.Lenses
 
-import io.circe.generic.JsonCodec
-
 import jjm.ling.ESpan
-
-import cats.implicits._
-import cats.Monad
-import cats.Reducible
 
 package object debate extends PackagePlatformExtensions {
 

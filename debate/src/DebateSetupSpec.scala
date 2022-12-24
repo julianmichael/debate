@@ -1,8 +1,8 @@
 package debate
 
-import monocle.macros.Lenses
-import monocle.macros.GenPrism
 import io.circe.generic.JsonCodec
+import monocle.macros.GenPrism
+import monocle.macros.Lenses
 
 
 @JsonCodec sealed trait SourceMaterialSpec

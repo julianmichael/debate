@@ -1,25 +1,20 @@
 package debate
-import debate.util._
-import debate.quality._
-
-// import org.scalajs.dom
+import cats.implicits._
 
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.MonocleReact._
-
-// import scalacss.DevDefaults._
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.html_<^._
+import monocle.Iso
+import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
-import jjm.ui.LocalState
-import jjm.ui.CacheCallContent
 import jjm.OrWrapped
+import jjm.ui.CacheCallContent
+import jjm.ui.LocalState
 
-import monocle.function.{all => Optics}
-
-import cats.implicits._
-import monocle.Iso
+import debate.quality._
+import debate.util._
 
 class FacilitatorPanel(
     val S: Styles.type,

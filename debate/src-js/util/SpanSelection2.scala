@@ -1,13 +1,12 @@
 package debate
 package util
 
-import jjm.ling.ISpan
-
-import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
-
+import japgolly.scalajs.react.vdom.html_<^._
 import monocle.Lens
 import monocle.Prism
+
+import jjm.ling.ISpan
 
 /** HOC for span selection modified from the original jjm.ui.SpanSelection just
   * to add spans to a span state controlled by the caller.

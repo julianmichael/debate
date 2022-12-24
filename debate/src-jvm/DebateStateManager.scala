@@ -1,29 +1,25 @@
 package debate
 
 import java.nio.file.{Path => NIOPath}
-
-import cats.kernel.Order
-
-import cats.implicits._
-
-import cats.effect.IO
-import cats.effect.concurrent.Ref
-import cats.effect.Concurrent
-
-import monocle.function.{all => Optics}
-import monocle.std.{all => StdOptics}
-import monocle.macros.Lenses
-
-import fs2.concurrent.Topic
-import fs2.Stream
-
-import org.http4s.server.websocket._
-
-import jjm.io.FileUtil
 import java.nio.file.Files
 
 import scala.concurrent.duration._
+
+import cats.effect.Concurrent
+import cats.effect.IO
 import cats.effect.Timer
+import cats.effect.concurrent.Ref
+import cats.implicits._
+import cats.kernel.Order
+
+import fs2.Stream
+import fs2.concurrent.Topic
+import monocle.function.{all => Optics}
+import monocle.macros.Lenses
+import monocle.std.{all => StdOptics}
+import org.http4s.server.websocket._
+
+import jjm.io.FileUtil
 
 /** The server state for a debate room.
   *

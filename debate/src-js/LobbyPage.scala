@@ -1,15 +1,14 @@
 package debate
-import debate.util.LocalState2
+import cats.implicits._
 
-import org.scalajs.dom
-
+import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom
 import scalacss.ScalaCssReact._
 
-import cats.implicits._
-import io.circe.generic.JsonCodec
+import debate.util.LocalState2
 
 object LobbyPage {
   import Helpers.ClassSetInterpolator

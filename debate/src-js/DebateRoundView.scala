@@ -1,12 +1,14 @@
 package debate
 
 // import japgolly.scalajs.react._
+import java.time.Instant
+import java.time.ZoneId
+
+import cats.implicits._
+
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
-import java.time.{Instant, ZoneId}
-
-import cats.implicits._
 import jjm.ling.ESpan
 
 object DebateRoundView {
