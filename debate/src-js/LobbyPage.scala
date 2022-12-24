@@ -210,68 +210,77 @@ object LobbyPage {
             nameInput(userName = userName),
             createProfileButton(userName),
             deleteProfileButton(userName),
-            LocalLobbyTab
-              .syncedWithSessionStorage(key = "lobby-tab", defaultValue = LobbyTab.MyDebates) {
-                lobbyTab =>
-                  import LobbyTab._
-                  val myDebates = lobby
-                    .value
-                    .officialRooms
-                    .filter(_.assignedParticipants.contains(userName.value))
-                  val isOfficial =
-                    lobbyTab.value match {
-                      case PracticeDebates =>
-                        false
-                      case _ =>
-                        true
-                    }
-                  val currentRooms =
-                    lobbyTab.value match {
-                      case MyDebates =>
-                        myDebates
-                      case AllOfficialDebates =>
-                        lobby.value.officialRooms
-                      case PracticeDebates =>
-                        lobby.value.practiceRooms
-                      case Leaderboard =>
-                        Vector.empty
-                    }
+            LocalLobbyTab.syncedWithSessionStorage(
+              key = "lobby-tab",
+              defaultValue = LobbyTab.MyDebates
+            ) { lobbyTab =>
+              import LobbyTab._
+              val myDebates = lobby
+                .value
+                .officialRooms
+                .filter(_.assignedParticipants.contains(userName.value))
+              val isOfficial =
+                lobbyTab.value match {
+                  case PracticeDebates =>
+                    false
+                  case _ =>
+                    true
+                }
+              val currentRooms =
+                lobbyTab.value match {
+                  case MyDebates =>
+                    myDebates
+                  case AllOfficialDebates =>
+                    lobby.value.officialRooms
+                  case PracticeDebates =>
+                    lobby.value.practiceRooms
+                  case Leaderboard =>
+                    Vector.empty
+                }
 
-                  def lobbySelector() = List(
-                    MyDebates,
-                    AllOfficialDebates,
-                    PracticeDebates,
-                    Leaderboard
-                  ).toVdomArray(tab =>
-                    <.li(c"nav-item")(
-                      <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
-                        ^.href := "#",
-                        ^.onClick --> lobbyTab.setState(tab),
-                        tab.toString
-                      )
-                    )
+              def lobbySelector() = List(
+                MyDebates,
+                AllOfficialDebates,
+                PracticeDebates,
+                Leaderboard
+              ).toVdomArray(tab =>
+                <.li(c"nav-item")(
+                  <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
+                    ^.href := "#",
+                    ^.onClick --> lobbyTab.setState(tab),
+                    tab.toString
                   )
+                )
+              )
 
-                  def roomNameInput(roomNameLive: StateSnapshot[String], enter: Callback) =
-                    V.LiveTextField
-                      .String
-                      .modInput(input =
-                        TagMod(
-                          c"form-control",
-                          ^.onKeyDown ==>
-                            ((e: ReactKeyboardEvent) =>
-                              if (e.keyCode == dom.ext.KeyCode.Enter)
-                                enter
-                              else
-                                Callback.empty
-                            )
+              def roomNameInput(roomNameLive: StateSnapshot[String], enter: Callback) =
+                V.LiveTextField
+                  .String
+                  .modInput(input =
+                    TagMod(
+                      c"form-control",
+                      ^.onKeyDown ==>
+                        ((e: ReactKeyboardEvent) =>
+                          if (e.keyCode == dom.ext.KeyCode.Enter)
+                            enter
+                          else
+                            Callback.empty
                         )
-                      )(roomNameLive, placeholderOpt = Some("Room"))
+                    )
+                  )(roomNameLive, placeholderOpt = Some("Room"))
 
-                  <.div(c"card", ^.textAlign.center)(
-                    <.div(c"card-header")(
-                      <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
-                    ),
+              <.div(c"card", ^.textAlign.center)(
+                <.div(c"card-header")(
+                  <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
+                ),
+                lobbyTab.value match {
+                  case LobbyTab.Leaderboard =>
+                    <.div(c"card-body", S.spaceySubcontainer)(
+                      LeaderboardTable
+                        .make(lobby.value.leaderboard)
+                        .when(lobbyTab.value == LobbyTab.Leaderboard)
+                    )
+                  case _ =>
                     LocalString.make("") { roomNameLive =>
                       val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
                       val enter =
@@ -279,6 +288,7 @@ object LobbyPage {
                           connect(ConnectionSpec(isOfficial, roomNameLive.value, userName.value))
                         else
                           Callback.empty
+
                       <.div(c"card-body", S.spaceySubcontainer)(
                         <.div(c"input-group", ^.width.auto)(
                             roomNameInput(enter = enter, roomNameLive = roomNameLive),
@@ -290,12 +300,8 @@ object LobbyPage {
                               roomNameLive = roomNameLive
                             )
                           )
-                          .when(lobbyTab.value != MyDebates && lobbyTab.value != Leaderboard),
-                        <.div("No rooms to show.")
-                          .when(currentRooms.isEmpty && lobbyTab.value != Leaderboard),
-                        LeaderboardTable
-                          .make(lobby.value.leaderboard)
-                          .when(lobbyTab.value == Leaderboard),
+                          .when(lobbyTab.value != MyDebates),
+                        <.div("No rooms to show.").when(currentRooms.isEmpty),
                         currentRooms.toVdomArray { case rm: RoomMetadata =>
                           roomManagement(
                             roomMetadata = rm,
@@ -305,8 +311,9 @@ object LobbyPage {
                         }
                       )
                     }
-                  )
-              }
+                }
+              )
+            }
           )
         }
       }
