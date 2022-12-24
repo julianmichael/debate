@@ -89,12 +89,7 @@ object App {
             onMessage = (_, msg: Option[Lobby]) => msg.foldMap(lobby.setState(_))
           ) {
             case MainWebSocket.Disconnected(_, reason) =>
-              <.div(S.loading)(
-                """You've been disconnected. This is probably either because of a bug or
-                    because the server is restarting. Please refresh the page.
-                    Sorry about that.
-                """ + reason
-              )
+              <.div(S.loading)("""You've been disconnected. Please refresh the page. """ + reason)
             case MainWebSocket.Connecting =>
               <.div(S.loading)("Connecting to metadata server...")
             case MainWebSocket.Connected(sendToMainChannel) =>

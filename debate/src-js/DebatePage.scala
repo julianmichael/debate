@@ -129,9 +129,7 @@ object DebatePage {
                 maybeScrollDebateToBottom(userName, prevDebate, curDebate)
         ) {
           case SyncedDebate.Disconnected(_, reason) =>
-            <.div(S.loading)("""You've been disconnected. This is either due to a bug or the server
-                                restarting. Please refresh the page. Sorry about that.
-                            """ + reason)
+            <.div(S.loading)("""You've been disconnected. Please refresh the page. """ + reason)
           case SyncedDebate.Connecting =>
             <.div(S.loading)("Connecting to debate data server...")
           case SyncedDebate.Connected(_, None) =>
