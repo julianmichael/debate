@@ -1,10 +1,8 @@
 package debate
 
 import scala.annotation.unused
-import scala.scalajs.js
-import scala.scalajs.js.annotation.JSExportTopLevel
-import scala.scalajs.js.annotation.JSImport
 import scala.util.Try
+import scala.scalajs.js.annotation.JSExportTopLevel
 
 import cats.implicits._
 import cats.~>
@@ -12,20 +10,17 @@ import cats.~>
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
-import org.scalajs.jquery.JQueryStatic
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
 import jjm.OrWrapped
+import jjm.ui.Mounting
 
 import debate.util._
 
-@js.native
-@JSImport("jquery", JSImport.Namespace)
-object jQuery extends JQueryStatic
-
 /** The main webapp. */
 object App {
+
   val DebateWebSocket = WebSocketConnection2.forJsonString[DebateState, DebateState]
   val SyncedDebate = SyncedState.forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
     getRequestFromState = DebateStateUpdateRequest.State(_),
@@ -88,8 +83,14 @@ object App {
             onOpen = _ => Callback(println("Main socket opened.")),
             onMessage = (_, msg: Option[Lobby]) => msg.foldMap(lobby.setState(_))
           ) {
-            case MainWebSocket.Disconnected(_, reason) =>
-              <.div(S.loading)("""You've been disconnected. Please refresh the page. """ + reason)
+            case MainWebSocket.Disconnected(reconnect, reason) =>
+              Mounting.make(AsyncCallback.unit.delayMs(5000).completeWith(_ => reconnect))(
+                <.div(S.loading)(
+                  """You've been disconnected. Will attempt to reconnect every 5 seconds.
+                     If you don't reconnect after a few seconds,
+                     Please refresh the page. """ + reason
+                )
+              )
             case MainWebSocket.Connecting =>
               <.div(S.loading)("Connecting to metadata server...")
             case MainWebSocket.Connected(sendToMainChannel) =>

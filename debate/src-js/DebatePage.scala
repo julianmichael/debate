@@ -12,10 +12,10 @@ import japgolly.scalajs.react.vdom.html_<^._
 import monocle.function.{all => Optics}
 import monocle.std.{all => StdOptics}
 import org.scalajs.dom
-import org.scalajs.jquery.jQuery
 import scalacss.ScalaCssReact._
 
 import jjm.io.HttpUtil
+import jjm.ui.Mounting
 
 import debate.util._
 
@@ -41,7 +41,7 @@ object DebatePage {
         "official"
       else
         "practice"
-    s"${Helpers.wsProtocol()}//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
+    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:8080/$prefix-ws/$roomName?name=$participantId"
   }
 
   val httpProtocol = dom.document.location.protocol
@@ -128,8 +128,14 @@ object DebatePage {
               maybeSendTurnNotification(userName, roomName, prevDebate, curDebate) >>
                 maybeScrollDebateToBottom(userName, prevDebate, curDebate)
         ) {
-          case SyncedDebate.Disconnected(_, reason) =>
-            <.div(S.loading)("""You've been disconnected. Please refresh the page. """ + reason)
+          case SyncedDebate.Disconnected(reconnect, reason) =>
+            Mounting.make(AsyncCallback.unit.delayMs(5000).completeWith(_ => reconnect))(
+              <.div(S.loading)(
+                """You've been disconnected. Will attempt to reconnect every 5 seconds.
+                    If you don't reconnect after a few seconds,
+                    Please refresh the page. """ + reason
+              )
+            )
           case SyncedDebate.Connecting =>
             <.div(S.loading)("Connecting to debate data server...")
           case SyncedDebate.Connected(_, None) =>

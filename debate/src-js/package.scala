@@ -1,8 +1,15 @@
 package debate
 
+import scala.scalajs.js
+import scala.scalajs.js.annotation.JSImport
+
 import cats.Monoid
 
 import japgolly.scalajs.react.Callback
+import org.scalajs.jquery.JQueryStatic
+@js.native
+@JSImport("jquery", JSImport.Namespace)
+object jQuery extends JQueryStatic
 
 trait PackagePlatformExtensions {
 
