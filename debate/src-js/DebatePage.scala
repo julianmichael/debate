@@ -74,7 +74,7 @@ object DebatePage {
           prevDebate.debate.foldMap(DebatePanel.visibleRounds(prevRoleOpt, _)) !=
             curDebate.debate.foldMap(DebatePanel.visibleRounds(curRoleOpt, _))
         )
-      if (!shouldScroll)
+      if (!shouldScroll || jQuery("#speeches").length < 1)
         Callback.empty
       else {
         val speechesJQ  = jQuery("#speeches")

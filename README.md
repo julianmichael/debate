@@ -10,9 +10,9 @@ Web interface for information-asymmetric debates.
 ### Running
 
 For development, you must run 3 commands in separate terminals in the root directory of the project:
- - `mill --no-server -j 8 -w debate.js.publcDev` to start incremental compilation of the frontend.
+ - `mill --no-server -j 0 -w debate.js.publcDev` to start incremental compilation of the frontend.
 The `-w` flag means that it will watch for changes and recompile automatically.
- - `mill --no-server -j 8 -w debate.jvm [args]` to start incremental compilation of the backend
+ - `mill --no-server -j 0 -w debate.jvm [args]` to start incremental compilation of the backend
 and run the backend server on port 8080.
  - `npm run dev` to start the Vite with live reloading.
 
