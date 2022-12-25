@@ -9,6 +9,8 @@ import org.scalajs.dom
 import scalacss.ScalaCssReact._
 
 import debate.util.LocalState2
+import japgolly.scalajs.react.feature.ReactFragment
+import debate.quality.QuALITYService
 
 object LobbyPage {
   import Helpers.ClassSetInterpolator
@@ -16,6 +18,7 @@ object LobbyPage {
   val V = new jjm.ui.View(S)
 
   case class Props(
+    qualityService: QuALITYService[AsyncCallback],
     lobby: StateSnapshot[Lobby],
     sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
     connect: ConnectionSpec => Callback
@@ -24,7 +27,7 @@ object LobbyPage {
   val Component =
     ScalaComponent
       .builder[Props]("Lobby Page")
-      .render_P { case Props(lobby, sendToMainChannel, connect) =>
+      .render_P { case Props(qualityService, lobby, sendToMainChannel, connect) =>
         val noProfileString = "(select profile)"
 
         def setChoice(userName: StateSnapshot[String])(name: String) = {
@@ -170,6 +173,8 @@ object LobbyPage {
                 "Practice Debates"
               case Leaderboard =>
                 "Leaderboard"
+              case CreateDebates =>
+                "Create Debates"
             }
         }
         object LobbyTab {
@@ -177,6 +182,7 @@ object LobbyPage {
           case object AllOfficialDebates extends LobbyTab
           case object PracticeDebates    extends LobbyTab
           case object Leaderboard        extends LobbyTab
+          case object CreateDebates      extends LobbyTab
         }
 
         val LocalString = new LocalState2[String]
@@ -236,13 +242,16 @@ object LobbyPage {
                     lobby.value.practiceRooms
                   case Leaderboard =>
                     Vector.empty
+                  case CreateDebates =>
+                    Vector.empty
                 }
 
               def lobbySelector() = List(
                 MyDebates,
                 AllOfficialDebates,
                 PracticeDebates,
-                Leaderboard
+                Leaderboard,
+                CreateDebates
               ).toVdomArray(tab =>
                 <.li(c"nav-item")(
                   ^.key := tab.toString,
@@ -274,47 +283,59 @@ object LobbyPage {
                 <.div(c"card-header")(
                   <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
                 ),
-                lobbyTab.value match {
-                  case LobbyTab.Leaderboard =>
-                    <.div(c"card-body", S.spaceySubcontainer)(
+                <.div(c"card-body", S.spaceySubcontainer)(
+                  lobbyTab.value match {
+                    case LobbyTab.Leaderboard =>
                       LeaderboardTable
                         .make(lobby.value.leaderboard)
                         .when(lobbyTab.value == LobbyTab.Leaderboard)
-                    )
-                  case _ =>
-                    LocalString.make("") { roomNameLive =>
-                      val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
-                      val enter =
-                        if (canEnter)
-                          connect(ConnectionSpec(isOfficial, roomNameLive.value, userName.value))
-                        else
-                          Callback.empty
-
-                      val visibleRooms = currentRooms.filter(_.matchesQuery(roomNameLive.value))
-
-                      <.div(c"card-body", S.spaceySubcontainer)(
-                        <.div(c"input-group", ^.width.auto)(
-                            roomNameInput(enter = enter, roomNameLive = roomNameLive),
-                            joinOrCreateDebate(
-                              currentRooms = currentRooms,
-                              isOfficial = isOfficial,
-                              canEnter = canEnter,
-                              enter = enter,
-                              roomNameLive = roomNameLive
-                            )
-                          )
-                          .when(lobbyTab.value != MyDebates),
-                        <.div("No rooms to show.").when(currentRooms.isEmpty),
-                        visibleRooms.toVdomArray { case rm: RoomMetadata =>
-                          roomManagement(
-                            roomMetadata = rm,
-                            isOfficial = isOfficial,
-                            userName = userName
-                          )(^.key := rm.name)
-                        }
+                    case LobbyTab.CreateDebates =>
+                      FacilitatorPanel(
+                        roomNameOpt = None,
+                        isOfficialOpt = None,
+                        profiles = lobby.value.trackedDebaters,
+                        qualityService = qualityService,
+                        // TODO: add a method on main websocket that lets us start a new debate like this
+                        // it needs a name for the debate room, an isOfficial flag, and a setup spec
+                        // we also need to add the name option to the creation panel
+                        initDebate = sendToMainChannel
                       )
-                    }
-                }
+                    case _ =>
+                      LocalString.make("") { roomNameLive =>
+                        val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
+                        val enter =
+                          if (canEnter)
+                            connect(ConnectionSpec(isOfficial, roomNameLive.value, userName.value))
+                          else
+                            Callback.empty
+
+                        val visibleRooms = currentRooms.filter(_.matchesQuery(roomNameLive.value))
+
+                        ReactFragment(
+                          Option(
+                            <.div(c"input-group", ^.width.auto)(
+                              roomNameInput(enter = enter, roomNameLive = roomNameLive),
+                              joinOrCreateDebate(
+                                currentRooms = currentRooms,
+                                isOfficial = isOfficial,
+                                canEnter = canEnter,
+                                enter = enter,
+                                roomNameLive = roomNameLive
+                              )
+                            )
+                          ).filter(_ => lobbyTab.value != MyDebates),
+                          Option(<.div("No rooms to show.")).filter(_ => currentRooms.isEmpty),
+                          visibleRooms.toVdomArray { case rm: RoomMetadata =>
+                            roomManagement(
+                              roomMetadata = rm,
+                              isOfficial = isOfficial,
+                              userName = userName
+                            )(^.key := rm.name)
+                          }
+                        )
+                      }
+                  }
+                )
               )
             }
           )
@@ -324,8 +345,9 @@ object LobbyPage {
       .build
 
   def make(
+    qualityService: QuALITYService[AsyncCallback],
     lobby: StateSnapshot[Lobby],
     sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
     connect: ConnectionSpec => Callback
-  ) = Component(Props(lobby, sendToMainChannel, connect))
+  ) = Component(Props(qualityService, lobby, sendToMainChannel, connect))
 }

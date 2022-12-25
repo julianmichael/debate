@@ -283,6 +283,11 @@ object Serve
                       officialDebates.deleteDebate(roomName)
                     else
                       practiceDebates.deleteDebate(roomName)
+                  case CreateRoom(isOfficial, roomName, setupSpec) =>
+                    if (isOfficial)
+                      officialDebates.createDebate(roomName, setupSpec)
+                    else
+                      practiceDebates.createDebate(roomName, setupSpec)
                 },
           onClose = IO.unit
         )

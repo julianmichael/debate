@@ -17,7 +17,7 @@ object Styles extends jjm.ui.View.Styles {
   val mainHalfPadding    = 3 px
   val hoverBgColor       = c"#eee"
 
-  val customSelect = style(addClassNames("custom-select"), width.auto, flexGrow(1))
+  val customSelect = style(addClassNames("custom-select"), flexGrow(1))
 
   // overrides
 

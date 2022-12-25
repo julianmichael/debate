@@ -1,9 +1,6 @@
 package debate
 
-import scala.concurrent.Future
-
 import cats.implicits._
-import cats.~>
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.MonocleReact._
@@ -14,13 +11,12 @@ import monocle.std.{all => StdOptics}
 import org.scalajs.dom
 import scalacss.ScalaCssReact._
 
-import jjm.io.HttpUtil
 import jjm.ui.Mounting
 
 import debate.util._
+import debate.quality.QuALITYService
 
 object DebatePage {
-  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
   import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
@@ -28,8 +24,6 @@ object DebatePage {
     getRequestFromState = DebateStateUpdateRequest.State(_),
     getStateUpdateFromResponse = responseState => _ => responseState
   )
-
-  val facilitatorPanel = new FacilitatorPanel(S, V)
 
   def getDebateWebsocketUri(
     isOfficial: Boolean,
@@ -41,19 +35,8 @@ object DebatePage {
         "official"
       else
         "practice"
-    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:8080/$prefix-ws/$roomName?name=$participantId"
+    s"${Helpers.wsProtocol}//${dom.document.location.hostname}:8080/$prefix-ws/$roomName?name=$participantId"
   }
-
-  val httpProtocol = dom.document.location.protocol
-  val qualityApiUrl: String =
-    s"$httpProtocol//${dom.document.location.hostname}:8080/$qualityServiceApiEndpoint"
-  type DelayedFuture[A] = () => Future[A]
-  val toAsyncCallback = λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
-  val qualityStoryService = quality.QuALITYService(
-    HttpUtil
-      .makeHttpPostClient[quality.QuALITYService.Request](qualityApiUrl)
-      .andThenK(toAsyncCallback)
-  )
 
   val scrollDebateToBottom = Callback {
     val newSpeechesJQ  = jQuery("#speeches")
@@ -112,12 +95,17 @@ object DebatePage {
           Callback.empty
       }
 
-  case class Props(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback)
+  case class Props(
+    qualityService: QuALITYService[AsyncCallback],
+    profiles: Set[String],
+    connectionSpec: ConnectionSpec,
+    disconnect: Callback
+  )
 
   val Component =
     ScalaComponent
       .builder[Props]("Debate Page")
-      .render_P { case Props(profiles, connectionSpec, disconnect) =>
+      .render_P { case Props(qualityService, profiles, connectionSpec, disconnect) =>
         val isOfficial = connectionSpec.isOfficial
         val roomName   = connectionSpec.roomName
         val userName   = connectionSpec.participantName
@@ -229,11 +217,13 @@ object DebatePage {
                 case None =>
                   userId.map(_.role) match {
                     case Some(Facilitator) =>
-                      facilitatorPanel(
-                        mustAssignRoles = isOfficial,
+                      FacilitatorPanel(
+                        roomNameOpt = Some(roomName),
+                        isOfficialOpt = Some(isOfficial),
                         profiles = profiles,
-                        qualityService = qualityStoryService,
-                        sendUpdate = sendUpdate
+                        qualityService = qualityService,
+                        initDebate =
+                          req => sendUpdate(DebateStateUpdateRequest.SetupSpec(req.setupSpec))
                       )
                     case _ =>
                       <.div(S.debateColumn)("Waiting for a facilitator to set up the debate.")
@@ -356,7 +346,10 @@ object DebatePage {
       )
       .build
 
-  def make(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback) = Component(
-    Props(profiles, connectionSpec, disconnect)
-  )
+  def make(
+    qualityService: QuALITYService[AsyncCallback],
+    profiles: Set[String],
+    connectionSpec: ConnectionSpec,
+    disconnect: Callback
+  ) = Component(Props(qualityService, profiles, connectionSpec, disconnect))
 }

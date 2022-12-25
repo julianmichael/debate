@@ -24,8 +24,10 @@ package object debate extends PackagePlatformExtensions {
 
   @JsonCodec
   sealed trait MainChannelRequest
-  case class RegisterDebater(debaterName: String)              extends MainChannelRequest
-  case class RemoveDebater(debaterName: String)                extends MainChannelRequest
+  case class RegisterDebater(debaterName: String) extends MainChannelRequest
+  case class RemoveDebater(debaterName: String)   extends MainChannelRequest
+  case class CreateRoom(isOfficial: Boolean, roomName: String, setupSpec: DebateSetupSpec)
+      extends MainChannelRequest
   case class DeleteRoom(isOfficial: Boolean, roomName: String) extends MainChannelRequest
 
   @JsonCodec

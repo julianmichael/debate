@@ -30,7 +30,7 @@ object Helpers {
       <.span(x, getKey(x, i).whenDefined(^.key := _))
     }
 
-  def wsProtocol() =
+  def wsProtocol =
     if (dom.document.location.protocol == "https:")
       "wss:"
     else

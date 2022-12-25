@@ -85,19 +85,22 @@ case class DebateStateManager(
   def ensureDebate(roomName: String) =
     for {
       roomOpt <- rooms.get.map(_.get(roomName))
-      _ <- IO(roomOpt.nonEmpty).ifM(
-        ifTrue = IO.unit,
-        ifFalse = DebateRoom
-          .create()
-          .flatMap(room =>
-            rooms.update(rooms =>
-              if (rooms.contains(roomName))
-                rooms
-              else
-                rooms + (roomName -> room)
-            ) >> pushUpdate
-          )
-      )
+      _ <-
+        roomOpt match {
+          case Some(_) =>
+            IO.unit
+          case None =>
+            for {
+              newRoom <- DebateRoom.create()
+              _ <- rooms.update(rooms =>
+                if (rooms.contains(roomName))
+                  rooms
+                else
+                  rooms + (roomName -> newRoom)
+              )
+              _ <- pushUpdate
+            } yield ()
+        }
     } yield ()
 
   def deleteDebate(roomName: String) =
@@ -134,19 +137,27 @@ case class DebateStateManager(
       _ <- pushUpdate
     } yield ()
 
+  def createDebate(roomName: String, setupSpec: DebateSetupSpec) =
+    for {
+      _     <- ensureDebate(roomName)
+      setup <- initializeDebate(setupSpec)
+      _ <- rooms.update(
+        roomStateL(roomName).modify(debateState =>
+          DebateState(
+            debate = Some(Debate(setup, Vector())),
+            participants = debateState.participants.map(ParticipantId.role.set(Observer))
+          )
+        )
+      )
+    } yield ()
+
   def processUpdate(roomName: String, request: DebateStateUpdateRequest) = {
     val updateState =
       request match {
         case DebateStateUpdateRequest.State(debateState) =>
           rooms.update(roomStateL(roomName).set(debateState)) // update state
         case DebateStateUpdateRequest.SetupSpec(setupSpec) =>
-          initializeDebate(setupSpec).flatMap { setup =>
-            rooms.update(
-              roomStateL(roomName)
-                .composeLens(DebateState.debate)
-                .set(Some(Debate(setup, Vector())))
-            )
-          }
+          createDebate(roomName, setupSpec)
       }
 
     for {

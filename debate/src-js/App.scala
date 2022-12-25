@@ -13,13 +13,15 @@ import org.scalajs.dom
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
-import jjm.OrWrapped
 import jjm.ui.Mounting
 
 import debate.util._
+import scala.concurrent.Future
+import jjm.io.HttpUtil
 
 /** The main webapp. */
 object App {
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
 
   val DebateWebSocket = WebSocketConnection2.forJsonString[DebateState, DebateState]
   val SyncedDebate = SyncedState.forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
@@ -30,13 +32,18 @@ object App {
   val MainWebSocket = WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
 
   val mainWebsocketUri: String =
-    s"${Helpers.wsProtocol()}//${dom.document.location.hostname}:8080/main-ws"
+    s"${Helpers.wsProtocol}//${dom.document.location.hostname}:8080/main-ws"
 
   val httpProtocol = dom.document.location.protocol
-
-  def wrap[F[_]] = λ[F ~> OrWrapped[F, *]] { f =>
-    OrWrapped.wrapped(f)
-  }
+  val qualityApiUrl: String =
+    s"$httpProtocol//${dom.document.location.hostname}:8080/$qualityServiceApiEndpoint"
+  type DelayedFuture[A] = () => Future[A]
+  val toAsyncCallback = λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
+  val qualityService = quality.QuALITYService(
+    HttpUtil
+      .makeHttpPostClient[quality.QuALITYService.Request](qualityApiUrl)
+      .andThenK(toAsyncCallback)
+  )
 
   import jjm.ui.LocalState
 
@@ -61,8 +68,6 @@ object App {
         Try(x.toInt).toOption.map(Option(_)),
     _.foldMap(_.toString)
   )
-
-  val facilitatorPanel = new FacilitatorPanel(S, V)
 
   class Backend(
     @unused
@@ -100,12 +105,14 @@ object App {
                     connectionSpecOpt.value match {
                       case None =>
                         LobbyPage.make(
+                          qualityService = qualityService,
                           lobby = lobby,
                           sendToMainChannel = sendToMainChannel,
                           connect = (cs: ConnectionSpec) => connectionSpecOpt.setState(Some(cs))
                         )
                       case Some(cs: ConnectionSpec) =>
                         DebatePage.make(
+                          qualityService = qualityService,
                           profiles = lobby.value.trackedDebaters,
                           connectionSpec = cs,
                           disconnect = connectionSpecOpt.setState(None)

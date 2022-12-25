@@ -3,12 +3,15 @@ package debate
 import io.circe.KeyDecoder
 import io.circe.KeyEncoder
 import io.circe.generic.JsonCodec
+import monocle.macros.Lenses
 
 /** Identifier for a debate participant, including the role they're currently
   * playing.
   */
+@Lenses
 @JsonCodec
 case class ParticipantId(name: String, role: Role)
+object ParticipantId
 
 /** The role someone plays in a debate.
   *   - Facilitators set things up.
