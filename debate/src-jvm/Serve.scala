@@ -32,6 +32,8 @@ import jjm.io.FileUtil
 import jjm.io.HttpUtil
 
 import debate.quality._
+import org.http4s.server.middleware.CORSConfig
+import org.http4s.server.middleware.CORS
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -187,9 +189,23 @@ object Serve
           }
         }
       )
+
+      // We need to configure CORS for the AJAX APIs if we're using a separate
+      // endpoint for static file serving.
+      // TODO: allow requests from our hostname instead of any
+      // (but this requires us to know our hostname)
+      // unless we set up Vite as a proxy
+      val corsConfig = CORSConfig(
+        anyOrigin = true,
+        anyMethod = false,
+        allowedMethods = Some(Set("GET", "POST")),
+        allowCredentials = true,
+        maxAge = 1.day.toSeconds
+      )
+
       HttpsRedirect(
         Router(
-          s"/$qualityServiceApiEndpoint" -> qualityService,
+          s"/$qualityServiceApiEndpoint" -> CORS(qualityService, corsConfig),
           "/" ->
             service(
               saveDir,
