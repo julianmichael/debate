@@ -196,17 +196,12 @@ object FacilitatorPanel {
     }
   }
 
-  def roomSettings(
-    isOfficialOpt: Option[StateSnapshot[Boolean]],
-    roomNameOpt: Option[StateSnapshot[String]]
-  ) =
+  def roomSettings(isOfficial: StateSnapshot[Boolean], roomName: StateSnapshot[String]) =
     <.div(S.mainLabeledInputRow)(
       <.div(S.inputLabel)("Room settings"),
       <.div(S.inputRowContents)(
-        <.div(S.row)(
-          isOfficialOpt.whenDefined(V.Checkbox(_, "Is an official debate (must assign roles)"))
-        ),
-        <.div(S.row)(roomNameOpt.whenDefined(V.LiveTextField.String(_, Some("Room name"))))
+        <.div(S.row)(V.Checkbox(isOfficial, "Is an official debate (must assign roles)")),
+        <.div(S.row)(V.LiveTextField.String(roomName, Some("Room name")))
       )
     )
 
@@ -293,20 +288,16 @@ object FacilitatorPanel {
 
   /** Config panel for facilitator to set the rules of the debate. */
   def apply(
-    roomNameOpt: Option[String],
-    isOfficialOpt: Option[Boolean],
     profiles: Set[String],
     qualityService: QuALITYService[AsyncCallback],
     initDebate: CreateRoom => Callback
   ) =
     DebateSetupSpecLocal.make(DebateSetupSpec.init) { setup =>
-      StringLocal.make(roomNameOpt.getOrElse("")) { roomNameSetting =>
-        BoolLocal.make(isOfficialOpt.getOrElse(true)) { isOfficialSetting =>
-          val roomName   = roomNameOpt.getOrElse(roomNameSetting.value)
-          val isOfficial = isOfficialOpt.getOrElse(isOfficialSetting.value)
+      StringLocal.make("") { roomName =>
+        BoolLocal.make(true) { isOfficial =>
           val canStartDebate =
-            roomName.trim.nonEmpty && setup.value.answers.filter(_.nonEmpty).size > 1 &&
-              (!isOfficial || setup.value.areAllRolesAssigned)
+            roomName.value.trim.nonEmpty && setup.value.answers.filter(_.nonEmpty).size > 1 &&
+              (!isOfficial.value || setup.value.areAllRolesAssigned)
 
           QuALITYIndexFetch
             .make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
@@ -342,10 +333,7 @@ object FacilitatorPanel {
                   val storyOpt = storyOptFetch.toOption.flatten
                   QuestionOptLocal.make(None) { qualityQuestionOpt =>
                     <.div(S.facilitatorColumn)(
-                      roomSettings(
-                        Option(isOfficialSetting).filter(_ => isOfficialOpt.isEmpty),
-                        Option(roomNameSetting).filter(_ => roomNameOpt.isEmpty)
-                      ),
+                      roomSettings(isOfficial, roomName),
                       roundTypeConfig(
                         "Opening Rounds",
                         setup
@@ -526,8 +514,8 @@ object FacilitatorPanel {
                               e.preventDefault();
                               initDebate(
                                 CreateRoom(
-                                  isOfficial = isOfficial,
-                                  roomName = roomName.trim,
+                                  isOfficial = isOfficial.value,
+                                  roomName = roomName.value.trim,
                                   setupSpec = setup.value
                                 )
                               )

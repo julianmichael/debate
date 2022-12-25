@@ -291,13 +291,8 @@ object LobbyPage {
                         .when(lobbyTab.value == LobbyTab.Leaderboard)
                     case LobbyTab.CreateDebates =>
                       FacilitatorPanel(
-                        roomNameOpt = None,
-                        isOfficialOpt = None,
                         profiles = lobby.value.trackedDebaters,
                         qualityService = qualityService,
-                        // TODO: add a method on main websocket that lets us start a new debate like this
-                        // it needs a name for the debate room, an isOfficial flag, and a setup spec
-                        // we also need to add the name option to the creation panel
                         initDebate = sendToMainChannel
                       )
                     case _ =>

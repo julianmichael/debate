@@ -14,7 +14,6 @@ import scalacss.ScalaCssReact._
 import jjm.ui.Mounting
 
 import debate.util._
-import debate.quality.QuALITYService
 
 object DebatePage {
   import Helpers.ClassSetInterpolator
@@ -95,17 +94,12 @@ object DebatePage {
           Callback.empty
       }
 
-  case class Props(
-    qualityService: QuALITYService[AsyncCallback],
-    profiles: Set[String],
-    connectionSpec: ConnectionSpec,
-    disconnect: Callback
-  )
+  case class Props(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback)
 
   val Component =
     ScalaComponent
       .builder[Props]("Debate Page")
-      .render_P { case Props(qualityService, profiles, connectionSpec, disconnect) =>
+      .render_P { case Props(profiles, connectionSpec, disconnect) =>
         val isOfficial = connectionSpec.isOfficial
         val roomName   = connectionSpec.roomName
         val userName   = connectionSpec.participantName
@@ -128,7 +122,7 @@ object DebatePage {
             <.div(S.loading)("Connecting to debate data server...")
           case SyncedDebate.Connected(_, None) =>
             <.div(S.loading)("Waiting for debate data...")
-          case SyncedDebate.Connected(sendUpdate, Some(debateState)) =>
+          case SyncedDebate.Connected(_, Some(debateState)) =>
             val userId = debateState.value.participants.find(_.name == userName)
 
             // looks really bad to use the others haha.
@@ -217,13 +211,9 @@ object DebatePage {
                 case None =>
                   userId.map(_.role) match {
                     case Some(Facilitator) =>
-                      FacilitatorPanel(
-                        roomNameOpt = Some(roomName),
-                        isOfficialOpt = Some(isOfficial),
-                        profiles = profiles,
-                        qualityService = qualityService,
-                        initDebate =
-                          req => sendUpdate(DebateStateUpdateRequest.SetupSpec(req.setupSpec))
+                      <.div(S.debateColumn)(
+                        "Debates are no longer set up within the debate room. ",
+                        "Please try the 'Create Debates' tab in the lobby."
                       )
                     case _ =>
                       <.div(S.debateColumn)("Waiting for a facilitator to set up the debate.")
@@ -346,10 +336,7 @@ object DebatePage {
       )
       .build
 
-  def make(
-    qualityService: QuALITYService[AsyncCallback],
-    profiles: Set[String],
-    connectionSpec: ConnectionSpec,
-    disconnect: Callback
-  ) = Component(Props(qualityService, profiles, connectionSpec, disconnect))
+  def make(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback) = Component(
+    Props(profiles, connectionSpec, disconnect)
+  )
 }

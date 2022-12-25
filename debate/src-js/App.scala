@@ -112,7 +112,6 @@ object App {
                         )
                       case Some(cs: ConnectionSpec) =>
                         DebatePage.make(
-                          qualityService = qualityService,
                           profiles = lobby.value.trackedDebaters,
                           connectionSpec = cs,
                           disconnect = connectionSpecOpt.setState(None)
