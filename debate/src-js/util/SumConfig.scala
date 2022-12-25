@@ -69,18 +69,18 @@ sealed trait SumConfigOption[A] {
   type Subtype
   def default: Subtype
   def prism: Prism[A, Subtype]
-  def render: StateSnapshot[Subtype] => VdomArray
+  def render: StateSnapshot[Subtype] => VdomElement
 }
 object SumConfigOption {
   private[this] case class SumConfigOptionImpl[A, S](
     default: S,
     prism: Prism[A, S],
-    render: StateSnapshot[S] => VdomArray
+    render: StateSnapshot[S] => VdomElement
   ) extends SumConfigOption[A] {
     type Subtype = S
   }
   def apply[A, S](default: S, prism: Prism[A, S])(
-    render: StateSnapshot[S] => VdomArray
+    render: StateSnapshot[S] => VdomElement
   ): SumConfigOption[A] {
     type Subtype = S
   } = SumConfigOptionImpl(default, prism, render)

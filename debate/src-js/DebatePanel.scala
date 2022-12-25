@@ -156,15 +156,11 @@ object DebatePanel {
         } ++ curMessageSpans.value.toVector.map(_ -> curHighlightColor)
 
       <.div(S.debatePanel, S.spaceySubcontainer)(
-        StoryPanel
-          .Component(
-            StoryPanel.Props(
-              setup.sourceMaterial.contents,
-              highlights,
-              span => curMessageSpans.modState(_ + span)
-            )
-          )
-          .when(shouldShowSourceMaterial),
+        StoryPanel(
+          setup.sourceMaterial.contents,
+          highlights,
+          span => curMessageSpans.modState(_ + span)
+        ).when(shouldShowSourceMaterial),
         LocalQuotingMessage.make(curMessageSpans, s"debate-message-$roomName") { currentMessage =>
           val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
 

@@ -46,7 +46,7 @@ object DebatePage {
 
   val httpProtocol = dom.document.location.protocol
   val qualityApiUrl: String =
-    s"$httpProtocol//${dom.document.location.host}/$qualityServiceApiEndpoint"
+    s"$httpProtocol//${dom.document.location.hostname}:8080/$qualityServiceApiEndpoint"
   type DelayedFuture[A] = () => Future[A]
   val toAsyncCallback = λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
   val qualityStoryService = quality.QuALITYService(
@@ -289,12 +289,16 @@ object DebatePage {
                         } else
                           nameDisplay
                       case None =>
-                        debateState
-                          .value
-                          .participants
-                          .collect { case ParticipantId(name, `role`) =>
-                            <.span(name)
-                          }
+                        Helpers
+                          .commaSeparatedSpans(
+                            debateState
+                              .value
+                              .participants
+                              .collect { case ParticipantId(name, `role`) =>
+                                name
+                              }
+                              .toVector
+                          )
                           .toVdomArray
                     }
 
@@ -325,6 +329,7 @@ object DebatePage {
                             else
                               S.answerBox
                           <.div(
+                            ^.key := s"answer-$answerIndex",
                             answerBoxStyle(answerIndex),
                             S.simpleSelectable
                               .when(setup.canAssumeRole(userName, Debater(answerIndex)))

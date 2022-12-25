@@ -15,6 +15,7 @@ import jjm.ui.LocalState
 
 import debate.quality._
 import debate.util._
+import japgolly.scalajs.react.feature.ReactFragment
 
 class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
 
@@ -72,7 +73,7 @@ class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
                 DebateRoundType.SimultaneousSpeechesRound(500, None),
                 DebateRoundType.simultaneousSpeechesRound
               ) { simulSpeeches =>
-                VdomArray(
+                ReactFragment(
                   <.div(S.row)(
                     <.div(S.inputLabel)("Character limit"),
                     V.NumberField
@@ -123,7 +124,7 @@ class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
                 DebateRoundType.SequentialSpeechesRound(500, None),
                 DebateRoundType.sequentialSpeechesRound
               ) { seqSpeeches =>
-                VdomArray(
+                ReactFragment(
                   <.div(S.row)(
                     <.div(S.inputLabel)("Character limit"),
                     V.NumberField
@@ -170,7 +171,7 @@ class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
                 DebateRoundType.JudgeFeedbackRound(true, 500),
                 DebateRoundType.judgeFeedbackRound
               ) { judgeFeedback =>
-                VdomArray(
+                ReactFragment(
                   <.div(S.row)(
                     <.span(S.inputLabel)("Character limit"),
                     V.NumberField
@@ -206,7 +207,7 @@ class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
             ScoringFunction.SphericalScoreWithLinearPenalty(3, 1),
             ScoringFunction.sphericalScoreWithLinearPenalty
           ) { sphericalScore =>
-            VdomArray(
+            ReactFragment(
               V.LiveTextField
                 .Double(
                   sphericalScore
@@ -226,7 +227,7 @@ class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
             ScoringFunction.QuadraticScoreWithLinearPenalty(3, 1),
             ScoringFunction.quadraticScoreWithLinearPenalty
           ) { quadraticScore =>
-            VdomArray(
+            ReactFragment(
               V.LiveTextField
                 .Double(
                   quadraticScore
@@ -246,7 +247,7 @@ class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
             ScoringFunction.LogScoreWithLinearPenalty.default,
             ScoringFunction.logScoreWithLinearPenalty
           ) { logScore =>
-            VdomArray(
+            ReactFragment(
               V.LiveTextField
                 .Double(
                   logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.baseCoefficient),
@@ -364,7 +365,7 @@ class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
                                   .composePrism(SourceMaterialSpec.custom)
                               )
                               .get // will succeed bc of match case
-                          VdomArray(
+                          ReactFragment(
                             // title
                             V.LiveTextField
                               .String
@@ -381,7 +382,7 @@ class FacilitatorPanel(val S: Styles.type, val V: jjm.ui.View) {
                               )
                           )
                         case QuALITYSourceMaterialSpec(articleId) =>
-                          VdomArray(
+                          ReactFragment(
                             <.input(
                               c"form-control",
                               ^.readOnly := true,

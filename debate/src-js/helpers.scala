@@ -19,9 +19,16 @@ object Helpers {
       ^.classSet1(sc.s(args: _*))
   }
 
-  def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = fa
-    .map(x => Vector(<.span(x)))
-    .intercalate(Vector(<.span(", ")))
+  def commaSeparatedSpans[F[_]: Foldable: Functor](
+    fa: F[String],
+    getKey: (String, Int) => Option[String] = (x, i) => Some(s"$i-$x")
+  ) = fa
+    .map(Vector(_))
+    .intercalate(Vector(", "))
+    .zipWithIndex
+    .map { case (x, i) =>
+      <.span(x, getKey(x, i).whenDefined(^.key := _))
+    }
 
   def wsProtocol() =
     if (dom.document.location.protocol == "https:")

@@ -80,7 +80,7 @@ object App {
         LocalLobby.make(Lobby.init) { lobby =>
           MainWebSocket.make(
             mainWebsocketUri,
-            onOpen = _ => Callback(println("Main socket opened.")),
+            onOpen = _ => Callback.empty,
             onMessage = (_, msg: Option[Lobby]) => msg.foldMap(lobby.setState(_))
           ) {
             case MainWebSocket.Disconnected(reconnect, reason) =>
@@ -127,7 +127,7 @@ object App {
 
   @JSExportTopLevel("main")
   final def main(): Unit = jQuery { () =>
-    dom.experimental.Notification.requestPermission(result => dom.console.log(result))
+    dom.experimental.Notification.requestPermission(_ => ())
     setupUI()
   }
 }

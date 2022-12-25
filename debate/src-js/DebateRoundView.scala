@@ -17,21 +17,15 @@ object DebateRoundView {
   val S = Styles
   val V = new jjm.ui.View(S)
 
-  def makeSimpleVdomFromText(text: String) = <.span(
-    text
-      .split("\n")
-      .toVector
-      .map(x => Vector(<.span(x): VdomElement))
-      .intercalate(Vector(<.br()))
-      .toVdomArray
-  )
-
-  def breakNewlines(x: String) =
-    x.split("\n")
-      .toVector
-      .map(seg => Vector[VdomNode](<.span(seg)))
-      .intercalate(Vector(<.br()))
-      .toVdomArray
+  def breakNewlines(x: String) = x
+    .split("\n")
+    .toVector
+    .map(seg => Vector[VdomTag](<.span(seg)))
+    .intercalate(Vector(<.br()))
+    .zipWithIndex
+    .toVdomArray { case (el, i) =>
+      el(^.key := s"text-$i")
+    }
 
   def minSecTime(millis: Long): String = {
     val secs    = millis / 1000
@@ -92,11 +86,15 @@ object DebateRoundView {
             speechToHTML(speech, startTimeOpt, userRoleOpt),
             speech
               .content
-              .toVdomArray {
+              .map {
                 case SpeechSegment.Text(text) =>
-                  makeSimpleVdomFromText(text)
+                  <.span(breakNewlines(text))
                 case SpeechSegment.Quote(span) =>
                   quoteToHTML(source, span)
+              }
+              .zipWithIndex
+              .toVdomArray { case (el, i) =>
+                el(^.key := s"text-$i")
               }
           )
         }
@@ -114,11 +112,15 @@ object DebateRoundView {
       speechToHTML(speech, startTimeOpt, userRoleOpt),
       speech
         .content
-        .toVdomArray {
+        .map {
           case SpeechSegment.Text(text) =>
-            makeSimpleVdomFromText(text)
+            <.span(breakNewlines(text))
           case SpeechSegment.Quote(span) =>
             quoteToHTML(source, span)
+        }
+        .zipWithIndex
+        .toVdomArray { case (el, i) =>
+          el(^.key := s"text-$i")
         }
     )
 
@@ -159,10 +161,16 @@ object DebateRoundView {
             }
             .flatten
             .toVector
-            .toVdomArray
+            .zipWithIndex
+            .toVdomArray { case (el, i) =>
+              el(^.key := s"text-$i")
+            }
         } else {
           Vector(makeSimultaneousSpeechesHtml(source, speeches, debateStartTime, roleOpt))
-            .toVdomArray
+            .zipWithIndex
+            .toVdomArray { case (el, i) =>
+              el(^.key := s"text-$i")
+            }
         }
       case SequentialSpeeches(speeches) =>
         val speechesToShow =
@@ -180,20 +188,24 @@ object DebateRoundView {
           } else
             speeches.values.toVector
 
-        speechesToShow.toVdomArray { case speech =>
-          val speechStyle =
-            speech.speaker.role match {
-              case Facilitator =>
-                TagMod(S.facilitatorBg)
-              case Observer =>
-                TagMod(S.observerBg)
-              case Judge =>
-                TagMod(S.judgeFeedbackBg)
-              case Debater(index) =>
-                TagMod(S.answerBg(index), S.debateWidthOffset(index))
-            }
-          makeSpeechHtml(source, speech, debateStartTime, roleOpt, speechStyle)
-        }
+        speechesToShow
+          .zipWithIndex
+          .toVdomArray { case (speech, index) =>
+            val speechStyle =
+              speech.speaker.role match {
+                case Facilitator =>
+                  TagMod(S.facilitatorBg)
+                case Observer =>
+                  TagMod(S.observerBg)
+                case Judge =>
+                  TagMod(S.judgeFeedbackBg)
+                case Debater(index) =>
+                  TagMod(S.answerBg(index), S.debateWidthOffset(index))
+              }
+            makeSpeechHtml(source, speech, debateStartTime, roleOpt, speechStyle)(
+              ^.key := s"speech-$index"
+            )
+          }
       case JudgeFeedback(probabilities, speech, endsDebate) =>
         val speechStyle =
           speech.speaker.role match {
@@ -217,6 +229,7 @@ object DebateRoundView {
                 .toVdomArray { case (prob, index) =>
                   val pct = f"${prob * 100.0}%.0f%%"
                   <.div(
+                    ^.key := s"prob-$index",
                     S.answerBg(index),
                     ^.width      := pct,
                     ^.color      := "white",
@@ -226,7 +239,11 @@ object DebateRoundView {
                 }
             )
           ).filter(_ => probabilities.size > 1)
-        ).flatten.toVdomArray
+        ).flatten
+          .zipWithIndex
+          .toVdomArray { case (speechBox, index) =>
+            speechBox(^.key := s"speechbox-$index")
+          }
     }
   )
 }

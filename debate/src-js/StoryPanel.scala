@@ -22,6 +22,9 @@ object StoryPanel {
   // TODO move all the coloring decisions into one place
   val midHighlightColor = Rgba(255, 128, 0, 0.8)
 
+  def apply(tokens: Vector[String], highlights: Vector[(ESpan, Rgba)], addSpan: ESpan => Callback) =
+    Component(Props(tokens, highlights, addSpan))
+
   case class Props(
     tokens: Vector[String],
     highlights: Vector[(ESpan, Rgba)],

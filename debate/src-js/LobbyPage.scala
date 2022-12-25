@@ -245,6 +245,7 @@ object LobbyPage {
                 Leaderboard
               ).toVdomArray(tab =>
                 <.li(c"nav-item")(
+                  ^.key := tab.toString,
                   <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
                     ^.href := "#",
                     ^.onClick --> lobbyTab.setState(tab),
@@ -309,7 +310,7 @@ object LobbyPage {
                             roomMetadata = rm,
                             isOfficial = isOfficial,
                             userName = userName
-                          )
+                          )(^.key := rm.name)
                         }
                       )
                     }

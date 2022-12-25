@@ -259,7 +259,6 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val inDebateRoleBox = style(
-    backgroundColor.white,
     flexBasis := "0",
     flexGrow(1),
     // width(100 %%),
@@ -270,7 +269,7 @@ object Styles extends jjm.ui.View.Styles {
     padding(mainHalfPadding)
   )
 
-  val questionBox        = style(inDebateRoleBox, color(judgeColor))
+  val questionBox        = style(inDebateRoleBox, color(judgeColor), backgroundColor.white)
   val questionBoxCurrent = style(inDebateRoleBox, color.white, backgroundColor(judgeColor))
 
   val questionTitle = style()
@@ -281,12 +280,12 @@ object Styles extends jjm.ui.View.Styles {
 
   val judgesList = style()
 
-  val answerBoxesRow = style(display.flex, flexDirection.row)
-
-  val answerBox = styleF.int(0 to 4)(i => styleS(inDebateRoleBox, color(answerColors(i))))
-
   val missingParticipant = style(fontWeight.lighter, fontStyle.italic)
 
+  val answerBoxesRow = style(display.flex, flexDirection.row)
+
+  val answerBox =
+    styleF.int(0 to 4)(i => styleS(inDebateRoleBox, color(answerColors(i)), backgroundColor.white))
   val answerBoxCurrent =
     styleF.int(0 to 4)(i =>
       styleS(
@@ -387,12 +386,7 @@ object Styles extends jjm.ui.View.Styles {
     // flexGrow(1),
   )
 
-  val correctAnswerRadio = style(
-    inputRowItem,
-    margin.auto.important,
-    marginLeft(0.5 em).important,
-    marginRight(0.5 em).important
-  )
+  val correctAnswerRadio = style(marginLeft(0.5 em), marginRight(0.5 em))
 
   val inputLabelDeleteButton = style(color(c"#888"), &.hover(fontWeight.bold, color.black))
 
