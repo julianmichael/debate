@@ -1,4 +1,7 @@
 package debate
+
+import scala.concurrent.duration._
+
 import cats.implicits._
 
 import japgolly.scalajs.react._
@@ -62,6 +65,15 @@ object FacilitatorPanel {
     )
 
   val ProfileOptSelect = new V.OptionalSelect[String](show = _.toString)
+
+  case class RoomSpec(isOfficial: Boolean, name: String)
+  def roomSpecsFromLobby(lobby: Lobby): Set[RoomSpec] = {
+    val allSpecs =
+      lobby.officialRooms.view.map(room => RoomSpec(true, room.name)) ++
+        lobby.practiceRooms.view.map(room => RoomSpec(false, room.name))
+    allSpecs.toSet
+  }
+  val WatchRooms = WatchChanges.ofSet[RoomSpec]
 
   val defaultQuoteLimit = 100
 
@@ -201,18 +213,16 @@ object FacilitatorPanel {
     roomName: StateSnapshot[String],
     canCreateDebate: Boolean,
     createDebate: Callback
-  ) =
-    <.div(S.spaceySubcontainer, S.stickyBanner)(
-      Helpers.textInputWithEnterButton(
-        field = roomName,
-        placeholderOpt = Some("Room name"),
-        buttonText = "Create",
-        isEnabled = canCreateDebate,
-        enter = createDebate
-      ),
-      <.div(S.row)(V.Checkbox(isOfficial, "Is an official debate (must assign roles)"))
-      // TODO: put a component here that pops up pretty notifications when a debate is created/deleted
-    )
+  ) = ReactFragment(
+    Helpers.textInputWithEnterButton(
+      field = roomName,
+      placeholderOpt = Some("Room name"),
+      buttonText = "Create",
+      isEnabled = canCreateDebate,
+      enter = createDebate
+    ),
+    <.div(S.row)(V.Checkbox(isOfficial, "Is an official debate (must assign roles)"))
+  )
 
   def roundTypeConfig(
     label: String,
@@ -297,18 +307,23 @@ object FacilitatorPanel {
 
   /** Config panel for facilitator to set the rules of the debate. */
   def apply(
-    currentRooms: Vector[RoomMetadata],
+    lobby: Lobby,
+    joinDebate: Option[(Boolean, String) => Callback],
     profiles: Set[String],
     qualityService: QuALITYService[AsyncCallback],
     initDebate: CreateRoom => Callback
-  ) =
+  ) = {
+    val roomSpecs = roomSpecsFromLobby(lobby)
     DebateSetupSpecLocal.syncedWithSessionStorage("debate-setup", DebateSetupSpec.init) { setup =>
       StringLocal.syncedWithSessionStorage("debate-setup-room-name", "") { roomName =>
         BoolLocal.syncedWithSessionStorage("debate-setup-is-official", true) { isOfficial =>
           val canStartDebate =
             roomName.value.trim.nonEmpty && setup.value.answers.filter(_.nonEmpty).size > 1 &&
               (!isOfficial.value || setup.value.areAllRolesAssigned) &&
-              !currentRooms.exists(_.name == roomName.value.trim)
+              !roomSpecs.exists(room =>
+                room.isOfficial == isOfficial.value && room.name == roomName.value.trim
+              )
+          // TODO ValidatedNel[String, Callback]
           val createDebate =
             if (!canStartDebate)
               Callback.empty
@@ -356,7 +371,46 @@ object FacilitatorPanel {
                   val storyOpt = storyOptFetch.toOption.flatten
                   QuestionOptLocal.make(None) { qualityQuestionOpt =>
                     <.div(S.facilitatorColumn)(
-                      roomSettings(isOfficial, roomName, canStartDebate, createDebate),
+                      <.div(S.spaceySubcontainer, S.stickyBanner)(
+                        roomSettings(isOfficial, roomName, canStartDebate, createDebate),
+                        WatchRooms.make(roomSpecs, 5.seconds) { changes =>
+                          // println(roomSpecs)
+                          // println(changes)
+                          ReactFragment(
+                            changes.toVdomArray {
+                              case WatchChanges
+                                    .SetChange(isAdded, RoomSpec(roomIsOfficial, roomName)) =>
+                                val prefix =
+                                  if (roomIsOfficial)
+                                    "Official"
+                                  else
+                                    "Practice"
+                                val bgStyle =
+                                  if (isAdded)
+                                    c"bg-success text-white"
+                                  else
+                                    c"bg-danger text-white"
+                                <.div(S.row, bgStyle, ^.key := roomName)(
+                                  if (isAdded) {
+                                    <.span(
+                                      s"$prefix room has been created: ",
+                                      <.a(
+                                        ^.href := "#",
+                                        roomName,
+                                        joinDebate.whenDefined(join =>
+                                          ^.onClick --> join(roomIsOfficial, roomName)
+                                        )
+                                      )
+                                      // " (choose your profile to join from here)".when(joinDebate.isEmpty)
+                                    )
+                                  } else {
+                                    <.span(s"$prefix room has been deleted: $roomName")
+                                  }
+                                )
+                            }
+                          )
+                        }
+                      ),
                       roundTypeConfig(
                         "Opening Rounds",
                         setup
@@ -534,5 +588,6 @@ object FacilitatorPanel {
         }
       }
     }
+  }
 
 }

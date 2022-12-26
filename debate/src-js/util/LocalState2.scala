@@ -45,8 +45,6 @@ class LocalState2[A] {
     Props(initialValue, didUpdate, shouldRefresh, render)
   )
 
-  // TODO sync with local storage, session storage, etc. instead of cookies
-
   import org.scalajs.dom
 
   def syncedWithStorage(

@@ -250,7 +250,13 @@ object LobbyPage {
                         .when(lobbyTab.value == LobbyTab.Leaderboard)
                     case LobbyTab.CreateDebates =>
                       FacilitatorPanel(
-                        currentRooms = currentRooms,
+                        lobby = lobby.value,
+                        joinDebate = Option(userName.value)
+                          .filter(_.nonEmpty)
+                          .map(userName =>
+                            (isOfficial: Boolean, roomName: String) =>
+                              connect(ConnectionSpec(isOfficial, roomName, userName))
+                          ),
                         profiles = lobby.value.trackedDebaters,
                         qualityService = qualityService,
                         initDebate = sendToMainChannel
