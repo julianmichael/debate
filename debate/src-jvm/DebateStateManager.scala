@@ -122,16 +122,17 @@ case class DebateStateManager(
   def createDebate(roomName: String, setupSpec: DebateSetupSpec) =
     for {
       setup <- initializeDebate(setupSpec)
-      state = DebateState(debate = Debate(setup, Vector()), participants = Set())
-      room <- DebateRoom.create(state)
-      _ <- rooms.update(rooms =>
-        rooms.get(roomName) match {
+      debate = Debate(setup, Vector())
+      room     <- DebateRoom.create(DebateState(debate = debate, participants = Set()))
+      curRooms <- rooms.get
+      _ <-
+        curRooms.get(roomName) match {
           case Some(_) =>
-            rooms // do nothing
+            IO.unit // do nothing
           case None =>
-            rooms + (roomName -> room)
+            rooms.update(_ + (roomName -> room)) >>
+              FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(debate)
         }
-      )
       _ <- pushUpdate
     } yield ()
 
