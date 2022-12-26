@@ -1,34 +1,81 @@
 package debate
 
-import japgolly.scalajs.react.vdom.html_<^._
-
 import cats.Foldable
 import cats.Functor
 import cats.implicits._
-import org.scalajs.dom
+
 import io.circe.generic.JsonCodec
+import japgolly.scalajs.react._
+import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.Callback
 
 @JsonCodec
-case class ConnectionSpec(
-    isOfficial: Boolean,
-    roomName: String,
-    participantName: String
-)
+case class ConnectionSpec(isOfficial: Boolean, roomName: String, participantName: String)
 
 object Helpers {
 
   implicit class ClassSetInterpolator(val sc: StringContext) extends AnyVal {
-    def c(args: Any*) = {
+    def c(args: Any*) =
       // concatenate everything: use the built-in S method (which happens to be used in the S interpolator)
       ^.classSet1(sc.s(args: _*))
+  }
+
+  def commaSeparatedSpans[F[_]: Foldable: Functor](
+    fa: F[String],
+    getKey: (String, Int) => Option[String] = (x, i) => Some(s"$i-$x")
+  ) = fa
+    .map(Vector(_))
+    .intercalate(Vector(", "))
+    .zipWithIndex
+    .map { case (x, i) =>
+      <.span(x, getKey(x, i).whenDefined(^.key := _))
     }
-  }
 
-  def commaSeparatedSpans[F[_]: Foldable: Functor](fa: F[String]) = {
-    fa.map(x => Vector(<.span(x))).intercalate(Vector(<.span(", ")))
-  }
+  def wsProtocol =
+    if (dom.document.location.protocol == "https:")
+      "wss:"
+    else
+      "ws:"
 
-  def wsProtocol() = {
-    if (dom.document.location.protocol == "https:") "wss:" else "ws:"
-  }
+  def makePageTitle(x: String) = s"$x | Debate"
+
+  val S = Styles
+  val V = new jjm.ui.View(S)
+
+  def textInput(field: StateSnapshot[String], placeholderOpt: Option[String], enter: Callback) =
+    V.LiveTextField
+      .String
+      .modInput(input =
+        TagMod(
+          c"form-control",
+          ^.onKeyDown ==>
+            ((e: ReactKeyboardEvent) =>
+              if (e.keyCode == dom.ext.KeyCode.Enter)
+                enter
+              else
+                Callback.empty
+            )
+        )
+      )(field, placeholderOpt = placeholderOpt)
+
+  def textInputWithEnterButton(
+    field: StateSnapshot[String],
+    placeholderOpt: Option[String],
+    buttonText: String,
+    isEnabled: Boolean,
+    enter: Callback
+  ) =
+    <.div(c"input-group", ^.width.auto)(
+      textInput(enter = enter, field = field, placeholderOpt = placeholderOpt),
+      <.div(c"input-group-append")(
+        <.button(c"btn btn-primary")(
+          buttonText,
+          ^.`type`   := "button",
+          ^.disabled := !isEnabled,
+          ^.onClick --> enter
+        )
+      )
+    )
 }
