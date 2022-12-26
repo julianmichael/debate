@@ -258,6 +258,8 @@ object Styles extends jjm.ui.View.Styles {
     borderRadius(commonBorderRadius)
   )
 
+  val stickyBanner = style(position.sticky, top(0.px), backgroundColor.white, zIndex(10))
+
   val inDebateRoleBox = style(
     flexBasis := "0",
     flexGrow(1),

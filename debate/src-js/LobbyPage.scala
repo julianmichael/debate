@@ -67,29 +67,6 @@ object LobbyPage {
             )
           }
 
-        def joinOrCreateDebate(
-          currentRooms: Vector[RoomMetadata],
-          isOfficial: Boolean,
-          canEnter: Boolean,
-          enter: Callback,
-          roomNameLive: StateSnapshot[String]
-        ) =
-          <.div(c"input-group-append")(
-            <.button(c"btn btn-primary")(
-              (if (currentRooms.exists(_.name == roomNameLive.value))
-                 "Join"
-               else
-                 "Create") + " " +
-                (if (isOfficial)
-                   "Official Debate"
-                 else
-                   "Practice Debate"),
-              ^.`type`   := "button",
-              ^.disabled := !canEnter,
-              ^.onClick --> enter
-            )
-          )
-
         def roomManagement(
           roomMetadata: RoomMetadata,
           isOfficial: Boolean,
@@ -261,22 +238,6 @@ object LobbyPage {
                 )
               )
 
-              def roomNameInput(roomNameLive: StateSnapshot[String], enter: Callback) =
-                V.LiveTextField
-                  .String
-                  .modInput(input =
-                    TagMod(
-                      c"form-control",
-                      ^.onKeyDown ==>
-                        ((e: ReactKeyboardEvent) =>
-                          if (e.keyCode == dom.ext.KeyCode.Enter)
-                            enter
-                          else
-                            Callback.empty
-                        )
-                    )
-                  )(roomNameLive, placeholderOpt = Some("Room"))
-
               <.div(c"card", ^.textAlign.center)(
                 <.div(c"card-header")(
                   <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
@@ -295,7 +256,9 @@ object LobbyPage {
                       )
                     case _ =>
                       LocalString.make("") { roomNameLive =>
-                        val canEnter = roomNameLive.value.nonEmpty && userName.value.nonEmpty
+                        val canEnter =
+                          roomNameLive.value.nonEmpty && userName.value.nonEmpty &&
+                            currentRooms.exists(_.name == roomNameLive.value)
                         val enter =
                           if (canEnter)
                             connect(ConnectionSpec(isOfficial, roomNameLive.value, userName.value))
@@ -305,18 +268,13 @@ object LobbyPage {
                         val visibleRooms = currentRooms.filter(_.matchesQuery(roomNameLive.value))
 
                         ReactFragment(
-                          Option(
-                            <.div(c"input-group", ^.width.auto)(
-                              roomNameInput(enter = enter, roomNameLive = roomNameLive),
-                              joinOrCreateDebate(
-                                currentRooms = currentRooms,
-                                isOfficial = isOfficial,
-                                canEnter = canEnter,
-                                enter = enter,
-                                roomNameLive = roomNameLive
-                              )
-                            )
-                          ).filter(_ => lobbyTab.value != MyDebates),
+                          Helpers.textInputWithEnterButton(
+                            field = roomNameLive,
+                            placeholderOpt = Some("Room"),
+                            buttonText = "Join",
+                            isEnabled = canEnter,
+                            enter = enter
+                          ),
                           Option(<.div("No rooms to show.")).filter(_ => currentRooms.isEmpty),
                           visibleRooms.toVdomArray { case rm: RoomMetadata =>
                             roomManagement(

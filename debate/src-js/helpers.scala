@@ -5,8 +5,11 @@ import cats.Functor
 import cats.implicits._
 
 import io.circe.generic.JsonCodec
+import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.Callback
 
 @JsonCodec
 case class ConnectionSpec(isOfficial: Boolean, roomName: String, participantName: String)
@@ -37,4 +40,42 @@ object Helpers {
       "ws:"
 
   def makePageTitle(x: String) = s"$x | Debate"
+
+  val S = Styles
+  val V = new jjm.ui.View(S)
+
+  def textInput(field: StateSnapshot[String], placeholderOpt: Option[String], enter: Callback) =
+    V.LiveTextField
+      .String
+      .modInput(input =
+        TagMod(
+          c"form-control",
+          ^.onKeyDown ==>
+            ((e: ReactKeyboardEvent) =>
+              if (e.keyCode == dom.ext.KeyCode.Enter)
+                enter
+              else
+                Callback.empty
+            )
+        )
+      )(field, placeholderOpt = placeholderOpt)
+
+  def textInputWithEnterButton(
+    field: StateSnapshot[String],
+    placeholderOpt: Option[String],
+    buttonText: String,
+    isEnabled: Boolean,
+    enter: Callback
+  ) =
+    <.div(c"input-group", ^.width.auto)(
+      textInput(enter = enter, field = field, placeholderOpt = placeholderOpt),
+      <.div(c"input-group-append")(
+        <.button(c"btn btn-primary")(
+          buttonText,
+          ^.`type`   := "button",
+          ^.disabled := !isEnabled,
+          ^.onClick --> enter
+        )
+      )
+    )
 }

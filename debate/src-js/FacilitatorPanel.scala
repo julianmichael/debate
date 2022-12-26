@@ -196,13 +196,22 @@ object FacilitatorPanel {
     }
   }
 
-  def roomSettings(isOfficial: StateSnapshot[Boolean], roomName: StateSnapshot[String]) =
-    <.div(S.mainLabeledInputRow)(
-      <.div(S.inputLabel)("Room settings"),
-      <.div(S.inputRowContents)(
-        <.div(S.row)(V.Checkbox(isOfficial, "Is an official debate (must assign roles)")),
-        <.div(S.row)(V.LiveTextField.String(roomName, Some("Room name")))
-      )
+  def roomSettings(
+    isOfficial: StateSnapshot[Boolean],
+    roomName: StateSnapshot[String],
+    canCreateDebate: Boolean,
+    createDebate: Callback
+  ) =
+    <.div(S.spaceySubcontainer, S.stickyBanner)(
+      Helpers.textInputWithEnterButton(
+        field = roomName,
+        placeholderOpt = Some("Room name"),
+        buttonText = "Create",
+        isEnabled = canCreateDebate,
+        enter = createDebate
+      ),
+      <.div(S.row)(V.Checkbox(isOfficial, "Is an official debate (must assign roles)"))
+      // TODO: put a component here that pops up pretty notifications when a debate is created/deleted
     )
 
   def roundTypeConfig(
@@ -298,6 +307,18 @@ object FacilitatorPanel {
           val canStartDebate =
             roomName.value.trim.nonEmpty && setup.value.answers.filter(_.nonEmpty).size > 1 &&
               (!isOfficial.value || setup.value.areAllRolesAssigned)
+          val createDebate =
+            if (!canStartDebate)
+              Callback.empty
+            else {
+              initDebate(
+                CreateRoom(
+                  isOfficial = isOfficial.value,
+                  roomName = roomName.value.trim,
+                  setupSpec = setup.value
+                )
+              )
+            }
 
           QuALITYIndexFetch
             .make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
@@ -333,7 +354,7 @@ object FacilitatorPanel {
                   val storyOpt = storyOptFetch.toOption.flatten
                   QuestionOptLocal.make(None) { qualityQuestionOpt =>
                     <.div(S.facilitatorColumn)(
-                      roomSettings(isOfficial, roomName),
+                      roomSettings(isOfficial, roomName, canStartDebate, createDebate),
                       roundTypeConfig(
                         "Opening Rounds",
                         setup
@@ -502,28 +523,8 @@ object FacilitatorPanel {
                               )
                           }
                         )
-                      ),
-                      <.button(c"btn btn-primary")(
-                        "Start the debate!",
-                        ^.disabled := !canStartDebate,
-                        ^.onClick ==>
-                          ((e: ReactEvent) =>
-                            if (!canStartDebate)
-                              Callback.empty
-                            else {
-                              e.preventDefault()
-                              initDebate(
-                                CreateRoom(
-                                  isOfficial = isOfficial.value,
-                                  roomName = roomName.value.trim,
-                                  setupSpec = setup.value
-                                )
-                              )
-                            }
-                          )
                       )
                     )
-
                   }
 
                 }
