@@ -511,7 +511,7 @@ object FacilitatorPanel {
                             if (!canStartDebate)
                               Callback.empty
                             else {
-                              e.preventDefault();
+                              e.preventDefault()
                               initDebate(
                                 CreateRoom(
                                   isOfficial = isOfficial.value,

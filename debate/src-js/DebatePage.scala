@@ -7,7 +7,6 @@ import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.function.{all => Optics}
-import monocle.std.{all => StdOptics}
 import org.scalajs.dom
 import scalacss.ScalaCssReact._
 
@@ -53,8 +52,8 @@ object DebatePage {
 
       val shouldScroll =
         prevDebateOpt.fold(true)(prevDebate =>
-          prevDebate.debate.foldMap(DebatePanel.visibleRounds(prevRoleOpt, _)) !=
-            curDebate.debate.foldMap(DebatePanel.visibleRounds(curRoleOpt, _))
+          DebatePanel.visibleRounds(prevRoleOpt, prevDebate.debate) !=
+            DebatePanel.visibleRounds(curRoleOpt, curDebate.debate)
         )
       if (!shouldScroll || jQuery("#speeches").length < 1)
         Callback.empty
@@ -83,7 +82,8 @@ object DebatePage {
       .fold(Callback.empty) { role =>
         def getRoles(debate: DebateState) = debate
           .debate
-          .foldMap(_.currentTransitions.foldMap(_.currentSpeakers))
+          .currentTransitions
+          .foldMap(_.currentSpeakers)
         val newRoles = getRoles(curDebate) -- prevDebate.foldMap(getRoles)
         if (newRoles.contains(role)) {
           Callback {
@@ -143,7 +143,8 @@ object DebatePage {
               def canAssumeRole(role: Role) = debate
                 .value
                 .debate
-                .forall(_.setup.canAssumeRole(userName, role))
+                .setup
+                .canAssumeRole(userName, role)
 
               def tryAssumingRole(role: Role): Callback =
                 if (canAssumeRole(role)) {
@@ -206,127 +207,115 @@ object DebatePage {
             }
 
             <.div(S.debateContainer, S.spaceyContainer)(
-              headerRow(isOfficial, userName, roomName, debateState, disconnect = disconnect),
-              debateState.value.debate match {
-                case None =>
-                  userId.map(_.role) match {
-                    case Some(Facilitator) =>
-                      <.div(S.debateColumn)(
-                        "Debates are no longer set up within the debate room. ",
-                        "Please try the 'Create Debates' tab in the lobby."
-                      )
-                    case _ =>
-                      <.div(S.debateColumn)("Waiting for a facilitator to set up the debate.")
+              headerRow(isOfficial, userName, roomName, debateState, disconnect = disconnect), {
+                val debate = debateState.value.debate
+                val setup  = debate.setup
+                def tryAssumingRole(role: Role): Callback =
+                  if (!setup.canAssumeRole(userName, role))
+                    Callback.empty
+                  else {
+                    debateState.modState(_.addParticipant(ParticipantId(userName, role)))
                   }
-                case Some(debate) =>
-                  val setup = debate.setup
-                  def tryAssumingRole(role: Role): Callback =
-                    if (!setup.canAssumeRole(userName, role))
-                      Callback.empty
-                    else {
-                      debateState.modState(_.addParticipant(ParticipantId(userName, role)))
+                val isCurrentJudge =
+                  userId
+                    .map(_.role)
+                    .collect { case Judge =>
+                      true
                     }
-                  val isCurrentJudge =
-                    userId
-                      .map(_.role)
-                      .collect { case Judge =>
-                        true
-                      }
-                      .nonEmpty
-                  val questionBoxStyle =
-                    if (isCurrentJudge)
-                      S.questionBoxCurrent
-                    else
-                      S.questionBox
+                    .nonEmpty
+                val questionBoxStyle =
+                  if (isCurrentJudge)
+                    S.questionBoxCurrent
+                  else
+                    S.questionBox
 
-                  def showRoleNames(role: DebateRole) =
-                    setup.roles.get(role) match {
-                      case Some(name) =>
-                        val nameDisplay =
-                          userId.map(_.role) match {
-                            case Some(Facilitator) =>
-                              V.Select
-                                .String
-                                .mod(select = TagMod(S.customSelect))(
-                                  choices = profiles.toList.sorted,
-                                  debateState
-                                    .zoomStateO(
-                                      DebateState
-                                        .debate
-                                        .composePrism(StdOptics.some)
-                                        .composeLens(Debate.setup)
-                                        .composeLens(DebateSetup.roles)
-                                        .composeOptional(Optics.index(role))
-                                    )
-                                    .get
-                                )
-                            case _ =>
-                              <.span(name)
-                          }
-
-                        if (!debateState.value.participants.contains(ParticipantId(name, role))) {
-                          <.span(S.missingParticipant)(nameDisplay, " (not here)")
-                        } else
-                          nameDisplay
-                      case None =>
-                        Helpers
-                          .commaSeparatedSpans(
-                            debateState
-                              .value
-                              .participants
-                              .collect { case ParticipantId(name, `role`) =>
-                                name
-                              }
-                              .toVector
-                          )
-                          .toVdomArray
-                    }
-
-                  <.div(S.debateColumn, backgroundStyle)(
-                    <.div(
-                      questionBoxStyle,
-                      S.simpleSelectable.when(setup.canAssumeRole(userName, Judge))
-                    )(
-                      <.div(S.questionTitle)(<.span(S.questionLabel)("Question: "), setup.question),
-                      <.div(S.judgesList)("Judge: ", showRoleNames(Judge)),
-                      ^.onClick --> tryAssumingRole(Judge)
-                    ),
-                    <.div(S.answerBoxesRow, S.spaceySubcontainer)(
-                      setup
-                        .answers
-                        .zipWithIndex
-                        .toVdomArray { case (answer, answerIndex) =>
-                          val isCurrent =
-                            userId
-                              .map(_.role)
-                              .collect { case Debater(`answerIndex`) =>
-                                true
-                              }
-                              .nonEmpty
-                          val answerBoxStyle =
-                            if (isCurrent)
-                              S.answerBoxCurrent
-                            else
-                              S.answerBox
-                          <.div(
-                            ^.key := s"answer-$answerIndex",
-                            answerBoxStyle(answerIndex),
-                            S.simpleSelectable
-                              .when(setup.canAssumeRole(userName, Debater(answerIndex)))
-                          )(
-                            <.div(S.answerTitle)(s"${answerLetter(answerIndex)}. $answer"),
-                            <.div(S.debatersList)("Debater: ", showRoleNames(Debater(answerIndex))),
-                            ^.onClick --> tryAssumingRole(Debater(answerIndex))
-                          )
+                def showRoleNames(role: DebateRole) =
+                  setup.roles.get(role) match {
+                    case Some(name) =>
+                      val nameDisplay =
+                        userId.map(_.role) match {
+                          case Some(Facilitator) =>
+                            V.Select
+                              .String
+                              .mod(select = TagMod(S.customSelect))(
+                                choices = profiles.toList.sorted,
+                                debateState
+                                  .zoomStateO(
+                                    DebateState
+                                      .debate
+                                      .composeLens(Debate.setup)
+                                      .composeLens(DebateSetup.roles)
+                                      .composeOptional(Optics.index(role))
+                                  )
+                                  .get
+                              )
+                          case _ =>
+                            <.span(name)
                         }
-                    ),
-                    DebatePanel(
-                      roomName,
-                      userId,
-                      debate,
-                      (d: Debate) => debateState.zoomStateL(DebateState.debate).setState(Some(d))
-                    )
+
+                      if (!debateState.value.participants.contains(ParticipantId(name, role))) {
+                        <.span(S.missingParticipant)(nameDisplay, " (not here)")
+                      } else
+                        nameDisplay
+                    case None =>
+                      Helpers
+                        .commaSeparatedSpans(
+                          debateState
+                            .value
+                            .participants
+                            .collect { case ParticipantId(name, `role`) =>
+                              name
+                            }
+                            .toVector
+                        )
+                        .toVdomArray
+                  }
+
+                <.div(S.debateColumn, backgroundStyle)(
+                  <.div(
+                    questionBoxStyle,
+                    S.simpleSelectable.when(setup.canAssumeRole(userName, Judge))
+                  )(
+                    <.div(S.questionTitle)(<.span(S.questionLabel)("Question: "), setup.question),
+                    <.div(S.judgesList)("Judge: ", showRoleNames(Judge)),
+                    ^.onClick --> tryAssumingRole(Judge)
+                  ),
+                  <.div(S.answerBoxesRow, S.spaceySubcontainer)(
+                    setup
+                      .answers
+                      .zipWithIndex
+                      .toVdomArray { case (answer, answerIndex) =>
+                        val isCurrent =
+                          userId
+                            .map(_.role)
+                            .collect { case Debater(`answerIndex`) =>
+                              true
+                            }
+                            .nonEmpty
+                        val answerBoxStyle =
+                          if (isCurrent)
+                            S.answerBoxCurrent
+                          else
+                            S.answerBox
+                        <.div(
+                          ^.key := s"answer-$answerIndex",
+                          answerBoxStyle(answerIndex),
+                          S.simpleSelectable
+                            .when(setup.canAssumeRole(userName, Debater(answerIndex)))
+                        )(
+                          <.div(S.answerTitle)(s"${answerLetter(answerIndex)}. $answer"),
+                          <.div(S.debatersList)("Debater: ", showRoleNames(Debater(answerIndex))),
+                          ^.onClick --> tryAssumingRole(Debater(answerIndex))
+                        )
+                      }
+                  ),
+                  DebatePanel(
+                    roomName,
+                    userId,
+                    debate,
+                    (d: Debate) => debateState.zoomStateL(DebateState.debate).setState(d)
                   )
+                )
               }
             )
         }

@@ -100,8 +100,6 @@ object LobbyPage {
           val statusStyle = {
             import RoomStatus._
             roomMetadata.status match {
-              case SettingUp =>
-                S.settingUpStatusLabel
               case InProgress =>
                 S.inProgressStatusLabel
               case Complete =>

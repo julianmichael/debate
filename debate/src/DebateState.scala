@@ -21,15 +21,11 @@ import jjm.implicits._
   */
 @Lenses
 @JsonCodec
-case class DebateState(debate: Option[Debate], participants: Set[ParticipantId]) {
+case class DebateState(debate: Debate, participants: Set[ParticipantId]) {
 
-  def status: RoomStatus =
-    debate match {
-      case None =>
-        RoomStatus.SettingUp
-      case Some(debate) =>
-        debate.currentTransitions.fold(_ => RoomStatus.Complete, _ => RoomStatus.InProgress)
-    }
+  def status: RoomStatus = debate
+    .currentTransitions
+    .fold(_ => RoomStatus.Complete, _ => RoomStatus.InProgress)
 
   /** Add a participant. If the participant is already present, potentially
     * change their role.
@@ -40,7 +36,7 @@ case class DebateState(debate: Option[Debate], participants: Set[ParticipantId])
 
 }
 object DebateState {
-  def init = DebateState(None, Set())
+  def init(debate: Debate) = DebateState(debate, Set())
 }
 
 case class DebateSpeechContent(speakerName: String, timestamp: Long, speech: Vector[SpeechSegment])

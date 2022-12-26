@@ -16,8 +16,7 @@ package object debate extends PackagePlatformExtensions {
   @JsonCodec
   sealed trait DebateStateUpdateRequest
   object DebateStateUpdateRequest {
-    case class State(state: DebateState)        extends DebateStateUpdateRequest
-    case class SetupSpec(spec: DebateSetupSpec) extends DebateStateUpdateRequest
+    case class State(state: DebateState) extends DebateStateUpdateRequest
   }
 
   val qualityServiceApiEndpoint = "quality"
@@ -35,8 +34,6 @@ package object debate extends PackagePlatformExtensions {
     import RoomStatus._
     override def toString =
       this match {
-        case SettingUp =>
-          "setting up"
         case InProgress =>
           "in progress"
         case Complete =>
@@ -52,7 +49,6 @@ package object debate extends PackagePlatformExtensions {
       }
   }
   object RoomStatus {
-    case object SettingUp  extends RoomStatus
     case object InProgress extends RoomStatus
     case object Complete   extends RoomStatus
   }
