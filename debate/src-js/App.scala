@@ -84,7 +84,7 @@ object App {
                 <.div(S.loading)("Connecting to metadata server...")
               case MainWebSocket.Connected(sendToMainChannel) =>
                 LocalConnectionSpecOpt
-                  .syncedWithLocalStorage(key = "connection-details", defaultValue = None) {
+                  .syncedWithSessionStorage(key = "connection-details", defaultValue = None) {
                     connectionSpecOpt =>
                       connectionSpecOpt.value match {
                         case None =>
