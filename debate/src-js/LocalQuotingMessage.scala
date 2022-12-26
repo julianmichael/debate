@@ -66,12 +66,12 @@ object LocalQuotingMessage {
 
         val spanCb =
           if (messageSpans != $.currentProps.spans.value) {
-            $.currentProps.spans.setState(messageSpans)
+            $.currentProps.spans.setStateAsync(messageSpans)
           } else
-            Callback.empty
+            AsyncCallback.unit
 
         Callback(dom.window.localStorage.setItem($.currentProps.messageKeyId, $.currentState)) >>
-          spanCb >> $.currentProps.didUpdate($.currentState)
+          (spanCb >> $.currentProps.didUpdate($.currentState).asAsyncCallback).toCallback
       }
       .build
 

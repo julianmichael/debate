@@ -56,50 +56,53 @@ class SyncedState[Request, Response, State](
 
   class Backend(scope: BackendScope[Props, FullState]) {
 
+    var isUnmounting = false
+
     def connect(props: Props): Callback =
       scope.state >>= {
         case ConnectedState(_, _) =>
           Callback(System.err.println("Already connected."))
         case Disconnected(_, _) | Connecting =>
-          scope.setState(Connecting) >>
-            Callback {
-              val socket = new WebSocket(props.websocketURI)
-              val send   = (r: Request) => sendRequest(socket, r)
-              socket.onopen = { (_: Event) =>
-                (scope.setState(ConnectedState(socket, None)) >> props.onOpen(send)).runNow()
+          val connectCb = Callback {
+            val socket = new WebSocket(props.websocketURI)
+            val send   = (r: Request) => sendRequest(socket, r)
+            socket.onopen = { (_: Event) =>
+              scope.setState(ConnectedState(socket, None), props.onOpen(send)).runNow()
+            }
+            socket.onerror = { (event: Event) =>
+              val msg = s"WebSocket connection failure. Error: $event"
+              System.err.println(msg)
+              scope.setState(Disconnected(connect(props), msg)).runNow()
+            }
+            socket.onmessage = { (event: MessageEvent) =>
+              // do nothing if the message was None, which means it's a keepalive
+              val cb = readResponse(event).foldMap { response =>
+                scope.modState(
+                  FullState
+                    .connectedState
+                    .composeLens(ConnectedState.stateOpt)
+                    .modify(curState => Some(getStateUpdateFromResponse(response)(curState)))
+                ) >> props.onMessage(send, response)
               }
-              socket.onerror = { (event: Event) =>
-                val msg = s"WebSocket connection failure. Error: $event"
+              cb.runNow()
+            }
+            socket.onclose = { (event: CloseEvent) =>
+              val cleanly =
+                if (event.wasClean)
+                  "cleanly"
+                else
+                  "uncleanly"
+              val msg =
+                s"WebSocket connection closed $cleanly with code ${event.code}. reason: ${event.reason}"
+              if (!event.wasClean) {
                 System.err.println(msg)
-                scope.setState(Disconnected(connect(props), msg)).runNow()
               }
-              socket.onmessage = { (event: MessageEvent) =>
-                // do nothing if the message was None, which means it's a keepalive
-                val cb = readResponse(event).foldMap { response =>
-                  scope.modState(
-                    FullState
-                      .connectedState
-                      .composeLens(ConnectedState.stateOpt)
-                      .modify(curState => Some(getStateUpdateFromResponse(response)(curState)))
-                  ) >> props.onMessage(send, response)
-                }
-                cb.runNow()
-              }
-              socket.onclose = { (event: CloseEvent) =>
-                val cleanly =
-                  if (event.wasClean)
-                    "cleanly"
-                  else
-                    "uncleanly"
-                val msg =
-                  s"WebSocket connection closed $cleanly with code ${event.code}. reason: ${event.reason}"
-                if (!event.wasClean) {
-                  System.err.println(msg)
-                }
-                // will trigger a warning if closure was done with unmount i think
+              if (!isUnmounting) {
                 scope.setState(Disconnected(connect(props), msg)).runNow()
               }
             }
+          }
+          scope.setState(Connecting, connectCb)
       }
 
     def close(s: FullState): Callback =
@@ -138,8 +141,14 @@ class SyncedState[Request, Response, State](
       .builder[Props]("Synced State")
       .initialState(Connecting: FullState)
       .renderBackend[Backend]
-      .componentDidMount($ => $.backend.connect($.props))
-      .componentWillUnmount($ => $.backend.close($.state))
+      .componentDidMount { $ =>
+        $.backend.isUnmounting = false;
+        $.backend.connect($.props)
+      }
+      .componentWillUnmount { $ =>
+        $.backend.isUnmounting = true;
+        $.backend.close($.state)
+      }
       .componentDidUpdate($ =>
         ($.prevState, $.currentState) match {
           case (ConnectedState(_, prevStateOpt), ConnectedState(_, Some(curState))) =>
