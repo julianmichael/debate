@@ -90,7 +90,7 @@ object App {
                         case None =>
                           LobbyPage.make(
                             qualityService = qualityService,
-                            lobby = lobby,
+                            lobby = lobby.value,
                             sendToMainChannel = sendToMainChannel,
                             connect = (cs: ConnectionSpec) => connectionSpecOpt.setState(Some(cs))
                           )

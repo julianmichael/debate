@@ -19,7 +19,7 @@ object LobbyPage {
 
   case class Props(
     qualityService: QuALITYService[AsyncCallback],
-    lobby: StateSnapshot[Lobby],
+    lobby: Lobby,
     sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
     connect: ConnectionSpec => Callback
   )
@@ -40,7 +40,7 @@ object LobbyPage {
         }
 
         def curChoice(userName: StateSnapshot[String]) =
-          if (lobby.value.trackedDebaters.contains(userName.value)) {
+          if (lobby.trackedDebaters.contains(userName.value)) {
             userName.value
           } else
             noProfileString
@@ -48,7 +48,7 @@ object LobbyPage {
         def createProfileButton(userName: StateSnapshot[String]) =
           <.div(c"form-group row", Styles.adminOnly) {
             val name       = userName.value
-            val isDisabled = (lobby.value.trackedDebaters + "" + "(no profile)").contains(name)
+            val isDisabled = (lobby.trackedDebaters + "" + "(no profile)").contains(name)
             <.button(c"btn btn-primary btn-block")(
               "Create profile",
               ^.disabled := isDisabled,
@@ -59,7 +59,7 @@ object LobbyPage {
         def deleteProfileButton(userName: StateSnapshot[String]) =
           <.div(c"form-group row", Styles.adminOnly) {
             val name      = userName.value
-            val isEnabled = lobby.value.trackedDebaters.contains(name)
+            val isEnabled = lobby.trackedDebaters.contains(name)
             <.button(c"btn btn-danger btn-block")(
               "Delete profile",
               ^.disabled := !isEnabled,
@@ -170,7 +170,7 @@ object LobbyPage {
             V.Select
               .String
               .modFull(TagMod(c"col-sm-10", S.customSelect))(
-                choices = noProfileString +: lobby.value.trackedDebaters.toList.sorted,
+                choices = noProfileString +: lobby.trackedDebaters.toList.sorted,
                 curChoice = curChoice(userName),
                 setChoice = setChoice(userName)
               )
@@ -197,7 +197,6 @@ object LobbyPage {
             ) { lobbyTab =>
               import LobbyTab._
               val myDebates = lobby
-                .value
                 .officialRooms
                 .filter(_.assignedParticipants.contains(userName.value))
               val isOfficial =
@@ -212,9 +211,9 @@ object LobbyPage {
                   case MyDebates =>
                     myDebates
                   case AllOfficialDebates =>
-                    lobby.value.officialRooms
+                    lobby.officialRooms
                   case PracticeDebates =>
-                    lobby.value.practiceRooms
+                    lobby.practiceRooms
                   case Leaderboard =>
                     Vector.empty
                   case CreateDebates =>
@@ -246,18 +245,18 @@ object LobbyPage {
                   lobbyTab.value match {
                     case LobbyTab.Leaderboard =>
                       LeaderboardTable
-                        .make(lobby.value.leaderboard)
+                        .make(lobby.leaderboard)
                         .when(lobbyTab.value == LobbyTab.Leaderboard)
                     case LobbyTab.CreateDebates =>
                       FacilitatorPanel(
-                        lobby = lobby.value,
+                        lobby = lobby,
                         joinDebate = Option(userName.value)
                           .filter(_.nonEmpty)
                           .map(userName =>
                             (isOfficial: Boolean, roomName: String) =>
                               connect(ConnectionSpec(isOfficial, roomName, userName))
                           ),
-                        profiles = lobby.value.trackedDebaters,
+                        profiles = lobby.trackedDebaters,
                         qualityService = qualityService,
                         initDebate = sendToMainChannel
                       )
@@ -304,7 +303,7 @@ object LobbyPage {
 
   def make(
     qualityService: QuALITYService[AsyncCallback],
-    lobby: StateSnapshot[Lobby],
+    lobby: Lobby,
     sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
     connect: ConnectionSpec => Callback
   ) = Component(Props(qualityService, lobby, sendToMainChannel, connect))
