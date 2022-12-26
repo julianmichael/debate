@@ -1,7 +1,5 @@
 package debate
 
-import scala.annotation.unused
-import scala.util.Try
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 import cats.implicits._
@@ -22,12 +20,6 @@ import jjm.io.HttpUtil
 /** The main webapp. */
 object App {
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
-
-  val DebateWebSocket = WebSocketConnection2.forJsonString[DebateState, DebateState]
-  val SyncedDebate = SyncedState.forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
-    getRequestFromState = DebateStateUpdateRequest.State(_),
-    getStateUpdateFromResponse = responseState => _ => responseState
-  )
 
   val MainWebSocket = WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
 
@@ -65,66 +57,56 @@ object App {
       if (x.isEmpty)
         Option(None)
       else
-        Try(x.toInt).toOption.map(Option(_)),
+        scala.util.Try(x.toInt).toOption.map(Option(_)),
     _.foldMap(_.toString)
   )
 
-  class Backend(
-    @unused
-    scope: BackendScope[Unit, Unit]
-  ) {
-
-    /** Main render method. */
-    def render(
-      @unused
-      props: Unit,
-      @unused
-      state: Unit
-    ) =
-      <.div(S.app)(
-        LocalLobby.make(Lobby.init) { lobby =>
-          MainWebSocket.make(
-            mainWebsocketUri,
-            onOpen = _ => Callback.empty,
-            onMessage = (_, msg: Option[Lobby]) => msg.foldMap(lobby.setState(_))
-          ) {
-            case MainWebSocket.Disconnected(reconnect, reason) =>
-              Mounting.make(AsyncCallback.unit.delayMs(5000).completeWith(_ => reconnect))(
-                <.div(S.loading)(
-                  """You've been disconnected. Will attempt to reconnect every 5 seconds.
+  val Component =
+    ScalaComponent
+      .builder[Unit]("Full UI")
+      .render { _ =>
+        <.div(S.app)(
+          LocalLobby.make(Lobby.init) { lobby =>
+            MainWebSocket.make(
+              mainWebsocketUri,
+              onOpen = _ => Callback.empty,
+              onMessage = (_, msg: Option[Lobby]) => msg.foldMap(lobby.setState(_))
+            ) {
+              case MainWebSocket.Disconnected(reconnect, reason) =>
+                Mounting.make(AsyncCallback.unit.delayMs(5000).completeWith(_ => reconnect))(
+                  <.div(S.loading)(
+                    """You've been disconnected. Will attempt to reconnect every 5 seconds.
                      If you don't reconnect after a few seconds,
                      Please refresh the page. """ + reason
+                  )
                 )
-              )
-            case MainWebSocket.Connecting =>
-              <.div(S.loading)("Connecting to metadata server...")
-            case MainWebSocket.Connected(sendToMainChannel) =>
-              LocalConnectionSpecOpt
-                .syncedWithLocalStorage(key = "connection-details", defaultValue = None) {
-                  connectionSpecOpt =>
-                    connectionSpecOpt.value match {
-                      case None =>
-                        LobbyPage.make(
-                          qualityService = qualityService,
-                          lobby = lobby,
-                          sendToMainChannel = sendToMainChannel,
-                          connect = (cs: ConnectionSpec) => connectionSpecOpt.setState(Some(cs))
-                        )
-                      case Some(cs: ConnectionSpec) =>
-                        DebatePage.make(
-                          profiles = lobby.value.trackedDebaters,
-                          connectionSpec = cs,
-                          disconnect = connectionSpecOpt.setState(None)
-                        )
-                    }
-                }
+              case MainWebSocket.Connecting =>
+                <.div(S.loading)("Connecting to metadata server...")
+              case MainWebSocket.Connected(sendToMainChannel) =>
+                LocalConnectionSpecOpt
+                  .syncedWithLocalStorage(key = "connection-details", defaultValue = None) {
+                    connectionSpecOpt =>
+                      connectionSpecOpt.value match {
+                        case None =>
+                          LobbyPage.make(
+                            qualityService = qualityService,
+                            lobby = lobby,
+                            sendToMainChannel = sendToMainChannel,
+                            connect = (cs: ConnectionSpec) => connectionSpecOpt.setState(Some(cs))
+                          )
+                        case Some(cs: ConnectionSpec) =>
+                          DebatePage.make(
+                            profiles = lobby.value.trackedDebaters,
+                            connectionSpec = cs,
+                            disconnect = connectionSpecOpt.setState(None)
+                          )
+                      }
+                  }
+            }
           }
-        }
-      )
-  }
-
-  val Component =
-    ScalaComponent.builder[Unit]("Full UI").initialState(()).renderBackend[Backend].build
+        )
+      }
+      .build
 
   def setupUI(): Unit = {
     Styles.addToDocument()
