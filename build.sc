@@ -41,6 +41,9 @@ val reactVersion = "15.6.1"
 
 trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
 
+
+  def scalafixIvyDeps = Agg(ivy"com.github.liancheng::organize-imports:0.6.0")
+
   def repositoriesTask = T.task {
     super.repositoriesTask() ++ Seq(
       MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")

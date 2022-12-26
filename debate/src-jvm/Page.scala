@@ -3,25 +3,18 @@ package debate
 import scalatags.Text.all._
 
 object Page {
-  def apply(
-      jsDepsLocation: String,
-      jsLocation: String,
-      roomName: String = ""
-  ) = {
+  def apply(jsDepsLocation: String, jsLocation: String, roomName: String = "") =
     html(
       head(
         meta(charset := "utf-8"),
-        meta(
-          name := "viewport",
-          content := "width=device-width, initial-scale=1"
-        ),
+        meta(name    := "viewport", content := "width=device-width, initial-scale=1"),
         link(
-          rel := "stylesheet",
+          rel  := "stylesheet",
           href := "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
         ),
         // bootstrap icons <link rel="stylesheet" href="
         link(
-          rel := "stylesheet",
+          rel  := "stylesheet",
           href := "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css"
         ),
         scalatags.Text.tags2.title(makePageTitle(roomName))
@@ -40,10 +33,7 @@ object Page {
         script(
           src := s"$staticFilePrefix/$jsLocation"
         ), // from fastOptJS / fullOptJS -- the JS 'main'
-        script(
-          src := s"$staticFilePrefix/$jsLocation.map"
-        ) // source map
+        script(src := s"$staticFilePrefix/$jsLocation.map") // source map
       )
     )
-  }
 }

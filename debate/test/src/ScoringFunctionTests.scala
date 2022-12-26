@@ -11,27 +11,26 @@ class ScoringFunctionTests extends CatsEffectSuite {
     perTurnPenalty = 0.25
   )
   val turnNum = 1
-  val probs = Vector(0.4, 0.6)
+  val probs   = Vector(0.4, 0.6)
 
   test("Deltas to make next turn worthwhile indeed make it worthwhile") {
     println("testing")
     // TODO expand with property testing (scalacheck)
     val currentEV = scoringFunction.expectedValue(probs, turnNum)
     ScoringFunction
-      .deltasForNextTurnToBeWorthwhile(
-        scoringFunction,
-        probs,
-        turnNum
-      )
+      .deltasForNextTurnToBeWorthwhile(scoringFunction, probs, turnNum)
       .zipWithIndex
-      .collect { case (Some(delta), index) => delta -> index }
+      .collect { case (Some(delta), index) =>
+        delta -> index
+      }
       .foreach { case (delta, index) =>
-        val nextProbs =
-          Utils.adjustProbability(probs, index, probs(index) + delta)
-        val nextEV = scoringFunction.expectedValue(nextProbs, turnNum + 1)
+        val nextProbs = Utils.adjustProbability(probs, index, probs(index) + delta)
+        val nextEV    = scoringFunction.expectedValue(nextProbs, turnNum + 1)
         assert {
-          clue(delta); clue(index);
-          clue(probs); clue(nextProbs);
+          clue(delta);
+          clue(index);
+          clue(probs);
+          clue(nextProbs);
           clue(nextEV) >= clue(currentEV)
         }
       }
