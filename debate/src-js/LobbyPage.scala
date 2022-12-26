@@ -250,12 +250,13 @@ object LobbyPage {
                         .when(lobbyTab.value == LobbyTab.Leaderboard)
                     case LobbyTab.CreateDebates =>
                       FacilitatorPanel(
+                        currentRooms = currentRooms,
                         profiles = lobby.value.trackedDebaters,
                         qualityService = qualityService,
                         initDebate = sendToMainChannel
                       )
                     case _ =>
-                      LocalString.make("") { roomNameLive =>
+                      LocalString.syncedWithSessionStorage("room-name-search", "") { roomNameLive =>
                         val canEnter =
                           roomNameLive.value.nonEmpty && userName.value.nonEmpty &&
                             currentRooms.exists(_.name == roomNameLive.value)

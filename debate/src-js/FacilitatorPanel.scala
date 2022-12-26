@@ -28,9 +28,9 @@ object FacilitatorPanel {
   )
   val RoundTypeConfig       = SumConfig[DebateRoundType]()
   val ScoringFunctionConfig = SumConfig[ScoringFunction]()
-  val DebateSetupSpecLocal  = new LocalState[DebateSetupSpec]
-  val BoolLocal             = new LocalState[Boolean]
-  val StringLocal           = new LocalState[String]
+  val DebateSetupSpecLocal  = new LocalState2[DebateSetupSpec]
+  val BoolLocal             = new LocalState2[Boolean]
+  val StringLocal           = new LocalState2[String]
 
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
 
@@ -297,16 +297,18 @@ object FacilitatorPanel {
 
   /** Config panel for facilitator to set the rules of the debate. */
   def apply(
+    currentRooms: Vector[RoomMetadata],
     profiles: Set[String],
     qualityService: QuALITYService[AsyncCallback],
     initDebate: CreateRoom => Callback
   ) =
-    DebateSetupSpecLocal.make(DebateSetupSpec.init) { setup =>
-      StringLocal.make("") { roomName =>
-        BoolLocal.make(true) { isOfficial =>
+    DebateSetupSpecLocal.syncedWithSessionStorage("debate-setup", DebateSetupSpec.init) { setup =>
+      StringLocal.syncedWithSessionStorage("debate-setup-room-name", "") { roomName =>
+        BoolLocal.syncedWithSessionStorage("debate-setup-is-official", true) { isOfficial =>
           val canStartDebate =
             roomName.value.trim.nonEmpty && setup.value.answers.filter(_.nonEmpty).size > 1 &&
-              (!isOfficial.value || setup.value.areAllRolesAssigned)
+              (!isOfficial.value || setup.value.areAllRolesAssigned) &&
+              !currentRooms.exists(_.name == roomName.value.trim)
           val createDebate =
             if (!canStartDebate)
               Callback.empty
@@ -317,7 +319,7 @@ object FacilitatorPanel {
                   roomName = roomName.value.trim,
                   setupSpec = setup.value
                 )
-              )
+              ) >> roomName.setState("")
             }
 
           QuALITYIndexFetch
@@ -475,7 +477,7 @@ object FacilitatorPanel {
                           ),
                           V.LiveTextField.String(setup.zoomStateL(DebateSetupSpec.question)),
                           <.div(S.row)(
-                            <.div(S.inputLabel)("Assigned Judge:"),
+                            <.div(S.inputLabel)("Judge:"),
                             ProfileOptSelect.mod(select = S.customSelect)(
                               choices = profiles,
                               choice = setup.zoomStateL(
@@ -509,7 +511,7 @@ object FacilitatorPanel {
                                       <.span(S.correctAnswerLabel)("Correct"),
                                       S.hidden.when(setup.value.correctAnswerIndex != index)
                                     ),
-                                    <.div(S.inputLabel)("Assigned Debater:"),
+                                    <.div(S.inputLabel)("Debater:"),
                                     ProfileOptSelect.mod(select = S.customSelect)(
                                       choices = profiles,
                                       choice = setup.zoomStateL(
