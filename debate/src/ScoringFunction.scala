@@ -26,6 +26,57 @@ sealed trait ScoringFunction {
     .foldMap { case (p, i) =>
       p * eval(turnNumber, distribution, i)
     }
+
+  import ScoringFunction._
+  def summary: String =
+    this match {
+      case SphericalScoreWithLinearPenalty(baseCoefficient: Double, perTurnPenalty: Double) =>
+        val baseCoefficientStr =
+          if (baseCoefficient == 1.0)
+            ""
+          else
+            f"$baseCoefficient%.1f"
+        val penaltyStr =
+          if (perTurnPenalty == 0.0)
+            ""
+          else
+            f"-$perTurnPenalty%.2ft"
+        s"${baseCoefficientStr}sph$penaltyStr"
+      case QuadraticScoreWithLinearPenalty(baseCoefficient: Double, perTurnPenalty: Double) =>
+        val baseCoefficientStr =
+          if (baseCoefficient == 1.0)
+            ""
+          else
+            f"$baseCoefficient%.1f"
+        val penaltyStr =
+          if (perTurnPenalty == 0.0)
+            ""
+          else
+            f"-$perTurnPenalty%.2ft"
+        s"${baseCoefficientStr}quad$penaltyStr"
+      case LogScoreWithLinearPenalty(
+            baseCoefficient: Double,
+            constant: Double,
+            logBase: Double,
+            perTurnPenalty: Double
+          ) =>
+        val baseCoefficientStr =
+          if (baseCoefficient == 1.0)
+            ""
+          else
+            f"$baseCoefficient%.1f"
+        val penaltyStr =
+          if (perTurnPenalty == 0.0)
+            ""
+          else
+            f"-$perTurnPenalty%.2ft"
+        val logStr =
+          if (logBase == math.round(logBase))
+            f"log${logBase.toInt}%d"
+          else if (math.abs(logBase - math.E) < 0.001)
+            "ln"
+        s"$baseCoefficientStr$logStr$penaltyStr"
+    }
 }
 object ScoringFunction {
   @Lenses

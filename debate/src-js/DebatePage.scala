@@ -94,9 +94,7 @@ object DebatePage {
           Callback.empty
       }
 
-  /** Top row showing non-debating roles (user can click one to change
-    * roles).
-    */
+  /** Top row showing debate metadata and observers.  */
   def headerRow(
     userName: String,
     isOfficial: Boolean,
@@ -154,6 +152,7 @@ object DebatePage {
           )
           .toVdomArray
       ),
+      <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary),
       <.button(c"btn", S.simpleSelectable, ^.fontSize.small)("Disconnect", ^.onClick --> disconnect)
     )
   }

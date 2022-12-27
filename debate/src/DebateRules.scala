@@ -1,8 +1,10 @@
 package debate
 
+import jjm.implicits._
 import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism
 import monocle.macros.Lenses
+import cats.implicits._
 
 /** Rules of the debate. I expect to want to add more stuff here as we want to
   * vary the debates on different dimensions.
@@ -19,9 +21,22 @@ import monocle.macros.Lenses
 case class DebateRules(
   fixedOpening: Vector[DebateRoundType],
   repeatingStructure: Vector[DebateRoundType],
-  scoringFunction: ScoringFunction,
-  globalQuoteRestriction: Option[Int]
+  globalQuoteRestriction: Option[Int],
+  scoringFunction: ScoringFunction
 ) {
+  def summary = {
+    val mostCommonCharLimitOpt = (fixedOpening ++ repeatingStructure)
+      .foldMap(r => Map(r.charLimit -> 1))
+      .toVector
+      .maximaBy(_._2)
+      .map(_._1)
+      .maximumOption
+
+    mostCommonCharLimitOpt.foldMap(n => s"c$n ") +
+      fixedOpening.map(_.summary(mostCommonCharLimitOpt)).mkString(",") + "," + "(" +
+      repeatingStructure.map(_.summary(mostCommonCharLimitOpt)).mkString(",") + ")* " +
+      globalQuoteRestriction.foldMap(n => s"gq$n ") + scoringFunction.summary
+  }
 
   def roundTypes: LazyList[DebateRoundType] =
     // TODO change return type to some kind of infinite lazy list, it should always be that
@@ -41,8 +56,8 @@ object DebateRules {
       DebateRoundType.SequentialSpeechesRound(500, None),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
-    ScoringFunction.LogScoreWithLinearPenalty.default,
-    None
+    None,
+    ScoringFunction.LogScoreWithLinearPenalty.default
   )
 }
 
@@ -57,7 +72,32 @@ object DebateTurnTypeResult {
 /** Schema for round types used to set up the debate. */
 @JsonCodec
 sealed trait DebateRoundType {
+  def charLimit: Int
+
   import DebateRoundType._
+  def summary(defaultCharLimit: Option[Int]): String = {
+    val charLimitStr =
+      if (defaultCharLimit.exists(_ == charLimit))
+        ""
+      else
+        charLimit.toString
+    this match {
+      case SimultaneousSpeechesRound(charLimit, quoteLimit) =>
+        val quoteLimitStr = quoteLimit.foldMap(x => s"c$x")
+        s"sim$charLimitStr$quoteLimitStr"
+      case SequentialSpeechesRound(charLimit, quoteLimit) =>
+        val quoteLimitStr = quoteLimit.foldMap(x => s"c$x")
+        s"seq$charLimitStr$quoteLimitStr"
+      case JudgeFeedbackRound(reportBeliefs, charLimit) =>
+        val reportBeliefsStr =
+          if (reportBeliefs)
+            "b"
+          else
+            ""
+        s"j$charLimitStr$reportBeliefsStr"
+    }
+  }
+
   def getFirstTurn(numDebaters: Int): DebateTurnType = {
     require(numDebaters > 0)
     this match {
