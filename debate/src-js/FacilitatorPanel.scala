@@ -72,10 +72,34 @@ object FacilitatorPanel {
     allSpecs.toSet
   }
 
-  val defaultQuoteLimit = 100
+  val defaultPerMessageQuoteLimit = 100
+  val defaultGlobalQuoteLimit     = 500
+
+  def optionalIntInput(
+    field: StateSnapshot[Option[Int]],
+    labelOpt: Option[String],
+    defaultInt: Int
+  ) = ReactFragment(
+    V.Checkbox
+      .mod(label = S.inputLabel, span = TagMod(c"ml-3 pl-3 my-auto"))(
+        field.zoomStateL(
+          Iso[Option[Int], Boolean](_.nonEmpty)(b =>
+            if (b)
+              Some(defaultInt)
+            else
+              None
+          ).asLens
+        ),
+        labelOpt
+      ),
+    V.NumberField
+      .mod(input = TagMod(c"form-control", ^.disabled := field.value.isEmpty))(
+        field.zoomStateL(Iso[Option[Int], Int](_.getOrElse(defaultInt))(Some(_)).asLens)
+      )
+  )
 
   /** Config panel for setting a list of round types. */
-  def roundTypeSelect(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
+  def roundTypeSelect(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) =
     RoundTypeList.mod(listDiv = S.inputRowContents, addItemDiv = S.row)(roundTypes, minItems) {
       (remove, roundType, _) =>
         <.div(S.row)(
@@ -96,39 +120,12 @@ object FacilitatorPanel {
                       )
                   ),
                   <.div(S.row)(
-                    V.Checkbox
-                      .mod(label = S.inputLabel, span = TagMod(c"ml-3 pl-3 my-auto"))(
-                        simulSpeeches.zoomStateL(
-                          DebateRoundType
-                            .SimultaneousSpeechesRound
-                            .quoteLimit
-                            .composeIso(
-                              Iso[Option[Int], Boolean](_.nonEmpty)(b =>
-                                if (b)
-                                  Some(defaultQuoteLimit)
-                                else
-                                  None
-                              )
-                            )
-                        ),
-                        Some("Quote character limit")
-                      ),
-                    V.NumberField
-                      .mod(input =
-                        TagMod(
-                          c"form-control",
-                          ^.disabled := simulSpeeches.value.quoteLimit.isEmpty
-                        )
-                      )(
-                        simulSpeeches.zoomStateL(
-                          DebateRoundType
-                            .SimultaneousSpeechesRound
-                            .quoteLimit
-                            .composeIso(
-                              Iso[Option[Int], Int](_.getOrElse(defaultQuoteLimit))(Some(_))
-                            )
-                        )
-                      )
+                    optionalIntInput(
+                      simulSpeeches
+                        .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.quoteLimit),
+                      Some("Quote character limit"),
+                      defaultPerMessageQuoteLimit
+                    )
                   )
                 )
               },
@@ -146,36 +143,11 @@ object FacilitatorPanel {
                       )
                   ),
                   <.div(S.row)(
-                    V.Checkbox
-                      .mod(label = S.inputLabel, span = TagMod(c"ml-3 pl-3 my-auto"))(
-                        seqSpeeches.zoomStateL(
-                          DebateRoundType
-                            .SequentialSpeechesRound
-                            .quoteLimit
-                            .composeIso(
-                              Iso[Option[Int], Boolean](_.nonEmpty)(b =>
-                                if (b)
-                                  Some(defaultQuoteLimit)
-                                else
-                                  None
-                              )
-                            )
-                        ),
-                        Some("Quote character limit")
-                      ),
-                    V.NumberField
-                      .mod(input =
-                        TagMod(c"form-control", ^.disabled := seqSpeeches.value.quoteLimit.isEmpty)
-                      )(
-                        seqSpeeches.zoomStateL(
-                          DebateRoundType
-                            .SequentialSpeechesRound
-                            .quoteLimit
-                            .composeIso(
-                              Iso[Option[Int], Int](_.getOrElse(defaultQuoteLimit))(Some(_))
-                            )
-                        )
-                      )
+                    optionalIntInput(
+                      seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.quoteLimit),
+                      Some("Quote character limit"),
+                      defaultPerMessageQuoteLimit
+                    )
                   )
                 )
               },
@@ -203,7 +175,6 @@ object FacilitatorPanel {
           )
         )
     }
-  }
 
   def roomSettings(
     isOfficial: StateSnapshot[Boolean],
@@ -302,6 +273,16 @@ object FacilitatorPanel {
       )
     )
 
+  def globalQuoteRestrictionConfig(quoteRestriction: StateSnapshot[Option[Int]]) =
+    <.div(S.mainLabeledInputRow)(
+      <.div(S.inputLabel)("Global Evidence Restrictions"),
+      <.div(S.inputRowContents)(
+        <.div(S.row)(
+          optionalIntInput(quoteRestriction, Some("Quote character limit"), defaultGlobalQuoteLimit)
+        )
+      )
+    )
+
   /** Config panel for facilitator to set the rules of the debate. */
   def apply(
     lobby: Lobby,
@@ -320,7 +301,8 @@ object FacilitatorPanel {
               !roomSpecs.exists(room =>
                 room.isOfficial == isOfficial.value && room.name == roomName.value.trim
               )
-          // TODO ValidatedNel[String, Callback]
+          // TODO validate with cats.Validated to show the user reasons
+          // why they can't start the debate
           val createDebate =
             if (!canStartDebate)
               Callback.empty
@@ -400,6 +382,11 @@ object FacilitatorPanel {
                           DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)
                         ),
                         minItems = 1
+                      ),
+                      globalQuoteRestrictionConfig(
+                        setup.zoomStateL(
+                          DebateSetupSpec.rules.composeLens(DebateRules.globalQuoteRestriction)
+                        )
                       ),
                       scoringFunctionConfig(
                         setup.zoomStateL(

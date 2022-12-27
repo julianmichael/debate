@@ -194,7 +194,7 @@ object DebatePanel {
               }
             ),
             turnDisplay(roleOpt, currentTransitions.map(_.currentTurns)),
-            roleOpt.whenDefined { role =>
+            userId.whenDefined { userId =>
               currentTransitions
                 .toOption
                 .whenDefined { transitions =>
@@ -202,14 +202,14 @@ object DebatePanel {
                     <.div(S.col)(
                       transitions
                         .giveSpeech
-                        .get(role)
+                        .get(userId.role)
                         .whenDefined { case turnDotPair =>
                           SpeechInput
                             .speechInput(debate, sendDebate, userId, turnDotPair, currentMessage)
                         },
                       transitions
                         .undo
-                        .get(role)
+                        .get(userId.role)
                         .whenDefined { case (speech, debateAfterUndo) =>
                           <.button(
                             "Undo",

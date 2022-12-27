@@ -19,7 +19,8 @@ import monocle.macros.Lenses
 case class DebateRules(
   fixedOpening: Vector[DebateRoundType],
   repeatingStructure: Vector[DebateRoundType],
-  scoringFunction: ScoringFunction
+  scoringFunction: ScoringFunction,
+  globalQuoteRestriction: Option[Int]
 ) {
 
   def roundTypes: LazyList[DebateRoundType] =
@@ -40,7 +41,8 @@ object DebateRules {
       DebateRoundType.SequentialSpeechesRound(500, None),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
-    ScoringFunction.LogScoreWithLinearPenalty.default
+    ScoringFunction.LogScoreWithLinearPenalty.default,
+    None
   )
 }
 

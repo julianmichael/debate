@@ -93,13 +93,31 @@ object SpeechSegments {
       case SpeechSegment.Quote(span) =>
         Utils.renderSpan(source, span).size
     }
-  def getQuoteLength(source: Vector[String], speechSegments: Vector[SpeechSegment]) = speechSegments
-    .foldMap {
-      case SpeechSegment.Text(_) =>
-        0
-      case SpeechSegment.Quote(span) =>
-        Utils.renderSpan(source, span).size
+
+  // def getQuoteLength(source: Vector[String], speechSegments: Vector[SpeechSegment]) = speechSegments
+  //   .foldMap {
+  //     case SpeechSegment.Text(_) =>
+  //       0
+  //     case SpeechSegment.Quote(span) =>
+  //       Utils.renderSpan(source, span).size
+  //   }
+
+  def getQuoteCoverage(source: Vector[String], speechSegments: Vector[SpeechSegment]) = {
+
+    val allSpans = speechSegments.collect { case SpeechSegment.Quote(span) =>
+      span
     }
+    val collapsedSpans =
+      allSpans.foldLeft(Set.empty[ESpan]) { case (acc, span) =>
+        acc.find(_.overlaps(span)) match {
+          case None =>
+            acc + span
+          case Some(overlapper) =>
+            acc - overlapper + (span |+| overlapper)
+        }
+      }
+    collapsedSpans.unorderedFoldMap(Utils.renderSpan(source, _).size)
+  }
 
   def getString(speechSegments: Vector[SpeechSegment]) = speechSegments.foldMap {
     case SpeechSegment.Text(text) =>

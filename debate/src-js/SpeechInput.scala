@@ -10,6 +10,7 @@ import scalacss.ScalaCssReact._
 
 import jjm.DotPair
 import jjm.ui.LocalState
+import japgolly.scalajs.react.feature.ReactFragment
 
 object SpeechInput {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -24,7 +25,7 @@ object SpeechInput {
   def speechInput(
     debate: Debate,
     sendDebate: Debate => Callback,
-    userId: Option[ParticipantId],
+    userId: ParticipantId,
     turn: DotPair[* => Debate, DebateTurnType],
     currentMessage: StateSnapshot[String]
   ): TagMod = {
@@ -32,14 +33,25 @@ object SpeechInput {
     val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
     val source                       = debate.setup.sourceMaterial.contents
 
-    val charLimit        = turn.fst.charLimit
+    val charLimit       = turn.fst.charLimit
+    val speechLength    = SpeechSegments.getSpeechLength(source, currentMessageSpeechSegments)
+    val speechIsTooLong = charLimit > 0 && speechLength > charLimit
+
     val quoteLimitOpt    = turn.fst.quoteLimit
-    val speechLength     = SpeechSegments.getSpeechLength(source, currentMessageSpeechSegments)
-    val speechIsTooLong  = charLimit > 0 && speechLength > charLimit
-    val quoteLength      = SpeechSegments.getQuoteLength(source, currentMessageSpeechSegments)
+    val quoteLength      = SpeechSegments.getQuoteCoverage(source, currentMessageSpeechSegments)
     val quotesAreTooLong = quoteLimitOpt.exists(quoteLength > _)
-    val canSubmit        = !speechIsTooLong && !quotesAreTooLong
-    // val canSubmit = isUsersTurn && !speechIsTooLong && !quotesAreTooLong
+
+    val globalQuoteLimitOpt = debate.setup.rules.globalQuoteRestriction
+    val globalQuoteNumChars = SpeechSegments.getQuoteCoverage(
+      source,
+      currentMessageSpeechSegments ++
+        debate
+          .rounds
+          .foldMap(_.allSpeeches.toVector.filter(_.speaker.role == userId.role).foldMap(_.content))
+    )
+    val totalQuoteLimitExceeded = globalQuoteLimitOpt.exists(globalQuoteNumChars > _)
+
+    val canSubmit = !speechIsTooLong && !quotesAreTooLong && !totalQuoteLimitExceeded
 
     def speechInputPanel(submit: Boolean => Callback, cmdEnterToSubmit: Boolean) =
       <.div(S.speechInputPanel)(
@@ -69,11 +81,20 @@ object SpeechInput {
           "Length: ",
           <.span(S.speechLengthPanelOverage.when(speechIsTooLong))(speechLength.toString),
           <.span(" / ", charLimit.toString).when(charLimit > 0),
-          ". Quote length: ",
-          <.span(S.speechLengthPanelOverage.when(quotesAreTooLong))(quoteLength.toString),
-          quoteLimitOpt.whenDefined { quoteLimit =>
-            <.span(" / ", quoteLimit.toString)
-          }
+          ReactFragment(
+            ". Quote length: ",
+            <.span(S.speechLengthPanelOverage.when(quotesAreTooLong))(quoteLength.toString),
+            quoteLimitOpt.map { quoteLimit =>
+              <.span(" / ", quoteLimit.toString)
+            },
+            ". Quote total: ",
+            <.span(S.speechLengthPanelOverage.when(totalQuoteLimitExceeded))(
+              globalQuoteNumChars.toString
+            ),
+            globalQuoteLimitOpt.map { quoteLimit =>
+              <.span(" / ", quoteLimit.toString)
+            }
+          ).when(userId.role != Judge)
         )
       )
 
@@ -89,12 +110,10 @@ object SpeechInput {
       // turnType: DebateTurnType { type Input = DebateSpeechContent },
       giveSpeech: DebateSpeechContent => Debate
     ) = {
-      def submit = userId.foldMap(userId =>
-        CallbackTo(System.currentTimeMillis()).flatMap(time =>
-          sendDebate(
-            giveSpeech(DebateSpeechContent(userId.name, time, currentMessageSpeechSegments))
-          ) >> currentMessage.setState("")
-        )
+      def submit = CallbackTo(System.currentTimeMillis()).flatMap(time =>
+        sendDebate(
+          giveSpeech(DebateSpeechContent(userId.name, time, currentMessageSpeechSegments))
+        ) >> currentMessage.setState("")
       )
       <.div(S.col)(
         speechInputPanel(_ => submit, true),
@@ -118,21 +137,19 @@ object SpeechInput {
           if (speechIsTooLong)
             Callback.empty
           else
-            userId.foldMap(userId =>
-              CallbackTo(System.currentTimeMillis()).flatMap(time =>
-                sendDebate(
-                  giveSpeech(
-                    JudgeFeedbackContent(
-                      speakerName = userId.name,
-                      timestamp = time,
-                      speech = currentMessageSpeechSegments,
-                      distribution = probs.value,
-                      endDebate = endDebate
-                    )
+            CallbackTo(System.currentTimeMillis()).flatMap(time =>
+              sendDebate(
+                giveSpeech(
+                  JudgeFeedbackContent(
+                    speakerName = userId.name,
+                    timestamp = time,
+                    speech = currentMessageSpeechSegments,
+                    distribution = probs.value,
+                    endDebate = endDebate
                   )
                 )
-              ) >> currentMessage.setState("")
-            )
+              )
+            ) >> currentMessage.setState("")
 
         LocalBool.make(false) { consideringContinue =>
           val barWidthPx = 60
