@@ -26,23 +26,19 @@ import jjm.implicits._
 case class DebateState(debate: Debate, participants: Set[ParticipantId]) {
 
   def status = {
+    // TODO is this right given that [debate] is no longer an option?
+    // TODO should we take out [SettingUp]?
     import RoomStatus._
-    debate match {
-      // TODO i can't seem to get any debates to appear under 'setitng up?'
-      case None =>
-        SettingUp
-      case Some(debate) =>
-        debate
-          .currentTransitions
-          .fold(
-            (_: DebateResult) => Complete,
-            (_: DebateTransitionSet) =>
-              if (debate.rounds.isEmpty)
-                WaitingToBegin
-              else
-                InProgress
-          )
-    }
+    debate
+      .currentTransitions
+      .fold(
+        (_: DebateResult) => Complete,
+        (_: DebateTransitionSet) =>
+          if (debate.rounds.isEmpty)
+            WaitingToBegin
+          else
+            InProgress
+      )
   }
 
   /** Add a participant. If the participant is already present, potentially
