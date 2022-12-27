@@ -321,18 +321,23 @@ object FacilitatorPanel {
                   !lobby.officialRooms.exists(_.name == roomName.value.trim)
                 else
                   !lobby.practiceRooms.exists(_.name == roomName.value.trim),
-                Some(
+                Some {
+                  val prefix =
+                    if (isOfficial.value)
+                      "official"
+                    else
+                      "practice"
                   <.div(
-                    "A room with that name already exists. ",
+                    s"The $prefix room ",
                     <.a(
-                      "Click here",
+                      roomName.value.trim,
                       ^.href := "#",
                       joinDebate
                         .whenDefined(cb => ^.onClick --> cb(isOfficial.value, roomName.value))
                     ),
-                    " to join."
+                    " already exists."
                   )
-                )
+                }
               ) *> createDebateCb.validNec[Option[VdomTag]]
           }
 
@@ -380,22 +385,23 @@ object FacilitatorPanel {
                               "practice" -> lobby.practiceRooms
 
                           <.span(
-                            s"Most recent $prefix rooms: ",
-                            Helpers
-                              .commaSeparatedTags[Vector, RoomMetadata](
-                                rooms.toVector.sortBy(-_.creationTime).take(10),
-                                { case roomMeta =>
-                                  <.a(
-                                    ^.href := "#",
-                                    roomMeta.name,
-                                    joinDebate.whenDefined(join =>
-                                      ^.onClick --> join(isOfficial.value, roomMeta.name)
+                              s"Most recent $prefix rooms: ",
+                              Helpers
+                                .commaSeparatedTags[Vector, RoomMetadata](
+                                  rooms.toVector.sortBy(-_.creationTime).take(10),
+                                  { case roomMeta =>
+                                    <.a(
+                                      ^.href := "#",
+                                      roomMeta.name,
+                                      joinDebate.whenDefined(join =>
+                                        ^.onClick --> join(isOfficial.value, roomMeta.name)
+                                      )
                                     )
-                                  )
-                                }
-                              )
-                              .toVdomArray
-                          )
+                                  }
+                                )
+                                .toVdomArray
+                            )
+                            .when(rooms.nonEmpty)
                         },
                         createDebateValidated
                           .swap
