@@ -64,15 +64,11 @@ object FacilitatorPanel {
 
   val ProfileOptSelect = new V.OptionalSelect[String](show = _.toString)
 
-  case class RoomSpec(
-    isOfficial: Boolean,
-    name: String,
-    creationTime: Long = 0L // XXX
-  )
+  case class RoomSpec(isOfficial: Boolean, name: String, creationTime: Long)
   def roomSpecsFromLobby(lobby: Lobby): Set[RoomSpec] = {
     val allSpecs =
-      lobby.officialRooms.view.map(room => RoomSpec(true, room.name)) ++
-        lobby.practiceRooms.view.map(room => RoomSpec(false, room.name))
+      lobby.officialRooms.view.map(room => RoomSpec(true, room.name, room.creationTime)) ++
+        lobby.practiceRooms.view.map(room => RoomSpec(false, room.name, room.creationTime))
     allSpecs.toSet
   }
 
