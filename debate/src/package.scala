@@ -88,8 +88,9 @@ package object debate extends PackagePlatformExtensions {
     currentSpeakers: Option[Set[Role]]
   ) {
     private[this] def matchesKeyword(keyword: String) = {
-      val k     = keyword.toLowerCase
-      val words = assignedParticipants ++ currentParticipants + name + status.toString
+      val k                  = keyword.toLowerCase
+      val x: Set[String]     = assignedParticipants.values.toSet ++ currentParticipants
+      val words: Set[String] = x ++ Set(name, status.toString)
       words.exists(_.toLowerCase.contains(k))
     }
     def matchesQuery(query: String) = {
@@ -97,12 +98,6 @@ package object debate extends PackagePlatformExtensions {
       keywords.forall(matchesKeyword)
     }
   }
-
-  def makePageTitle(x: String) =
-    (if (x.isEmpty)
-       ""
-     else
-       s"$x | ") + "Debate"
 
   def makePageTitle(x: String) =
     Option(x.trim).filter(_.nonEmpty).map(_ + " | ").combineAll + "Debate"

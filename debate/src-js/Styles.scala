@@ -199,9 +199,6 @@ object Styles extends jjm.ui.View.Styles {
 
   val optionTitle = style(margin(2 px), fontWeight.bold)
 
-  val judgeColor      = darkgreen
-  val judgeColorLight = green
-
   val answerColors = Vector(darkblue, darkred, rebeccapurple, darkorange, darkturquoise)
 
   val answerColorsLight = Vector(
