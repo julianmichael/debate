@@ -374,7 +374,7 @@ object FacilitatorPanel {
                 ) { storyOptFetch =>
                   val storyOpt = storyOptFetch.toOption.flatten
                   QuestionOptLocal.make(None) { qualityQuestionOpt =>
-                    <.div(S.facilitatorColumn)(
+                    <.div(S.facilitatorColumn, S.spaceySubcontainer)(
                       <.div(S.spaceySubcontainer, S.stickyBanner)(
                         roomSettings(isOfficial, roomName, createDebateValidated.toOption),
                         <.div {

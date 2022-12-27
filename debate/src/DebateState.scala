@@ -34,6 +34,10 @@ case class DebateState(debate: Debate, participants: Set[ParticipantId]) {
     participants.filter(_.name != id.name) + id
   )
 
+  def canSwitchToRole(userName: String, role: Role) =
+    debate.setup.canAssumeRole(userName, role) &&
+      !participants.contains(ParticipantId(userName, role))
+
 }
 object DebateState {
   def init(debate: Debate) = DebateState(debate, Set())

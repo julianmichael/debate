@@ -248,7 +248,7 @@ object Styles extends jjm.ui.View.Styles {
   val debateColumn = style(
     // position.relative,
     // margin.auto,
-    padding(10 px),
+    // padding(10 px),
     // width(100 %%),
     // height(100 %%),
     display.flex,
@@ -258,7 +258,6 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val facilitatorColumn = style(
-    spaceySubcontainer,
     display.flex,
     flexDirection.column,
     borderRadius(commonBorderRadius)
@@ -266,13 +265,14 @@ object Styles extends jjm.ui.View.Styles {
 
   val stickyBanner = style(position.sticky, top(0.px), backgroundColor.white, zIndex(10))
 
+  val debateHeaderRowCol = style(overflow.hidden, borderRadius(commonBorderRadius))
+
   val inDebateRoleBox = style(
     flexBasis := "0",
     flexGrow(1),
     // width(100 %%),
     fontSize(12 pt),
     textAlign.left,
-    borderRadius(commonBorderRadius),
     // margin(mainHalfPadding),
     padding(mainHalfPadding)
   )
@@ -280,9 +280,7 @@ object Styles extends jjm.ui.View.Styles {
   val questionBox        = style(inDebateRoleBox, color(judgeColor), backgroundColor.white)
   val questionBoxCurrent = style(inDebateRoleBox, color.white, backgroundColor(judgeColor))
 
-  val questionTitle = style()
-
-  val questionLabel = style(fontWeight.bold)
+  val questionTitle = style(fontWeight.bold)
 
   val judgesLabel = style(fontWeight.bold)
 
