@@ -19,7 +19,7 @@ class LocalState2[A] {
 
   val Component =
     ScalaComponent
-      .builder[Props]("Local State")
+      .builder[Props]("Local State 2")
       .initialStateFromProps(_.initialValue)
       .render { $ =>
         $.props.render(StateSnapshot.of($))
@@ -46,6 +46,7 @@ class LocalState2[A] {
   )
 
   import org.scalajs.dom
+  import io.circe.syntax._
 
   def syncedWithStorage(
     storage: dom.raw.Storage,
@@ -54,25 +55,7 @@ class LocalState2[A] {
     didUpdate: (A, A) => Callback = (_, _) => Callback.empty,
     shouldRefresh: A => Boolean = (_: A) => true
   )(render: StateSnapshot[A] => VdomElement)(implicit enc: Encoder[A], dec: Decoder[A]) = {
-    import io.circe.syntax._
-    import io.circe.parser
-    val initialValue = Option(storage.getItem(key))
-      .flatMap(str =>
-        parser.decode[A](str) match {
-          case Right(result) =>
-            Some(result)
-          case Left(err) =>
-            System
-              .err
-              .println(
-                s"Failed to decode LocalState from storage at key $key. " +
-                  "Printing error stack trace."
-              )
-            err.printStackTrace()
-            None
-        }
-      )
-      .getOrElse(defaultValue)
+    val initialValue  = Helpers.decodeOptionallyFromStorage(storage, key).getOrElse(defaultValue)
     val storeValue    = (a: A) => Callback(storage.setItem(key, a.asJson.noSpaces))
     val didUpdateFull = (p: A, c: A) => didUpdate(p, c) >> storeValue(c)
     Component(Props(initialValue, didUpdateFull, shouldRefresh, render))

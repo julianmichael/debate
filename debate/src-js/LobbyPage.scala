@@ -126,7 +126,7 @@ object LobbyPage {
             else
               S.simpleUnselectable
           val status = roomMetadata.status
-          <.div(S.optionBox, selectableStyle)(
+          <.div(c"text-center", S.optionBox, selectableStyle)(
             statusDisplay(status = status),
             assignedParticipants(),
             presentParticipants(),
@@ -237,7 +237,7 @@ object LobbyPage {
                 )
               )
 
-              <.div(c"card", ^.textAlign.center)(
+              <.div(c"card")(
                 <.div(c"card-header")(
                   <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
                 ),

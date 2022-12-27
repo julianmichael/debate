@@ -59,6 +59,7 @@ package object debate extends PackagePlatformExtensions {
     name: String,
     assignedParticipants: Set[String],
     currentParticipants: Set[String],
+    creationTime: Long,
     // latestUpdateTime: Long, // TODO
     status: RoomStatus
   ) {

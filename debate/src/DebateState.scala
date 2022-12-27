@@ -383,7 +383,7 @@ case class DebateSetup(
   answers: Vector[String],
   correctAnswerIndex: Int,
   roles: Map[DebateRole, String],
-  startTime: Long // TODO change this to initTime to distinguish it more clearly from Debate#startTime
+  startTime: Long // TODO change this to creationTime to distinguish it more clearly from Debate#startTime
 ) {
   def numDebaters = answers.size
 

@@ -22,16 +22,22 @@ object Helpers {
       ^.classSet1(sc.s(args: _*))
   }
 
-  def commaSeparatedSpans[F[_]: Foldable: Functor](
-    fa: F[String],
-    getKey: (String, Int) => Option[String] = (x, i) => Some(s"$i-$x")
+  def commaSeparatedTags[F[_]: Foldable: Functor, A](
+    fa: F[A],
+    getTag: A => VdomTag,
+    getKey: Int => Option[String] = i => Some(s"$i")
   ) = fa
-    .map(Vector(_))
-    .intercalate(Vector(", "))
+    .map(x => Vector(getTag(x)))
+    .intercalate(Vector(<.span(", ")))
     .zipWithIndex
     .map { case (x, i) =>
-      <.span(x, getKey(x, i).whenDefined(^.key := _))
+      x(getKey(i).whenDefined(^.key := _))
     }
+
+  def commaSeparatedSpans[F[_]: Foldable: Functor](
+    fa: F[String],
+    getKey: Int => Option[String] = i => Some(s"$i")
+  ) = commaSeparatedTags(fa, (x: String) => <.span(x), getKey)
 
   def wsProtocol =
     if (dom.document.location.protocol == "https:")
@@ -78,4 +84,24 @@ object Helpers {
         )
       )
     )
+
+  import io.circe.Decoder
+  import io.circe.parser
+  def decodeOptionallyFromStorage[A: Decoder](storage: dom.raw.Storage, key: String) = Option(
+    storage.getItem(key)
+  ).flatMap(str =>
+    parser.decode[A](str) match {
+      case Right(result) =>
+        Some(result)
+      case Left(err) =>
+        System
+          .err
+          .println(
+            s"Failed to decode LocalState from storage at key $key. " +
+              "Printing error stack trace."
+          )
+        err.printStackTrace()
+        None
+    }
+  )
 }

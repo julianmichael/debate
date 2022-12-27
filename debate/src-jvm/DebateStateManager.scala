@@ -80,6 +80,7 @@ case class DebateStateManager(
             roomName,
             room.debate.debate.setup.roles.values.toSet,
             room.debate.participants.map(_.name),
+            room.debate.debate.setup.startTime,
             room.debate.status
           )
         }

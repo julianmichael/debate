@@ -1,12 +1,11 @@
 package debate
 
-import scala.concurrent.duration._
-
 import cats.implicits._
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.Iso
 import monocle.function.{all => Optics}
@@ -18,7 +17,6 @@ import jjm.ui.LocalState
 
 import debate.quality._
 import debate.util._
-import japgolly.scalajs.react.feature.ReactFragment
 
 object FacilitatorPanel {
   val S = Styles
@@ -66,14 +64,17 @@ object FacilitatorPanel {
 
   val ProfileOptSelect = new V.OptionalSelect[String](show = _.toString)
 
-  case class RoomSpec(isOfficial: Boolean, name: String)
+  case class RoomSpec(
+    isOfficial: Boolean,
+    name: String,
+    creationTime: Long = 0L // XXX
+  )
   def roomSpecsFromLobby(lobby: Lobby): Set[RoomSpec] = {
     val allSpecs =
       lobby.officialRooms.view.map(room => RoomSpec(true, room.name)) ++
         lobby.practiceRooms.view.map(room => RoomSpec(false, room.name))
     allSpecs.toSet
   }
-  val WatchRooms = WatchChanges.ofSet[RoomSpec]
 
   val defaultQuoteLimit = 100
 
@@ -373,43 +374,23 @@ object FacilitatorPanel {
                     <.div(S.facilitatorColumn)(
                       <.div(S.spaceySubcontainer, S.stickyBanner)(
                         roomSettings(isOfficial, roomName, canStartDebate, createDebate),
-                        WatchRooms.make(roomSpecs, 5.seconds) { changes =>
-                          // println(roomSpecs)
-                          // println(changes)
-                          ReactFragment(
-                            changes.toVdomArray {
-                              case WatchChanges
-                                    .SetChange(isAdded, RoomSpec(roomIsOfficial, roomName)) =>
-                                val prefix =
-                                  if (roomIsOfficial)
-                                    "Official"
-                                  else
-                                    "Practice"
-                                val bgStyle =
-                                  if (isAdded)
-                                    c"bg-success text-white"
-                                  else
-                                    c"bg-danger text-white"
-                                <.div(S.row, bgStyle, ^.key := roomName)(
-                                  if (isAdded) {
-                                    <.span(
-                                      s"$prefix room has been created: ",
-                                      <.a(
-                                        ^.href := "#",
-                                        roomName,
-                                        joinDebate.whenDefined(join =>
-                                          ^.onClick --> join(roomIsOfficial, roomName)
-                                        )
-                                      )
-                                      // " (choose your profile to join from here)".when(joinDebate.isEmpty)
-                                    )
-                                  } else {
-                                    <.span(s"$prefix room has been deleted: $roomName")
-                                  }
+                        <.div(
+                          <.span("Most recent rooms: "),
+                          Helpers
+                            .commaSeparatedTags[Vector, RoomSpec](
+                              roomSpecs.toVector.sortBy(-_.creationTime).take(10),
+                              { case RoomSpec(roomIsOfficial, roomName, _) =>
+                                <.a(
+                                  ^.href := "#",
+                                  roomName,
+                                  joinDebate.whenDefined(join =>
+                                    ^.onClick --> join(roomIsOfficial, roomName)
+                                  )
                                 )
-                            }
-                          )
-                        }
+                              }
+                            )
+                            .toVdomArray
+                        )
                       ),
                       roundTypeConfig(
                         "Opening Rounds",
