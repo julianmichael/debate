@@ -64,14 +64,6 @@ object FacilitatorPanel {
 
   val ProfileOptSelect = new V.OptionalSelect[String](show = _.toString)
 
-  case class RoomSpec(isOfficial: Boolean, name: String, creationTime: Long)
-  def roomSpecsFromLobby(lobby: Lobby): Set[RoomSpec] = {
-    val allSpecs =
-      lobby.officialRooms.view.map(room => RoomSpec(true, room.name, room.creationTime)) ++
-        lobby.practiceRooms.view.map(room => RoomSpec(false, room.name, room.creationTime))
-    allSpecs.toSet
-  }
-
   val defaultPerMessageQuoteLimit = 100
   val defaultGlobalQuoteLimit     = 500
 
@@ -291,16 +283,16 @@ object FacilitatorPanel {
     qualityService: QuALITYService[AsyncCallback],
     initDebate: CreateRoom => Callback
   ) = {
-    val roomSpecs = roomSpecsFromLobby(lobby)
     DebateSetupSpecLocal.syncedWithSessionStorage("debate-setup", DebateSetupSpec.init) { setup =>
       StringLocal.syncedWithSessionStorage("debate-setup-room-name", "") { roomName =>
         BoolLocal.syncedWithSessionStorage("debate-setup-is-official", true) { isOfficial =>
           val canStartDebate =
             roomName.value.trim.nonEmpty && setup.value.answers.filter(_.nonEmpty).size > 1 &&
               (!isOfficial.value || setup.value.areAllRolesAssigned) &&
-              !roomSpecs.exists(room =>
-                room.isOfficial == isOfficial.value && room.name == roomName.value.trim
-              )
+              (if (isOfficial.value)
+                 !lobby.officialRooms.exists(_.name == roomName.value.trim)
+               else
+                 !lobby.practiceRooms.exists(_.name == roomName.value.trim))
           // TODO validate with cats.Validated to show the user reasons
           // why they can't start the debate
           val createDebate =
@@ -352,23 +344,31 @@ object FacilitatorPanel {
                     <.div(S.facilitatorColumn)(
                       <.div(S.spaceySubcontainer, S.stickyBanner)(
                         roomSettings(isOfficial, roomName, canStartDebate, createDebate),
-                        <.div(
-                          <.span("Most recent rooms: "),
-                          Helpers
-                            .commaSeparatedTags[Vector, RoomSpec](
-                              roomSpecs.toVector.sortBy(-_.creationTime).take(10),
-                              { case RoomSpec(roomIsOfficial, roomName, _) =>
-                                <.a(
-                                  ^.href := "#",
-                                  roomName,
-                                  joinDebate.whenDefined(join =>
-                                    ^.onClick --> join(roomIsOfficial, roomName)
+                        <.div {
+                          val (prefix, rooms) =
+                            if (isOfficial.value)
+                              "official" -> lobby.officialRooms
+                            else
+                              "practice" -> lobby.practiceRooms
+
+                          <.span(
+                            s"Most recent $prefix rooms: ",
+                            Helpers
+                              .commaSeparatedTags[Vector, RoomMetadata](
+                                rooms.toVector.sortBy(-_.creationTime).take(10),
+                                { case roomMeta =>
+                                  <.a(
+                                    ^.href := "#",
+                                    roomMeta.name,
+                                    joinDebate.whenDefined(join =>
+                                      ^.onClick --> join(isOfficial.value, roomMeta.name)
+                                    )
                                   )
-                                )
-                              }
-                            )
-                            .toVdomArray
-                        )
+                                }
+                              )
+                              .toVdomArray
+                          )
+                        }
                       ),
                       roundTypeConfig(
                         "Opening Rounds",
