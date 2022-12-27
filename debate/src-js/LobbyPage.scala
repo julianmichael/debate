@@ -84,7 +84,7 @@ object LobbyPage {
       )(roomNameLive, placeholderOpt = Some("Room"))
 
   def makeMetadatas(
-    currentRooms: List[RoomMetadata],
+    visibleRooms: Vector[RoomMetadata],
     r: RoomStatus,
     enter: Callback,
     isOfficial: Boolean,
@@ -105,20 +105,21 @@ object LobbyPage {
       }
     }
 
-    val visibleRooms = currentRooms.filter(_.status == r)
     <.div(S.debateMetadataContainer)(
       <.h5(statusStyle)(r.toStringForTitle),
-      visibleRooms.toVdomArray { rm =>
-        // TODO add keys? rm.name
-        DebateMetadata.make(
-          roomMetadata = rm,
-          isOfficial = isOfficial,
-          userName = userName,
-          sendToMainChannel = sendToMainChannel,
-          enterRoom = enter
-        )
+      visibleRooms
+        .filter(_.status == r)
+        .toVdomArray { rm =>
+          // TODO add keys? rm.name
+          DebateMetadata.make(
+            roomMetadata = rm,
+            isOfficial = isOfficial,
+            userName = userName,
+            sendToMainChannel = sendToMainChannel,
+            enterRoom = enter
+          )
 
-      }
+        }
     )
   }
 
@@ -198,7 +199,7 @@ object LobbyPage {
     userName: StateSnapshot[String],
     isOfficial: Boolean,
     currentRooms: Vector[RoomMetadata],
-    connect: ConnectionSpec => Callback
+    props: Props
   ) =
     LocalString.syncedWithSessionStorage("room-name-search", "") { roomNameLive =>
       val canEnter =
@@ -206,11 +207,20 @@ object LobbyPage {
           currentRooms.exists(_.name == roomNameLive.value)
       val enter =
         if (canEnter)
-          connect(ConnectionSpec(isOfficial, roomNameLive.value, userName.value))
+          props.connect(ConnectionSpec(isOfficial, roomNameLive.value, userName.value))
         else
           Callback.empty
 
       val visibleRooms = currentRooms.filter(_.matchesQuery(roomNameLive.value))
+
+      def ourMakeMetadatas(r: RoomStatus) = makeMetadatas(
+        visibleRooms = visibleRooms,
+        r = r,
+        enter = enter,
+        isOfficial = isOfficial,
+        sendToMainChannel = props.sendToMainChannel,
+        userName = userName
+      )
 
       ReactFragment(
         Helpers.textInputWithEnterButton(
@@ -220,12 +230,15 @@ object LobbyPage {
           isEnabled = canEnter,
           enter = enter
         ),
-        Option(<.div("No rooms to show.")).filter(_ => visibleRooms.isEmpty)
+        Option(<.div("No rooms to show.")).filter(_ => visibleRooms.isEmpty),
+        ourMakeMetadatas(r = RoomStatus.SettingUp),
+        ourMakeMetadatas(RoomStatus.WaitingToBegin),
+        ourMakeMetadatas(RoomStatus.InProgress),
+        ourMakeMetadatas(RoomStatus.Complete)
       )
-
     }
 
-  def localLobbyTab(lobby: StateSnapshot[Lobby]) =
+  def localLobbyTab(lobby: StateSnapshot[Lobby], userName: StateSnapshot[String], props: Props) =
     LocalLobbyTab.syncedWithSessionStorage(key = "lobby-tab", defaultValue = LobbyTab.MyDebates) {
       lobbyTab =>
         val myDebates = lobby
@@ -254,7 +267,9 @@ object LobbyPage {
           }
 
         <.div(c"card", ^.textAlign.center)(
-          <.div(c"card-header")(<.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())),
+          <.div(c"card-header")(
+            <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector(lobbyTab))
+          ),
           <.div(c"card-body", S.spaceySubcontainer)(
             lobbyTab.value match {
               case LobbyTab.Leaderboard =>
@@ -268,51 +283,37 @@ object LobbyPage {
                     .filter(_.nonEmpty)
                     .map(userName =>
                       (isOfficial: Boolean, roomName: String) =>
-                        connect(ConnectionSpec(isOfficial, roomName, userName))
+                        props.connect(ConnectionSpec(isOfficial, roomName, userName))
                     ),
                   profiles = lobby.value.trackedDebaters,
-                  qualityService = qualityService,
-                  initDebate = sendToMainChannel
+                  qualityService = props.qualityService,
+                  initDebate = props.sendToMainChannel
                 )
               case _ =>
-                roomNameSearch()
+                roomNameSearch(
+                  userName = userName,
+                  isOfficial = isOfficial,
+                  currentRooms = currentRooms,
+                  props = props
+                )
             }
           )
         )
 
-        // TODO what about debates with the same name?
-        <.div(c"card-body", S.spaceySubcontainer)(
-          <.div(c"input-group", ^.width.auto)(
-              roomNameInput(enter = enter, roomNameLive = roomNameLive),
-              joinOrCreateDebate(
-                currentRooms = currentRooms,
-                isOfficial = isOfficial,
-                canEnter = canEnter,
-                enter = enter,
-                roomNameLive = roomNameLive
-              )
-            )
-            .when(lobbyTab.value != MyDebates && lobbyTab.value != Leaderboard),
-          <.div("No rooms to show.").when(currentRooms.isEmpty && lobbyTab.value != Leaderboard),
-          LeaderboardTable.make().when(lobbyTab.value == Leaderboard),
-          makeMetadatas(RoomStatus.SettingUp),
-          makeMetadatas(RoomStatus.WaitingToBegin),
-          makeMetadatas(RoomStatus.InProgress),
-          makeMetadatas(RoomStatus.Complete)
-        )
+      // TODO what about debates with the same name?
     }
 
   val Component =
     ScalaComponent
       .builder[Props]("Lobby Page")
-      .render_P { case Props(qualityService, lobby, sendToMainChannel, connect) =>
+      .render_P { case props @ Props(qualityService, lobby, sendToMainChannel, connect) =>
         LocalString.syncedWithLocalStorage(key = "profile", defaultValue = "") { userName =>
           <.div(S.lobbyContainer, S.spaceyContainer)(
-            profileSelector(userName = userName),
+            profileSelector(userName = userName, lobby = lobby),
             nameInput(userName = userName),
-            createProfileButton(userName),
-            deleteProfileButton(userName),
-            localLobbyTab(lobby = lobby)
+            createProfileButton(userName, lobby = lobby, sendToMainChannel = sendToMainChannel),
+            deleteProfileButton(userName, lobby = lobby, sendToMainChannel = sendToMainChannel),
+            localLobbyTab(lobby = lobby, userName = userName, props = props)
           )
         }
       }
