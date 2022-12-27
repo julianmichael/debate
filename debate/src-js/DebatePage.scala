@@ -99,7 +99,6 @@ object DebatePage {
     */
   def headerRow(
     userName: String,
-    userRoleOpt: Option[Role],
     isOfficial: Boolean,
     roomName: String,
     debate: StateSnapshot[DebateState],
@@ -190,14 +189,7 @@ object DebatePage {
             val backgroundStyle = S.observerBg
 
             <.div(S.debateContainer, S.spaceyContainer)(
-              headerRow(
-                userName,
-                userId.map(_.role),
-                isOfficial,
-                roomName,
-                debateState,
-                disconnect = disconnect
-              ), {
+              headerRow(userName, isOfficial, roomName, debateState, disconnect = disconnect), {
                 val debate = debateState.value.debate
                 val setup  = debate.setup
                 def tryAssumingRole(role: Role): Callback =

@@ -98,38 +98,9 @@ object DebatePanel {
       isFacilitatorOrDebater || round.isComplete(debate.setup.numDebaters)
     }
 
-  /** Show the debate. */
-  def apply(
-    roomName: String,
-    userId: Option[ParticipantId],
-    debate: Debate,
-    sendDebate: Debate => Callback
-  ) = {
-    import debate.{setup, rounds}
-    val roleOpt = userId.map(_.role)
-    val shouldShowSourceMaterial =
-      roleOpt match {
-        case Some(Facilitator | Debater(_)) =>
-          true
-        case _ =>
-          false
-      }
-    val inProgressSpeechStyle =
-      roleOpt match {
-        case None =>
-          TagMod(S.noRoleOutline)
-        case Some(Facilitator) =>
-          TagMod(S.facilitatorOutline)
-        case Some(Observer) =>
-          TagMod(S.observerOutline)
-        case Some(Judge) =>
-          TagMod(S.judgeOutline)
-        case Some(Debater(index)) =>
-          TagMod(S.answerOutline(index), S.debateWidthOffset(index))
-      }
-
-    val debateSpansWithSpeaker = rounds.flatMap { round =>
-      if (round.isComplete(setup.answers.size)) {
+  def debateSpansWithSpeaker(roleOpt: Option[Role], numDebaters: Int, rounds: Vector[DebateRound]) =
+    rounds.flatMap { round =>
+      if (round.isComplete(numDebaters)) {
         round.allSpeeches.view.flatMap(speech => speech.allQuotes.map(speech.speaker -> _)).toVector
       } else {
         roleOpt
@@ -139,6 +110,38 @@ object DebatePanel {
           .toVector
       }
     }
+
+  def getHighlights(
+    roleOpt: Option[Role],
+    numDebaters: Int,
+    rounds: Vector[DebateRound],
+    curMessageSpans: Set[ESpan]
+  ) =
+    debateSpansWithSpeaker(roleOpt, numDebaters, rounds).map { case (id, span) =>
+      span -> getSpanColorForRole(id.role)
+    } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
+
+  def getInProgressSpeechStyle(role: Role) =
+    role match {
+      case Facilitator =>
+        TagMod(S.facilitatorOutline)
+      case Observer =>
+        TagMod(S.observerOutline)
+      case Judge =>
+        TagMod(S.judgeOutline)
+      case Debater(index) =>
+        TagMod(S.answerOutline(index), S.debateWidthOffset(index))
+    }
+
+  /** Show the debate. */
+  def apply(
+    roomName: String,
+    userId: Option[ParticipantId],
+    debate: Debate,
+    sendDebate: Debate => Callback
+  ) = {
+    import debate.{setup, rounds}
+    val roleOpt = userId.map(_.role)
 
     val currentTransitions = debate.currentTransitions
     val userTurn =
@@ -150,17 +153,19 @@ object DebatePanel {
     val isUsersTurn = userTurn.nonEmpty
 
     LocalSpans.make(Set.empty[ESpan]) { curMessageSpans =>
-      val highlights =
-        debateSpansWithSpeaker.map { case (id, span) =>
-          span -> getSpanColorForRole(id.role)
-        } ++ curMessageSpans.value.toVector.map(_ -> curHighlightColor)
-
       <.div(S.debatePanel, S.spaceySubcontainer)(
         StoryPanel(
           setup.sourceMaterial.contents,
-          highlights,
+          getHighlights(roleOpt, setup.numDebaters, rounds, curMessageSpans.value),
           span => curMessageSpans.modState(_ + span)
-        ).when(shouldShowSourceMaterial),
+        ).when(
+          roleOpt.exists {
+            case Facilitator | Debater(_) =>
+              true
+            case _ =>
+              false
+          }
+        ),
         LocalQuotingMessage.make(curMessageSpans, s"debate-message-$roomName") { currentMessage =>
           val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
 
@@ -188,7 +193,7 @@ object DebatePanel {
                     DebateSpeech(userId, -1L, currentMessageSpeechSegments),
                     debate.startTime,
                     Some(userId.role),
-                    inProgressSpeechStyle
+                    getInProgressSpeechStyle(userId.role)
                   )
                   .when(currentMessage.value.size > 0 && isUsersTurn)
               }
