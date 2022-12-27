@@ -17,6 +17,8 @@ import jjm.ui.LocalState
 
 import debate.quality._
 import debate.util._
+import cats.data.NonEmptyChain
+import cats.data.Validated
 
 object FacilitatorPanel {
   val S = Styles
@@ -171,15 +173,14 @@ object FacilitatorPanel {
   def roomSettings(
     isOfficial: StateSnapshot[Boolean],
     roomName: StateSnapshot[String],
-    canCreateDebate: Boolean,
-    createDebate: Callback
+    createDebateOpt: Option[Callback]
   ) = ReactFragment(
     Helpers.textInputWithEnterButton(
       field = roomName,
       placeholderOpt = Some("Room name"),
       buttonText = "Create",
-      isEnabled = canCreateDebate,
-      enter = createDebate
+      isEnabled = createDebateOpt.nonEmpty,
+      enter = createDebateOpt.combineAll
     ),
     <.div(S.row)(V.Checkbox(isOfficial, "Is an official debate (must assign roles)"))
   )
@@ -286,19 +287,10 @@ object FacilitatorPanel {
     DebateSetupSpecLocal.syncedWithSessionStorage("debate-setup", DebateSetupSpec.init) { setup =>
       StringLocal.syncedWithSessionStorage("debate-setup-room-name", "") { roomName =>
         BoolLocal.syncedWithSessionStorage("debate-setup-is-official", true) { isOfficial =>
-          val canStartDebate =
-            roomName.value.trim.nonEmpty && setup.value.answers.filter(_.nonEmpty).size > 1 &&
-              (!isOfficial.value || setup.value.areAllRolesAssigned) &&
-              (if (isOfficial.value)
-                 !lobby.officialRooms.exists(_.name == roomName.value.trim)
-               else
-                 !lobby.practiceRooms.exists(_.name == roomName.value.trim))
-          // TODO validate with cats.Validated to show the user reasons
-          // why they can't start the debate
-          val createDebate =
-            if (!canStartDebate)
-              Callback.empty
-            else {
+          val createDebateValidated: Validated[NonEmptyChain[Option[VdomTag]], Callback] = {
+            import cats.implicits._
+            // import cats.syntax.validated._
+            val createDebateCb: Callback =
               initDebate(
                 CreateRoom(
                   isOfficial = isOfficial.value,
@@ -306,7 +298,43 @@ object FacilitatorPanel {
                   setupSpec = setup.value
                 )
               ) >> roomName.setState("")
-            }
+
+            def ensure(key: String, condition: Boolean, err: Option[VdomTag]) =
+              condition
+                .validNec[Option[VdomTag]]
+                .ensure(NonEmptyChain(err.map(_(c"text-danger", ^.key := key))))(identity)
+
+            ensure("room name is not blank", roomName.value.nonEmpty, None) *>
+              ensure(
+                "at least 2 answers",
+                setup.value.answers.filter(_.nonEmpty).size > 1,
+                Some(<.div("Debates must have at least 2 answers."))
+              ) *>
+              ensure(
+                "all roles assigned",
+                !isOfficial.value || setup.value.areAllRolesAssigned,
+                Some(<.div("All roles must be assigned in official debates."))
+              ) *>
+              ensure(
+                "room doesn't exist",
+                if (isOfficial.value)
+                  !lobby.officialRooms.exists(_.name == roomName.value.trim)
+                else
+                  !lobby.practiceRooms.exists(_.name == roomName.value.trim),
+                Some(
+                  <.div(
+                    "A room with that name already exists. ",
+                    <.a(
+                      "Click here",
+                      ^.href := "#",
+                      joinDebate
+                        .whenDefined(cb => ^.onClick --> cb(isOfficial.value, roomName.value))
+                    ),
+                    " to join."
+                  )
+                )
+              ) *> createDebateCb.validNec[Option[VdomTag]]
+          }
 
           QuALITYIndexFetch
             .make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
@@ -343,7 +371,7 @@ object FacilitatorPanel {
                   QuestionOptLocal.make(None) { qualityQuestionOpt =>
                     <.div(S.facilitatorColumn)(
                       <.div(S.spaceySubcontainer, S.stickyBanner)(
-                        roomSettings(isOfficial, roomName, canStartDebate, createDebate),
+                        roomSettings(isOfficial, roomName, createDebateValidated.toOption),
                         <.div {
                           val (prefix, rooms) =
                             if (isOfficial.value)
@@ -368,7 +396,11 @@ object FacilitatorPanel {
                               )
                               .toVdomArray
                           )
-                        }
+                        },
+                        createDebateValidated
+                          .swap
+                          .toOption
+                          .whenDefined(_.toList.flatten.toVdomArray)
                       ),
                       roundTypeConfig(
                         "Opening Rounds",
