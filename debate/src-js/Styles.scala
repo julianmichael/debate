@@ -116,6 +116,10 @@ object Styles extends jjm.ui.View.Styles {
 
   val simpleSelectable = style(cursor.pointer, &.hover(filter := "brightness(85%)"))
 
+  val simpleSelectableText = style(cursor.pointer, &.hover(fontStyle.italic))
+
+  val bold = style(fontWeight.bold)
+
   val simpleSelected = style(backgroundColor(c"#ddd"))
 
   val spaceyPadding = 6 px
@@ -176,6 +180,8 @@ object Styles extends jjm.ui.View.Styles {
     flexDirection.row
     // padding(mainHalfPadding),
   )
+
+  val facilitatorName = style(fontStyle.italic, color.dodgerblue)
 
   val optionBox = style(
     flexBasis := "0",

@@ -94,6 +94,66 @@ object DebatePage {
           Callback.empty
       }
 
+  /** Top row showing non-debating roles (user can click one to change
+    * roles).
+    */
+  def headerRow(
+    userName: String,
+    userRoleOpt: Option[Role],
+    isOfficial: Boolean,
+    roomName: String,
+    debate: StateSnapshot[DebateState],
+    disconnect: Callback
+  ) = {
+
+    def canAssumeRole(role: Role) = debate.value.debate.setup.canAssumeRole(userName, role)
+
+    def tryAssumingRole(role: Role): Callback =
+      if (canAssumeRole(role)) {
+        debate.modState(_.addParticipant(ParticipantId(userName, role)))
+      } else
+        Callback.empty
+
+    val roomPrefix =
+      if (isOfficial)
+        "Official"
+      else
+        "Practice"
+
+    <.div(c"row", S.spaceySubcontainer, ^.alignItems.center)(
+      <.div(<.strong("Name: "), userName),
+      <.div(<.strong(s"$roomPrefix Room: "), roomName),
+      <.div(S.grow)(
+        <.strong(
+          S.simpleSelectableText.when(canAssumeRole(Observer)),
+          s"Observers:",
+          ^.onClick --> tryAssumingRole(Observer)
+        ),
+        " ",
+        Helpers
+          .commaSeparatedTags[Vector, (String, Boolean)](
+            debate
+              .value
+              .participants
+              .view
+              .collect { case ParticipantId(name, role @ (Observer | Facilitator)) =>
+                name -> (role == Facilitator)
+              }
+              .toVector
+              .sortBy(_._1),
+            getTag = { case (name, isAdmin) =>
+              <.span(S.facilitatorName.when(isAdmin))(
+                name,
+                (^.onClick --> (tryAssumingRole(Facilitator))).when(name == userName)
+              )
+            }
+          )
+          .toVdomArray
+      ),
+      <.button(c"btn", S.simpleSelectable, ^.fontSize.small)("Disconnect", ^.onClick --> disconnect)
+    )
+  }
+
   case class Props(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback)
 
   val Component =
@@ -129,85 +189,15 @@ object DebatePage {
             // Might have to think through colors (or just do a redesign)
             val backgroundStyle = S.observerBg
 
-            /** Top row showing non-debating roles (user can click one to change
-            * roles).
-            */
-            def headerRow(
-              isOfficial: Boolean,
-              userName: String,
-              roomName: String,
-              debate: StateSnapshot[DebateState],
-              disconnect: Callback
-            ) = {
-
-              def canAssumeRole(role: Role) = debate
-                .value
-                .debate
-                .setup
-                .canAssumeRole(userName, role)
-
-              def tryAssumingRole(role: Role): Callback =
-                if (canAssumeRole(role)) {
-                  debate.modState(_.addParticipant(ParticipantId(userName, role)))
-                } else
-                  Callback.empty
-              def facilitatorsDiv = {
-                val facilitators = debate
-                  .value
-                  .participants
-                  .collect { case ParticipantId(name, Facilitator) =>
-                    name
-                  }
-                val isCurrent = facilitators.contains(userName)
-
-                <.div(
-                  S.optionBox,
-                  S.simpleSelectable.when(canAssumeRole(Facilitator)),
-                  S.simpleSelected.when(isCurrent)
-                )(
-                  <.div(S.optionTitle)("Facilitators"),
-                  Helpers.commaSeparatedSpans(facilitators.toList.sorted).toVdomArray,
-                  ^.onClick --> tryAssumingRole(Facilitator)
-                )
-              }
-              def observersDiv = {
-                val observers = debate
-                  .value
-                  .participants
-                  .collect { case ParticipantId(name, Observer) =>
-                    name
-                  }
-                val isCurrent = observers.contains(userName)
-                <.div(
-                  S.optionBox,
-                  S.simpleSelectable.when(canAssumeRole(Observer)),
-                  S.simpleSelected.when(isCurrent)
-                )(
-                  <.div(S.optionTitle)("Observers"),
-                  Helpers.commaSeparatedSpans(observers.toList.sorted).toVdomArray,
-                  ^.onClick --> tryAssumingRole(Observer)
-                )
-              }
-
-              val roomPrefix =
-                if (isOfficial)
-                  "Official"
-                else
-                  "Practice"
-
-              <.div(c"row", S.spaceySubcontainer)(
-                <.div(
-                  <.div(<.strong("Name: "), userName),
-                  <.div(<.strong(s"$roomPrefix Room: "), roomName)
-                ),
-                facilitatorsDiv,
-                observersDiv,
-                <.button(c"btn", S.simpleSelectable)("Disconnect", ^.onClick --> disconnect)
-              )
-            }
-
             <.div(S.debateContainer, S.spaceyContainer)(
-              headerRow(isOfficial, userName, roomName, debateState, disconnect = disconnect), {
+              headerRow(
+                userName,
+                userId.map(_.role),
+                isOfficial,
+                roomName,
+                debateState,
+                disconnect = disconnect
+              ), {
                 val debate = debateState.value.debate
                 val setup  = debate.setup
                 def tryAssumingRole(role: Role): Callback =
