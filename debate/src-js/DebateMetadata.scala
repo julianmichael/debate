@@ -1,80 +1,125 @@
 package debate
+
 import cats.implicits._
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
-import debate.MainChannelRequest
 
-object DebateMetadata {
+case class Props(
+  roomMetadata: RoomMetadata,
+  isOfficial: Boolean,
+  userName: StateSnapshot[String],
+  enterRoom: (Boolean, String, String) => CallbackTo[Unit],
+  sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
+) {
   import Helpers.ClassSetInterpolator
 
   val S = Styles
-  val V = new jjm.ui.View(S)
+  def canEnterRoom =
+    userName.value.nonEmpty && !roomMetadata.currentParticipants.contains(userName.value)
+
+  def statusDisplay = <.div(S.optionTitle)(roomMetadata.name)
+
+  def roleAssigments = {
+
+    // TODO there *has* to be a cleaner way to do this, but i got frustrated
+    // fighting with the type system & scalacss / scalajs / tagmod/ etc.
+    // might well refactor soon
+    val baseList = roomMetadata.assignedParticipants.toList
+    val elements = baseList
+      .zipWithIndex
+      .map { case ((role, name), index) =>
+        val base: VdomNode =
+          role match {
+            case Debater(_) =>
+              <.span(S.debaterAssignment)(s"$role: $name")
+            case Judge =>
+              // TODO why does judge assignment not work?
+              <.span(S.judgeAssigment)
+              s"$role: $name"
+          }
+        if (index != baseList.length - 1) {
+          List(base, <.span(", "))
+        } else {
+          List(base)
+        }
+      }
+      .flatten
+      .toVdomArray { (v: VdomNode) =>
+        v
+      }
+
+    <.div(<.strong("Roles: "), elements).when(roomMetadata.assignedParticipants.nonEmpty)
+  }
+
+  def presentParticipants = <
+    .div(
+      <.strong("Present: "),
+      Helpers.commaSeparatedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
+    )
+    .when(roomMetadata.currentParticipants.nonEmpty)
+
+  def deleteRoom =
+    <.button(c"btn btn-block btn-danger", S.adminOnly)(
+      "Delete room",
+      ^.onClick ==>
+        ((e: ReactMouseEvent) => {
+          e.stopPropagation();
+          sendToMainChannel(DeleteRoom(isOfficial, roomMetadata.name))
+        })
+    )
+
+  def enterRoomButton = (^.onClick --> enterRoom(isOfficial, roomMetadata.name, userName.value))
+    .when(canEnterRoom)
+
+  def boldedTurnDisplay = {
+    val speakers = roomMetadata.currentSpeakers.getOrElse(Set())
+    val myRole   = roomMetadata.assignedParticipants.map(_.swap).get(userName.value)
+    val speakerElements = speakers.collect {
+      case (speaker: DebateRole) if roomMetadata.assignedParticipants.contains(speaker) =>
+        val isMyTurn    = myRole.map(_ == speaker).getOrElse(false)
+        val speakerName = roomMetadata.assignedParticipants(speaker)
+        <.span(
+          speakerName,
+          ^.fontWeight :=
+            (if (isMyTurn)
+               "bold"
+             else
+               "normal")
+        )
+    }
+    <.div(<.strong("Turn: "), speakerElements.toVdomArray).when(speakerElements.nonEmpty)
+  }
+}
+
+object DebateMetadata {
+  val S = Styles
+
+  // TODO refactor to use props and a class?
+
   def make(
     roomMetadata: RoomMetadata,
     isOfficial: Boolean,
     userName: StateSnapshot[String],
-    sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
-    connect: ConnectionSpec => Callback
+    enterRoom: (Boolean, String, String) => CallbackTo[Unit],
+    sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
   ) = {
-    val canEnterRoom =
-      userName.value.nonEmpty && !roomMetadata.currentParticipants.contains(userName.value)
-    val statusStyle = {
-      import RoomStatus._
-      roomMetadata.status match {
-        case InProgress =>
-          S.inProgressStatusLabel
-        case Complete =>
-          S.completeStatusLabel
-      }
-    }
 
-    // TODO probably just a val instead of a def
-    def statusDisplay(status: debate.RoomStatus) =
-      <.div(S.optionTitle)(roomMetadata.name, " ", <.span(statusStyle)(s"($status)"))
-
-    def assignedParticipants() = <
-      .div(
-        <.strong("Assigned: "),
-        Helpers.commaSeparatedSpans(roomMetadata.assignedParticipants.toList.sorted).toVdomArray
-      )
-      .when(roomMetadata.assignedParticipants.nonEmpty)
-
-    def presentParticipants() = <
-      .div(
-        <.strong("Present: "),
-        Helpers.commaSeparatedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
-      )
-      .when(roomMetadata.currentParticipants.nonEmpty)
-
-    def deleteRoom() =
-      <.button(c"btn btn-block btn-danger", S.adminOnly)(
-        "Delete room",
-        ^.onClick ==>
-          ((e: ReactMouseEvent) => {
-            e.stopPropagation();
-            sendToMainChannel(DeleteRoom(isOfficial, roomMetadata.name))
-          })
-      )
-
-    def enterRoomButton() =
-      (^.onClick --> connect(ConnectionSpec(isOfficial, roomMetadata.name, userName.value)))
-        .when(canEnterRoom)
-
+    val props = Props(roomMetadata, isOfficial, userName, enterRoom, sendToMainChannel)
     val selectableStyle =
-      if (canEnterRoom)
+      if (props.canEnterRoom)
         S.simpleSelectable
       else
         S.simpleUnselectable
-    val status = roomMetadata.status
-    <.div(c"text-center", S.optionBox, selectableStyle)(
-      statusDisplay(status = status),
-      assignedParticipants(),
-      presentParticipants(),
-      deleteRoom(),
-      enterRoomButton()
+    <.div(S.optionBox, selectableStyle, S.debateMetadata)(
+      props.statusDisplay,
+      props.roleAssigments,
+      props.presentParticipants,
+      props.boldedTurnDisplay,
+      props.deleteRoom,
+      props.enterRoomButton
     )
   }
 }

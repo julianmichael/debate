@@ -150,9 +150,17 @@ object Styles extends jjm.ui.View.Styles {
     overflowX.hidden
   )
 
-  val settingUpStatusLabel  = style(color.gold)
-  val inProgressStatusLabel = style(color.darkorange)
-  val completeStatusLabel   = style(color.darkgreen)
+  val settingUpStatusLabel      = style(color.gold)
+  val waitingToBeginStatusLabel = style(color.darkblue)
+  val inProgressStatusLabel     = style(color.darkorange)
+  val completeStatusLabel       = style(color.darkgreen)
+
+  val judgeColor      = darkgreen
+  val judgeColorLight = green
+  val debaterColor    = darkblue
+
+  val judgeAssigment    = style(color(judgeColor))
+  val debaterAssignment = style(color(debaterColor))
 
   val loading = style(
     gridRow    := "1/-1",
@@ -196,9 +204,6 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val optionTitle = style(margin(2 px), fontWeight.bold)
-
-  val judgeColor      = darkgreen
-  val judgeColorLight = green
 
   val answerColors = Vector(darkblue, darkred, rebeccapurple, darkorange, darkturquoise)
 
