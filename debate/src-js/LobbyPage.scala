@@ -245,7 +245,7 @@ object LobbyPage {
                             buttonText = "Join",
                             isEnabled = canEnter,
                             enter = enter
-                          ),
+                          )(^.marginBottom := 1.rem),
                           makeMetadatas(RoomStatus.InProgress),
                           <.div(<.hr),
                           makeMetadatas(RoomStatus.WaitingToBegin),
