@@ -13,7 +13,7 @@ case class RoomMetadata(
   status: RoomStatus,
   latestUpdateTime: Long,
   result: Option[DebateResult],
-  whoseTurnIsNext: Set[DebateRole],
+  currentSpeakers: Set[DebateRole],
   currentParticipants: Set[String]
 ) {
   private[this] def matchesKeyword(keyword: String) = {

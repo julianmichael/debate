@@ -25,7 +25,14 @@ case class DebateState(debate: Debate, participants: Set[ParticipantId]) {
 
   def status: RoomStatus = debate
     .currentTransitions
-    .fold(_ => RoomStatus.Complete, _ => RoomStatus.InProgress)
+    .fold(
+      _ => RoomStatus.Complete,
+      _ =>
+        if (debate.rounds.isEmpty)
+          RoomStatus.WaitingToBegin
+        else
+          RoomStatus.InProgress
+    )
 
   /** Add a participant. If the participant is already present, potentially
     * change their role.

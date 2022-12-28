@@ -217,12 +217,14 @@ object LobbyPage {
                                 S.completeStatusLabel
                             }
                           }
+                          val roomsToShow = visibleRooms.filter(_.status == r)
                           ReactFragment(
                             <.h5(statusStyle)(r.titleString),
                             <.div(S.metadataListContainer, S.spaceySubcontainer)(
-                              visibleRooms
-                                .filter(_.status == r)
-                                .toVdomArray { case rm: RoomMetadata =>
+                              if (roomsToShow.isEmpty) {
+                                <.div("No rooms to show.")
+                              } else {
+                                roomsToShow.toVdomArray { case rm: RoomMetadata =>
                                   MetadataBox(
                                     roomMetadata = rm,
                                     isOfficial = isOfficial,
@@ -231,6 +233,7 @@ object LobbyPage {
                                     enterRoom = connect
                                   )(^.key := rm.name)
                                 }
+                              }
                             )
                           )
                         }
@@ -243,8 +246,9 @@ object LobbyPage {
                             isEnabled = canEnter,
                             enter = enter
                           ),
-                          Option(<.div("No rooms to show.")).filter(_ => currentRooms.isEmpty),
                           makeMetadatas(RoomStatus.InProgress),
+                          <.hr,
+                          makeMetadatas(RoomStatus.WaitingToBegin),
                           <.hr,
                           makeMetadatas(RoomStatus.Complete)
                         )

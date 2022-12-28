@@ -91,7 +91,7 @@ case class DebateStateManager(
               .lastOption
               .getOrElse(room.debate.debate.setup.startTime),
             result = room.debate.debate.result,
-            whoseTurnIsNext = room
+            currentSpeakers = room
               .debate
               .debate
               .currentTransitions
