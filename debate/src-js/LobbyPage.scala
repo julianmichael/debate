@@ -247,9 +247,9 @@ object LobbyPage {
                             enter = enter
                           ),
                           makeMetadatas(RoomStatus.InProgress),
-                          <.hr,
+                          <.div(<.hr),
                           makeMetadatas(RoomStatus.WaitingToBegin),
-                          <.hr,
+                          <.div(<.hr),
                           makeMetadatas(RoomStatus.Complete)
                         )
                       }
