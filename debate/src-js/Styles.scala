@@ -112,6 +112,8 @@ object Styles extends jjm.ui.View.Styles {
 
   // generic coloring/appearance styles
 
+  val veryGreyedOut = style(opacity(0.25))
+
   val simpleUnselectable = style(opacity(0.5))
 
   val simpleSelectable = style(cursor.pointer, &.hover(filter := "brightness(85%)"))

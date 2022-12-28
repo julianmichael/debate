@@ -118,42 +118,52 @@ object DebatePage {
         "Practice"
 
     <.div(c"row", S.spaceySubcontainer, ^.alignItems.center)(
+      <.button(c"btn btn-sm", S.simpleSelectable, ^.fontSize.small)(
+        <.i(c"bi bi-arrow-left"),
+        " Exit",
+        ^.onClick --> disconnect
+      ),
       <.div(<.strong("Name: "), userName),
       <.div(<.strong(s"$roomPrefix Room: "), roomName),
+      <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary),
       <.div(S.grow)(
         <.strong(
           S.simpleSelectableText.when(canAssumeRole(Observer)),
           s"Observers:",
           ^.onClick --> tryAssumingRole(Observer)
         ),
-        " ",
-        Helpers
-          .commaSeparatedTags[Vector, (String, Boolean)](
-            debate
-              .value
-              .participants
-              .view
-              .collect { case ParticipantId(name, role @ (Observer | Facilitator)) =>
-                name -> (role == Facilitator)
-              }
-              .toVector
-              .sortBy(_._1),
-            getTag = { case (name, isAdmin) =>
-              val roleToToggleTo =
-                if (isAdmin)
-                  Observer
-                else
-                  Facilitator
-              <.span(S.facilitatorName.when(isAdmin))(
-                name,
-                (^.onClick --> (tryAssumingRole(roleToToggleTo))).when(name == userName)
-              )
+        " ", {
+          val observers = debate
+            .value
+            .participants
+            .view
+            .collect { case ParticipantId(name, role @ (Observer | Facilitator)) =>
+              name -> (role == Facilitator)
             }
-          )
-          .toVdomArray
-      ),
-      <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary),
-      <.button(c"btn", S.simpleSelectable, ^.fontSize.small)("Disconnect", ^.onClick --> disconnect)
+            .toVector
+            .sortBy(_._1)
+
+          if (observers.isEmpty)
+            <.span(S.veryGreyedOut)("none")
+          else
+            Helpers
+              .commaSeparatedTags[Vector, (String, Boolean)](
+                observers,
+                getTag = { case (name, isAdmin) =>
+                  val roleToToggleTo =
+                    if (isAdmin)
+                      Observer
+                    else
+                      Facilitator
+                  <.span(S.facilitatorName.when(isAdmin))(
+                    name,
+                    (^.onClick --> (tryAssumingRole(roleToToggleTo))).when(name == userName)
+                  )
+                }
+              )
+              .toVdomArray
+        }
+      )
     )
   }
 
