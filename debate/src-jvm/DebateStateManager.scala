@@ -48,7 +48,7 @@ object DebateRoom {
       .view
       .flatMap(_.timestamp(room.debate.debate.setup.numDebaters))
       .lastOption
-      .fold(1L)(-_)
+      .fold(-room.debate.debate.setup.startTime)(-_)
   )
 }
 

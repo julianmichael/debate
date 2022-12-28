@@ -47,6 +47,14 @@ package object debate extends PackagePlatformExtensions {
         case _ =>
           false
       }
+
+    def titleString =
+      this match {
+        case InProgress =>
+          "In Progress"
+        case Complete =>
+          "Complete"
+      }
   }
   object RoomStatus {
     case object InProgress extends RoomStatus
@@ -72,6 +80,7 @@ package object debate extends PackagePlatformExtensions {
       val keywords = query.split("\\s+").toSet
       keywords.forall(matchesKeyword)
     }
+
   }
 
   def makePageTitle(x: String) =

@@ -205,6 +205,33 @@ object LobbyPage {
 
                         val visibleRooms = currentRooms.filter(_.matchesQuery(roomNameLive.value))
 
+                        def makeMetadatas(r: RoomStatus) = {
+                          val statusStyle = {
+                            import RoomStatus._
+                            r match {
+                              case InProgress =>
+                                S.inProgressStatusLabel
+                              case Complete =>
+                                S.completeStatusLabel
+                            }
+                          }
+                          ReactFragment(
+                            <.h5(statusStyle)(r.titleString),
+                            visibleRooms
+                              .filter(_.status == r)
+                              .toVdomArray { case rm: RoomMetadata =>
+                                MetadataBox(
+                                  roomMetadata = rm,
+                                  isOfficial = isOfficial,
+                                  userName = userName,
+                                  sendToMainChannel = sendToMainChannel,
+                                  enterRoom = connect
+                                )(^.key := rm.name)
+                              },
+                            <.hr
+                          )
+                        }
+
                         ReactFragment(
                           Helpers.textInputWithEnterButton(
                             field = roomNameLive,
@@ -214,15 +241,8 @@ object LobbyPage {
                             enter = enter
                           ),
                           Option(<.div("No rooms to show.")).filter(_ => currentRooms.isEmpty),
-                          visibleRooms.toVdomArray { case rm: RoomMetadata =>
-                            MetadataBox(
-                              roomMetadata = rm,
-                              isOfficial = isOfficial,
-                              userName = userName,
-                              enterRoom = connect,
-                              sendToMainChannel
-                            )(^.key := rm.name)
-                          }
+                          makeMetadatas(RoomStatus.InProgress),
+                          makeMetadatas(RoomStatus.Complete)
                         )
                       }
                   }
