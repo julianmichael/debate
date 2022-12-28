@@ -226,6 +226,9 @@ object Styles extends jjm.ui.View.Styles {
     lightseagreen
   )
 
+  val judgeAssignment   = style(fontWeight.bold, color(judgeColor))
+  val debaterAssignment = styleF.int(0 to 4)(i => styleS(fontWeight.bold, color(answerColors(i))))
+
   val debateWidthOffset =
     styleF.int(0 to 4)(i =>
       styleS(

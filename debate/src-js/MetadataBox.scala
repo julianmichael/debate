@@ -6,6 +6,7 @@ import japgolly.scalajs.react.extra.StateSnapshot
 import scalacss.ScalaCssReact._
 
 import cats.implicits._
+import japgolly.scalajs.react.feature.ReactFragment
 object MetadataBox {
   import Helpers.ClassSetInterpolator
   val S = Styles
@@ -32,26 +33,69 @@ object MetadataBox {
       }
     }
 
-    // TODO probably just a val instead of a def
-    def statusDisplay(status: RoomStatus) =
-      <.div(S.optionTitle)(roomMetadata.name, " ", <.span(statusStyle)(s"($status)"))
+    val statusDisplay =
+      <.div(S.optionTitle)(roomMetadata.name, " ", <.span(statusStyle)(s"(${roomMetadata.status})"))
 
-    // TODO show their roles
-    def assignedParticipants() = <
-      .div(
-        <.strong("Assigned: "),
-        Helpers.commaSeparatedSpans(roomMetadata.roleAssignments.values.toList.sorted).toVdomArray
+    val turnDisplay = {
+      val speakers = roomMetadata.currentSpeakers
+      // TODO: this relies on role assignments being unique (injective map).
+      // We need to enforce this at debate creation time and (ideally) in the types.
+      val myRole = roomMetadata.roleAssignments.map(_.swap).get(userName.value)
+      val speakerElements = speakers.collect {
+        case (speaker: DebateRole) if roomMetadata.roleAssignments.contains(speaker) =>
+          val isMyTurn    = myRole.map(_ == speaker).getOrElse(false)
+          val speakerName = roomMetadata.roleAssignments(speaker)
+          <.span(
+            speakerName,
+            ^.fontWeight :=
+              (if (isMyTurn)
+                 "bold"
+               else
+                 "normal")
+          )
+      }
+      <.div("Turn: ", speakerElements.toVdomArray).when(speakerElements.nonEmpty)
+    }
+
+    val roleAssignments = {
+
+      val debaterRoleAssignments = roomMetadata
+        .roleAssignments
+        .collect { case (k @ Debater(_), v) =>
+          k -> v
+        }
+
+      ReactFragment(
+        roomMetadata
+          .roleAssignments
+          .get(Judge)
+          .map(name => <.div("Judge: ", <.span(S.judgeAssignment)(name))),
+        Option(debaterRoleAssignments)
+          .filter(_.nonEmpty)
+          .map(roles =>
+            <.div(
+              "Debaters: ",
+              Helpers
+                .commaSeparatedTags[Vector, (Debater, String)](
+                  roles.toVector.sortBy(_._1.answerIndex),
+                  getTag = { case (role, name) =>
+                    <.span(S.debaterAssignment(role.answerIndex))(name)
+                  }
+                )
+                .toVdomArray
+            )
+          )
       )
-      .when(roomMetadata.roleAssignments.nonEmpty)
+    }
 
-    def presentParticipants() = <
+    val presentParticipants = <
       .div(
-        <.strong("Present: "),
+        "Present: ",
         Helpers.commaSeparatedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
       )
       .when(roomMetadata.currentParticipants.nonEmpty)
 
-    def deleteRoom() =
+    val deleteRoom =
       <.button(c"btn btn-block btn-danger", S.adminOnly)(
         "Delete room",
         ^.onClick ==>
@@ -61,7 +105,7 @@ object MetadataBox {
           })
       )
 
-    def enterRoomButton() =
+    val enterRoomButton =
       (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName.value)))
         .when(canEnterRoom)
 
@@ -70,13 +114,14 @@ object MetadataBox {
         S.simpleSelectable
       else
         S.simpleUnselectable
-    val status = roomMetadata.status
-    <.div(S.metadataBox, c"text-center", S.optionBox, selectableStyle)(
-      statusDisplay(status = status),
-      assignedParticipants(),
-      presentParticipants(),
-      deleteRoom(),
-      enterRoomButton()
+
+    <.div(S.metadataBox, S.optionBox, selectableStyle)(
+      statusDisplay,
+      roleAssignments,
+      presentParticipants,
+      turnDisplay,
+      deleteRoom,
+      enterRoomButton
     )
   }
 }
