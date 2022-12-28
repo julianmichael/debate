@@ -4,15 +4,11 @@ import cats.Foldable
 import cats.Functor
 import cats.implicits._
 
-import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.Callback
-
-@JsonCodec
-case class ConnectionSpec(isOfficial: Boolean, roomName: String, participantName: String)
 
 object Helpers {
 

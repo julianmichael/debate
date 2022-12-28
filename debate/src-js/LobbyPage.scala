@@ -67,74 +67,6 @@ object LobbyPage {
             )
           }
 
-        def roomManagement(
-          roomMetadata: RoomMetadata,
-          isOfficial: Boolean,
-          userName: StateSnapshot[String]
-        ) = {
-          val canEnterRoom =
-            userName.value.nonEmpty && !roomMetadata.currentParticipants.contains(userName.value)
-          val statusStyle = {
-            import RoomStatus._
-            roomMetadata.status match {
-              case InProgress =>
-                S.inProgressStatusLabel
-              case Complete =>
-                S.completeStatusLabel
-            }
-          }
-
-          // TODO probably just a val instead of a def
-          def statusDisplay(status: debate.RoomStatus) =
-            <.div(S.optionTitle)(roomMetadata.name, " ", <.span(statusStyle)(s"($status)"))
-
-          def assignedParticipants() = <
-            .div(
-              <.strong("Assigned: "),
-              Helpers
-                .commaSeparatedSpans(roomMetadata.assignedParticipants.toList.sorted)
-                .toVdomArray
-            )
-            .when(roomMetadata.assignedParticipants.nonEmpty)
-
-          def presentParticipants() = <
-            .div(
-              <.strong("Present: "),
-              Helpers
-                .commaSeparatedSpans(roomMetadata.currentParticipants.toList.sorted)
-                .toVdomArray
-            )
-            .when(roomMetadata.currentParticipants.nonEmpty)
-
-          def deleteRoom() =
-            <.button(c"btn btn-block btn-danger", S.adminOnly)(
-              "Delete room",
-              ^.onClick ==>
-                ((e: ReactMouseEvent) => {
-                  e.stopPropagation();
-                  sendToMainChannel(DeleteRoom(isOfficial, roomMetadata.name))
-                })
-            )
-
-          def enterRoomButton() =
-            (^.onClick --> connect(ConnectionSpec(isOfficial, roomMetadata.name, userName.value)))
-              .when(canEnterRoom)
-
-          val selectableStyle =
-            if (canEnterRoom)
-              S.simpleSelectable
-            else
-              S.simpleUnselectable
-          val status = roomMetadata.status
-          <.div(c"text-center", S.optionBox, selectableStyle)(
-            statusDisplay(status = status),
-            assignedParticipants(),
-            presentParticipants(),
-            deleteRoom(),
-            enterRoomButton()
-          )
-        }
-
         @JsonCodec
         sealed trait LobbyTab extends Product with Serializable {
           import LobbyTab._
@@ -283,10 +215,12 @@ object LobbyPage {
                           ),
                           Option(<.div("No rooms to show.")).filter(_ => currentRooms.isEmpty),
                           visibleRooms.toVdomArray { case rm: RoomMetadata =>
-                            roomManagement(
+                            MetadataBox(
                               roomMetadata = rm,
                               isOfficial = isOfficial,
-                              userName = userName
+                              userName = userName,
+                              enterRoom = connect,
+                              sendToMainChannel
                             )(^.key := rm.name)
                           }
                         )
