@@ -23,6 +23,8 @@ object MetadataBox {
     val statusStyle = {
       import RoomStatus._
       roomMetadata.status match {
+        case WaitingToBegin =>
+          S.waitingToBeginStatusLabel
         case InProgress =>
           S.inProgressStatusLabel
         case Complete =>
@@ -34,12 +36,13 @@ object MetadataBox {
     def statusDisplay(status: RoomStatus) =
       <.div(S.optionTitle)(roomMetadata.name, " ", <.span(statusStyle)(s"($status)"))
 
+    // TODO show their roles
     def assignedParticipants() = <
       .div(
         <.strong("Assigned: "),
-        Helpers.commaSeparatedSpans(roomMetadata.assignedParticipants.toList.sorted).toVdomArray
+        Helpers.commaSeparatedSpans(roomMetadata.roleAssignments.values.toList.sorted).toVdomArray
       )
-      .when(roomMetadata.assignedParticipants.nonEmpty)
+      .when(roomMetadata.roleAssignments.nonEmpty)
 
     def presentParticipants() = <
       .div(

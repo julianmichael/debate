@@ -7,7 +7,6 @@ import cats.implicits._
 
 import io.circe.generic.JsonCodec
 import monocle.Lens
-import monocle.macros.Lenses
 
 import jjm.ling.ESpan
 
@@ -34,6 +33,8 @@ package object debate extends PackagePlatformExtensions {
     import RoomStatus._
     override def toString =
       this match {
+        case WaitingToBegin =>
+          "waiting to begin"
         case InProgress =>
           "in progress"
         case Complete =>
@@ -50,6 +51,8 @@ package object debate extends PackagePlatformExtensions {
 
     def titleString =
       this match {
+        case WaitingToBegin =>
+          "Waiting to Begin"
         case InProgress =>
           "In Progress"
         case Complete =>
@@ -57,30 +60,9 @@ package object debate extends PackagePlatformExtensions {
       }
   }
   object RoomStatus {
-    case object InProgress extends RoomStatus
-    case object Complete   extends RoomStatus
-  }
-
-  @Lenses
-  @JsonCodec
-  case class RoomMetadata(
-    name: String,
-    assignedParticipants: Set[String],
-    currentParticipants: Set[String],
-    creationTime: Long,
-    // latestUpdateTime: Long, // TODO
-    status: RoomStatus
-  ) {
-    private[this] def matchesKeyword(keyword: String) = {
-      val k     = keyword.toLowerCase
-      val words = assignedParticipants ++ currentParticipants + name + status.toString
-      words.exists(_.toLowerCase.contains(k))
-    }
-    def matchesQuery(query: String) = {
-      val keywords = query.split("\\s+").toSet
-      keywords.forall(matchesKeyword)
-    }
-
+    case object WaitingToBegin extends RoomStatus
+    case object InProgress     extends RoomStatus
+    case object Complete       extends RoomStatus
   }
 
   def makePageTitle(x: String) =

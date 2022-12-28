@@ -130,7 +130,7 @@ object LobbyPage {
               import LobbyTab._
               val myDebates = lobby
                 .officialRooms
-                .filter(_.assignedParticipants.contains(userName.value))
+                .filter(_.roleAssignments.values.toSet.contains(userName.value))
               val isOfficial =
                 lobbyTab.value match {
                   case PracticeDebates =>
@@ -209,6 +209,8 @@ object LobbyPage {
                           val statusStyle = {
                             import RoomStatus._
                             r match {
+                              case WaitingToBegin =>
+                                S.waitingToBeginStatusLabel
                               case InProgress =>
                                 S.inProgressStatusLabel
                               case Complete =>

@@ -41,8 +41,8 @@ object DebatePanel {
 
   /** Show whose turn it is. */
   def turnDisplay(
-    roleOpt: Option[Role],
-    currentTurns: Either[DebateResult, Map[Role, DebateTurnType]]
+    roleOpt: Option[DebateRole],
+    currentTurns: Either[DebateResult, Map[DebateRole, DebateTurnType]]
   ) = <.div(
     // NOTE: this assumes exactly one unique turn type will be present on the right side of the Either.
     // We expect this to be true but it isn't guaranteed in the types or anything.
@@ -147,8 +147,9 @@ object DebatePanel {
     val userTurn =
       for {
         role        <- roleOpt
+        debateRole  <- role.asDebateRoleOpt
         transitions <- currentTransitions.toOption
-        turn        <- transitions.giveSpeech.get(role)
+        turn        <- transitions.giveSpeech.get(debateRole)
       } yield turn
     val isUsersTurn = userTurn.nonEmpty
 
@@ -198,23 +199,25 @@ object DebatePanel {
                   .when(currentMessage.value.size > 0 && isUsersTurn)
               }
             ),
-            turnDisplay(roleOpt, currentTransitions.map(_.currentTurns)),
+            turnDisplay(roleOpt.flatMap(_.asDebateRoleOpt), currentTransitions.map(_.currentTurns)),
             userId.whenDefined { userId =>
               currentTransitions
                 .toOption
                 .whenDefined { transitions =>
                   <.div(S.col)(
                     <.div(S.col)(
-                      transitions
-                        .giveSpeech
-                        .get(userId.role)
+                      userId
+                        .role
+                        .asDebateRoleOpt
+                        .flatMap(transitions.giveSpeech.get)
                         .whenDefined { case turnDotPair =>
                           SpeechInput
                             .speechInput(debate, sendDebate, userId, turnDotPair, currentMessage)
                         },
-                      transitions
-                        .undo
-                        .get(userId.role)
+                      userId
+                        .role
+                        .asDebateRoleOpt
+                        .flatMap(transitions.undo.get)
                         .whenDefined { case (speech, debateAfterUndo) =>
                           <.button(
                             "Undo",

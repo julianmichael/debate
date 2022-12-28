@@ -77,11 +77,27 @@ case class DebateStateManager(
         .sortBy(_._2)
         .map { case (roomName, room) =>
           RoomMetadata(
-            roomName,
-            room.debate.debate.setup.roles.values.toSet,
-            room.debate.participants.map(_.name),
-            room.debate.debate.setup.startTime,
-            room.debate.status
+            name = roomName,
+            storyTitle = room.debate.debate.setup.sourceMaterial.title,
+            roleAssignments = room.debate.debate.setup.roles,
+            creationTime = room.debate.debate.setup.startTime,
+            status = room.debate.status,
+            latestUpdateTime = room
+              .debate
+              .debate
+              .rounds
+              .view
+              .flatMap(_.timestamp(room.debate.debate.setup.numDebaters))
+              .lastOption
+              .getOrElse(room.debate.debate.setup.startTime),
+            result = room.debate.debate.result,
+            whoseTurnIsNext = room
+              .debate
+              .debate
+              .currentTransitions
+              .toOption
+              .foldMap(_.currentSpeakers),
+            currentParticipants = room.debate.participants.map(_.name)
           )
         }
     }

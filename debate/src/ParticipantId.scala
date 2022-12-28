@@ -20,7 +20,18 @@ object ParticipantId
   *   - Observer can't do anything, just watches.
   */
 @JsonCodec
-sealed trait Role extends Product with Serializable
+sealed trait Role extends Product with Serializable {
+  def asDebateRoleOpt: Option[DebateRole] =
+    this match {
+      case Facilitator | Observer =>
+        None
+      case d @ Debater(i) =>
+        Some(d)
+      case Judge =>
+        Some(Judge)
+    }
+
+}
 case object Observer extends Role {
   override def toString = "Observer"
 }

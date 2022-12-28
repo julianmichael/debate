@@ -79,6 +79,7 @@ object DebatePage {
       .participants
       .find(_.name == userName)
       .map(_.role)
+      .flatMap(_.asDebateRoleOpt)
       .fold(Callback.empty) { role =>
         def getRoles(debate: DebateState) = debate
           .debate
