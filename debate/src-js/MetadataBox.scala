@@ -68,7 +68,7 @@ object MetadataBox {
       else
         S.simpleUnselectable
     val status = roomMetadata.status
-    <.div(c"text-center", S.optionBox, selectableStyle)(
+    <.div(S.metadataBox, c"text-center", S.optionBox, selectableStyle)(
       statusDisplay(status = status),
       assignedParticipants(),
       presentParticipants(),

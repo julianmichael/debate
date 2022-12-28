@@ -217,18 +217,19 @@ object LobbyPage {
                           }
                           ReactFragment(
                             <.h5(statusStyle)(r.titleString),
-                            visibleRooms
-                              .filter(_.status == r)
-                              .toVdomArray { case rm: RoomMetadata =>
-                                MetadataBox(
-                                  roomMetadata = rm,
-                                  isOfficial = isOfficial,
-                                  userName = userName,
-                                  sendToMainChannel = sendToMainChannel,
-                                  enterRoom = connect
-                                )(^.key := rm.name)
-                              },
-                            <.hr
+                            <.div(S.metadataListContainer, S.spaceySubcontainer)(
+                              visibleRooms
+                                .filter(_.status == r)
+                                .toVdomArray { case rm: RoomMetadata =>
+                                  MetadataBox(
+                                    roomMetadata = rm,
+                                    isOfficial = isOfficial,
+                                    userName = userName,
+                                    sendToMainChannel = sendToMainChannel,
+                                    enterRoom = connect
+                                  )(^.key := rm.name)
+                                }
+                            )
                           )
                         }
 
@@ -242,6 +243,7 @@ object LobbyPage {
                           ),
                           Option(<.div("No rooms to show.")).filter(_ => currentRooms.isEmpty),
                           makeMetadatas(RoomStatus.InProgress),
+                          <.hr,
                           makeMetadatas(RoomStatus.Complete)
                         )
                       }

@@ -126,15 +126,25 @@ object Styles extends jjm.ui.View.Styles {
 
   val spaceyPadding = 6 px
   val spaceyContainer = style(
-    padding(spaceyPadding / 2),
+    paddingTop(spaceyPadding),
+    paddingLeft(spaceyPadding / 2),
+    paddingRight(spaceyPadding / 2),
     unsafeChild("> *") {
-      margin(spaceyPadding)
+      style(
+        marginLeft(spaceyPadding / 2),
+        marginRight(spaceyPadding / 2),
+        marginBottom(spaceyPadding)
+      )
     }
   )
   val spaceySubcontainer = style(
-    margin(0 em),
+    margin(0 em).important,
     unsafeChild("> *") {
-      margin(spaceyPadding)
+      style(
+        marginLeft(spaceyPadding / 2),
+        marginRight(spaceyPadding / 2),
+        marginBottom(spaceyPadding)
+      )
     }
   )
 
@@ -198,6 +208,10 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val optionTitle = style(margin(2 px), fontWeight.bold)
+
+  val metadataBox = style(flexBasis := "300px")
+
+  val metadataListContainer = style(display.flex, flexDirection.row, flexWrap.wrap)
 
   val judgeColor      = darkgreen
   val judgeColorLight = green
