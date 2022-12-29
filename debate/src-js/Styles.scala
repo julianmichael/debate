@@ -209,8 +209,6 @@ object Styles extends jjm.ui.View.Styles {
 
   val optionTitle = style(margin(2 px), fontWeight.bold)
 
-  val metadataBox = style()
-
   val metadataListContainer = style(
     display.grid,
     gridTemplateColumns := "repeat(auto-fill,minmax(250px, 1fr))"

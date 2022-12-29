@@ -226,7 +226,7 @@ object LobbyPage {
                               } else {
                                 roomsToShow
                                   .toVector
-                                  .sorted
+                                  .sorted(RoomMetadata.getOrdering(userName.value))
                                   .toVdomArray { case rm: RoomMetadata =>
                                     MetadataBox(
                                       roomMetadata = rm,

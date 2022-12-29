@@ -67,14 +67,6 @@ object MetadataBox {
         OverUnder(label, style)
       }
 
-    val boxTitle =
-      <.div(S.optionTitle)(
-        roomMetadata.name,
-        resultOverUnderOpt.map(overUnder => <.span(" (", overUnder.label, ")"))
-      )
-
-    val storyTitle = <.div("Story: ", <.i(roomMetadata.storyTitle))
-
     def getRoleStyle(role: DebateRole) =
       role match {
         case Judge =>
@@ -83,23 +75,43 @@ object MetadataBox {
           S.debaterAssignment(i)
       }
 
-    val turnDisplay = {
-      val speakers = roomMetadata.currentSpeakers
-      val myRole   = roomMetadata.roleAssignments.map(_.swap).get(userName.value)
-      val speakerElements = speakers.collect { case (speaker: DebateRole) =>
-        val isMyTurn = myRole.map(_ == speaker).getOrElse(false)
-        // val speakerName = roomMetadata.roleAssignments(speaker)
-        <.span(
-          getRoleStyle(speaker),
-          ^.fontWeight :=
-            (if (isMyTurn)
-               "bold"
-             else
-               "normal")
-        )(speaker.toString)
+    val bgStyle =
+      resultOverUnderOpt match {
+        case Some(overUnder) =>
+          overUnder.bgStyle
+        case None =>
+          // assumes roles are unique?
+          val myRoles  = roomMetadata.roleAssignments.filter(_._2 == userName.value).keySet
+          val isMyTurn = myRoles.intersect(roomMetadata.currentSpeakers).nonEmpty
+          if (isMyTurn) {
+            ^.backgroundColor := Rgba(255, 255, 0, 0.25).toColorStyleString
+          } else
+            TagMod.empty
       }
-      <.div("Turn: ", speakerElements.toVdomArray).when(speakerElements.nonEmpty)
+
+    val turnSpan = {
+      val speakers = roomMetadata.currentSpeakers
+      val speakerElements = Helpers.delimitedTags[Vector, DebateRole](
+        speakers.toVector,
+        speaker => <.span(getRoleStyle(speaker))(speaker.toString)
+      )
+      <.span(S.bold)(speakerElements.toVdomArray, <.span(c"text-muted")("'s turn"))
+        .when(speakerElements.nonEmpty)
     }
+
+    val boxTitle = ReactFragment(
+      <.h5(c"card-title")(roomMetadata.name),
+      <.h6(c"card-subtitle mb-2")(
+        resultOverUnderOpt match {
+          case Some(overUnder) =>
+            overUnder.label
+          case None =>
+            turnSpan
+        }
+      )
+    )
+
+    val storyTitle = <.div("Story: ", <.i(roomMetadata.storyTitle))
 
     val roleAssignments = {
 
@@ -160,24 +172,22 @@ object MetadataBox {
           })
       )
 
-    val enterRoomButton =
-      (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName.value)))
-        .when(canEnterRoom)
-
     val selectableStyle =
       if (canEnterRoom)
         S.simpleSelectable
       else
         S.simpleUnselectable
 
-    <.div(S.metadataBox, S.optionBox, selectableStyle, resultOverUnderOpt.whenDefined(_.bgStyle))(
-      boxTitle,
-      storyTitle,
-      roleAssignments,
-      presentParticipants,
-      turnDisplay,
-      deleteRoom,
-      enterRoomButton
+    <.div(c"card", selectableStyle, bgStyle)(
+      <.div(c"card-body")(
+        boxTitle,
+        storyTitle,
+        roleAssignments,
+        presentParticipants,
+        deleteRoom,
+        (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName.value)))
+          .when(canEnterRoom)
+      )
     )
   }
 }

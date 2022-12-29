@@ -3,6 +3,7 @@ package debate
 import monocle.macros.Lenses
 import io.circe.generic.JsonCodec
 import cats.kernel.Order
+import cats.implicits._
 
 @Lenses
 @JsonCodec
@@ -29,5 +30,10 @@ case class RoomMetadata(
 
 }
 object RoomMetadata {
-  implicit val roomMetadataOrder: Order[RoomMetadata] = Order.by(room => -room.latestUpdateTime)
+  def getOrder(userName: String): Order[RoomMetadata] = Order.by { room =>
+    val myRoles  = room.roleAssignments.filter(_._2 == userName).keySet
+    val isMyTurn = myRoles.intersect(room.currentSpeakers).nonEmpty
+    !isMyTurn -> -room.latestUpdateTime
+  }
+  def getOrdering(userName: String) = catsKernelOrderingForOrder(getOrder(userName))
 }
