@@ -10,7 +10,6 @@ import cats.effect.IO
 import cats.effect.Timer
 import cats.effect.concurrent.Ref
 import cats.implicits._
-import cats.kernel.Order
 
 import fs2.Stream
 import fs2.concurrent.Topic
@@ -35,21 +34,6 @@ case class DebateRoom(debate: DebateState, channel: Topic[IO, DebateState]) {
 object DebateRoom {
   def create(debate: DebateState)(implicit c: Concurrent[IO]) = Topic[IO, DebateState](debate)
     .map(DebateRoom(debate, _))
-
-  /** Order:
-    * 1) new uninitialized rooms,
-    * 2) latest turns taken
-    */
-  implicit val debateRoomOrder: Order[DebateRoom] = Order.by(room =>
-    room
-      .debate
-      .debate
-      .rounds
-      .view
-      .flatMap(_.timestamp(room.debate.debate.setup.numDebaters))
-      .lastOption
-      .fold(-room.debate.debate.setup.startTime)(-_)
-  )
 }
 
 case class DebateStateManager(
@@ -70,11 +54,10 @@ case class DebateStateManager(
     .composePrism(StdOptics.some[DebateRoom])
     .composeLens(DebateRoom.debate)
 
-  def getRoomList = rooms
+  def getRoomMetadata = rooms
     .get
     .map {
       _.toVector
-        .sortBy(_._2)
         .map { case (roomName, room) =>
           RoomMetadata(
             name = roomName,
@@ -100,6 +83,7 @@ case class DebateStateManager(
             currentParticipants = room.debate.participants.map(_.name)
           )
         }
+        .toSet
     }
 
   def pushUpdate = pushUpdateRef.get.flatten
@@ -167,10 +151,8 @@ case class DebateStateManager(
         FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(
           debateState.debate
         ) // save after every change
-      // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
-      // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
+      _ <- pushUpdate
     } yield debateState
-
   }
 
   def createWebsocket(roomName: String, participantName: String)(implicit timer: Timer[IO]) =

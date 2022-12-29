@@ -224,15 +224,18 @@ object LobbyPage {
                               if (roomsToShow.isEmpty) {
                                 <.div("No rooms to show.")
                               } else {
-                                roomsToShow.toVdomArray { case rm: RoomMetadata =>
-                                  MetadataBox(
-                                    roomMetadata = rm,
-                                    isOfficial = isOfficial,
-                                    userName = userName,
-                                    sendToMainChannel = sendToMainChannel,
-                                    enterRoom = connect
-                                  )(^.key := rm.name)
-                                }
+                                roomsToShow
+                                  .toVector
+                                  .sorted
+                                  .toVdomArray { case rm: RoomMetadata =>
+                                    MetadataBox(
+                                      roomMetadata = rm,
+                                      isOfficial = isOfficial,
+                                      userName = userName,
+                                      sendToMainChannel = sendToMainChannel,
+                                      enterRoom = connect
+                                    )(^.key := rm.name)
+                                  }
                               }
                             )
                           )

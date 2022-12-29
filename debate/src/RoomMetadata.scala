@@ -2,6 +2,7 @@ package debate
 
 import monocle.macros.Lenses
 import io.circe.generic.JsonCodec
+import cats.kernel.Order
 
 @Lenses
 @JsonCodec
@@ -27,4 +28,6 @@ case class RoomMetadata(
   }
 
 }
-object RoomMetadata
+object RoomMetadata {
+  implicit val roomMetadataOrder: Order[RoomMetadata] = Order.by(room => -room.latestUpdateTime)
+}

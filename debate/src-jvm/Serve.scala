@@ -154,8 +154,8 @@ object Serve
         .init(initializeDebate(qualityDataset), officialRoomsDir(saveDir), pushUpdateRef)
       practiceDebates <- DebateStateManager
         .init(initializeDebate(qualityDataset), practiceRoomsDir(saveDir), pushUpdateRef)
-      officialRooms <- officialDebates.getRoomList
-      practiceRooms <- practiceDebates.getRoomList
+      officialRooms <- officialDebates.getRoomMetadata
+      practiceRooms <- practiceDebates.getRoomMetadata
       // channel to update all clients on the lobby state
       leaderboard <- officialDebates.getLeaderboard
       mainChannel <- Topic[IO, Lobby](
@@ -163,12 +163,11 @@ object Serve
       )
       pushUpdate = {
         for {
-          debaters         <- trackedDebatersRef.get
-          officialRoomList <- officialDebates.getRoomList
-          practiceRoomList <- practiceDebates.getRoomList
-          leaderboard      <- officialDebates.getLeaderboard
-          _ <- mainChannel
-            .publish1(Lobby(debaters, officialRoomList, practiceRoomList, leaderboard))
+          debaters      <- trackedDebatersRef.get
+          officialRooms <- officialDebates.getRoomMetadata
+          practiceRooms <- practiceDebates.getRoomMetadata
+          leaderboard   <- officialDebates.getLeaderboard
+          _ <- mainChannel.publish1(Lobby(debaters, officialRooms, practiceRooms, leaderboard))
         } yield ()
       }
       _ <- pushUpdateRef.set(pushUpdate)
@@ -256,8 +255,8 @@ object Serve
     val createLobbyWebsocket =
       for {
         debaters      <- trackedDebaters.get
-        officialRooms <- officialDebates.getRoomList
-        practiceRooms <- practiceDebates.getRoomList
+        officialRooms <- officialDebates.getRoomMetadata
+        practiceRooms <- practiceDebates.getRoomMetadata
         leaderboard   <- officialDebates.getLeaderboard
         outStream = Stream
           .emit[IO, Option[Lobby]](
