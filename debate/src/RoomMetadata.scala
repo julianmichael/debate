@@ -33,7 +33,7 @@ object RoomMetadata {
   def getOrder(userName: String): Order[RoomMetadata] = Order.by { room =>
     val myRoles  = room.roleAssignments.filter(_._2 == userName).keySet
     val isMyTurn = myRoles.intersect(room.currentSpeakers).nonEmpty
-    !isMyTurn -> -room.latestUpdateTime
+    (!isMyTurn, room.currentParticipants.size, -room.latestUpdateTime)
   }
   def getOrdering(userName: String) = catsKernelOrderingForOrder(getOrder(userName))
 }

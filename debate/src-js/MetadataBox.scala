@@ -80,7 +80,6 @@ object MetadataBox {
         case Some(overUnder) =>
           overUnder.bgStyle
         case None =>
-          // assumes roles are unique?
           val myRoles  = roomMetadata.roleAssignments.filter(_._2 == userName.value).keySet
           val isMyTurn = myRoles.intersect(roomMetadata.currentSpeakers).nonEmpty
           if (isMyTurn) {
@@ -99,16 +98,61 @@ object MetadataBox {
         .when(speakerElements.nonEmpty)
     }
 
+    val userRoleDisplay = {
+      val myRoles =
+        roomMetadata.roleAssignments.filter(_._2 == userName.value).keySet.toVector.sorted
+      if (myRoles.isEmpty)
+        None
+      else
+        Some {
+          roomMetadata.result match {
+            case Some(result) =>
+              <.span(S.bold)(
+                <.span(c"text-muted")("You were "),
+                Helpers
+                  .delimitedTags[Vector, DebateRole](
+                    myRoles,
+                    {
+                      case Judge =>
+                        <.span(S.judgeAssignment, "Judge")
+                      case Debater(i) if i == result.correctAnswerIndex =>
+                        <.span(S.correct, "Honest")
+                      case Debater(_) =>
+                        <.span(S.incorrect, "Dishonest")
+                    }
+                  )
+                  .toVdomArray
+              )
+            case None =>
+              <.span(S.bold)(
+                <.span(c"text-muted")("You are "),
+                Helpers
+                  .delimitedTags[Vector, DebateRole](
+                    myRoles,
+                    {
+                      case Judge =>
+                        <.span(S.judgeAssignment, "Judge")
+                      case d @ Debater(i) =>
+                        <.span(S.debaterAssignment(i), d.toString)
+                    }
+                  )
+                  .toVdomArray
+              )
+          }
+        }
+    }
+
     val boxTitle = ReactFragment(
       <.h5(c"card-title")(roomMetadata.name),
-      <.h6(c"card-subtitle mb-2")(
+      <.h6(c"card-subtitle", c"mb-2")(
         resultOverUnderOpt match {
           case Some(overUnder) =>
             overUnder.label
           case None =>
             turnSpan
         }
-      )
+      ),
+      userRoleDisplay.map(<.h6(c"card-subtitle mb-2")(_))
     )
 
     val storyTitle = <.div("Story: ", <.i(roomMetadata.storyTitle))
