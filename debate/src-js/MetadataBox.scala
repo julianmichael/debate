@@ -75,23 +75,28 @@ object MetadataBox {
 
     val storyTitle = <.div("Story: ", <.i(roomMetadata.storyTitle))
 
+    def getRoleStyle(role: DebateRole) =
+      role match {
+        case Judge =>
+          S.judgeAssignment
+        case Debater(i) =>
+          S.debaterAssignment(i)
+      }
+
     val turnDisplay = {
       val speakers = roomMetadata.currentSpeakers
-      // TODO: this relies on role assignments being unique (injective map).
-      // We need to enforce this at debate creation time and (ideally) in the types.
-      val myRole = roomMetadata.roleAssignments.map(_.swap).get(userName.value)
-      val speakerElements = speakers.collect {
-        case (speaker: DebateRole) if roomMetadata.roleAssignments.contains(speaker) =>
-          val isMyTurn    = myRole.map(_ == speaker).getOrElse(false)
-          val speakerName = roomMetadata.roleAssignments(speaker)
-          <.span(
-            speakerName,
-            ^.fontWeight :=
-              (if (isMyTurn)
-                 "bold"
-               else
-                 "normal")
-          )
+      val myRole   = roomMetadata.roleAssignments.map(_.swap).get(userName.value)
+      val speakerElements = speakers.collect { case (speaker: DebateRole) =>
+        val isMyTurn = myRole.map(_ == speaker).getOrElse(false)
+        // val speakerName = roomMetadata.roleAssignments(speaker)
+        <.span(
+          getRoleStyle(speaker),
+          ^.fontWeight :=
+            (if (isMyTurn)
+               "bold"
+             else
+               "normal")
+        )(speaker.toString)
       }
       <.div("Turn: ", speakerElements.toVdomArray).when(speakerElements.nonEmpty)
     }
