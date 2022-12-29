@@ -108,7 +108,15 @@ object MetadataBox {
         roomMetadata
           .roleAssignments
           .get(Judge)
-          .map(name => <.div("Judge: ", <.span(S.judgeAssignment)(name))),
+          .map(name =>
+            <.div(
+              "Judge: ",
+              <.span(
+                S.judgeAssignment,
+                ^.fontWeight.bold.when(roomMetadata.currentParticipants.contains(name))
+              )(name)
+            )
+          ),
         Option(debaterRoleAssignments)
           .filter(_.nonEmpty)
           .map(roles =>
@@ -118,7 +126,10 @@ object MetadataBox {
                 .delimitedTags[Vector, (Debater, String)](
                   roles.toVector.sortBy(_._1.answerIndex),
                   getTag = { case (role, name) =>
-                    <.span(S.debaterAssignment(role.answerIndex))(name)
+                    <.span(
+                      S.debaterAssignment(role.answerIndex),
+                      ^.fontWeight.bold.when(roomMetadata.currentParticipants.contains(name))
+                    )(name)
                   }
                 )
                 .toVdomArray
