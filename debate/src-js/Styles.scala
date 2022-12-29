@@ -209,9 +209,12 @@ object Styles extends jjm.ui.View.Styles {
 
   val optionTitle = style(margin(2 px), fontWeight.bold)
 
-  val metadataBox = style(flexBasis := "250px")
+  val metadataBox = style()
 
-  val metadataListContainer = style(display.flex, flexDirection.row, flexWrap.wrap)
+  val metadataListContainer = style(
+    display.grid,
+    gridTemplateColumns := "repeat(auto-fill,minmax(250px, 1fr))"
+  )
 
   val judgeColor      = darkgreen
   val judgeColorLight = green
