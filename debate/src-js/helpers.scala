@@ -18,22 +18,24 @@ object Helpers {
       ^.classSet1(sc.s(args: _*))
   }
 
-  def commaSeparatedTags[F[_]: Foldable: Functor, A](
+  def delimitedTags[F[_]: Foldable: Functor, A](
     fa: F[A],
     getTag: A => VdomTag,
+    delimiter: String = ", ",
     getKey: Int => Option[String] = i => Some(s"$i")
   ) = fa
     .map(x => Vector(getTag(x)))
-    .intercalate(Vector(<.span(", ")))
+    .intercalate(Vector(<.span(delimiter)))
     .zipWithIndex
     .map { case (x, i) =>
       x(getKey(i).whenDefined(^.key := _))
     }
 
-  def commaSeparatedSpans[F[_]: Foldable: Functor](
+  def delimitedSpans[F[_]: Foldable: Functor](
     fa: F[String],
+    delimiter: String = ", ",
     getKey: Int => Option[String] = i => Some(s"$i")
-  ) = commaSeparatedTags(fa, (x: String) => <.span(x), getKey)
+  ) = delimitedTags(fa, (x: String) => <.span(x), delimiter, getKey)
 
   def wsProtocol =
     if (dom.document.location.protocol == "https:")

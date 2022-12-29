@@ -5,8 +5,11 @@ import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot
 import scalacss.ScalaCssReact._
 
+import jjm.implicits._
+
 import cats.implicits._
 import japgolly.scalajs.react.feature.ReactFragment
+import jjm.ui.Rgba
 object MetadataBox {
   import Helpers.ClassSetInterpolator
   val S = Styles
@@ -21,20 +24,56 @@ object MetadataBox {
   ) = {
     val canEnterRoom =
       userName.value.nonEmpty && !roomMetadata.currentParticipants.contains(userName.value)
-    val statusStyle = {
-      import RoomStatus._
-      roomMetadata.status match {
-        case WaitingToBegin =>
-          S.waitingToBeginStatusLabel
-        case InProgress =>
-          S.inProgressStatusLabel
-        case Complete =>
-          S.completeStatusLabel
-      }
-    }
 
-    val statusDisplay =
-      <.div(S.optionTitle)(roomMetadata.name, " ", <.span(statusStyle)(s"(${roomMetadata.status})"))
+    case class OverUnder(label: VdomNode, bgStyle: TagMod)
+
+    val resultOverUnderOpt = roomMetadata
+      .result
+      .map { result =>
+        val correctConfidence = result.finalJudgement(result.correctAnswerIndex) * 100
+        val otherConfidences = result
+          .finalJudgement
+          .remove(result.correctAnswerIndex)
+          .sortBy(-_)
+          .map(_ * 100)
+
+        val label = <.span(
+          <.span(S.correct)(f"$correctConfidence%.0f%%"),
+          "/",
+          Helpers
+            .delimitedTags[Vector, Double](
+              otherConfidences,
+              getTag = conf => <.span(S.incorrect)(f"$conf%.0f%%"),
+              delimiter = "/"
+            )
+            .toVdomArray
+        )
+
+        val style =
+          otherConfidences.headOption match {
+            case None =>
+              TagMod.empty
+            case Some(secondGuessConfidence) =>
+              val correctnessScore = correctConfidence / (correctConfidence + secondGuessConfidence)
+              val opacity          = math.abs(correctnessScore - 0.5)
+              val color =
+                if (correctnessScore > 0.5)
+                  Rgba(0, 128, 0, opacity) // green
+                else
+                  Rgba(220, 20, 60, opacity) // crimson
+              TagMod(^.backgroundColor := color.toColorStyleString)
+          }
+
+        OverUnder(label, style)
+      }
+
+    val boxTitle =
+      <.div(S.optionTitle)(
+        roomMetadata.name,
+        resultOverUnderOpt.map(overUnder => <.span(" (", overUnder.label, ")"))
+      )
+
+    val storyTitle = <.div("Story: ", <.i(roomMetadata.storyTitle))
 
     val turnDisplay = {
       val speakers = roomMetadata.currentSpeakers
@@ -76,7 +115,7 @@ object MetadataBox {
             <.div(
               "Debaters: ",
               Helpers
-                .commaSeparatedTags[Vector, (Debater, String)](
+                .delimitedTags[Vector, (Debater, String)](
                   roles.toVector.sortBy(_._1.answerIndex),
                   getTag = { case (role, name) =>
                     <.span(S.debaterAssignment(role.answerIndex))(name)
@@ -91,7 +130,7 @@ object MetadataBox {
     val presentParticipants = <
       .div(
         "Present: ",
-        Helpers.commaSeparatedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
+        Helpers.delimitedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
       )
       .when(roomMetadata.currentParticipants.nonEmpty)
 
@@ -115,8 +154,9 @@ object MetadataBox {
       else
         S.simpleUnselectable
 
-    <.div(S.metadataBox, S.optionBox, selectableStyle)(
-      statusDisplay,
+    <.div(S.metadataBox, S.optionBox, selectableStyle, resultOverUnderOpt.whenDefined(_.bgStyle))(
+      boxTitle,
+      storyTitle,
       roleAssignments,
       presentParticipants,
       turnDisplay,

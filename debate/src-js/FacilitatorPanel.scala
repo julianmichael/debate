@@ -387,7 +387,7 @@ object FacilitatorPanel {
                           <.span(
                               s"Most recent $prefix rooms: ",
                               Helpers
-                                .commaSeparatedTags[Vector, RoomMetadata](
+                                .delimitedTags[Vector, RoomMetadata](
                                   rooms.toVector.sortBy(-_.creationTime).take(10),
                                   { case roomMeta =>
                                     <.a(

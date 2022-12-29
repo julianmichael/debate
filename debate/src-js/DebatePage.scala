@@ -148,7 +148,7 @@ object DebatePage {
             <.span(S.veryGreyedOut)("none")
           else
             Helpers
-              .commaSeparatedTags[Vector, (String, Boolean)](
+              .delimitedTags[Vector, (String, Boolean)](
                 observers,
                 getTag = { case (name, isAdmin) =>
                   val roleToToggleTo =
@@ -203,7 +203,7 @@ object DebatePage {
           nameDisplay
       case None =>
         Helpers
-          .commaSeparatedSpans(
+          .delimitedSpans(
             debateState
               .value
               .participants

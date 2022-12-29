@@ -209,7 +209,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val optionTitle = style(margin(2 px), fontWeight.bold)
 
-  val metadataBox = style(flexBasis := "300px")
+  val metadataBox = style(flexBasis := "250px")
 
   val metadataListContainer = style(display.flex, flexDirection.row, flexWrap.wrap)
 
@@ -479,4 +479,9 @@ object Styles extends jjm.ui.View.Styles {
   val speechLengthPanel        = style()
   val speechLengthPanelOverage = style(color.red)
 
+  val correctColor   = green
+  val incorrectColor = crimson
+
+  val correct   = style(color(correctColor))
+  val incorrect = style(color(incorrectColor))
 }
