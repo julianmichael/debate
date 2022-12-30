@@ -398,8 +398,8 @@ case class DebateSetup(
   def areAllRolesAssigned =
     roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
 
-  def assignedRole(userName: String): Option[DebateRole] = roles.find(_._2 == userName).map(_._1)
-  def userIsAssigned(userName: String)                   = assignedRole(userName).nonEmpty
+  def assignedRoles(userName: String)  = roles.filter(_._2 == userName).keySet
+  def userIsAssigned(userName: String) = assignedRoles(userName).nonEmpty
   def roleIsAssigned(role: Role) =
     role match {
       case role: DebateRole =>
@@ -408,6 +408,7 @@ case class DebateSetup(
         false
     }
   def canAssumeRole(userName: String, role: Role) =
-    assignedRole(userName) == Some(role) || (!roleIsAssigned(role) && !userIsAssigned(userName))
+    role.asDebateRoleOpt.flatMap(roles.get) == Some(userName) ||
+      (!roleIsAssigned(role) && !userIsAssigned(userName))
 }
 object DebateSetup {}
