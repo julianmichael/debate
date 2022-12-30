@@ -23,16 +23,15 @@ object SpeechInput {
 
   // assumes it's the user's turn
   def speechInput(
-    debate: Debate,
-    sendDebate: Debate => Callback,
+    debate: StateSnapshot[Debate],
     userName: String,
     role: Role,
     turn: DotPair[* => Debate, DebateTurnType],
     currentMessage: StateSnapshot[String]
   ): TagMod = {
-    val setup                        = debate.setup
+    val setup                        = debate.value.setup
     val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
-    val source                       = debate.setup.sourceMaterial.contents
+    val source                       = debate.value.setup.sourceMaterial.contents
 
     val charLimit       = turn.fst.charLimit
     val speechLength    = SpeechSegments.getSpeechLength(source, currentMessageSpeechSegments)
@@ -42,11 +41,12 @@ object SpeechInput {
     val quoteLength      = SpeechSegments.getQuoteCoverage(source, currentMessageSpeechSegments)
     val quotesAreTooLong = quoteLimitOpt.exists(quoteLength > _)
 
-    val globalQuoteLimitOpt = debate.setup.rules.globalQuoteRestriction
+    val globalQuoteLimitOpt = debate.value.setup.rules.globalQuoteRestriction
     val globalQuoteNumChars = SpeechSegments.getQuoteCoverage(
       source,
       currentMessageSpeechSegments ++
         debate
+          .value
           .rounds
           .foldMap(_.allSpeeches.toVector.filter(_.speaker.role == role).foldMap(_.content))
     )
@@ -112,8 +112,9 @@ object SpeechInput {
       giveSpeech: DebateSpeechContent => Debate
     ) = {
       def submit = CallbackTo(System.currentTimeMillis()).flatMap(time =>
-        sendDebate(giveSpeech(DebateSpeechContent(userName, time, currentMessageSpeechSegments))) >>
-          currentMessage.setState("")
+        debate.setState(
+          giveSpeech(DebateSpeechContent(userName, time, currentMessageSpeechSegments))
+        ) >> currentMessage.setState("")
       )
       <.div(S.col)(
         speechInputPanel(_ => submit, true),
@@ -127,6 +128,7 @@ object SpeechInput {
     ) = {
       val turnNum =
         debate
+          .value
           .rounds
           .collect { case JudgeFeedback(_, _, _) =>
             1
@@ -138,7 +140,7 @@ object SpeechInput {
             Callback.empty
           else
             CallbackTo(System.currentTimeMillis()).flatMap(time =>
-              sendDebate(
+              debate.setState(
                 giveSpeech(
                   JudgeFeedbackContent(
                     speakerName = userName,

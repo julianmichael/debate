@@ -2,13 +2,14 @@ package debate
 
 import cats.implicits._
 
-import japgolly.scalajs.react._
+// import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
 import jjm.ling.ESpan
 import jjm.ui.LocalState
 import jjm.ui.Rgba
+import japgolly.scalajs.react.extra.StateSnapshot
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -138,12 +139,11 @@ object DebatePanel {
     roomName: String,
     userName: String,
     roleOpt: Option[Role],
-    debate: Debate,
-    sendDebate: Debate => Callback
+    debate: StateSnapshot[Debate]
   ) = {
-    import debate.{setup, rounds}
+    import debate.value.{setup, rounds}
 
-    val currentTransitions = debate.currentTransitions
+    val currentTransitions = debate.value.currentTransitions
     val userTurn =
       for {
         role        <- roleOpt
@@ -173,14 +173,14 @@ object DebatePanel {
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
               ^.id := "speeches",
-              visibleRounds(roleOpt, debate)
+              visibleRounds(roleOpt, debate.value)
                 .zipWithIndex
                 .flatMap { case (round, roundIndex) =>
                   Option(
                     DebateRoundView.makeRoundHtml(
                       source = setup.sourceMaterial.contents,
                       roleOpt = roleOpt,
-                      debateStartTime = debate.startTime,
+                      debateStartTime = debate.value.startTime,
                       numDebaters = setup.answers.size,
                       round
                     )(^.key := s"round-$roundIndex")
@@ -192,7 +192,7 @@ object DebatePanel {
                   .makeSpeechHtml(
                     setup.sourceMaterial.contents,
                     DebateSpeech(ParticipantId(userName, role), -1L, currentMessageSpeechSegments),
-                    debate.startTime,
+                    debate.value.startTime,
                     Some(role),
                     getInProgressSpeechStyle(role)
                   )
@@ -210,14 +210,8 @@ object DebatePanel {
                         .asDebateRoleOpt
                         .flatMap(transitions.giveSpeech.get)
                         .whenDefined { case turnDotPair =>
-                          SpeechInput.speechInput(
-                            debate,
-                            sendDebate,
-                            userName,
-                            role,
-                            turnDotPair,
-                            currentMessage
-                          )
+                          SpeechInput
+                            .speechInput(debate, userName, role, turnDotPair, currentMessage)
                         },
                       role
                         .asDebateRoleOpt
@@ -226,7 +220,7 @@ object DebatePanel {
                           <.button(
                             "Undo",
                             ^.onClick -->
-                              (sendDebate(debateAfterUndo) >>
+                              (debate.setState(debateAfterUndo) >>
                                 currentMessage.setState(SpeechSegments.getString(speech)))
                           )
                         }

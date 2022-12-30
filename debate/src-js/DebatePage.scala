@@ -214,6 +214,64 @@ object DebatePage {
           .toVdomArray
     }
 
+  def qaAndRolesRow(
+    profiles: Set[String],
+    userName: String,
+    roleOpt: Option[Role],
+    debateState: StateSnapshot[DebateState]
+  ) = {
+    def tryAssumingRole(role: Role): Callback =
+      if (!debateState.value.canSwitchToRole(userName, role))
+        Callback.empty
+      else {
+        debateState.modState(_.addParticipant(userName, role))
+      }
+    <.div(S.row)(
+      <.div(S.grow, S.col, S.debateHeaderRowCol)( // question and answers
+        <.div(
+          S.row,
+          if (roleOpt == Some(Judge))
+            S.questionBoxCurrent
+          else
+            S.questionBox,
+          S.simpleSelectable.when(debateState.value.canSwitchToRole(userName, Judge))
+        )(
+          <.div(S.grow)(
+            <.span(S.questionTitle)("Question: "),
+            debateState.value.debate.setup.question
+          ),
+          " ",
+          <.div(S.judgesList)(showRoleNames(debateState, profiles, roleOpt, Judge)),
+          ^.onClick --> tryAssumingRole(Judge)
+        ),
+        debateState
+          .value
+          .debate
+          .setup
+          .answers
+          .zipWithIndex
+          .toVdomArray { case (answer, answerIndex) =>
+            <.div(S.row)(
+              ^.key := s"answer-$answerIndex",
+              if (roleOpt == Some(Debater(answerIndex)))
+                S.answerBoxCurrent(answerIndex)
+              else
+                S.answerBox(answerIndex),
+              S.simpleSelectable
+                .when(debateState.value.canSwitchToRole(userName, Debater(answerIndex)))
+            )(
+              <.div(S.grow)(<.span(S.answerTitle)(s"${answerLetter(answerIndex)}. "), answer),
+              " ",
+              <.div(S.debatersList)(
+                showRoleNames(debateState, profiles, roleOpt, Debater(answerIndex))
+              ),
+              ^.onClick --> tryAssumingRole(Debater(answerIndex))
+            )
+          }
+      )
+    )
+  }
+
   case class Props(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback)
 
   val Component =
@@ -250,68 +308,16 @@ object DebatePage {
             val backgroundStyle = S.observerBg
 
             <.div(S.debateContainer, S.spaceyContainer)(
-              headerRow(userName, isOfficial, roomName, debateState, disconnect = disconnect), {
-                val debate = debateState.value.debate
-                val setup  = debate.setup
-                def tryAssumingRole(role: Role): Callback =
-                  if (!debateState.value.canSwitchToRole(userName, role))
-                    Callback.empty
-                  else {
-                    debateState.modState(_.addParticipant(userName, role))
-                  }
-                <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
-                  <.div(S.row)(
-                    <.div(S.grow, S.col, S.debateHeaderRowCol)( // question and answers
-                      <.div(
-                        S.row,
-                        if (roleOpt == Some(Judge))
-                          S.questionBoxCurrent
-                        else
-                          S.questionBox,
-                        S.simpleSelectable.when(debateState.value.canSwitchToRole(userName, Judge))
-                      )(
-                        <.div(S.grow)(<.span(S.questionTitle)("Question: "), setup.question),
-                        " ",
-                        <.div(S.judgesList)(showRoleNames(debateState, profiles, roleOpt, Judge)),
-                        ^.onClick --> tryAssumingRole(Judge)
-                      ),
-                      setup
-                        .answers
-                        .zipWithIndex
-                        .toVdomArray { case (answer, answerIndex) =>
-                          <.div(S.row)(
-                            ^.key := s"answer-$answerIndex",
-                            if (roleOpt == Some(Debater(answerIndex)))
-                              S.answerBoxCurrent(answerIndex)
-                            else
-                              S.answerBox(answerIndex),
-                            S.simpleSelectable
-                              .when(
-                                debateState.value.canSwitchToRole(userName, Debater(answerIndex))
-                              )
-                          )(
-                            <.div(S.grow)(
-                              <.span(S.answerTitle)(s"${answerLetter(answerIndex)}. "),
-                              answer
-                            ),
-                            " ",
-                            <.div(S.debatersList)(
-                              showRoleNames(debateState, profiles, roleOpt, Debater(answerIndex))
-                            ),
-                            ^.onClick --> tryAssumingRole(Debater(answerIndex))
-                          )
-                        }
-                    )
-                  ),
-                  DebatePanel(
-                    roomName,
-                    userName,
-                    roleOpt,
-                    debate,
-                    (d: Debate) => debateState.zoomStateL(DebateState.debate).setState(d)
-                  )
-                )
-              }
+              headerRow(userName, isOfficial, roomName, debateState, disconnect = disconnect),
+              <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
+                qaAndRolesRow(
+                  profiles = profiles,
+                  userName = userName,
+                  roleOpt = roleOpt,
+                  debateState = debateState
+                ),
+                DebatePanel(roomName, userName, roleOpt, debateState.zoomStateL(DebateState.debate))
+              )
             )
         }
       }
