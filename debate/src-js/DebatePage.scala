@@ -13,6 +13,7 @@ import scalacss.ScalaCssReact._
 import jjm.ui.Mounting
 
 import debate.util._
+import japgolly.scalajs.react.feature.ReactFragment
 
 object DebatePage {
   import Helpers.ClassSetInterpolator
@@ -214,6 +215,20 @@ object DebatePage {
           .toVdomArray
     }
 
+  def correctAnswerRadio(answerIndex: Int, correctAnswerIndex: StateSnapshot[Int]) = ReactFragment(
+    <.input(S.correctAnswerRadio)(
+      ^.`type`  := "radio",
+      ^.name    := "correctAnswerIndex",
+      ^.value   := answerIndex,
+      ^.checked := correctAnswerIndex.value == answerIndex,
+      ^.onChange --> correctAnswerIndex.setState(answerIndex)
+    ),
+    <.span(c"mr-2", S.inputRowItem)(
+      <.span(S.correctAnswerLabel)("Correct"),
+      S.hidden.when(correctAnswerIndex.value != answerIndex)
+    )
+  )
+
   def qaAndRolesRow(
     profiles: Set[String],
     userName: String,
@@ -260,6 +275,18 @@ object DebatePage {
               S.simpleSelectable
                 .when(debateState.value.canSwitchToRole(userName, Debater(answerIndex)))
             )(
+              <.div(
+                  correctAnswerRadio(
+                    answerIndex,
+                    debateState.zoomStateL(
+                      DebateState
+                        .debate
+                        .composeLens(Debate.setup)
+                        .composeLens(DebateSetup.correctAnswerIndex)
+                    )
+                  )
+                )
+                .when(roleOpt == Some(Facilitator)),
               <.div(S.grow)(<.span(S.answerTitle)(s"${answerLetter(answerIndex)}. "), answer),
               " ",
               <.div(S.debatersList)(

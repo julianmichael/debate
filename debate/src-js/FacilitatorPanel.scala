@@ -563,7 +563,7 @@ object FacilitatorPanel {
                                           .zoomStateL(DebateSetupSpec.correctAnswerIndex)
                                           .setState(index)
                                     ),
-                                    <.span(S.inputRowItem)(
+                                    <.span(c"mr-2", S.inputRowItem)(
                                       <.span(S.correctAnswerLabel)("Correct"),
                                       S.hidden.when(setup.value.correctAnswerIndex != index)
                                     ),
