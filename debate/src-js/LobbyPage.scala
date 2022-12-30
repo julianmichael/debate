@@ -46,7 +46,7 @@ object LobbyPage {
             noProfileString
 
         def createProfileButton(userName: StateSnapshot[String]) =
-          <.div(c"form-group row", Styles.adminOnly) {
+          <.div(c"form-group row") {
             val name       = userName.value
             val isDisabled = (lobby.trackedDebaters + "" + "(no profile)").contains(name)
             <.button(c"btn btn-primary btn-block")(
@@ -57,7 +57,7 @@ object LobbyPage {
           }
 
         def deleteProfileButton(userName: StateSnapshot[String]) =
-          <.div(c"form-group row", Styles.adminOnly) {
+          <.div(c"form-group row") {
             val name      = userName.value
             val isEnabled = lobby.trackedDebaters.contains(name)
             <.button(c"btn btn-danger btn-block")(
@@ -92,13 +92,14 @@ object LobbyPage {
           case object CreateDebates      extends LobbyTab
         }
 
+        val LocalBool   = new LocalState2[Boolean]
         val LocalString = new LocalState2[String]
 
         val LocalLobbyTab = new LocalState2[LobbyTab]
 
-        def profileSelector(userName: StateSnapshot[String]) =
+        def profileSelector(isAdmin: StateSnapshot[Boolean], userName: StateSnapshot[String]) =
           <.div(c"form-group row")(
-            <.label(c"col-sm-2 col-form-label")("Profile:"),
+            <.label(c"col-sm-2 col-form-label")("Profile:", ^.onClick --> isAdmin.modState(!_)),
             V.Select
               .String
               .modFull(TagMod(c"col-sm-10", S.customSelect))(
@@ -112,164 +113,171 @@ object LobbyPage {
           V.LiveTextField
             .String
             .mod(
-              span = TagMod(c"form-group row", Styles.adminOnly),
+              span = TagMod(c"form-group row"),
               label = c"col-sm-2 col-form-label",
               input = c"col-sm-10 form-control"
             )(userName, labelOpt = Some("Name: "))
 
-        LocalString.syncedWithLocalStorage(key = "profile", defaultValue = "") { userName =>
-          <.div(S.lobbyContainer, S.spaceyContainer)(
-            profileSelector(userName = userName),
-            nameInput(userName = userName),
-            createProfileButton(userName),
-            deleteProfileButton(userName),
-            LocalLobbyTab.syncedWithSessionStorage(
-              key = "lobby-tab",
-              defaultValue = LobbyTab.MyDebates
-            ) { lobbyTab =>
-              import LobbyTab._
-              val myDebates = lobby
-                .officialRooms
-                .filter(_.roleAssignments.values.toSet.contains(userName.value))
-              val isOfficial =
-                lobbyTab.value match {
-                  case PracticeDebates =>
-                    false
-                  case _ =>
-                    true
-                }
-              val currentRooms =
-                lobbyTab.value match {
-                  case MyDebates =>
-                    myDebates
-                  case AllOfficialDebates =>
-                    lobby.officialRooms
-                  case PracticeDebates =>
-                    lobby.practiceRooms
-                  case Leaderboard =>
-                    Set[RoomMetadata]()
-                  case CreateDebates =>
-                    Set[RoomMetadata]()
-                }
+        LocalBool.syncedWithSessionStorage(key = "is-admin", defaultValue = false) { isAdmin =>
+          LocalString.syncedWithLocalStorage(key = "profile", defaultValue = "") { userName =>
+            <.div(S.lobbyContainer, S.spaceyContainer)(
+              profileSelector(isAdmin = isAdmin, userName = userName),
+              nameInput(userName = userName).when(isAdmin.value),
+              createProfileButton(userName).when(isAdmin.value),
+              deleteProfileButton(userName).when(isAdmin.value),
+              LocalLobbyTab.syncedWithSessionStorage(
+                key = "lobby-tab",
+                defaultValue = LobbyTab.MyDebates
+              ) { lobbyTab =>
+                import LobbyTab._
+                val myDebates = lobby
+                  .officialRooms
+                  .filter(_.roleAssignments.values.toSet.contains(userName.value))
+                val isOfficial =
+                  lobbyTab.value match {
+                    case PracticeDebates =>
+                      false
+                    case _ =>
+                      true
+                  }
+                val currentRooms =
+                  lobbyTab.value match {
+                    case MyDebates =>
+                      myDebates
+                    case AllOfficialDebates =>
+                      lobby.officialRooms
+                    case PracticeDebates =>
+                      lobby.practiceRooms
+                    case Leaderboard =>
+                      Set[RoomMetadata]()
+                    case CreateDebates =>
+                      Set[RoomMetadata]()
+                  }
 
-              def lobbySelector() = List(
-                MyDebates,
-                AllOfficialDebates,
-                PracticeDebates,
-                Leaderboard,
-                CreateDebates
-              ).toVdomArray(tab =>
-                <.li(c"nav-item")(
-                  ^.key := tab.toString,
-                  <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
-                    ^.href := "#",
-                    ^.onClick --> lobbyTab.setState(tab),
-                    tab.toString
+                def lobbySelector() = List(
+                  MyDebates,
+                  AllOfficialDebates,
+                  PracticeDebates,
+                  Leaderboard,
+                  CreateDebates
+                ).toVdomArray(tab =>
+                  <.li(c"nav-item")(
+                    ^.key := tab.toString,
+                    <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
+                      ^.href := "#",
+                      ^.onClick --> lobbyTab.setState(tab),
+                      tab.toString
+                    )
                   )
                 )
-              )
 
-              <.div(c"card")(
-                <.div(c"card-header")(
-                  <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
-                ),
-                <.div(c"card-body", S.spaceySubcontainer)(
-                  lobbyTab.value match {
-                    case LobbyTab.Leaderboard =>
-                      LeaderboardTable
-                        .make(lobby.leaderboard)
-                        .when(lobbyTab.value == LobbyTab.Leaderboard)
-                    case LobbyTab.CreateDebates =>
-                      FacilitatorPanel(
-                        lobby = lobby,
-                        joinDebate = Option(userName.value)
-                          .filter(_.nonEmpty)
-                          .map(userName =>
-                            (isOfficial: Boolean, roomName: String) =>
-                              connect(ConnectionSpec(isOfficial, roomName, userName))
-                          ),
-                        profiles = lobby.trackedDebaters,
-                        qualityService = qualityService,
-                        initDebate = sendToMainChannel
-                      )
-                    case _ =>
-                      LocalString.syncedWithSessionStorage("room-name-search", "") { roomNameLive =>
-                        val canEnter =
-                          roomNameLive.value.nonEmpty && userName.value.nonEmpty &&
-                            currentRooms.exists(_.name == roomNameLive.value)
-                        val enter =
-                          if (canEnter)
-                            connect(ConnectionSpec(isOfficial, roomNameLive.value, userName.value))
-                          else
-                            Callback.empty
-
-                        val (matchingRooms, nonMatchingRooms) =
-                          if (roomNameLive.value.isEmpty)
-                            currentRooms -> Set[RoomMetadata]()
-                          else
-                            currentRooms.partition(_.matchesQuery(roomNameLive.value))
-
-                        def makeMetadatas(status: RoomStatus) = {
-                          val statusStyle = {
-                            import RoomStatus._
-                            status match {
-                              case WaitingToBegin =>
-                                S.waitingToBeginStatusLabel
-                              case InProgress =>
-                                S.inProgressStatusLabel
-                              case Complete =>
-                                S.completeStatusLabel
-                            }
-                          }
-                          val hasRooms = currentRooms.exists(_.status == status)
-                          ReactFragment(
-                            <.h5(statusStyle)(status.titleString),
-                            <.div(S.metadataListContainer, S.spaceySubcontainer)(
-                              if (!hasRooms) {
-                                <.div("No rooms to show.")
-                              } else {
-                                def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
-                                  .toVector
-                                  .sorted(RoomMetadata.getOrdering(userName.value))
-                                  .toVdomArray { case rm: RoomMetadata =>
-                                    MetadataBox(
-                                      roomMetadata = rm,
-                                      isOfficial = isOfficial,
-                                      userName = userName,
-                                      sendToMainChannel = sendToMainChannel,
-                                      enterRoom = connect
-                                    )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
-                                  }
-
-                                ReactFragment(
-                                  showRooms(matchingRooms.filter(_.status == status), true),
-                                  showRooms(nonMatchingRooms.filter(_.status == status), false)
-                                )
-                              }
-                            )
-                          )
-                        }
-
-                        ReactFragment(
-                          Helpers.textInputWithEnterButton(
-                            field = roomNameLive,
-                            placeholderOpt = Some("Room"),
-                            buttonText = "Join",
-                            isEnabled = canEnter,
-                            enter = enter
-                          )(^.marginBottom := 1.rem),
-                          makeMetadatas(RoomStatus.InProgress),
-                          <.div(<.hr),
-                          makeMetadatas(RoomStatus.WaitingToBegin),
-                          <.div(<.hr),
-                          makeMetadatas(RoomStatus.Complete)
+                <.div(c"card")(
+                  <.div(c"card-header")(
+                    <.ul(c"nav nav-fill nav-tabs card-header-tabs")(lobbySelector())
+                  ),
+                  <.div(c"card-body", S.spaceySubcontainer)(
+                    lobbyTab.value match {
+                      case LobbyTab.Leaderboard =>
+                        LeaderboardTable
+                          .make(lobby.leaderboard)
+                          .when(lobbyTab.value == LobbyTab.Leaderboard)
+                      case LobbyTab.CreateDebates =>
+                        FacilitatorPanel(
+                          lobby = lobby,
+                          joinDebate = Option(userName.value)
+                            .filter(_.nonEmpty)
+                            .map(userName =>
+                              (isOfficial: Boolean, roomName: String) =>
+                                connect(ConnectionSpec(isOfficial, roomName, userName))
+                            ),
+                          profiles = lobby.trackedDebaters,
+                          qualityService = qualityService,
+                          initDebate = sendToMainChannel
                         )
-                      }
-                  }
+                      case _ =>
+                        LocalString.syncedWithSessionStorage("room-name-search", "") {
+                          roomNameLive =>
+                            val canEnter =
+                              roomNameLive.value.nonEmpty && userName.value.nonEmpty &&
+                                currentRooms.exists(_.name == roomNameLive.value)
+                            val enter =
+                              if (canEnter)
+                                connect(
+                                  ConnectionSpec(isOfficial, roomNameLive.value, userName.value)
+                                )
+                              else
+                                Callback.empty
+
+                            val (matchingRooms, nonMatchingRooms) =
+                              if (roomNameLive.value.isEmpty)
+                                currentRooms -> Set[RoomMetadata]()
+                              else
+                                currentRooms.partition(_.matchesQuery(roomNameLive.value))
+
+                            def makeMetadatas(status: RoomStatus) = {
+                              val statusStyle = {
+                                import RoomStatus._
+                                status match {
+                                  case WaitingToBegin =>
+                                    S.waitingToBeginStatusLabel
+                                  case InProgress =>
+                                    S.inProgressStatusLabel
+                                  case Complete =>
+                                    S.completeStatusLabel
+                                }
+                              }
+                              val hasRooms = currentRooms.exists(_.status == status)
+                              ReactFragment(
+                                <.h5(statusStyle)(status.titleString),
+                                <.div(S.metadataListContainer, S.spaceySubcontainer)(
+                                  if (!hasRooms) {
+                                    <.div("No rooms to show.")
+                                  } else {
+                                    def showRooms(rooms: Set[RoomMetadata], matches: Boolean) =
+                                      rooms
+                                        .toVector
+                                        .sorted(RoomMetadata.getOrdering(userName.value))
+                                        .toVdomArray { case rm: RoomMetadata =>
+                                          MetadataBox(
+                                            isAdmin = isAdmin.value,
+                                            roomMetadata = rm,
+                                            isOfficial = isOfficial,
+                                            userName = userName.value,
+                                            sendToMainChannel = sendToMainChannel,
+                                            enterRoom = connect
+                                          )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+                                        }
+
+                                    ReactFragment(
+                                      showRooms(matchingRooms.filter(_.status == status), true),
+                                      showRooms(nonMatchingRooms.filter(_.status == status), false)
+                                    )
+                                  }
+                                )
+                              )
+                            }
+
+                            ReactFragment(
+                              Helpers.textInputWithEnterButton(
+                                field = roomNameLive,
+                                placeholderOpt = Some("Room"),
+                                buttonText = "Join",
+                                isEnabled = canEnter,
+                                enter = enter
+                              )(^.marginBottom := 1.rem),
+                              makeMetadatas(RoomStatus.InProgress),
+                              <.div(<.hr),
+                              makeMetadatas(RoomStatus.WaitingToBegin),
+                              <.div(<.hr),
+                              makeMetadatas(RoomStatus.Complete)
+                            )
+                        }
+                    }
+                  )
                 )
-              )
-            }
-          )
+              }
+            )
+          }
         }
       }
       .componentDidMount(_ => Callback(dom.window.document.title = Helpers.makePageTitle("Lobby")))

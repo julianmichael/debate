@@ -8,7 +8,6 @@ import java.time.temporal.ChronoUnit
 import cats.implicits._
 
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
@@ -22,14 +21,15 @@ object MetadataBox {
   val V = new jjm.ui.View(S)
 
   def apply(
+    isAdmin: Boolean,
     roomMetadata: RoomMetadata,
     isOfficial: Boolean,
-    userName: StateSnapshot[String],
+    userName: String,
     enterRoom: ConnectionSpec => CallbackTo[Unit],
     sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
   ) = {
-    val canEnterRoom = userName.value.nonEmpty // &&
-    // !roomMetadata.currentParticipants.contains(userName.value)
+    val canEnterRoom = userName.nonEmpty // &&
+    // !roomMetadata.currentParticipants.contains(userName)
 
     case class OverUnder(label: VdomNode, bgStyle: TagMod)
 
@@ -86,7 +86,7 @@ object MetadataBox {
         case Some(overUnder) =>
           overUnder.bgStyle
         case None =>
-          val myRoles  = roomMetadata.roleAssignments.filter(_._2 == userName.value).keySet
+          val myRoles  = roomMetadata.roleAssignments.filter(_._2 == userName).keySet
           val isMyTurn = myRoles.intersect(roomMetadata.currentSpeakers).nonEmpty
           if (isMyTurn) {
             ^.backgroundColor := Rgba(255, 255, 0, 0.25).toColorStyleString
@@ -105,8 +105,7 @@ object MetadataBox {
     }
 
     val userRoleDisplay = {
-      val myRoles =
-        roomMetadata.roleAssignments.filter(_._2 == userName.value).keySet.toVector.sorted
+      val myRoles = roomMetadata.roleAssignments.filter(_._2 == userName).keySet.toVector.sorted
       if (myRoles.isEmpty)
         None
       else
@@ -213,8 +212,8 @@ object MetadataBox {
       .when(roomMetadata.currentParticipants.nonEmpty)
 
     val deleteRoom =
-      <.button(c"btn btn-block btn-danger", S.adminOnly)(
-        "Delete room",
+      <.button(c"btn btn-danger")(
+        "Delete",
         ^.onClick ==>
           ((e: ReactMouseEvent) => {
             e.stopPropagation();
@@ -267,11 +266,15 @@ object MetadataBox {
     <.div(c"card", selectableStyle, bgStyle)(
       <.div(c"card-body")(
         boxTitle,
-        <.div(c"card-text")(storyTitle, roleAssignments, presentParticipants),
-        deleteRoom
+        <.div(c"card-text", c"mb-3".when(isAdmin))(
+          storyTitle,
+          roleAssignments,
+          presentParticipants
+        ),
+        deleteRoom.when(isAdmin)
       ),
       <.div(S.timestampFooter)(timeDisplay),
-      (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName.value)))
+      (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName)))
         .when(canEnterRoom)
     )
   }
