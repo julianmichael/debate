@@ -136,12 +136,12 @@ object DebatePanel {
   /** Show the debate. */
   def apply(
     roomName: String,
-    userId: Option[ParticipantId],
+    userName: String,
+    roleOpt: Option[Role],
     debate: Debate,
     sendDebate: Debate => Callback
   ) = {
     import debate.{setup, rounds}
-    val roleOpt = userId.map(_.role)
 
     val currentTransitions = debate.currentTransitions
     val userTurn =
@@ -187,35 +187,39 @@ object DebatePanel {
                   )
                 }
                 .toVdomArray,
-              userId.whenDefined { userId =>
+              roleOpt.whenDefined { role =>
                 DebateRoundView
                   .makeSpeechHtml(
                     setup.sourceMaterial.contents,
-                    DebateSpeech(userId, -1L, currentMessageSpeechSegments),
+                    DebateSpeech(ParticipantId(userName, role), -1L, currentMessageSpeechSegments),
                     debate.startTime,
-                    Some(userId.role),
-                    getInProgressSpeechStyle(userId.role)
+                    Some(role),
+                    getInProgressSpeechStyle(role)
                   )
                   .when(currentMessage.value.size > 0 && isUsersTurn)
               }
             ),
             turnDisplay(roleOpt.flatMap(_.asDebateRoleOpt), currentTransitions.map(_.currentTurns)),
-            userId.whenDefined { userId =>
+            roleOpt.whenDefined { role =>
               currentTransitions
                 .toOption
                 .whenDefined { transitions =>
                   <.div(S.col)(
                     <.div(S.col)(
-                      userId
-                        .role
+                      role
                         .asDebateRoleOpt
                         .flatMap(transitions.giveSpeech.get)
                         .whenDefined { case turnDotPair =>
-                          SpeechInput
-                            .speechInput(debate, sendDebate, userId, turnDotPair, currentMessage)
+                          SpeechInput.speechInput(
+                            debate,
+                            sendDebate,
+                            userName,
+                            role,
+                            turnDotPair,
+                            currentMessage
+                          )
                         },
-                      userId
-                        .role
+                      role
                         .asDebateRoleOpt
                         .flatMap(transitions.undo.get)
                         .whenDefined { case (speech, debateAfterUndo) =>

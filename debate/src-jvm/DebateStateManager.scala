@@ -80,7 +80,7 @@ case class DebateStateManager(
               .currentTransitions
               .toOption
               .foldMap(_.currentSpeakers),
-            currentParticipants = room.debate.participants.map(_.name)
+            currentParticipants = room.debate.participants.keySet
           )
         }
         .toSet
@@ -95,7 +95,7 @@ case class DebateStateManager(
       _ <- pushUpdate
     } yield ()
 
-  def addParticipant(roomName: String, participantId: String) =
+  def addParticipant(roomName: String, participantName: String) =
     for {
       _ <- rooms.update(
         roomStateL(roomName).modify { debateState =>
@@ -103,19 +103,19 @@ case class DebateStateManager(
             .debate
             .setup
             .roles
-            .find(_._2 == participantId)
+            .find(_._2 == participantName)
             .map(_._1)
             .getOrElse(Observer)
-          debateState.addParticipant(ParticipantId(participantId, role))
+          debateState.addParticipant(participantName, role)
         }
       )
       _ <- rooms.get.flatMap(_.get(roomName).traverse_(_.pushUpdate))
       _ <- pushUpdate
     } yield ()
 
-  def removeParticipant(roomName: String, participantId: String) =
+  def removeParticipant(roomName: String, participantName: String) =
     for {
-      _ <- rooms.update(roomMembersL(roomName).modify(_.filter(_.name != participantId)))
+      _ <- rooms.update(roomMembersL(roomName).modify(_ - participantName))
       _ <- rooms.get.map(_.get(roomName).traverse_(_.pushUpdate))
       _ <- pushUpdate
     } yield ()
@@ -124,7 +124,7 @@ case class DebateStateManager(
     for {
       setup <- initializeDebate(setupSpec)
       debate = Debate(setup, Vector())
-      room     <- DebateRoom.create(DebateState(debate = debate, participants = Set()))
+      room     <- DebateRoom.create(DebateState(debate = debate, participants = Map()))
       curRooms <- rooms.get
       _ <-
         curRooms.get(roomName) match {
@@ -201,7 +201,7 @@ object DebateStateManager {
         .traverse(path =>
           FileUtil
             .readJson[Debate](path)
-            .flatMap(debate => DebateRoom.create(DebateState(debate, Set())))
+            .flatMap(debate => DebateRoom.create(DebateState(debate, Map())))
             .map { room =>
               val roomName = path.getFileName.toString.dropRight(".json".length)
               roomName -> room

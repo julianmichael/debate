@@ -21,7 +21,7 @@ import jjm.implicits._
   */
 @Lenses
 @JsonCodec
-case class DebateState(debate: Debate, participants: Set[ParticipantId]) {
+case class DebateState(debate: Debate, participants: Map[String, Role]) {
 
   def status: RoomStatus = debate
     .currentTransitions
@@ -37,17 +37,14 @@ case class DebateState(debate: Debate, participants: Set[ParticipantId]) {
   /** Add a participant. If the participant is already present, potentially
     * change their role.
     */
-  def addParticipant(id: ParticipantId) = copy(participants =
-    participants.filter(_.name != id.name) + id
-  )
+  def addParticipant(name: String, role: Role) = copy(participants = participants + (name -> role))
 
   def canSwitchToRole(userName: String, role: Role) =
-    debate.setup.canAssumeRole(userName, role) &&
-      !participants.contains(ParticipantId(userName, role))
+    debate.setup.canAssumeRole(userName, role) && !participants.get(userName).exists(_ == role)
 
 }
 object DebateState {
-  def init(debate: Debate) = DebateState(debate, Set())
+  def init(debate: Debate) = DebateState(debate, Map())
 }
 
 case class DebateSpeechContent(speakerName: String, timestamp: Long, speech: Vector[SpeechSegment])
