@@ -1,15 +1,21 @@
 package debate
 
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+
+import cats.implicits._
+
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.feature.ReactFragment
+import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
 import jjm.implicits._
-
-import cats.implicits._
-import japgolly.scalajs.react.feature.ReactFragment
 import jjm.ui.Rgba
+
 object MetadataBox {
   import Helpers.ClassSetInterpolator
   val S = Styles
@@ -216,6 +222,42 @@ object MetadataBox {
           })
       )
 
+    val timeDisplay = {
+
+      val updateInstant = Instant.ofEpochMilli(roomMetadata.latestUpdateTime)
+      val nowInstant    = Instant.ofEpochMilli(System.currentTimeMillis())
+
+      val numDaysAgo = ChronoUnit.DAYS.between(updateInstant, nowInstant)
+
+      val daysAgoStr =
+        numDaysAgo match {
+          case 0 =>
+            "today"
+          case 1 =>
+            "yesterday"
+          case i if i <= 7 =>
+            s"$i days ago"
+          case _ =>
+            val zone = ZoneId.of("Z") // assumes UTC, because whatever
+            val date = updateInstant.atZone(zone)
+            val formatter =
+              if (date.getYear() == nowInstant.atZone(zone).getYear()) {
+                DateTimeFormatter.ofPattern("MMM d")
+              } else
+                DateTimeFormatter.ofPattern("MMM d YYYY")
+            formatter.format(date)
+        }
+
+      val timeAgoStr =
+        if (roomMetadata.result.isEmpty) {
+          "Last speech " + daysAgoStr
+        } else {
+          daysAgoStr.capitalize
+        }
+
+      <.div(c"card-text text-muted")(<.small(timeAgoStr))
+    }
+
     val selectableStyle =
       if (canEnterRoom)
         S.simpleSelectable
@@ -225,13 +267,12 @@ object MetadataBox {
     <.div(c"card", selectableStyle, bgStyle)(
       <.div(c"card-body")(
         boxTitle,
-        storyTitle,
-        roleAssignments,
-        presentParticipants,
-        deleteRoom,
-        (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName.value)))
-          .when(canEnterRoom)
-      )
+        <.div(c"card-text")(storyTitle, roleAssignments, presentParticipants),
+        deleteRoom
+      ),
+      <.div(S.timestampFooter)(timeDisplay),
+      (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName.value)))
+        .when(canEnterRoom)
     )
   }
 }

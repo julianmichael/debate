@@ -485,4 +485,10 @@ object Styles extends jjm.ui.View.Styles {
 
   val correct   = style(color(correctColor))
   val incorrect = style(color(incorrectColor))
+
+  val timestampFooter = style(
+    marginTop(-.75 rem),
+    padding(0 rem, .75 rem, .75 rem),
+    textAlign.right
+  )
 }
