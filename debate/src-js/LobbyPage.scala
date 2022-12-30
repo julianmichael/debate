@@ -154,6 +154,15 @@ object LobbyPage {
                       Set[RoomMetadata]()
                   }
 
+                val numDebatesMyTurn =
+                  lobby
+                    .officialRooms
+                    .filter { room =>
+                      val myRoles = room.roleAssignments.filter(_._2 == userName.value).keySet
+                      myRoles.intersect(room.currentSpeakers).nonEmpty
+                    }
+                    .size
+
                 def lobbySelector() = List(
                   MyDebates,
                   AllOfficialDebates,
@@ -166,7 +175,13 @@ object LobbyPage {
                     <.a(^.classSet1("nav-link", "active" -> (tab == lobbyTab.value)))(
                       ^.href := "#",
                       ^.onClick --> lobbyTab.setState(tab),
-                      tab.toString
+                      tab.toString,
+                      <.span(c"badge badge-danger badge-pill")(
+                          ^.marginLeft  := "0.5rem",
+                          ^.marginRight := "-0.5rem",
+                          numDebatesMyTurn
+                        )
+                        .when(tab == MyDebates && numDebatesMyTurn > 0)
                     )
                   )
                 )
