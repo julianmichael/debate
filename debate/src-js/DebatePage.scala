@@ -221,7 +221,8 @@ object DebatePage {
       ^.name    := "correctAnswerIndex",
       ^.value   := answerIndex,
       ^.checked := correctAnswerIndex.value == answerIndex,
-      ^.onChange --> correctAnswerIndex.setState(answerIndex)
+      ^.onChange --> correctAnswerIndex.setState(answerIndex),
+      ^.onClick ==> (e => Callback(e.stopPropagation()))
     ),
     <.span(c"mr-2", S.inputRowItem)(
       <.span(S.correctAnswerLabel)("Correct"),
