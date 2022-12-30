@@ -88,11 +88,21 @@ case class DebateStateManager(
 
   def pushUpdate = pushUpdateRef.get.flatten
 
+  private[this] def getFreshFilePath(dir: NIOPath, name: String, extension: String): IO[NIOPath] = {
+    val nums  = None #:: scala.Stream.from(2).map(Option(_))
+    val paths = nums.map(_.foldMap("__" + _)).map(name + _ + extension).map(dir.resolve)
+    IO(paths.filter(p => !Files.exists(p)).head)
+  }
+
   def deleteDebate(roomName: String) =
     for {
-      _ <- rooms.update(_ - roomName)
-      _ <- IO(Files.delete(saveDir.resolve(roomName + ".json")))
-      _ <- pushUpdate
+      roomOpt <- rooms.get.map(_.get(roomName))
+      trashDir = DebateStateManager.getTrashDir(saveDir)
+      filePath <- getFreshFilePath(trashDir, roomName, ".json")
+      _        <- roomOpt.map(_.debate.debate).traverse(FileUtil.writeJson(filePath))
+      _        <- rooms.update(_ - roomName)
+      _        <- IO(Files.delete(saveDir.resolve(roomName + ".json")))
+      _        <- pushUpdate
     } yield ()
 
   def addParticipant(roomName: String, participantName: String) =
@@ -188,6 +198,9 @@ case class DebateStateManager(
 
 }
 object DebateStateManager {
+
+  def getTrashDir(saveDir: NIOPath) = saveDir.resolve("trash")
+
   def init(
     initializeDebate: DebateSetupSpec => IO[DebateSetup],
     saveDir: NIOPath,
@@ -196,6 +209,7 @@ object DebateStateManager {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
       _     <- IO(os.makeDir.all(saveDirOs))
+      _     <- IO(os.makeDir.all(os.Path(getTrashDir(saveDirOs.toNIO), os.pwd)))
       files <- IO(os.list(saveDirOs).map(_.toNIO).filter(_.toString.endsWith(".json")).toVector)
       rooms <- files
         .traverse(path =>
