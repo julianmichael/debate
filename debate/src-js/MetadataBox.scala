@@ -22,8 +22,8 @@ object MetadataBox {
     enterRoom: ConnectionSpec => CallbackTo[Unit],
     sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
   ) = {
-    val canEnterRoom =
-      userName.value.nonEmpty && !roomMetadata.currentParticipants.contains(userName.value)
+    val canEnterRoom = userName.value.nonEmpty // &&
+    // !roomMetadata.currentParticipants.contains(userName.value)
 
     case class OverUnder(label: VdomNode, bgStyle: TagMod)
 
@@ -114,7 +114,7 @@ object MetadataBox {
                     myRoles,
                     {
                       case Judge =>
-                        <.span(S.judgeAssignment, "Judge")
+                        <.span("Judge") // should just be black
                       case Debater(i) if i == result.correctAnswerIndex =>
                         <.span(S.correct, "Honest")
                       case Debater(_) =>

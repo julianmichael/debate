@@ -147,9 +147,9 @@ object LobbyPage {
                   case PracticeDebates =>
                     lobby.practiceRooms
                   case Leaderboard =>
-                    Vector.empty
+                    Set[RoomMetadata]()
                   case CreateDebates =>
-                    Vector.empty
+                    Set[RoomMetadata]()
                 }
 
               def lobbySelector() = List(
@@ -203,12 +203,16 @@ object LobbyPage {
                           else
                             Callback.empty
 
-                        val visibleRooms = currentRooms.filter(_.matchesQuery(roomNameLive.value))
+                        val (matchingRooms, nonMatchingRooms) =
+                          if (roomNameLive.value.isEmpty)
+                            currentRooms -> Set[RoomMetadata]()
+                          else
+                            currentRooms.partition(_.matchesQuery(roomNameLive.value))
 
-                        def makeMetadatas(r: RoomStatus) = {
+                        def makeMetadatas(status: RoomStatus) = {
                           val statusStyle = {
                             import RoomStatus._
-                            r match {
+                            status match {
                               case WaitingToBegin =>
                                 S.waitingToBeginStatusLabel
                               case InProgress =>
@@ -217,14 +221,14 @@ object LobbyPage {
                                 S.completeStatusLabel
                             }
                           }
-                          val roomsToShow = visibleRooms.filter(_.status == r)
+                          val hasRooms = currentRooms.exists(_.status == status)
                           ReactFragment(
-                            <.h5(statusStyle)(r.titleString),
+                            <.h5(statusStyle)(status.titleString),
                             <.div(S.metadataListContainer, S.spaceySubcontainer)(
-                              if (roomsToShow.isEmpty) {
+                              if (!hasRooms) {
                                 <.div("No rooms to show.")
                               } else {
-                                roomsToShow
+                                def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
                                   .toVector
                                   .sorted(RoomMetadata.getOrdering(userName.value))
                                   .toVdomArray { case rm: RoomMetadata =>
@@ -234,8 +238,13 @@ object LobbyPage {
                                       userName = userName,
                                       sendToMainChannel = sendToMainChannel,
                                       enterRoom = connect
-                                    )(^.key := rm.name)
+                                    )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
                                   }
+
+                                ReactFragment(
+                                  showRooms(matchingRooms.filter(_.status == status), true),
+                                  showRooms(nonMatchingRooms.filter(_.status == status), false)
+                                )
                               }
                             )
                           )
