@@ -125,7 +125,6 @@ object DebatePage {
       ),
       <.div(<.strong("Name: "), userName),
       <.div(<.strong(s"$roomPrefix Room: "), roomName),
-      <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary),
       <.div(S.grow)(
         <.strong(
           S.simpleSelectableText.when(canAssumeRole(Observer)),
@@ -163,7 +162,8 @@ object DebatePage {
               )
               .toVdomArray
         }
-      )
+      ),
+      <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary)
     )
   }
 
