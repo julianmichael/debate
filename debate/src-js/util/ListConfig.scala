@@ -8,44 +8,49 @@ import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
 import jjm.implicits._
+import japgolly.scalajs.react.Callback
 
 /** HOC middleman for easily rendering a config panel for a list of things.
   * Gives add/remove buttons and list format while letting the caller render the
   * list items.
   */
-case class ListConfig[A](defaultItem: A) {
+case class ListConfig[A]() {
+
+  import ListConfig.Context
 
   val S = debate.Styles
 
-  def mod(
-    listDiv: TagMod = S.listConfigListDiv,
-    removeItemSpan: TagMod = S.listConfigRemoveItemSpan,
-    addItemDiv: TagMod = S.listConfigAddItemDiv,
-    addItemSpan: TagMod = S.listConfigAddItemSpan
-  )(values: StateSnapshot[Vector[A]], minItems: Int = 0)(
+  def default(values: StateSnapshot[Vector[A]], defaultItem: A, minItems: Int = 0)(
     renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
   ) =
-    <.div(listDiv)(
-      values
-        .value
-        .zipWithIndex
-        .toVdomArray { case (_, index) =>
-          // safe since we're in zipWithIndex
-          val itemSnapshot = values.zoomStateO(Optics.index(index)).get
-          val removeItemElement = <
-            .span(removeItemSpan)("(-)", ^.onClick --> values.modState(_.remove(index)))
-            .when(values.value.size > minItems)
-
-          renderItem(removeItemElement, itemSnapshot, index)(^.key := s"item-$index")
-        },
-      <.div(addItemDiv)(<.span(addItemSpan)("(+)", ^.onClick --> values.modState(_ :+ defaultItem)))
+    <.div(S.listConfigListDiv)(
+      apply(values, minItems) { case Context(item, index, removeCallback) =>
+        val removeItemElement = removeCallback
+          .map(remove => <.span(S.listConfigRemoveItemSpan)("(-)", ^.onClick --> remove))
+        renderItem(removeItemElement, item, index)
+      },
+      <.div(S.listConfigAddItemDiv)(
+        <.span(S.listConfigAddItemSpan)("(+)", ^.onClick --> values.modState(_ :+ defaultItem))
+      )
     )
 
   def apply(values: StateSnapshot[Vector[A]], minItems: Int = 0)(
-    renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
-  ) = mod()(values, minItems)(renderItem)
+    renderItem: Context[A] => VdomTag
+  ) = values
+    .value
+    .zipWithIndex
+    .toVdomArray { case (_, index) =>
+      // safe since we're in zipWithIndex
+      val itemSnapshot = values.zoomStateO(Optics.index(index)).get
+      val removeItemCallback = Option(values.modState(_.remove(index)))
+        .filter(_ => values.value.size > minItems)
+
+      renderItem(Context(itemSnapshot, index, removeItemCallback))(^.key := s"item-$index")
+    }
 }
 object ListConfig {
-  // def Double = LiveTextField[Double]((s: String) => scala.util.Try(s.toDouble).toOption, _.toString)
-  val String = ListConfig[String]("")
+
+  case class Context[A](item: StateSnapshot[A], index: Int, remove: Option[Callback])
+
+  val String = ListConfig[String]()
 }

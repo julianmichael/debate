@@ -8,6 +8,7 @@ import monocle.Prism
 import scalacss.ScalaCssReact._
 
 import jjm.ui.LocalState
+import japgolly.scalajs.react.feature.ReactFragment
 
 /** HOC middleman for sum types producing a config panel controlled with a
   * drop-down. You need to provide a list of prisms to correspond to the
@@ -21,7 +22,6 @@ case class SumConfig[A]() {
   val LocalString = new LocalState[String]
 
   def mod(
-    div: TagMod = S.sumConfigOuterDiv,
     // innerDiv: TagMod = S.sumConfigInnerDiv,
     select: TagMod = S.sumConfigSelect
   )(item: StateSnapshot[A])(options: (String, SumConfigOption[A])*) = {
@@ -33,7 +33,7 @@ case class SumConfig[A]() {
       .getOrElse(options.head._1)
     val optionsMap = options.toMap
     LocalString.make(initialValue) { optionName =>
-      <.div(div)(
+      ReactFragment(
         V.Select
           .String
           .modFull(select)(
@@ -57,7 +57,6 @@ case class SumConfig[A]() {
                 option.render(subItem)
               }
           }
-          .whenDefined
       )
     }
   }

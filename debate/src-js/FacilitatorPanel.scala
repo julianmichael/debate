@@ -1,5 +1,7 @@
 package debate
 
+import cats.data.NonEmptyChain
+import cats.data.Validated
 import cats.implicits._
 
 import japgolly.scalajs.react._
@@ -17,8 +19,6 @@ import jjm.ui.LocalState
 
 import debate.quality._
 import debate.util._
-import cats.data.NonEmptyChain
-import cats.data.Validated
 
 object FacilitatorPanel {
   val S = Styles
@@ -27,7 +27,7 @@ object FacilitatorPanel {
   import Helpers.ClassSetInterpolator
 
   val RoundTypeList = ListConfig[DebateRoundType](
-    DebateRoundType.SequentialSpeechesRound(500, None)
+    // DebateRoundType.SequentialSpeechesRound(500, None)
   )
   val RoundTypeConfig       = SumConfig[DebateRoundType]()
   val ScoringFunctionConfig = SumConfig[ScoringFunction]()
@@ -73,9 +73,10 @@ object FacilitatorPanel {
     field: StateSnapshot[Option[Int]],
     labelOpt: Option[String],
     defaultInt: Int
-  ) = ReactFragment(
-    V.Checkbox
-      .mod(label = S.inputLabel, span = TagMod(c"ml-3 pl-3 my-auto"))(
+  ) =
+// div = TagMod(c"ml-3 pl-3 my-auto")
+    ReactFragment(
+      Checkbox2(
         field.zoomStateL(
           Iso[Option[Int], Boolean](_.nonEmpty)(b =>
             if (b)
@@ -86,89 +87,113 @@ object FacilitatorPanel {
         ),
         labelOpt
       ),
-    V.NumberField
-      .mod(input = TagMod(c"form-control", ^.disabled := field.value.isEmpty))(
+      NumberField2.mod(input = TagMod(c"col form-control ml-2", ^.disabled := field.value.isEmpty))(
         field.zoomStateL(Iso[Option[Int], Int](_.getOrElse(defaultInt))(Some(_)).asLens)
       )
-  )
+    )
 
   /** Config panel for setting a list of round types. */
-  def roundTypeSelect(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) =
-    RoundTypeList.mod(listDiv = S.inputRowContents, addItemDiv = S.row)(roundTypes, minItems) {
-      (remove, roundType, _) =>
-        <.div(S.row)(
-          <.span(remove, " "), // (S.inputRowItem)
-          RoundTypeConfig.mod(div = S.inputRowContents)(roundType)(
-            "Simultaneous Speeches" ->
-              SumConfigOption(
-                DebateRoundType.SimultaneousSpeechesRound(500, None),
-                DebateRoundType.simultaneousSpeechesRound
-              ) { simulSpeeches =>
-                ReactFragment(
-                  <.div(S.row)(
-                    <.div(S.inputLabel)("Character limit"),
-                    V.NumberField
-                      .mod(input = c"form-control")(
-                        simulSpeeches
-                          .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.charLimit)
+  def roundTypeSelect(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
+    val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None)
+    <.div(S.inputRowContents)(
+      RoundTypeList(roundTypes, minItems) { case ListConfig.Context(roundType, _, removeOpt) =>
+        val rowMod = TagMod(
+          c"form-inline",
+          ^.paddingBottom := "1rem",
+          ^.paddingLeft   := "1rem",
+          ^.paddingRight  := "1rem"
+        )
+        <.div(c"card")(
+          <.div(c"row no-gutters")(
+            removeOpt.map(remove =>
+              <.div(
+                S.col,
+                c"col-auto",
+                ^.padding := "5px",
+                ^.alignItems.center,
+                ^.textAlign.center,
+                ^.borderRight :=
+                  "1px solid rgba(0,0,0,.125)" // TODO send to bottom with media queries
+              )(<.div(S.listConfigRemoveItemSpan, ^.margin.auto, "(-)"), ^.onClick --> remove)
+            ),
+            <.div(c"col")(
+              RoundTypeConfig
+                .mod(select = TagMod(S.listCardHeaderSelect, ^.marginBottom := "1rem"))(roundType)(
+                  "Simultaneous Speeches" ->
+                    SumConfigOption(
+                      DebateRoundType.SimultaneousSpeechesRound(500, None),
+                      DebateRoundType.simultaneousSpeechesRound
+                    ) { simulSpeeches =>
+                      ReactFragment(
+                        <.div(rowMod)(
+                          NumberField2(
+                            simulSpeeches
+                              .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.charLimit),
+                            Some("Character limit")
+                          )
+                        ),
+                        <.div(rowMod)(
+                          optionalIntInput(
+                            simulSpeeches
+                              .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.quoteLimit),
+                            Some("Quote character limit"),
+                            defaultPerMessageQuoteLimit
+                          )
+                        )
                       )
-                  ),
-                  <.div(S.row)(
-                    optionalIntInput(
-                      simulSpeeches
-                        .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.quoteLimit),
-                      Some("Quote character limit"),
-                      defaultPerMessageQuoteLimit
-                    )
-                  )
-                )
-              },
-            "Sequential Speeches" ->
-              SumConfigOption(
-                DebateRoundType.SequentialSpeechesRound(500, None),
-                DebateRoundType.sequentialSpeechesRound
-              ) { seqSpeeches =>
-                ReactFragment(
-                  <.div(S.row)(
-                    <.div(S.inputLabel)("Character limit"),
-                    V.NumberField
-                      .mod(input = c"form-control")(
-                        seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.charLimit)
+                    },
+                  "Sequential Speeches" ->
+                    SumConfigOption(
+                      DebateRoundType.SequentialSpeechesRound(500, None),
+                      DebateRoundType.sequentialSpeechesRound
+                    ) { seqSpeeches =>
+                      ReactFragment(
+                        <.div(rowMod)(
+                          NumberField2(
+                            seqSpeeches
+                              .zoomStateL(DebateRoundType.SequentialSpeechesRound.charLimit),
+                            labelOpt = Some("Character limit")
+                          )
+                        ),
+                        <.div(rowMod)(
+                          optionalIntInput(
+                            seqSpeeches
+                              .zoomStateL(DebateRoundType.SequentialSpeechesRound.quoteLimit),
+                            Some("Quote character limit"),
+                            defaultPerMessageQuoteLimit
+                          )
+                        )
                       )
-                  ),
-                  <.div(S.row)(
-                    optionalIntInput(
-                      seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.quoteLimit),
-                      Some("Quote character limit"),
-                      defaultPerMessageQuoteLimit
-                    )
-                  )
-                )
-              },
-            "Judge Feedback" ->
-              SumConfigOption(
-                DebateRoundType.JudgeFeedbackRound(true, 500),
-                DebateRoundType.judgeFeedbackRound
-              ) { judgeFeedback =>
-                ReactFragment(
-                  <.div(S.row)(
-                    <.span(S.inputLabel)("Character limit"),
-                    V.NumberField
-                      .mod(input = c"form-control")(
-                        judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.charLimit)
+                    },
+                  "Judge Feedback" ->
+                    SumConfigOption(
+                      DebateRoundType.JudgeFeedbackRound(true, 500),
+                      DebateRoundType.judgeFeedbackRound
+                    ) { judgeFeedback =>
+                      ReactFragment(
+                        <.div(rowMod)(
+                          NumberField2(
+                            judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.charLimit),
+                            labelOpt = Some("Character limit")
+                          )
+                        ),
+                        <.div(rowMod)(
+                          Checkbox2(
+                            judgeFeedback
+                              .zoomStateL(DebateRoundType.JudgeFeedbackRound.reportBeliefs),
+                            Some("Report probabilities")
+                          )
+                        )
                       )
-                  ),
-                  <.div(S.row)(
-                    V.Checkbox(
-                      judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.reportBeliefs),
-                      "Report probabilities"
-                    )
-                  )
+                    }
                 )
-              }
+            )
           )
         )
-    }
+      },
+      <.span(S.row)("(+)", ^.onClick --> roundTypes.modState(_ :+ defaultRoundType))
+    )
+  }
 
   def roomSettings(
     isOfficial: StateSnapshot[Boolean],
@@ -194,75 +219,77 @@ object FacilitatorPanel {
   def scoringFunctionConfig(scoringFunction: StateSnapshot[ScoringFunction]) =
     <.div(S.mainLabeledInputRow)(
       <.div(S.inputLabel)("Judge Scoring Function"),
-      ScoringFunctionConfig.mod(div = S.inputRowContents)(scoringFunction)(
-        "Spherical Score" ->
-          SumConfigOption(
-            ScoringFunction.SphericalScoreWithLinearPenalty(3, 1),
-            ScoringFunction.sphericalScoreWithLinearPenalty
-          ) { sphericalScore =>
-            ReactFragment(
-              V.LiveTextField
-                .Double(
-                  sphericalScore
-                    .zoomStateL(ScoringFunction.SphericalScoreWithLinearPenalty.baseCoefficient),
-                  Some("Base coefficient")
-                ),
-              V.LiveTextField
-                .Double(
-                  sphericalScore
-                    .zoomStateL(ScoringFunction.SphericalScoreWithLinearPenalty.perTurnPenalty),
-                  Some("Per turn penalty")
-                )
-            )
-          },
-        "Quadratic Score" ->
-          SumConfigOption(
-            ScoringFunction.QuadraticScoreWithLinearPenalty(3, 1),
-            ScoringFunction.quadraticScoreWithLinearPenalty
-          ) { quadraticScore =>
-            ReactFragment(
-              V.LiveTextField
-                .Double(
-                  quadraticScore
-                    .zoomStateL(ScoringFunction.QuadraticScoreWithLinearPenalty.baseCoefficient),
-                  Some("Base coefficient")
-                ),
-              V.LiveTextField
-                .Double(
-                  quadraticScore
-                    .zoomStateL(ScoringFunction.QuadraticScoreWithLinearPenalty.perTurnPenalty),
-                  Some("Per turn penalty")
-                )
-            )
-          },
-        "Log Score" ->
-          SumConfigOption(
-            ScoringFunction.LogScoreWithLinearPenalty.default,
-            ScoringFunction.logScoreWithLinearPenalty
-          ) { logScore =>
-            ReactFragment(
-              V.LiveTextField
-                .Double(
-                  logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.baseCoefficient),
-                  Some("Base coefficient")
-                ),
-              V.LiveTextField
-                .Double(
-                  logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.constant),
-                  Some("Constant")
-                ),
-              V.LiveTextField
-                .Double(
-                  logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.logBase),
-                  Some("Log base")
-                ),
-              V.LiveTextField
-                .Double(
-                  logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.perTurnPenalty),
-                  Some("Per turn penalty")
-                )
-            )
-          }
+      <.div(S.inputRowContents)(
+        ScoringFunctionConfig(scoringFunction)(
+          "Spherical Score" ->
+            SumConfigOption(
+              ScoringFunction.SphericalScoreWithLinearPenalty(3, 1),
+              ScoringFunction.sphericalScoreWithLinearPenalty
+            ) { sphericalScore =>
+              ReactFragment(
+                V.LiveTextField
+                  .Double(
+                    sphericalScore
+                      .zoomStateL(ScoringFunction.SphericalScoreWithLinearPenalty.baseCoefficient),
+                    Some("Base coefficient")
+                  ),
+                V.LiveTextField
+                  .Double(
+                    sphericalScore
+                      .zoomStateL(ScoringFunction.SphericalScoreWithLinearPenalty.perTurnPenalty),
+                    Some("Per turn penalty")
+                  )
+              )
+            },
+          "Quadratic Score" ->
+            SumConfigOption(
+              ScoringFunction.QuadraticScoreWithLinearPenalty(3, 1),
+              ScoringFunction.quadraticScoreWithLinearPenalty
+            ) { quadraticScore =>
+              ReactFragment(
+                V.LiveTextField
+                  .Double(
+                    quadraticScore
+                      .zoomStateL(ScoringFunction.QuadraticScoreWithLinearPenalty.baseCoefficient),
+                    Some("Base coefficient")
+                  ),
+                V.LiveTextField
+                  .Double(
+                    quadraticScore
+                      .zoomStateL(ScoringFunction.QuadraticScoreWithLinearPenalty.perTurnPenalty),
+                    Some("Per turn penalty")
+                  )
+              )
+            },
+          "Log Score" ->
+            SumConfigOption(
+              ScoringFunction.LogScoreWithLinearPenalty.default,
+              ScoringFunction.logScoreWithLinearPenalty
+            ) { logScore =>
+              ReactFragment(
+                V.LiveTextField
+                  .Double(
+                    logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.baseCoefficient),
+                    Some("Base coefficient")
+                  ),
+                V.LiveTextField
+                  .Double(
+                    logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.constant),
+                    Some("Constant")
+                  ),
+                V.LiveTextField
+                  .Double(
+                    logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.logBase),
+                    Some("Log base")
+                  ),
+                V.LiveTextField
+                  .Double(
+                    logScore.zoomStateL(ScoringFunction.LogScoreWithLinearPenalty.perTurnPenalty),
+                    Some("Per turn penalty")
+                  )
+              )
+            }
+        )
       )
     )
 
@@ -270,7 +297,7 @@ object FacilitatorPanel {
     <.div(S.mainLabeledInputRow)(
       <.div(S.inputLabel)("Global Evidence Restrictions"),
       <.div(S.inputRowContents)(
-        <.div(S.row)(
+        <.div(c"form-inline")(
           optionalIntInput(quoteRestriction, Some("Quote character limit"), defaultGlobalQuoteLimit)
         )
       )
@@ -546,40 +573,42 @@ object FacilitatorPanel {
                       <.div(S.mainLabeledInputRow)(
                         <.div(S.inputLabel)("Answers"),
                         <.div(S.inputRowContents)(
-                          ListConfig.String(setup.zoomStateL(DebateSetupSpec.answers), 1) {
-                            (remove, answer, index) =>
-                              <.div(S.row)(
-                                <.span(S.answerLabel)(remove, " ", s"${answerLetter(index)}. "),
-                                <.div(S.col, S.grow)(
-                                  <.div(S.row)(V.LiveTextField.String(answer)),
-                                  <.div(S.row)(
-                                    <.input(S.correctAnswerRadio)(
-                                      ^.`type`  := "radio",
-                                      ^.name    := "correctAnswerIndex",
-                                      ^.value   := index,
-                                      ^.checked := setup.value.correctAnswerIndex == index,
-                                      ^.onChange -->
-                                        setup
-                                          .zoomStateL(DebateSetupSpec.correctAnswerIndex)
-                                          .setState(index)
-                                    ),
-                                    <.span(c"mr-2", S.inputRowItem)(
-                                      <.span(S.correctAnswerLabel)("Correct"),
-                                      S.hidden.when(setup.value.correctAnswerIndex != index)
-                                    ),
-                                    <.div(S.inputLabel)("Debater:"),
-                                    ProfileOptSelect.mod(select = S.customSelect)(
-                                      choices = profiles,
-                                      choice = setup.zoomStateL(
-                                        DebateSetupSpec
-                                          .roles
-                                          .composeLens(Optics.at(Debater(index): DebateRole))
+                          ListConfig
+                            .String
+                            .default(setup.zoomStateL(DebateSetupSpec.answers), "", 1) {
+                              (remove, answer, index) =>
+                                <.div(S.row)(
+                                  <.span(S.answerLabel)(remove, " ", s"${answerLetter(index)}. "),
+                                  <.div(S.col, S.grow)(
+                                    <.div(S.row)(V.LiveTextField.String(answer)),
+                                    <.div(S.row)(
+                                      <.input(S.correctAnswerRadio)(
+                                        ^.`type`  := "radio",
+                                        ^.name    := "correctAnswerIndex",
+                                        ^.value   := index,
+                                        ^.checked := setup.value.correctAnswerIndex == index,
+                                        ^.onChange -->
+                                          setup
+                                            .zoomStateL(DebateSetupSpec.correctAnswerIndex)
+                                            .setState(index)
+                                      ),
+                                      <.span(c"mr-2", S.inputRowItem)(
+                                        <.span(S.correctAnswerLabel)("Correct"),
+                                        S.hidden.when(setup.value.correctAnswerIndex != index)
+                                      ),
+                                      <.div(S.inputLabel)("Debater:"),
+                                      ProfileOptSelect.mod(select = S.customSelect)(
+                                        choices = profiles,
+                                        choice = setup.zoomStateL(
+                                          DebateSetupSpec
+                                            .roles
+                                            .composeLens(Optics.at(Debater(index): DebateRole))
+                                        )
                                       )
                                     )
                                   )
                                 )
-                              )
-                          }
+                            }
                         )
                       )
                     )

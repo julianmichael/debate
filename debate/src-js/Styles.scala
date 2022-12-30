@@ -53,6 +53,19 @@ object Styles extends jjm.ui.View.Styles {
   // style(
   //   addClassNames("custom-select")
   // )
+  val listCardHeaderSelect = style(
+    addClassNames("custom-select", "card-header"),
+    // border.none,
+    borderTop.none,
+    borderLeft.none,
+    borderRight.none,
+    borderBottomLeftRadius(0 rem),
+    borderBottomRightRadius(0 rem),
+    padding(0 rem, 0 rem, 0 rem, 15 px),
+    // TODO maybe extract into another style for when there's something on the left
+    borderTopLeftRadius(0 rem)
+    // TODO border top right radius media query for when screen is small
+  )
 
   // prob sliders
 
