@@ -1,9 +1,13 @@
 package debate.quality
 
+import cats.implicits._
+
 import io.circe.generic.JsonCodec
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.ConfiguredJsonCodec
 import monocle.macros.Lenses
+
+import jjm.implicits._
 
 @Lenses
 @JsonCodec
@@ -63,7 +67,29 @@ case class QuALITYQuestion(
   options: Vector[String],
   difficult: Boolean,
   annotations: Option[QuALITYQuestionAnnotations]
-)
+) {
+  // TODO: make sure we're consistent about how we compute these
+  def bestDistractors: Set[Int] = annotations.foldMap {
+    case QuALITYQuestionAnnotations(
+          writerLabel,
+          goldLabel,
+          validations: Vector[QuALITYQuestionValidationInstance],
+          _
+        ) =>
+      validations
+        .foldMap { instance =>
+          val annotatorIsWrong = instance.untimedAnswer != goldLabel
+          if (annotatorIsWrong) {
+            Map(instance.untimedAnswer -> 1.0, instance.untimedBestDistractor -> 0.1)
+          } else
+            Map(instance.untimedBestDistractor -> 1.0)
+        }
+        .toVector
+        .maximaBy(_._2)
+        .map(_._1)
+        .toSet
+  }
+}
 
 @JsonCodec
 case class QuALITYQuestionAnnotations(

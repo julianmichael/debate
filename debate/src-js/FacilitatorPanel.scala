@@ -22,6 +22,7 @@ import jjm.ui.LocalState
 import debate.quality._
 import debate.util._
 import cats.kernel.Order
+import scala.util.Random
 
 object FacilitatorPanel {
   val S = Styles
@@ -54,6 +55,7 @@ object FacilitatorPanel {
           }
     )
 
+  val IntSetLocal      = new LocalState[Set[Int]]
   val QuestionOptLocal = new LocalState[Option[QuALITYQuestion]]
   val QuestionSelect =
     new V.Select[Option[QuALITYQuestion]](
@@ -502,7 +504,7 @@ object FacilitatorPanel {
                       question
                         .annotations
                         .fold(setup.correctAnswerIndex)(
-                          _.writerLabel - 1
+                          _.goldLabel - 1
                         ) // writer labels are 1-indexed
                   )
                 )
@@ -520,110 +522,132 @@ object FacilitatorPanel {
       )
     )
 
-  def answersConfig(lobby: Lobby, setup: StateSnapshot[DebateSetupSpec]) = {
-    <.div(S.mainLabeledInputRow)(
-      <.div(S.inputRowLabel)("Answers"),
-      <.div(S.inputRowContents) {
+  def answersConfig(
+    lobby: Lobby,
+    setup: StateSnapshot[DebateSetupSpec],
+    qualityQuestionOpt: Option[QuALITYQuestion]
+  ) = {
+    IntSetLocal.make(qualityQuestionOpt.foldMap(_.bestDistractors.map(_ - 1))) { bestDistractors =>
+      <.div(S.mainLabeledInputRow)(
+        <.div(S.inputRowLabel)("Answers"),
+        <.div(S.inputRowContents) {
 
-        val rearrangeAnswers =
-          (f: Vector ~> Vector) => {
-            val recombination = f(setup.value.answers.indices.toVector)
-            val newIndices = recombination
-              .zipWithIndex
-              .foldMap { case (oldIndex, newIndex) =>
-                Map(oldIndex -> NonEmptySet.of(newIndex))
-              }
-              .map { case (oldIndex, newIndices) =>
-                val newIndex = newIndices.minimum(Order.by((i: Int) => math.abs(oldIndex - i)))
+          val rearrangeAnswers =
+            (f: Vector ~> Vector) => {
+              val recombination = f(setup.value.answers.indices.toVector)
+              val newIndices = recombination
+                .zipWithIndex
+                .foldMap { case (oldIndex, newIndex) =>
+                  Map(oldIndex -> NonEmptySet.of(newIndex))
+                }
+                .map { case (oldIndex, newIndices) =>
+                  val newIndex = newIndices.minimum(Order.by((i: Int) => math.abs(oldIndex - i)))
 
-                oldIndex -> newIndex
-              }
-            setup.modState(
-              _.copy(
-                answers = f(setup.value.answers),
-                correctAnswerIndex = newIndices
-                  .get(setup.value.correctAnswerIndex)
-                  .getOrElse(Helpers.clamp(0, setup.value.correctAnswerIndex, recombination.size)),
-                roles = setup
-                  .value
-                  .roles
-                  .flatMap {
-                    case (Debater(i) -> name) =>
-                      newIndices.get(i).map(j => Debater(j) -> name)
-                    case x =>
-                      Some(x)
+                  oldIndex -> newIndex
+                }
+              setup.modState(
+                _.copy(
+                  answers = f(setup.value.answers),
+                  correctAnswerIndex = newIndices
+                    .get(setup.value.correctAnswerIndex)
+                    .getOrElse(
+                      Helpers.clamp(0, setup.value.correctAnswerIndex, recombination.size)
+                    ),
+                  roles = setup
+                    .value
+                    .roles
+                    .flatMap {
+                      case (Debater(i) -> name) =>
+                        newIndices.get(i).map(j => Debater(j) -> name)
+                      case x =>
+                        Some(x)
+                    }
+                )
+              ) >> bestDistractors.modState(_.flatMap(newIndices.get))
+
+            }
+
+          ReactFragment(
+            qualityQuestionOpt
+              .flatMap(_.annotations)
+              .filter(a => a.goldLabel != a.writerLabel)
+              .map(_ =>
+                <.div(c"alert alert-danger mb-1")(
+                  "Gold and writer labels disagree. Treating the gold label as correct (see console for more)."
+                )
+              ),
+            ListConfig
+              .String
+              .nice(
+                items = setup.zoomStateL(DebateSetupSpec.answers),
+                defaultItem = "",
+                minItems = 1,
+                rearrange = rearrangeAnswers
+              ) { case ListConfig.Context(answer, index) =>
+                <.div(c"card-body", S.row)(
+                  <.span(c"col-form-label mr-2")(s"${answerLetter(index)}. "),
+                  <.div(S.col, S.grow)(
+                    V.LiveTextField.String(answer),
+                    <.div(S.row, c"mt-1")(
+                      <.input(S.correctAnswerRadio)(
+                        ^.`type`  := "radio",
+                        ^.name    := "correctAnswerIndex",
+                        ^.value   := index,
+                        ^.checked := setup.value.correctAnswerIndex == index,
+                        ^.onChange -->
+                          setup.zoomStateL(DebateSetupSpec.correctAnswerIndex).setState(index)
+                      ),
+                      <.span(c"mr-2", S.inputRowItem)(
+                        <.span(S.correctAnswerLabel)("Correct"),
+                        S.hidden.when(setup.value.correctAnswerIndex != index)
+                      ),
+                      <.div(S.inputLabel)("Debater:"),
+                      ProfileOptSelect.mod(select = S.customSelect)(
+                        choices = lobby.trackedDebaters,
+                        choice = setup.zoomStateL(
+                          DebateSetupSpec.roles.composeLens(Optics.at(Debater(index): DebateRole))
+                        )
+                      )
+                    ),
+                    <.div(c"mt-1 text-danger")("Best distractor")
+                      .when(bestDistractors.value.contains(index))
+                  )
+                )
+              },
+            <.div(
+              <.button(c"btn btn-outline-secondary mr-1")(
+                "Shuffle answers",
+                ^.onClick -->
+                  Callback.lazily {
+                    val seed = Random.nextInt()
+                    rearrangeAnswers(λ[Vector ~> Vector]((new Random(seed)).shuffle(_)))
+                  }
+              ),
+              <.button(c"btn btn-outline-secondary mr-1")(
+                "Shuffle Debaters",
+                ^.onClick -->
+                  Callback.lazily {
+                    val permutation = scala
+                      .util
+                      .Random
+                      .shuffle(0.until(setup.value.answers.size).toVector)
+                    setup
+                      .zoomStateL(DebateSetupSpec.roles)
+                      .modState(
+                        _.map {
+                          case (Debater(i) -> name) =>
+                            Debater(permutation(i)) -> name
+                          case x =>
+                            x
+                        }
+                      )
                   }
               )
             )
-
-          }
-
-        ReactFragment(
-          ListConfig
-            .String
-            .nice(
-              items = setup.zoomStateL(DebateSetupSpec.answers),
-              defaultItem = "",
-              minItems = 1,
-              rearrange = rearrangeAnswers
-            ) { case ListConfig.Context(answer, index) =>
-              <.div(c"card-body", S.row)(
-                <.span(c"col-form-label mr-2")(s"${answerLetter(index)}. "),
-                <.div(S.col, S.grow)(
-                  V.LiveTextField.String(answer),
-                  <.div(S.row, c"mt-1")(
-                    <.input(S.correctAnswerRadio)(
-                      ^.`type`  := "radio",
-                      ^.name    := "correctAnswerIndex",
-                      ^.value   := index,
-                      ^.checked := setup.value.correctAnswerIndex == index,
-                      ^.onChange -->
-                        setup.zoomStateL(DebateSetupSpec.correctAnswerIndex).setState(index)
-                    ),
-                    <.span(c"mr-2", S.inputRowItem)(
-                      <.span(S.correctAnswerLabel)("Correct"),
-                      S.hidden.when(setup.value.correctAnswerIndex != index)
-                    ),
-                    <.div(S.inputLabel)("Debater:"),
-                    ProfileOptSelect.mod(select = S.customSelect)(
-                      choices = lobby.trackedDebaters,
-                      choice = setup.zoomStateL(
-                        DebateSetupSpec.roles.composeLens(Optics.at(Debater(index): DebateRole))
-                      )
-                    )
-                  )
-                )
-              )
-            },
-          <.div(
-            <.button(c"btn btn-outline-secondary mr-1")(
-              "Shuffle answers",
-              ^.onClick --> rearrangeAnswers(λ[Vector ~> Vector](scala.util.Random.shuffle(_)))
-            ),
-            <.button(c"btn btn-outline-secondary mr-1")(
-              "Shuffle Debaters",
-              ^.onClick -->
-                Callback.lazily {
-                  val permutation = scala
-                    .util
-                    .Random
-                    .shuffle(0.until(setup.value.answers.size).toVector)
-                  setup
-                    .zoomStateL(DebateSetupSpec.roles)
-                    .modState(
-                      _.map {
-                        case (Debater(i) -> name) =>
-                          Debater(permutation(i)) -> name
-                        case x =>
-                          x
-                      }
-                    )
-                }
-            )
           )
-        )
-      }
-    )
+        }
+      )
+    }
   }
 
   /** Config panel for facilitator to set the rules of the debate. */
@@ -700,7 +724,7 @@ object FacilitatorPanel {
                         qualityStoryOpt,
                         qualityQuestionOpt
                       ),
-                      answersConfig(lobby, setup)
+                      answersConfig(lobby, setup, qualityQuestionOpt.value)
                     )
                   }
 
