@@ -29,12 +29,6 @@ case class DebateSetupSpec(
   roles: Map[DebateRole, String],
   correctAnswerIndex: Int
 ) {
-  println(correctAnswerIndex)
-  println(answers)
-
-  if (correctAnswerIndex >= 0 && correctAnswerIndex < answers.size) {
-    println("AAAAAAAAAHHHHHHH")
-  }
   require(correctAnswerIndex >= 0 && correctAnswerIndex < answers.size)
   def areAllRolesAssigned =
     roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
