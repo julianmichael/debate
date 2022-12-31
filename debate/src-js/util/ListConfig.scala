@@ -20,18 +20,17 @@ case class ListConfig[A]() {
 
   val S = debate.Styles
 
+  import Helpers.ClassSetInterpolator
   def default(values: StateSnapshot[Vector[A]], defaultItem: A, minItems: Int = 0)(
     renderItem: (TagMod, StateSnapshot[A], Int) => VdomTag
   ) =
     <.div(S.listConfigListDiv)(
-      apply(values, minItems) { case Context(item, index, removeCallback) =>
-        val removeItemElement = removeCallback
-          .map(remove => <.span(S.listConfigRemoveItemSpan)("(-)", ^.onClick --> remove))
+      apply(values, minItems) { case Context(item, index, _, removeOpt, _) =>
+        val removeItemElement = removeOpt
+          .map(remove => <.span(<.i(c"bi bi-x"), ^.onClick --> remove))
         renderItem(removeItemElement, item, index)
       },
-      <.div(S.listConfigAddItemDiv)(
-        <.span(S.listConfigAddItemSpan)("(+)", ^.onClick --> values.modState(_ :+ defaultItem))
-      )
+      <.div(S.listConfigAddItemDiv)(<.span("(+)", ^.onClick --> values.modState(_ :+ defaultItem)))
     )
 
   def apply(values: StateSnapshot[Vector[A]], minItems: Int = 0)(
@@ -42,15 +41,37 @@ case class ListConfig[A]() {
     .toVdomArray { case (_, index) =>
       // safe since we're in zipWithIndex
       val itemSnapshot = values.zoomStateO(Optics.index(index)).get
-      val removeItemCallback = Option(values.modState(_.remove(index)))
+      val swapUpCb =
+        if (index > 0)
+          Some(
+            values.modState(vs => vs.updated(index, vs(index - 1)).updated(index - 1, vs(index)))
+          )
+        else
+          None
+      val swapDownCb =
+        if (index < values.value.size - 1) {
+          Some(
+            values.modState(vs => vs.updated(index, vs(index + 1)).updated(index + 1, vs(index)))
+          )
+        } else
+          None
+      val removeItemCb = Option(values.modState(_.remove(index)))
         .filter(_ => values.value.size > minItems)
 
-      renderItem(Context(itemSnapshot, index, removeItemCallback))(^.key := s"item-$index")
+      renderItem(Context(itemSnapshot, index, swapUpCb, removeItemCb, swapDownCb))(
+        ^.key := s"item-$index"
+      )
     }
 }
 object ListConfig {
 
-  case class Context[A](item: StateSnapshot[A], index: Int, remove: Option[Callback])
+  case class Context[A](
+    item: StateSnapshot[A],
+    index: Int,
+    swapUp: Option[Callback],
+    remove: Option[Callback],
+    swapDown: Option[Callback]
+  )
 
   val String = ListConfig[String]()
 }

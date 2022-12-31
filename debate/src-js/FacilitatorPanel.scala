@@ -96,26 +96,38 @@ object FacilitatorPanel {
   def roundTypeSelect(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
     val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None)
     <.div(S.inputRowContents)(
-      RoundTypeList(roundTypes, minItems) { case ListConfig.Context(roundType, _, removeOpt) =>
+      RoundTypeList(roundTypes, minItems) { case ListConfig.Context(roundType, _, swapUpOpt, removeOpt, swapDownOpt) =>
         val rowMod = TagMod(
           c"form-inline",
           ^.paddingBottom := "1rem",
           ^.paddingLeft   := "1rem",
           ^.paddingRight  := "1rem"
         )
-        <.div(c"card")(
-          <.div(c"row no-gutters")(
-            removeOpt.map(remove =>
-              <.div(
-                S.col,
-                c"col-auto",
-                ^.padding := "5px",
-                ^.alignItems.center,
-                ^.textAlign.center,
-                ^.borderRight :=
-                  "1px solid rgba(0,0,0,.125)" // TODO send to bottom with media queries
-              )(<.div(S.listConfigRemoveItemSpan, ^.margin.auto, "(-)"), ^.onClick --> remove)
+        val sideButtonStyle = TagMod(c"btn border-0 rounded-0", S.col, S.grow)
+        val leftSideButtons =
+          Vector(
+            swapUpOpt.map(swapUp =>
+              <.div(sideButtonStyle, c"btn-outline-secondary")(
+                <.div(^.margin.auto, <.i(c"bi bi-arrow-up")),
+                ^.onClick --> swapUp
+              )
             ),
+            removeOpt.map(remove =>
+              <.div(sideButtonStyle, c"btn-outline-danger")(
+                <.div(^.margin.auto, <.i(c"bi bi-x")),
+                ^.onClick --> remove
+              )
+            ),
+            swapDownOpt.map(swapDown =>
+              <.div(sideButtonStyle, c"btn-outline-secondary")(
+                <.div(^.margin.auto, <.i(c"bi bi-arrow-down")),
+                ^.onClick --> swapDown
+              )
+            )
+          ).flatten
+        <.div(c"card mb-1", ^.overflow.hidden)(
+          <.div(c"row no-gutters")(
+            <.div(S.cardLeftSideXColumn)(leftSideButtons: _*).when(leftSideButtons.nonEmpty),
             <.div(c"col")(
               RoundTypeConfig
                 .mod(select = TagMod(S.listCardHeaderSelect, ^.marginBottom := "1rem"))(roundType)(
@@ -191,7 +203,10 @@ object FacilitatorPanel {
           )
         )
       },
-      <.span(S.row)("(+)", ^.onClick --> roundTypes.modState(_ :+ defaultRoundType))
+      <.button(c"btn btn-outline-secondary")(
+        "+",
+        ^.onClick --> roundTypes.modState(_ :+ defaultRoundType)
+      )
     )
   }
 
@@ -214,11 +229,11 @@ object FacilitatorPanel {
     label: String,
     rounds: StateSnapshot[Vector[DebateRoundType]],
     minItems: Int
-  ) = <.div(S.mainLabeledInputRow)(<.div(S.inputLabel)(label), roundTypeSelect(rounds, minItems))
+  ) = <.div(S.mainLabeledInputRow)(<.div(S.inputRowLabel)(label), roundTypeSelect(rounds, minItems))
 
   def scoringFunctionConfig(scoringFunction: StateSnapshot[ScoringFunction]) =
     <.div(S.mainLabeledInputRow)(
-      <.div(S.inputLabel)("Judge Scoring Function"),
+      <.div(S.inputRowLabel)("Judge Scoring Function"),
       <.div(S.inputRowContents)(
         ScoringFunctionConfig(scoringFunction)(
           "Spherical Score" ->
@@ -295,7 +310,7 @@ object FacilitatorPanel {
 
   def globalQuoteRestrictionConfig(quoteRestriction: StateSnapshot[Option[Int]]) =
     <.div(S.mainLabeledInputRow)(
-      <.div(S.inputLabel)("Global Evidence Restrictions"),
+      <.div(S.inputRowLabel)("Global Evidence Restrictions"),
       <.div(S.inputRowContents)(
         <.div(c"form-inline")(
           optionalIntInput(quoteRestriction, Some("Quote character limit"), defaultGlobalQuoteLimit)
@@ -459,7 +474,7 @@ object FacilitatorPanel {
                         )
                       ),
                       <.div(S.mainLabeledInputRow)(
-                        <.div(S.inputLabel)("Source Material"),
+                        <.div(S.inputRowLabel)("Source Material"),
                         <.div(S.inputRowContents)(
                           QuALITYStorySelect.modFull(select = S.customSelect)(
                             choices =
@@ -525,7 +540,7 @@ object FacilitatorPanel {
                         )
                       ),
                       <.div(S.mainLabeledInputRow)(
-                        <.div(S.inputLabel)("Question"),
+                        <.div(S.inputRowLabel)("Question"),
                         <.div(S.inputRowContents)(
                           QuestionSelect.modFull(select = S.customSelect)(
                             choices =
@@ -571,7 +586,7 @@ object FacilitatorPanel {
                         )
                       ),
                       <.div(S.mainLabeledInputRow)(
-                        <.div(S.inputLabel)("Answers"),
+                        <.div(S.inputRowLabel)("Answers"),
                         <.div(S.inputRowContents)(
                           ListConfig
                             .String

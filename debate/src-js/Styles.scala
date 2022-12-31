@@ -25,7 +25,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val inputLabel = style(
     addClassNames("col-form-label"),
-    width(140 px),
+    width(160 px),
     textAlign.right,
     marginRight(mainHalfPadding)
   )
@@ -38,12 +38,12 @@ object Styles extends jjm.ui.View.Styles {
 
   // list config
 
-  val listConfigListDiv        = style(textAlign.left)
-  val listConfigRemoveItemSpan = style(color.gray, &.hover(color.black, fontWeight.bold))
+  val listConfigListDiv = style(textAlign.left)
+  // val listConfigRemoveItemSpan = style(color.gray, &.hover(color.black, fontWeight.bold))
   val listConfigAddItemDiv = style(
     // textAlign.left
   )
-  val listConfigAddItemSpan = listConfigRemoveItemSpan
+  // val listConfigAddItemSpan = listConfigRemoveItemSpan
 
   // sum config
 
@@ -372,13 +372,24 @@ object Styles extends jjm.ui.View.Styles {
   // )
 
   val mainLabeledInputRow = style(
-    row,
-    spaceyContainer,
+    addClassNames("row"),
+    // spaceyContainer,
+    padding(15 px, 0 px),
     borderRadius(commonBorderRadius),
     backgroundColor(c"#eee")
   )
 
-  val inputRowContents = style(display.flex, flexDirection.column, width(100 %%))
+  val inputRowLabel = style(
+    addClassNames("col-md-2 col-form-label"),
+    media.minWidth(768 px)(textAlign.right)
+  )
+
+  val inputRowContents = style(
+    addClassNames("col-md-10"),
+    display.flex,
+    flexDirection.column,
+    width(100 %%)
+  )
 
   val inputRowItem = style(margin.auto)
 
@@ -501,5 +512,13 @@ object Styles extends jjm.ui.View.Styles {
     marginTop(-.75 rem),
     padding(0 rem, .75 rem, .75 rem),
     textAlign.right
+  )
+
+  val cardLeftSideXColumn = style(
+    col,
+    addClassNames("col-auto"),
+    alignItems.center,
+    textAlign.center,
+    borderRight := "1px solid rgba(0,0,0,.125)" // TODO send to bottom with media queries
   )
 }
