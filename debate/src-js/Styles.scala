@@ -425,15 +425,6 @@ object Styles extends jjm.ui.View.Styles {
 
   val correctAnswerLabel = style(color(niceGreen), fontWeight.bold)
 
-  val answerLabel = style(
-    addClassNames("col-form-label"),
-    marginRight(mainHalfPadding * 2)
-    // width(50 px),
-    // textAlign.right
-    // margin(mainHalfPadding)
-    // flexGrow(1),
-  )
-
   val correctAnswerRadio = style(marginLeft(0.5 em), marginRight(0.5 em))
 
   val inputLabelDeleteButton = style(color(c"#888"), &.hover(fontWeight.bold, color.black))

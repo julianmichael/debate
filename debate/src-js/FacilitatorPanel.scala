@@ -96,117 +96,82 @@ object FacilitatorPanel {
   def roundTypeSelect(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
     val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None)
     <.div(S.inputRowContents)(
-      RoundTypeList(roundTypes, minItems) { case ListConfig.Context(roundType, _, swapUpOpt, removeOpt, swapDownOpt) =>
-        val rowMod = TagMod(
-          c"form-inline",
-          ^.paddingBottom := "1rem",
-          ^.paddingLeft   := "1rem",
-          ^.paddingRight  := "1rem"
-        )
-        val sideButtonStyle = TagMod(c"btn border-0 rounded-0", S.col, S.grow)
-        val leftSideButtons =
-          Vector(
-            swapUpOpt.map(swapUp =>
-              <.div(sideButtonStyle, c"btn-outline-secondary")(
-                <.div(^.margin.auto, <.i(c"bi bi-arrow-up")),
-                ^.onClick --> swapUp
-              )
-            ),
-            removeOpt.map(remove =>
-              <.div(sideButtonStyle, c"btn-outline-danger")(
-                <.div(^.margin.auto, <.i(c"bi bi-x")),
-                ^.onClick --> remove
-              )
-            ),
-            swapDownOpt.map(swapDown =>
-              <.div(sideButtonStyle, c"btn-outline-secondary")(
-                <.div(^.margin.auto, <.i(c"bi bi-arrow-down")),
-                ^.onClick --> swapDown
-              )
-            )
-          ).flatten
-        <.div(c"card mb-1", ^.overflow.hidden)(
-          <.div(c"row no-gutters")(
-            <.div(S.cardLeftSideXColumn)(leftSideButtons: _*).when(leftSideButtons.nonEmpty),
-            <.div(c"col")(
-              RoundTypeConfig
-                .mod(select = TagMod(S.listCardHeaderSelect, ^.marginBottom := "1rem"))(roundType)(
-                  "Simultaneous Speeches" ->
-                    SumConfigOption(
-                      DebateRoundType.SimultaneousSpeechesRound(500, None),
-                      DebateRoundType.simultaneousSpeechesRound
-                    ) { simulSpeeches =>
-                      ReactFragment(
-                        <.div(rowMod)(
-                          NumberField2(
-                            simulSpeeches
-                              .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.charLimit),
-                            Some("Character limit")
-                          )
-                        ),
-                        <.div(rowMod)(
-                          optionalIntInput(
-                            simulSpeeches
-                              .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.quoteLimit),
-                            Some("Quote character limit"),
-                            defaultPerMessageQuoteLimit
-                          )
-                        )
-                      )
-                    },
-                  "Sequential Speeches" ->
-                    SumConfigOption(
-                      DebateRoundType.SequentialSpeechesRound(500, None),
-                      DebateRoundType.sequentialSpeechesRound
-                    ) { seqSpeeches =>
-                      ReactFragment(
-                        <.div(rowMod)(
-                          NumberField2(
-                            seqSpeeches
-                              .zoomStateL(DebateRoundType.SequentialSpeechesRound.charLimit),
-                            labelOpt = Some("Character limit")
-                          )
-                        ),
-                        <.div(rowMod)(
-                          optionalIntInput(
-                            seqSpeeches
-                              .zoomStateL(DebateRoundType.SequentialSpeechesRound.quoteLimit),
-                            Some("Quote character limit"),
-                            defaultPerMessageQuoteLimit
-                          )
-                        )
-                      )
-                    },
-                  "Judge Feedback" ->
-                    SumConfigOption(
-                      DebateRoundType.JudgeFeedbackRound(true, 500),
-                      DebateRoundType.judgeFeedbackRound
-                    ) { judgeFeedback =>
-                      ReactFragment(
-                        <.div(rowMod)(
-                          NumberField2(
-                            judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.charLimit),
-                            labelOpt = Some("Character limit")
-                          )
-                        ),
-                        <.div(rowMod)(
-                          Checkbox2(
-                            judgeFeedback
-                              .zoomStateL(DebateRoundType.JudgeFeedbackRound.reportBeliefs),
-                            Some("Report probabilities")
-                          )
-                        )
-                      )
-                    }
-                )
-            )
+      RoundTypeList.nice(roundTypes, defaultRoundType, minItems) {
+        case ListConfig.Context(roundType, _, _, _, _) =>
+          val rowMod = TagMod(
+            c"form-inline",
+            ^.paddingBottom := "1.25rem",
+            ^.paddingLeft   := "1.25rem",
+            ^.paddingRight  := "1.25rem"
           )
-        )
-      },
-      <.button(c"btn btn-outline-secondary")(
-        "+",
-        ^.onClick --> roundTypes.modState(_ :+ defaultRoundType)
-      )
+          RoundTypeConfig
+            .mod(select = TagMod(S.listCardHeaderSelect, ^.marginBottom := "1.25rem"))(roundType)(
+              "Simultaneous Speeches" ->
+                SumConfigOption(
+                  DebateRoundType.SimultaneousSpeechesRound(500, None),
+                  DebateRoundType.simultaneousSpeechesRound
+                ) { simulSpeeches =>
+                  ReactFragment(
+                    <.div(rowMod)(
+                      NumberField2(
+                        simulSpeeches
+                          .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.charLimit),
+                        Some("Character limit")
+                      )
+                    ),
+                    <.div(rowMod)(
+                      optionalIntInput(
+                        simulSpeeches
+                          .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.quoteLimit),
+                        Some("Quote character limit"),
+                        defaultPerMessageQuoteLimit
+                      )
+                    )
+                  )
+                },
+              "Sequential Speeches" ->
+                SumConfigOption(
+                  DebateRoundType.SequentialSpeechesRound(500, None),
+                  DebateRoundType.sequentialSpeechesRound
+                ) { seqSpeeches =>
+                  ReactFragment(
+                    <.div(rowMod)(
+                      NumberField2(
+                        seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.charLimit),
+                        labelOpt = Some("Character limit")
+                      )
+                    ),
+                    <.div(rowMod)(
+                      optionalIntInput(
+                        seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.quoteLimit),
+                        Some("Quote character limit"),
+                        defaultPerMessageQuoteLimit
+                      )
+                    )
+                  )
+                },
+              "Judge Feedback" ->
+                SumConfigOption(
+                  DebateRoundType.JudgeFeedbackRound(true, 500),
+                  DebateRoundType.judgeFeedbackRound
+                ) { judgeFeedback =>
+                  ReactFragment(
+                    <.div(rowMod)(
+                      NumberField2(
+                        judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.charLimit),
+                        labelOpt = Some("Character limit")
+                      )
+                    ),
+                    <.div(rowMod)(
+                      Checkbox2(
+                        judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.reportBeliefs),
+                        Some("Report probabilities")
+                      )
+                    )
+                  )
+                }
+            )
+      }
     )
   }
 
@@ -318,70 +283,81 @@ object FacilitatorPanel {
       )
     )
 
+  def getValidatedCreateDebateCb(
+    lobby: Lobby,
+    roomName: StateSnapshot[String],
+    isOfficial: Boolean,
+    setup: DebateSetupSpec,
+    initDebate: CreateRoom => Callback,
+    joinDebate: Option[(Boolean, String) => Callback]
+  ): Validated[NonEmptyChain[Option[VdomTag]], Callback] = {
+    import cats.implicits._
+    // import cats.syntax.validated._
+    val createDebateCb: Callback =
+      initDebate(
+        CreateRoom(isOfficial = isOfficial, roomName = roomName.value.trim, setupSpec = setup)
+      ) >> roomName.setState("")
+
+    def ensure(key: String, condition: Boolean, err: Option[VdomTag]) =
+      condition
+        .validNec[Option[VdomTag]]
+        .ensure(NonEmptyChain(err.map(_(c"text-danger", ^.key := key))))(identity)
+
+    ensure("room name is not blank", roomName.value.nonEmpty, None) *>
+      ensure(
+        "at least 2 answers",
+        setup.answers.filter(_.nonEmpty).size > 1,
+        Some(<.div("Debates must have at least 2 answers."))
+      ) *>
+      ensure(
+        "all roles assigned",
+        !isOfficial || setup.areAllRolesAssigned,
+        Some(<.div("All roles must be assigned in official debates."))
+      ) *>
+      ensure(
+        "room doesn't exist",
+        if (isOfficial)
+          !lobby.officialRooms.exists(_.name == roomName.value.trim)
+        else
+          !lobby.practiceRooms.exists(_.name == roomName.value.trim),
+        Some {
+          val prefix =
+            if (isOfficial)
+              "official"
+            else
+              "practice"
+          <.div(
+            s"The $prefix room ",
+            <.a(
+              roomName.value.trim,
+              ^.href := "#",
+              joinDebate.whenDefined(cb => ^.onClick --> cb(isOfficial, roomName.value))
+            ),
+            " already exists."
+          )
+        }
+      ) *> createDebateCb.validNec[Option[VdomTag]]
+  }
+
   /** Config panel for facilitator to set the rules of the debate. */
   def apply(
     lobby: Lobby,
-    joinDebate: Option[(Boolean, String) => Callback],
-    profiles: Set[String],
     qualityService: QuALITYService[AsyncCallback],
+    joinDebate: Option[(Boolean, String) => Callback],
     initDebate: CreateRoom => Callback
   ) = {
     DebateSetupSpecLocal.syncedWithSessionStorage("debate-setup", DebateSetupSpec.init) { setup =>
       StringLocal.syncedWithSessionStorage("debate-setup-room-name", "") { roomName =>
         BoolLocal.syncedWithSessionStorage("debate-setup-is-official", true) { isOfficial =>
-          val createDebateValidated: Validated[NonEmptyChain[Option[VdomTag]], Callback] = {
-            import cats.implicits._
-            // import cats.syntax.validated._
-            val createDebateCb: Callback =
-              initDebate(
-                CreateRoom(
-                  isOfficial = isOfficial.value,
-                  roomName = roomName.value.trim,
-                  setupSpec = setup.value
-                )
-              ) >> roomName.setState("")
-
-            def ensure(key: String, condition: Boolean, err: Option[VdomTag]) =
-              condition
-                .validNec[Option[VdomTag]]
-                .ensure(NonEmptyChain(err.map(_(c"text-danger", ^.key := key))))(identity)
-
-            ensure("room name is not blank", roomName.value.nonEmpty, None) *>
-              ensure(
-                "at least 2 answers",
-                setup.value.answers.filter(_.nonEmpty).size > 1,
-                Some(<.div("Debates must have at least 2 answers."))
-              ) *>
-              ensure(
-                "all roles assigned",
-                !isOfficial.value || setup.value.areAllRolesAssigned,
-                Some(<.div("All roles must be assigned in official debates."))
-              ) *>
-              ensure(
-                "room doesn't exist",
-                if (isOfficial.value)
-                  !lobby.officialRooms.exists(_.name == roomName.value.trim)
-                else
-                  !lobby.practiceRooms.exists(_.name == roomName.value.trim),
-                Some {
-                  val prefix =
-                    if (isOfficial.value)
-                      "official"
-                    else
-                      "practice"
-                  <.div(
-                    s"The $prefix room ",
-                    <.a(
-                      roomName.value.trim,
-                      ^.href := "#",
-                      joinDebate
-                        .whenDefined(cb => ^.onClick --> cb(isOfficial.value, roomName.value))
-                    ),
-                    " already exists."
-                  )
-                }
-              ) *> createDebateCb.validNec[Option[VdomTag]]
-          }
+          val createDebateValidated: Validated[NonEmptyChain[Option[VdomTag]], Callback] =
+            getValidatedCreateDebateCb(
+              lobby,
+              roomName,
+              isOfficial.value,
+              setup.value,
+              initDebate,
+              joinDebate
+            )
 
           QuALITYIndexFetch
             .make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
@@ -577,7 +553,7 @@ object FacilitatorPanel {
                           <.div(S.row)(
                             <.div(S.inputLabel)("Judge:"),
                             ProfileOptSelect.mod(select = S.customSelect)(
-                              choices = profiles,
+                              choices = lobby.trackedDebaters,
                               choice = setup.zoomStateL(
                                 DebateSetupSpec.roles.composeLens(Optics.at(Judge: DebateRole))
                               )
@@ -590,13 +566,13 @@ object FacilitatorPanel {
                         <.div(S.inputRowContents)(
                           ListConfig
                             .String
-                            .default(setup.zoomStateL(DebateSetupSpec.answers), "", 1) {
-                              (remove, answer, index) =>
-                                <.div(S.row)(
-                                  <.span(S.answerLabel)(remove, " ", s"${answerLetter(index)}. "),
+                            .nice(setup.zoomStateL(DebateSetupSpec.answers), "", 1) {
+                              case ListConfig.Context(answer, index, _, _, _) =>
+                                <.div(c"card-body", S.row)(
+                                  <.span(c"col-form-label mr-2")(s"${answerLetter(index)}. "),
                                   <.div(S.col, S.grow)(
-                                    <.div(S.row)(V.LiveTextField.String(answer)),
-                                    <.div(S.row)(
+                                    V.LiveTextField.String(answer),
+                                    <.div(S.row, c"mt-1")(
                                       <.input(S.correctAnswerRadio)(
                                         ^.`type`  := "radio",
                                         ^.name    := "correctAnswerIndex",
@@ -613,7 +589,7 @@ object FacilitatorPanel {
                                       ),
                                       <.div(S.inputLabel)("Debater:"),
                                       ProfileOptSelect.mod(select = S.customSelect)(
-                                        choices = profiles,
+                                        choices = lobby.trackedDebaters,
                                         choice = setup.zoomStateL(
                                           DebateSetupSpec
                                             .roles

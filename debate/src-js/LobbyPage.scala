@@ -199,14 +199,13 @@ object LobbyPage {
                       case LobbyTab.CreateDebates =>
                         FacilitatorPanel(
                           lobby = lobby,
+                          qualityService = qualityService,
                           joinDebate = Option(userName.value)
                             .filter(_.nonEmpty)
                             .map(userName =>
                               (isOfficial: Boolean, roomName: String) =>
                                 connect(ConnectionSpec(isOfficial, roomName, userName))
                             ),
-                          profiles = lobby.trackedDebaters,
-                          qualityService = qualityService,
                           initDebate = sendToMainChannel
                         )
                       case _ =>
