@@ -56,7 +56,7 @@ object FacilitatorPanel {
     )
 
   val IntSetLocal      = new LocalState[Set[Int]]
-  val QuestionOptLocal = new LocalState[Option[QuALITYQuestion]]
+  val QuestionOptLocal = new LocalState2[Option[QuALITYQuestion]]
   val QuestionSelect =
     new V.Select[Option[QuALITYQuestion]](
       show =
@@ -485,29 +485,26 @@ object FacilitatorPanel {
           curChoice = qualityQuestionOpt.value,
           setChoice = {
             case None =>
+              val init = DebateSetupSpec.init
               qualityQuestionOpt.setState(None) >>
                 setup.modState(
-                  DebateSetupSpec
-                    .question
-                    .set("")
-                    .andThen(DebateSetupSpec.answers.set(Vector("", "")))
+                  _.copy(
+                    question = init.question,
+                    answers = init.answers,
+                    correctAnswerIndex = init.correctAnswerIndex
+                  )
                 )
             case Some(question) =>
               import io.circe.syntax._
               Callback(org.scalajs.dom.console.log(question.asJson.spaces2)) >>
-                qualityQuestionOpt.setState(Some(question)) >>
                 setup.modState(setup =>
                   setup.copy(
                     question = question.question,
                     answers = question.options,
                     correctAnswerIndex =
-                      question
-                        .annotations
-                        .fold(setup.correctAnswerIndex)(
-                          _.goldLabel - 1
-                        ) // writer labels are 1-indexed
+                      question.annotations.fold(0)(_.goldLabel - 1) // writer labels are 1-indexed
                   )
-                )
+                ) >> qualityQuestionOpt.setState(Some(question))
           }
         ),
         V.LiveTextField.String(setup.zoomStateL(DebateSetupSpec.question)),
@@ -551,7 +548,7 @@ object FacilitatorPanel {
                   correctAnswerIndex = newIndices
                     .get(setup.value.correctAnswerIndex)
                     .getOrElse(
-                      Helpers.clamp(0, setup.value.correctAnswerIndex, recombination.size)
+                      Helpers.clamp(0, setup.value.correctAnswerIndex, recombination.size - 1)
                     ),
                   roles = setup
                     .value
@@ -569,11 +566,43 @@ object FacilitatorPanel {
 
           ReactFragment(
             qualityQuestionOpt
-              .flatMap(_.annotations)
-              .filter(a => a.goldLabel != a.writerLabel)
-              .map(_ =>
+              .flatMap(q => q.annotations.map(q -> _))
+              .filter { case (_, a) =>
+                a.goldLabel != a.writerLabel
+              }
+              .flatMap { case (q, a) =>
+                if (setup.value.correctAnswer == q.options(a.goldLabel - 1))
+                  Some("gold label")
+                else if (setup.value.correctAnswer == q.options(a.writerLabel - 1))
+                  Some("writer label")
+                else
+                  None
+              }
+              .map(labelName =>
                 <.div(c"alert alert-danger mb-1")(
-                  "Gold and writer labels disagree. Treating the gold label as correct (see console for more)."
+                  "Gold and writer labels disagree. The ",
+                  <.strong(labelName),
+                  " is currently marked as correct (see console for more)."
+                )
+              ),
+            qualityQuestionOpt
+              .flatMap(q => q.annotations.map(q -> _))
+              .filter { case (q, a) =>
+                !Set(q.options(a.goldLabel - 1), q.options(a.writerLabel - 1))
+                  .contains(setup.value.correctAnswer)
+              }
+              .map(_ =>
+                <.div(c"alert alert-warning mb-1")(
+                  "The text of the correct answer does not match the original gold or writer label",
+                  " (see console for more)."
+                )
+              ),
+            qualityQuestionOpt
+              .filter(_.annotations.isEmpty)
+              .map(_ =>
+                <.div(c"alert alert-warning mb-1")(
+                  "Annotations — gold answer, distractors, etc. — are not provided for this question",
+                  " (see console for more)."
                 )
               ),
             ListConfig
@@ -686,46 +715,48 @@ object FacilitatorPanel {
                       }
                 ) { storyOptFetch =>
                   val qualityStoryOpt = storyOptFetch.toOption.flatten
-                  QuestionOptLocal.make(None) { qualityQuestionOpt =>
-                    <.div(S.facilitatorColumn, S.spaceySubcontainer)(
-                      headerBar(lobby, setup.value, joinDebate, initDebate, isOfficial, roomName),
-                      roundTypeConfig(
-                        "Opening Rounds",
-                        setup
-                          .zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)),
-                        minItems = 0
-                      ),
-                      roundTypeConfig(
-                        "Repeated Rounds",
-                        setup.zoomStateL(
-                          DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)
+                  QuestionOptLocal.syncedWithSessionStorage("selected-question", None) {
+                    qualityQuestionOpt =>
+                      <.div(S.facilitatorColumn, S.spaceySubcontainer)(
+                        headerBar(lobby, setup.value, joinDebate, initDebate, isOfficial, roomName),
+                        roundTypeConfig(
+                          "Opening Rounds",
+                          setup.zoomStateL(
+                            DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)
+                          ),
+                          minItems = 0
                         ),
-                        minItems = 1
-                      ),
-                      globalQuoteRestrictionConfig(
-                        setup.zoomStateL(
-                          DebateSetupSpec.rules.composeLens(DebateRules.globalQuoteRestriction)
-                        )
-                      ),
-                      scoringFunctionConfig(
-                        setup.zoomStateL(
-                          DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction)
-                        )
-                      ),
-                      sourceMaterialConfig(
-                        setup.zoomStateL(DebateSetupSpec.sourceMaterial),
-                        indexOpt,
-                        articleIdOpt,
-                        qualityStoryOpt
-                      ),
-                      questionConfig(
-                        lobby.trackedDebaters,
-                        setup,
-                        qualityStoryOpt,
-                        qualityQuestionOpt
-                      ),
-                      answersConfig(lobby, setup, qualityQuestionOpt.value)
-                    )
+                        roundTypeConfig(
+                          "Repeated Rounds",
+                          setup.zoomStateL(
+                            DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)
+                          ),
+                          minItems = 1
+                        ),
+                        globalQuoteRestrictionConfig(
+                          setup.zoomStateL(
+                            DebateSetupSpec.rules.composeLens(DebateRules.globalQuoteRestriction)
+                          )
+                        ),
+                        scoringFunctionConfig(
+                          setup.zoomStateL(
+                            DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction)
+                          )
+                        ),
+                        sourceMaterialConfig(
+                          setup.zoomStateL(DebateSetupSpec.sourceMaterial),
+                          indexOpt,
+                          articleIdOpt,
+                          qualityStoryOpt
+                        ),
+                        questionConfig(
+                          lobby.trackedDebaters,
+                          setup,
+                          qualityStoryOpt,
+                          qualityQuestionOpt
+                        ),
+                        answersConfig(lobby, setup, qualityQuestionOpt.value)
+                      )
                   }
 
                 }

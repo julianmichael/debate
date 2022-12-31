@@ -18,6 +18,7 @@ object Helpers {
       ^.classSet1(sc.s(args: _*))
   }
 
+  // inclusive
   def clamp(min: Int, value: Int, max: Int): Int = math.min(max, math.max(min, value))
 
   def delimitedTags[F[_]: Foldable: Functor, A](
