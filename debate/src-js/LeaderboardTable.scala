@@ -128,6 +128,11 @@ object LeaderboardTable {
       )
     }
 
+  def makeSingle(leaderboard: Leaderboard, category: LeaderboardCategory) = leaderboard
+    .data
+    .get(category)
+    .map(rows => renderSingleLeaderboard(category, rows))
+
   def make(leaderboard: Leaderboard): japgolly.scalajs.react.vdom.VdomElement = {
     import LeaderboardCategory._
     <.div(

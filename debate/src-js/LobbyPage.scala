@@ -124,24 +124,24 @@ object LobbyPage {
     def all = Vector(MyDebates, AllOfficialDebates, PracticeDebates)
   }
 
-  @JsonCodec
-  sealed trait LeaderboardTab extends Product with Serializable {
-    import LeaderboardTab._
-    override def toString =
-      this match {
-        case Judge =>
-          "Judge "
-        case HonestDebater =>
-          "Honest Debater"
-        case DishonestDebater =>
-          "Dishonest Debater"
-      }
-  }
-  object LeaderboardTab {
-    case object Judge            extends LeaderboardTab
-    case object HonestDebater    extends LeaderboardTab
-    case object DishonestDebater extends LeaderboardTab
-  }
+  // @JsonCodec
+  // sealed trait LeaderboardTab extends Product with Serializable {
+  //   import LeaderboardTab._
+  //   override def toString =
+  //     this match {
+  //       case Judge =>
+  //         "Judge "
+  //       case HonestDebater =>
+  //         "Honest Debater"
+  //       case DishonestDebater =>
+  //         "Dishonest Debater"
+  //     }
+  // }
+  // object LeaderboardTab {
+  //   case object Judge            extends LeaderboardTab
+  //   case object HonestDebater    extends LeaderboardTab
+  //   case object DishonestDebater extends LeaderboardTab
+  // }
 
   @JsonCodec
   sealed trait AdminTab extends Product with Serializable {
@@ -159,12 +159,9 @@ object LobbyPage {
   val LocalBool   = new LocalState2[Boolean]
   val LocalString = new LocalState2[String]
 
-  val LocalMainTab        = new LocalState2[MainLobbyTab]
-  val LocalDebatesTab     = new LocalState2[DebatesTab]
-  val LocalLeaderboardTab = new LocalState2[LeaderboardTab]
-  val LocalAdminTab       = new LocalState2[AdminTab]
+  val LocalMainTab = new LocalState2[MainLobbyTab]
 
-  val DebateTabs = new TabNav[DebatesTab]
+  val DebateTabNav = new TabNav[DebatesTab]
 
   def debatesSubtab(
     isAdmin: Boolean,
@@ -176,7 +173,7 @@ object LobbyPage {
 
     val myDebates = lobby.officialRooms.filter(_.roleAssignments.values.toSet.contains(userName))
 
-    DebateTabs.make("debate-tab", DebatesTab.all, DebatesTab.MyDebates) { tab =>
+    DebateTabNav.make("debate-tab", DebatesTab.all, DebatesTab.MyDebates) { tab =>
       import DebatesTab._
       val isOfficial = tab.value != PracticeDebates
       val currentRooms =
@@ -274,7 +271,8 @@ object LobbyPage {
     connect: ConnectionSpec => Callback
   )
 
-  val MainTabNav = new TabNav[MainLobbyTab]
+  val MainTabNav        = new TabNav[MainLobbyTab]
+  val LeaderboardTabNav = new TabNav[LeaderboardCategory]
 
   val Component =
     ScalaComponent
@@ -376,9 +374,15 @@ object LobbyPage {
                           sendToMainChannel = sendToMainChannel
                         )
                       case MainLobbyTab.Leaderboard =>
-                        <.div(c"card-body", S.spaceySubcontainer)(
-                          LeaderboardTable.make(lobby.leaderboard)
-                        )
+                        LeaderboardTabNav.make(
+                          "leaderboard-tab",
+                          LeaderboardCategory.all,
+                          LeaderboardCategory.Judge
+                        ) { leaderboardTab =>
+                          <.div(c"card-body", S.spaceySubcontainer)(
+                            LeaderboardTable.makeSingle(lobby.leaderboard, leaderboardTab.value)
+                          )
+                        }
                       case MainLobbyTab.Admin =>
                         <.div(c"card-body", S.spaceySubcontainer)(
                           FacilitatorPanel(

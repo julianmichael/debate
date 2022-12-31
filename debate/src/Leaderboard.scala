@@ -65,7 +65,7 @@ object DebateStats {
 }
 
 @JsonCodec
-sealed trait LeaderboardCategory {
+sealed trait LeaderboardCategory extends Product with Serializable {
   import LeaderboardCategory._
   override def toString =
     this match {
@@ -82,7 +82,7 @@ object LeaderboardCategory {
   case object HonestDebater    extends LeaderboardCategory
   case object DishonestDebater extends LeaderboardCategory
 
-  def all = List(Judge, HonestDebater, DishonestDebater)
+  def all = Vector(Judge, HonestDebater, DishonestDebater)
 
   def fromString(x: String): Option[LeaderboardCategory] = all.find(_.toString == x)
 
