@@ -75,7 +75,7 @@ object Helpers {
     enter: Callback
   ) =
     <.div(c"input-group", ^.width.auto)(
-      textInput(enter = enter, field = field, placeholderOpt = placeholderOpt),
+      textInput(field = field, placeholderOpt = placeholderOpt, enter = enter),
       <.div(c"input-group-append")(
         <.button(c"btn btn-primary")(
           buttonText,

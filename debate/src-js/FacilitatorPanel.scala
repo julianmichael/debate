@@ -570,7 +570,7 @@ object FacilitatorPanel {
               .filter { case (_, a) =>
                 a.goldLabel != a.writerLabel
               }
-              .flatMap { case (q, a) =>
+              .map { case (q, a) =>
                 if (setup.value.correctAnswer == q.options(a.goldLabel - 1))
                   Some("gold label")
                 else if (setup.value.correctAnswer == q.options(a.writerLabel - 1))
@@ -578,11 +578,16 @@ object FacilitatorPanel {
                 else
                   None
               }
-              .map(labelName =>
+              .map(labelNameOpt =>
                 <.div(c"alert alert-danger mb-1")(
-                  "Gold and writer labels disagree. The ",
-                  <.strong(labelName),
-                  " is currently marked as correct (see console for more)."
+                  "Gold and writer labels disagree",
+                  labelNameOpt match {
+                    case None =>
+                      " "
+                    case Some(labelName) =>
+                      <.span(". The ", <.strong(labelName), " is currently marked as correct ")
+                  },
+                  " (see console for more)."
                 )
               ),
             qualityQuestionOpt
