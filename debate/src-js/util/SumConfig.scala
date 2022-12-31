@@ -23,7 +23,8 @@ case class SumConfig[A]() {
 
   def mod(
     // innerDiv: TagMod = S.sumConfigInnerDiv,
-    select: TagMod = S.sumConfigSelect
+    select: TagMod = S.sumConfigSelect,
+    optionsDiv: TagMod = S.sumConfigOptionsDiv
   )(item: StateSnapshot[A])(options: (String, SumConfigOption[A])*) = {
     val initialValue = options
       .flatMap { case (label, option) =>
@@ -47,16 +48,18 @@ case class SumConfig[A]() {
                   projectedDefault
                 }
           ),
-        options
-          .find(_._1 == optionName.value)
-          .map(_._2)
-          .flatMap { option =>
-            item
-              .zoomStateO(option.prism.asOptional)
-              .map { subItem =>
-                option.render(subItem)
-              }
-          }
+        <.div(optionsDiv)(
+          options
+            .find(_._1 == optionName.value)
+            .map(_._2)
+            .flatMap { option =>
+              item
+                .zoomStateO(option.prism.asOptional)
+                .map { subItem =>
+                  option.render(subItem)
+                }
+            }
+        )
       )
     }
   }

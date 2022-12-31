@@ -47,9 +47,10 @@ object Styles extends jjm.ui.View.Styles {
 
   // sum config
 
-  val sumConfigOuterDiv = style()
-  val sumConfigInnerDiv = style()
-  val sumConfigSelect   = customSelect
+  val sumConfigOuterDiv   = style()
+  val sumConfigInnerDiv   = style()
+  val sumConfigSelect     = customSelect
+  val sumConfigOptionsDiv = style()
   // style(
   //   addClassNames("custom-select")
   // )
