@@ -1,6 +1,8 @@
 package debate
 
+import cats.~>
 import cats.data.NonEmptyChain
+import cats.data.NonEmptySet
 import cats.data.Validated
 import cats.implicits._
 
@@ -19,6 +21,7 @@ import jjm.ui.LocalState
 
 import debate.quality._
 import debate.util._
+import cats.kernel.Order
 
 object FacilitatorPanel {
   val S = Styles
@@ -97,7 +100,7 @@ object FacilitatorPanel {
     val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None)
     <.div(S.inputRowContents)(
       RoundTypeList.nice(roundTypes, defaultRoundType, minItems) {
-        case ListConfig.Context(roundType, _, _, _, _) =>
+        case ListConfig.Context(roundType, _) =>
           val rowMod = TagMod(
             c"form-inline",
             ^.paddingBottom := "1.25rem",
@@ -187,7 +190,7 @@ object FacilitatorPanel {
       isEnabled = createDebateOpt.nonEmpty,
       enter = createDebateOpt.combineAll
     ),
-    <.div(S.row)(V.Checkbox(isOfficial, "Is an official debate (must assign roles)"))
+    <.div(S.row)(V.Checkbox(isOfficial, "Official debate"))
   )
 
   def roundTypeConfig(
@@ -336,6 +339,35 @@ object FacilitatorPanel {
             " already exists."
           )
         }
+      ) *>
+      ensure(
+        "correct answer index",
+        0 <= setup.correctAnswerIndex && setup.correctAnswerIndex < setup.answers.size,
+        Some(
+          <.div(
+            "Error: correct answer index is out of bounds. ",
+            " (This is a bug and shouldn't happen — please report. But to work around it now, ",
+            " just click the 'correct' radio button for one of the answers.)"
+          )
+        )
+      ) *>
+      ensure(
+        "no dangling assignments",
+        setup
+          .roles
+          .keySet
+          .collect {
+            case Debater(i) if i >= setup.answers.size =>
+              i
+          }
+          .isEmpty,
+        Some(
+          <.div(
+            "Error: there are dangling debater assignments for nonexistent answers.",
+            " (This is a bug and shouldn't happen — please report. But to work around it now, ",
+            " add answers until you find a debater assigned to the new answer then remove them.)"
+          )
+        )
       ) *> createDebateCb.validNec[Option[VdomTag]]
   }
 
@@ -563,11 +595,57 @@ object FacilitatorPanel {
                       ),
                       <.div(S.mainLabeledInputRow)(
                         <.div(S.inputRowLabel)("Answers"),
-                        <.div(S.inputRowContents)(
-                          ListConfig
-                            .String
-                            .nice(setup.zoomStateL(DebateSetupSpec.answers), "", 1) {
-                              case ListConfig.Context(answer, index, _, _, _) =>
+                        <.div(S.inputRowContents) {
+
+                          val rearrangeAnswers =
+                            (f: Vector ~> Vector) => {
+                              val recombination = f(setup.value.answers.indices.toVector)
+                              val newIndices = recombination
+                                .zipWithIndex
+                                .foldMap { case (oldIndex, newIndex) =>
+                                  Map(oldIndex -> NonEmptySet.of(newIndex))
+                                }
+                                .map { case (oldIndex, newIndices) =>
+                                  val newIndex = newIndices
+                                    .minimum(Order.by((i: Int) => math.abs(oldIndex - i)))
+
+                                  oldIndex -> newIndex
+                                }
+                              setup.modState(
+                                _.copy(
+                                  answers = f(setup.value.answers),
+                                  correctAnswerIndex = newIndices
+                                    .get(setup.value.correctAnswerIndex)
+                                    .getOrElse(
+                                      Helpers.clamp(
+                                        0,
+                                        setup.value.correctAnswerIndex,
+                                        recombination.size
+                                      )
+                                    ),
+                                  roles = setup
+                                    .value
+                                    .roles
+                                    .flatMap {
+                                      case (Debater(i) -> name) =>
+                                        newIndices.get(i).map(j => Debater(j) -> name)
+                                      case x =>
+                                        Some(x)
+                                    }
+                                )
+                              )
+
+                            }
+
+                          ReactFragment(
+                            ListConfig
+                              .String
+                              .nice(
+                                items = setup.zoomStateL(DebateSetupSpec.answers),
+                                defaultItem = "",
+                                minItems = 1,
+                                rearrange = rearrangeAnswers
+                              ) { case ListConfig.Context(answer, index) =>
                                 <.div(c"card-body", S.row)(
                                   <.span(c"col-form-label mr-2")(s"${answerLetter(index)}. "),
                                   <.div(S.col, S.grow)(
@@ -599,57 +677,38 @@ object FacilitatorPanel {
                                     )
                                   )
                                 )
-                            },
-                          <.div(c"mt-1")(
-                            <.button(c"btn btn-outline-secondary mr-1")(
-                              "Shuffle answers",
-                              ^.onClick -->
-                                Callback.lazily {
-                                  val permutation = scala
-                                    .util
-                                    .Random
-                                    .shuffle(0.until(setup.value.answers.size).toVector)
-                                  setup.modState(
-                                    _.copy(
-                                      answers = permutation.map(setup.value.answers),
-                                      correctAnswerIndex = permutation(
-                                        setup.value.correctAnswerIndex
-                                      ),
-                                      roles = setup
-                                        .value
-                                        .roles
-                                        .map {
+                              },
+                            <.div(
+                              <.button(c"btn btn-outline-secondary mr-1")(
+                                "Shuffle answers",
+                                ^.onClick -->
+                                  rearrangeAnswers(
+                                    λ[Vector ~> Vector](scala.util.Random.shuffle(_))
+                                  )
+                              ),
+                              <.button(c"btn btn-outline-secondary mr-1")(
+                                "Shuffle Debaters",
+                                ^.onClick -->
+                                  Callback.lazily {
+                                    val permutation = scala
+                                      .util
+                                      .Random
+                                      .shuffle(0.until(setup.value.answers.size).toVector)
+                                    setup
+                                      .zoomStateL(DebateSetupSpec.roles)
+                                      .modState(
+                                        _.map {
                                           case (Debater(i) -> name) =>
                                             Debater(permutation(i)) -> name
                                           case x =>
                                             x
                                         }
-                                    )
-                                  )
-                                }
-                            ),
-                            <.button(c"btn btn-outline-secondary mr-1")(
-                              "Shuffle Debaters",
-                              ^.onClick -->
-                                Callback.lazily {
-                                  val permutation = scala
-                                    .util
-                                    .Random
-                                    .shuffle(0.until(setup.value.answers.size).toVector)
-                                  setup
-                                    .zoomStateL(DebateSetupSpec.roles)
-                                    .modState(
-                                      _.map {
-                                        case (Debater(i) -> name) =>
-                                          Debater(permutation(i)) -> name
-                                        case x =>
-                                          x
-                                      }
-                                    )
-                                }
+                                      )
+                                  }
+                              )
                             )
                           )
-                        )
+                        }
                       )
                     )
                   }
