@@ -599,7 +599,56 @@ object FacilitatorPanel {
                                     )
                                   )
                                 )
-                            }
+                            },
+                          <.div(c"mt-1")(
+                            <.button(c"btn btn-outline-secondary mr-1")(
+                              "Shuffle answers",
+                              ^.onClick -->
+                                Callback.lazily {
+                                  val permutation = scala
+                                    .util
+                                    .Random
+                                    .shuffle(0.until(setup.value.answers.size).toVector)
+                                  setup.modState(
+                                    _.copy(
+                                      answers = permutation.map(setup.value.answers),
+                                      correctAnswerIndex = permutation(
+                                        setup.value.correctAnswerIndex
+                                      ),
+                                      roles = setup
+                                        .value
+                                        .roles
+                                        .map {
+                                          case (Debater(i) -> name) =>
+                                            Debater(permutation(i)) -> name
+                                          case x =>
+                                            x
+                                        }
+                                    )
+                                  )
+                                }
+                            ),
+                            <.button(c"btn btn-outline-secondary mr-1")(
+                              "Shuffle Debaters",
+                              ^.onClick -->
+                                Callback.lazily {
+                                  val permutation = scala
+                                    .util
+                                    .Random
+                                    .shuffle(0.until(setup.value.answers.size).toVector)
+                                  setup
+                                    .zoomStateL(DebateSetupSpec.roles)
+                                    .modState(
+                                      _.map {
+                                        case (Debater(i) -> name) =>
+                                          Debater(permutation(i)) -> name
+                                        case x =>
+                                          x
+                                      }
+                                    )
+                                }
+                            )
+                          )
                         )
                       )
                     )
