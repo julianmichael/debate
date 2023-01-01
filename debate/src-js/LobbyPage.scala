@@ -258,19 +258,17 @@ object LobbyPage {
     name: String,
     joinOfficialRoom: String => Callback,
     sendToMainChannel: MainChannelRequest => Callback
-  ) =
+  ) = {
+    val debates = lobby.officialRooms.filter(_.roleAssignments.values.exists(_ == name))
     <.div(c"card")(
       <.div(c"card-body")(
         <.h6(c"card-title")(name),
         <.p(c"card-text small")(
-          "Debates: ",
+          s"Debates: ${debates.size}",
+          <.br(),
           Helpers
             .delimitedTags[Vector, RoomMetadata](
-              lobby
-                .officialRooms
-                .filter(_.roleAssignments.values.exists(_ == name))
-                .toVector
-                .sortBy(-_.latestUpdateTime),
+              debates.toVector.sortBy(-_.latestUpdateTime),
               getTag =
                 room => <.a(^.href := "#", room.name, ^.onClick --> joinOfficialRoom(room.name))
             )
@@ -293,6 +291,7 @@ object LobbyPage {
         }
       )
     )
+  }
 
   def adminSubtabs(
     lobby: Lobby,
@@ -329,7 +328,7 @@ object LobbyPage {
                   enter =
                     sendToMainChannel(RegisterDebater(newProfileStr.value)) >>
                       newProfileStr.setState("")
-                ),
+                )(^.marginBottom := "1rem"),
                 <.h3("Active Profiles"),
                 <.div(S.profileListContainer, S.spaceySubcontainer)(
                   lobby
@@ -344,6 +343,7 @@ object LobbyPage {
 
                     }
                 ),
+                <.div(<.hr()),
                 <.h3("Inactive Profiles"),
                 <.div(S.profileListContainer, S.spaceySubcontainer)(
                   (lobby.allDebaters -- lobby.trackedDebaters)
