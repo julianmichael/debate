@@ -198,22 +198,32 @@ object DebateCreationPanel {
           else
             "practice" -> lobby.practiceRooms
 
-        <.span(
-            s"Most recent $prefix rooms: ",
-            Utils
-              .delimitedTags[Vector, RoomMetadata](
-                rooms.toVector.sortBy(-_.creationTime).take(10),
-                { case roomMeta =>
-                  <.a(
-                    ^.href := "#",
-                    roomMeta.name,
-                    joinDebate
-                      .whenDefined(join => ^.onClick --> join(isOfficial.value, roomMeta.name))
-                  )
-                }
-              )
-              .toVdomArray
-          )
+        Local[Int]
+          .make(5) { numMostRecentToShow =>
+            <.span(
+              s"Most recent $prefix rooms: ",
+              Utils
+                .delimitedTags[Vector, RoomMetadata](
+                  rooms.toVector.sortBy(-_.creationTime).take(numMostRecentToShow.value),
+                  { case roomMeta =>
+                    <.a(
+                      ^.href := "#",
+                      roomMeta.name,
+                      joinDebate
+                        .whenDefined(join => ^.onClick --> join(isOfficial.value, roomMeta.name))
+                    )
+                  }
+                )
+                .toVdomArray,
+              " ",
+              <.a(c"text-muted")(
+                  ^.href := "#",
+                  "(show more)",
+                  ^.onClick --> numMostRecentToShow.modState(_ + 5)
+                )
+                .when(numMostRecentToShow.value < rooms.size)
+            )
+          }
           .when(rooms.nonEmpty)
       },
       createDebateValidated
