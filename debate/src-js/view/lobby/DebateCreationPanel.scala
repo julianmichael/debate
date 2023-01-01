@@ -25,7 +25,7 @@ import debate.util._
 import cats.kernel.Order
 import scala.util.Random
 
-object FacilitatorPanel {
+object DebateCreationPanel {
   val S = Styles
   val V = new jjm.ui.View(S)
 

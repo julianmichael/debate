@@ -360,7 +360,7 @@ object LobbyPage {
               )
             }
           case CreateDebate =>
-            FacilitatorPanel(
+            DebateCreationPanel(
               lobby = lobby,
               qualityService = qualityService,
               joinDebate = Option(userName)
