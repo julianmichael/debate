@@ -226,6 +226,11 @@ object Styles extends jjm.ui.View.Styles {
     gridTemplateColumns := "repeat(auto-fill,minmax(250px, 1fr))"
   )
 
+  val profileListContainer = style(
+    display.grid,
+    gridTemplateColumns := "repeat(auto-fill,minmax(350px, 1fr))"
+  )
+
   val judgeColor      = darkgreen
   val judgeColorLight = green
 

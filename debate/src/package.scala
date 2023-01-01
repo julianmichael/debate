@@ -80,4 +80,10 @@ package object debate extends PackagePlatformExtensions {
     def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] =
       fa.reduceLeftTo(Monad[G].pure)((ga, a) => Monad[G].flatMap(ga)(g(_, a)))
   }
+
+  def itemMatchesKeywordQuery(itemTerms: Set[String], queryKeywords: Set[String]) =
+    queryKeywords.forall { qk =>
+      val k = qk.toLowerCase
+      itemTerms.exists(_.toLowerCase.contains(k))
+    }
 }

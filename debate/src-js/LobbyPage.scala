@@ -15,6 +15,8 @@ import monocle.macros.Lenses
 import io.circe.Encoder
 import io.circe.Decoder
 
+import cats.Order
+
 class TabNav[A: Encoder: Decoder] {
 
   val LocalTab = new LocalState2[A]
@@ -251,28 +253,111 @@ object LobbyPage {
     }
   }
 
+  def debaterCard(
+    lobby: Lobby,
+    name: String,
+    joinOfficialRoom: String => Callback,
+    sendToMainChannel: MainChannelRequest => Callback
+  ) =
+    <.div(c"card")(
+      <.div(c"card-body")(
+        <.h6(c"card-title")(name),
+        <.p(c"card-text small")(
+          "Debates: ",
+          Helpers
+            .delimitedTags[Vector, RoomMetadata](
+              lobby
+                .officialRooms
+                .filter(_.roleAssignments.values.exists(_ == name))
+                .toVector
+                .sortBy(-_.latestUpdateTime),
+              getTag =
+                room => <.a(^.href := "#", room.name, ^.onClick --> joinOfficialRoom(room.name))
+            )
+            .toVdomArray
+        ),
+        if (lobby.trackedDebaters.contains(name)) {
+          <.button(c"btn btn-sm btn-outline-danger", S.simpleSelectable)(
+            <.i(c"bi bi-x"),
+            " Hide profile",
+            ^.onClick --> sendToMainChannel(RemoveDebater(name))
+          )
+        } else {
+          <.div(^.key := name)(
+            <.button(c"btn btn-sm btn-outline-secondary", S.simpleSelectable)(
+              <.i(c"bi bi-arrow-up"),
+              " Reactivate profile",
+              ^.onClick --> sendToMainChannel(RegisterDebater(name))
+            )
+          )
+        }
+      )
+    )
+
   def adminSubtabs(
     lobby: Lobby,
     qualityService: QuALITYService[AsyncCallback],
     userName: String,
     connect: ConnectionSpec => Callback,
     sendToMainChannel: MainChannelRequest => Callback
-  ) =
-    AdminTabNav.make("admit-tab", AdminTab.all, AdminTab.CreateDebate) { tab =>
+  ) = {
+    val joinOfficialRoom = (roomName: String) => connect(ConnectionSpec(true, roomName, userName))
+    AdminTabNav.make("admin-tab", AdminTab.all, AdminTab.CreateDebate) { tab =>
       import AdminTab._
       <.div(c"card-body", S.spaceySubcontainer)(
         tab.value match {
           case Profiles =>
-            ReactFragment(
-              <.h3("Active Profiles"),
-              lobby
-                .trackedDebaters
-                .toVdomArray { name =>
-                  <.div(<.i(c"bi bi-x", ^.onClick --> sendToMainChannel(RemoveDebater(name))), name)
-                }
-            )
-          // LocalString.make("") { }
-          // Helpers.textInputWithEnterButton()
+            LocalString.make("") { newProfileStr =>
+              def profileMatchesQuery(profile: String) = itemMatchesKeywordQuery(
+                itemTerms = Set(profile),
+                queryKeywords = newProfileStr.value.split("\\s+").toSet
+              )
+
+              val profileOrder = {
+                import Order._
+                whenEqual(reverse(by[String, Boolean](profileMatchesQuery)), apply[String])
+              }
+
+              ReactFragment(
+                Helpers.textInputWithEnterButton(
+                  field = newProfileStr,
+                  placeholderOpt = Some("New debater"),
+                  buttonText = "+",
+                  isEnabled =
+                    newProfileStr.value.nonEmpty &&
+                      !lobby.trackedDebaters.contains(newProfileStr.value),
+                  enter =
+                    sendToMainChannel(RegisterDebater(newProfileStr.value)) >>
+                      newProfileStr.setState("")
+                ),
+                <.h3("Active Profiles"),
+                <.div(S.profileListContainer, S.spaceySubcontainer)(
+                  lobby
+                    .trackedDebaters
+                    .toVector
+                    .sorted(catsKernelOrderingForOrder(profileOrder))
+                    .toVdomArray { name =>
+                      debaterCard(lobby, name, joinOfficialRoom, sendToMainChannel)(
+                        ^.key := name,
+                        S.simpleUnselectable.when(!profileMatchesQuery(name))
+                      )
+
+                    }
+                ),
+                <.h3("Inactive Profiles"),
+                <.div(S.profileListContainer, S.spaceySubcontainer)(
+                  (lobby.allDebaters -- lobby.trackedDebaters)
+                    .toVector
+                    .sorted(catsKernelOrderingForOrder(profileOrder))
+                    .toVdomArray { name =>
+                      debaterCard(lobby, name, joinOfficialRoom, sendToMainChannel)(
+                        ^.key := name,
+                        S.simpleUnselectable.when(!profileMatchesQuery(name))
+                      )
+                    }
+                )
+              )
+            }
           case CreateDebate =>
             FacilitatorPanel(
               lobby = lobby,
@@ -288,6 +373,7 @@ object LobbyPage {
         }
       )
     }
+  }
 
   case class Props(
     qualityService: QuALITYService[AsyncCallback],
@@ -320,28 +406,6 @@ object LobbyPage {
           } else
             noProfileString
 
-        def createProfileButton(userName: StateSnapshot[String]) =
-          <.div(c"form-group row") {
-            val name       = userName.value
-            val isDisabled = (lobby.trackedDebaters + "" + "(no profile)").contains(name)
-            <.button(c"btn btn-primary btn-block")(
-              "Create profile",
-              ^.disabled := isDisabled,
-              (^.onClick --> sendToMainChannel(RegisterDebater(userName.value))).when(!isDisabled)
-            )
-          }
-
-        def deleteProfileButton(userName: StateSnapshot[String]) =
-          <.div(c"form-group row") {
-            val name      = userName.value
-            val isEnabled = lobby.trackedDebaters.contains(name)
-            <.button(c"btn btn-danger btn-block")(
-              "Delete profile",
-              ^.disabled := !isEnabled,
-              (^.onClick --> sendToMainChannel(RemoveDebater(userName.value))).when(isEnabled)
-            )
-          }
-
         def profileSelector(isAdmin: StateSnapshot[Boolean], userName: StateSnapshot[String]) =
           <.div(c"form-group row")(
             <.label(c"col-sm-2 col-form-label")("Profile:", ^.onClick --> isAdmin.modState(!_)),
@@ -354,22 +418,10 @@ object LobbyPage {
               )
           )
 
-        def nameInput(userName: StateSnapshot[String]) =
-          V.LiveTextField
-            .String
-            .mod(
-              span = TagMod(c"form-group row"),
-              label = c"col-sm-2 col-form-label",
-              input = c"col-sm-10 form-control"
-            )(userName, labelOpt = Some("Name: "))
-
         LocalBool.syncedWithSessionStorage(key = "is-admin", defaultValue = false) { isAdmin =>
           LocalString.syncedWithLocalStorage(key = "profile", defaultValue = "") { userName =>
             <.div(S.lobbyContainer, S.spaceyContainer)(
-              profileSelector(isAdmin = isAdmin, userName = userName),
-              nameInput(userName = userName).when(isAdmin.value),
-              createProfileButton(userName).when(isAdmin.value),
-              deleteProfileButton(userName).when(isAdmin.value), {
+              profileSelector(isAdmin = isAdmin, userName = userName), {
                 val myDebates = lobby
                   .officialRooms
                   .filter(_.roleAssignments.values.toSet.contains(userName.value))

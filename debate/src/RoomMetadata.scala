@@ -18,15 +18,10 @@ case class RoomMetadata(
   currentSpeakers: Set[DebateRole],
   currentParticipants: Set[String]
 ) {
-  private[this] def matchesKeyword(keyword: String) = {
-    val k     = keyword.toLowerCase
-    val words = roleAssignments.values.toSet ++ currentParticipants + name + status.toString
-    words.exists(_.toLowerCase.contains(k))
-  }
-  def matchesQuery(query: String) = {
-    val keywords = query.split("\\s+").toSet
-    keywords.forall(matchesKeyword)
-  }
+  def matchesQuery(query: String) = itemMatchesKeywordQuery(
+    itemTerms = roleAssignments.values.toSet ++ currentParticipants + name + status.toString,
+    queryKeywords = query.split("\\s+").toSet
+  )
 
 }
 object RoomMetadata {
