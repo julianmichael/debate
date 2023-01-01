@@ -531,39 +531,40 @@ object DebateCreationPanel {
           <.div(S.inputRowContents) {
 
             val rearrangeAnswers =
-              (f: Vector ~> Vector) => {
-                val recombination = f(setup.value.answers.indices.toVector)
-                val newIndices = recombination
-                  .zipWithIndex
-                  .foldMap { case (oldIndex, newIndex) =>
-                    Map(oldIndex -> NonEmptySet.of(newIndex))
-                  }
-                  .map { case (oldIndex, newIndices) =>
-                    val newIndex = newIndices.minimum(Order.by((i: Int) => math.abs(oldIndex - i)))
+              (f: Vector ~> Vector) =>
+                Callback.lazily {
+                  val recombination = f(setup.value.answers.indices.toVector)
+                  val newIndices = recombination
+                    .zipWithIndex
+                    .foldMap { case (oldIndex, newIndex) =>
+                      Map(oldIndex -> NonEmptySet.of(newIndex))
+                    }
+                    .map { case (oldIndex, newIndices) =>
+                      val newIndex = newIndices
+                        .minimum(Order.by((i: Int) => math.abs(oldIndex - i)))
+                      oldIndex -> newIndex
+                    }
+                  setup.modState(
+                    _.copy(
+                      answers = f(setup.value.answers),
+                      correctAnswerIndex = newIndices
+                        .get(setup.value.correctAnswerIndex)
+                        .getOrElse(
+                          Utils.clamp(0, setup.value.correctAnswerIndex, recombination.size - 1)
+                        ),
+                      roles = setup
+                        .value
+                        .roles
+                        .flatMap {
+                          case (Debater(i) -> name) =>
+                            newIndices.get(i).map(j => Debater(j) -> name)
+                          case x =>
+                            Some(x)
+                        }
+                    )
+                  ) >> bestDistractors.modState(_.flatMap(newIndices.get))
 
-                    oldIndex -> newIndex
-                  }
-                setup.modState(
-                  _.copy(
-                    answers = f(setup.value.answers),
-                    correctAnswerIndex = newIndices
-                      .get(setup.value.correctAnswerIndex)
-                      .getOrElse(
-                        Utils.clamp(0, setup.value.correctAnswerIndex, recombination.size - 1)
-                      ),
-                    roles = setup
-                      .value
-                      .roles
-                      .flatMap {
-                        case (Debater(i) -> name) =>
-                          newIndices.get(i).map(j => Debater(j) -> name)
-                        case x =>
-                          Some(x)
-                      }
-                  )
-                ) >> bestDistractors.modState(_.flatMap(newIndices.get))
-
-              }
+                }
 
             ReactFragment(
               qualityQuestionOpt
