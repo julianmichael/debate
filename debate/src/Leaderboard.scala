@@ -93,7 +93,9 @@ object LeaderboardCategory {
 }
 
 @JsonCodec
-case class Leaderboard(data: Map[LeaderboardCategory, Map[String, DebateStats]])
+case class Leaderboard(data: Map[LeaderboardCategory, Map[String, DebateStats]]) {
+  def allDebaters = data.unorderedFoldMap(_.keySet)
+}
 
 object Leaderboard {
   def fromDebates[F[_]: Foldable](debates: F[Debate]) = Leaderboard(

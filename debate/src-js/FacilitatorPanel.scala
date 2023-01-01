@@ -598,7 +598,7 @@ object FacilitatorPanel {
               }
               .map(_ =>
                 <.div(c"alert alert-warning mb-1")(
-                  "The text of the correct answer does not match the original gold or writer label",
+                  "The text of the correct answer does not match the original gold/writer answer",
                   " (see console for more)."
                 )
               ),
