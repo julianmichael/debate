@@ -158,8 +158,9 @@ object Serve
       practiceRooms <- practiceDebates.getRoomMetadata
       // channel to update all clients on the lobby state
       leaderboard <- officialDebates.getLeaderboard
+      allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
       mainChannel <- Topic[IO, Lobby](
-        Lobby(trackedDebaters, officialRooms, practiceRooms, leaderboard)
+        Lobby(allDebaters, trackedDebaters, officialRooms, practiceRooms, leaderboard)
       )
       pushUpdate = {
         for {
@@ -167,7 +168,9 @@ object Serve
           officialRooms <- officialDebates.getRoomMetadata
           practiceRooms <- practiceDebates.getRoomMetadata
           leaderboard   <- officialDebates.getLeaderboard
-          _ <- mainChannel.publish1(Lobby(debaters, officialRooms, practiceRooms, leaderboard))
+          allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
+          _ <- mainChannel
+            .publish1(Lobby(allDebaters, debaters, officialRooms, practiceRooms, leaderboard))
         } yield ()
       }
       _ <- pushUpdateRef.set(pushUpdate)
@@ -258,9 +261,10 @@ object Serve
         officialRooms <- officialDebates.getRoomMetadata
         practiceRooms <- practiceDebates.getRoomMetadata
         leaderboard   <- officialDebates.getLeaderboard
+        allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
         outStream = Stream
           .emit[IO, Option[Lobby]](
-            Some(Lobby(debaters, officialRooms, practiceRooms, leaderboard))
+            Some(Lobby(allDebaters, debaters, officialRooms, practiceRooms, leaderboard))
           ) // send the current set of debaters and rooms on connect
           .merge(Stream.awakeEvery[IO](30.seconds).map(_ => None)) // send a heartbeat every 30s
           .merge(mainChannel.subscribe(100).map(Some(_))) // and subscribe to the main channel

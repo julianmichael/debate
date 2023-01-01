@@ -124,36 +124,22 @@ object LobbyPage {
     def all = Vector(MyDebates, AllOfficialDebates, PracticeDebates)
   }
 
-  // @JsonCodec
-  // sealed trait LeaderboardTab extends Product with Serializable {
-  //   import LeaderboardTab._
-  //   override def toString =
-  //     this match {
-  //       case Judge =>
-  //         "Judge "
-  //       case HonestDebater =>
-  //         "Honest Debater"
-  //       case DishonestDebater =>
-  //         "Dishonest Debater"
-  //     }
-  // }
-  // object LeaderboardTab {
-  //   case object Judge            extends LeaderboardTab
-  //   case object HonestDebater    extends LeaderboardTab
-  //   case object DishonestDebater extends LeaderboardTab
-  // }
-
   @JsonCodec
   sealed trait AdminTab extends Product with Serializable {
     import AdminTab._
     override def toString =
       this match {
+        case Profiles =>
+          "Profiles"
         case CreateDebate =>
           "Create Debate"
       }
   }
   object AdminTab {
+    case object Profiles     extends AdminTab
     case object CreateDebate extends AdminTab
+
+    def all: Vector[AdminTab] = Vector(Profiles, CreateDebate)
   }
 
   val LocalBool   = new LocalState2[Boolean]
@@ -162,8 +148,9 @@ object LobbyPage {
   val LocalMainTab = new LocalState2[MainLobbyTab]
 
   val DebateTabNav = new TabNav[DebatesTab]
+  val AdminTabNav  = new TabNav[AdminTab]
 
-  def debatesSubtab(
+  def debatesSubtabs(
     isAdmin: Boolean,
     lobby: Lobby,
     userName: String,
@@ -263,6 +250,44 @@ object LobbyPage {
       )
     }
   }
+
+  def adminSubtabs(
+    lobby: Lobby,
+    qualityService: QuALITYService[AsyncCallback],
+    userName: String,
+    connect: ConnectionSpec => Callback,
+    sendToMainChannel: MainChannelRequest => Callback
+  ) =
+    AdminTabNav.make("admit-tab", AdminTab.all, AdminTab.CreateDebate) { tab =>
+      import AdminTab._
+      <.div(c"card-body", S.spaceySubcontainer)(
+        tab.value match {
+          case Profiles =>
+            ReactFragment(
+              <.h3("Active Profiles"),
+              lobby
+                .trackedDebaters
+                .toVdomArray { name =>
+                  <.div(<.i(c"bi bi-x", ^.onClick --> sendToMainChannel(RemoveDebater(name))), name)
+                }
+            )
+          // LocalString.make("") { }
+          // Helpers.textInputWithEnterButton()
+          case CreateDebate =>
+            FacilitatorPanel(
+              lobby = lobby,
+              qualityService = qualityService,
+              joinDebate = Option(userName)
+                .filter(_.nonEmpty)
+                .map(userName =>
+                  (isOfficial: Boolean, roomName: String) =>
+                    connect(ConnectionSpec(isOfficial, roomName, userName))
+                ),
+              initDebate = sendToMainChannel
+            )
+        }
+      )
+    }
 
   case class Props(
     qualityService: QuALITYService[AsyncCallback],
@@ -366,7 +391,7 @@ object LobbyPage {
                   ) { mainTab =>
                     mainTab.value match {
                       case MainLobbyTab.Debates =>
-                        debatesSubtab(
+                        debatesSubtabs(
                           isAdmin = isAdmin.value,
                           lobby = lobby,
                           userName = userName.value,
@@ -380,22 +405,20 @@ object LobbyPage {
                           LeaderboardCategory.Judge
                         ) { leaderboardTab =>
                           <.div(c"card-body", S.spaceySubcontainer)(
-                            LeaderboardTable.makeSingle(lobby.leaderboard, leaderboardTab.value)
+                            LeaderboardTable.makeSingle(
+                              lobby.trackedDebaters,
+                              lobby.leaderboard,
+                              leaderboardTab.value
+                            )
                           )
                         }
                       case MainLobbyTab.Admin =>
-                        <.div(c"card-body", S.spaceySubcontainer)(
-                          FacilitatorPanel(
-                            lobby = lobby,
-                            qualityService = qualityService,
-                            joinDebate = Option(userName.value)
-                              .filter(_.nonEmpty)
-                              .map(userName =>
-                                (isOfficial: Boolean, roomName: String) =>
-                                  connect(ConnectionSpec(isOfficial, roomName, userName))
-                              ),
-                            initDebate = sendToMainChannel
-                          )
+                        adminSubtabs(
+                          lobby = lobby,
+                          qualityService = qualityService,
+                          userName = userName.value,
+                          connect = connect,
+                          sendToMainChannel = sendToMainChannel
                         )
                     }
                   }

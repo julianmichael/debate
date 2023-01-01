@@ -178,22 +178,23 @@ object LeaderboardTable {
       )
     }
 
-  def makeSingle(leaderboard: Leaderboard, category: LeaderboardCategory) = leaderboard
-    .data
-    .get(category)
-    .map { data =>
-      val fullData = leaderboard.allDebaters.map(d => d -> data.get(d).combineAll).toMap
-      renderSingleLeaderboard(category, fullData)
-    }
+  def makeSingle(debaters: Set[String], leaderboard: Leaderboard, category: LeaderboardCategory) =
+    leaderboard
+      .data
+      .get(category)
+      .map { data =>
+        val fullData = debaters.map(d => d -> data.get(d).combineAll).toMap
+        renderSingleLeaderboard(category, fullData)
+      }
 
-  def make(leaderboard: Leaderboard): japgolly.scalajs.react.vdom.VdomElement = {
-    import LeaderboardCategory._
-    <.div(
-      List(Judge, HonestDebater, DishonestDebater)
-        .flatMap(category =>
-          leaderboard.data.get(category).map(rows => renderSingleLeaderboard(category, rows))
-        )
-        .toVdomArray
-    )
-  }
+  // def make(leaderboard: Leaderboard): japgolly.scalajs.react.vdom.VdomElement = {
+  //   import LeaderboardCategory._
+  //   <.div(
+  //     List(Judge, HonestDebater, DishonestDebater)
+  //       .flatMap(category =>
+  //         leaderboard.data.get(category).map(rows => renderSingleLeaderboard(category, rows))
+  //       )
+  //       .toVdomArray
+  //   )
+  // }
 }
