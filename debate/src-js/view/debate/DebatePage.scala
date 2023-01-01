@@ -1,4 +1,7 @@
 package debate
+package view.debate
+
+import debate.facades.jQuery
 
 import cats.implicits._
 
@@ -12,11 +15,11 @@ import scalacss.ScalaCssReact._
 
 import jjm.ui.Mounting
 
+import debate.Utils.ClassSetInterpolator
 import debate.util._
 import japgolly.scalajs.react.feature.ReactFragment
 
 object DebatePage {
-  import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
   val SyncedDebate = SyncedState.forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
@@ -34,7 +37,7 @@ object DebatePage {
         "official"
       else
         "practice"
-    s"${Helpers.wsProtocol}//${dom.document.location.hostname}:8080/$prefix-ws/$roomName?name=$participantId"
+    s"${Utils.wsProtocol}//${dom.document.location.hostname}:8080/$prefix-ws/$roomName?name=$participantId"
   }
 
   val scrollDebateToBottom = Callback {
@@ -146,7 +149,7 @@ object DebatePage {
           if (observers.isEmpty)
             <.span(S.veryGreyedOut)("none")
           else
-            Helpers
+            Utils
               .delimitedTags[Vector, (String, Boolean)](
                 observers,
                 getTag = { case (name, isAdmin) =>
@@ -202,7 +205,7 @@ object DebatePage {
         } else
           nameDisplay
       case None =>
-        Helpers
+        Utils
           .delimitedSpans(
             debateState
               .value
@@ -350,7 +353,7 @@ object DebatePage {
         }
       }
       .componentDidMount($ =>
-        Callback(dom.window.document.title = Helpers.makePageTitle($.props.connectionSpec.roomName))
+        Callback(dom.window.document.title = Utils.makePageTitle($.props.connectionSpec.roomName))
       )
       .build
 

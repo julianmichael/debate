@@ -1,4 +1,5 @@
 package debate
+package view.lobby
 
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
@@ -7,7 +8,7 @@ import scalacss.ScalaCssReact._
 
 import jjm.ui.LocalState
 
-import debate.Helpers.ClassSetInterpolator
+import debate.Utils.ClassSetInterpolator
 import monocle.macros.Lenses
 import cats.kernel.Monoid
 import cats.implicits._

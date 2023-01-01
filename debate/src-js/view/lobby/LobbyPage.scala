@@ -1,4 +1,6 @@
 package debate
+package view.lobby
+
 import cats.implicits._
 
 import io.circe.generic.JsonCodec
@@ -17,6 +19,8 @@ import io.circe.Decoder
 
 import cats.Order
 
+import debate.Utils.ClassSetInterpolator
+
 class TabNav[A: Encoder: Decoder] {
 
   val LocalTab = new LocalState2[A]
@@ -29,8 +33,6 @@ class TabNav[A: Encoder: Decoder] {
     notifications: Map[A, Int],
     render: StateSnapshot[A] => VdomElement
   )
-
-  import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 
@@ -80,7 +82,6 @@ class TabNav[A: Encoder: Decoder] {
 }
 
 object LobbyPage {
-  import Helpers.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 
@@ -235,7 +236,7 @@ object LobbyPage {
           }
 
           ReactFragment(
-            Helpers.textInputWithEnterButton(
+            Utils.textInputWithEnterButton(
               field = roomNameLive,
               placeholderOpt = Some("Room"),
               buttonContent = "Join",
@@ -266,7 +267,7 @@ object LobbyPage {
         <.p(c"card-text small")(
           s"Debates: ${debates.size}",
           <.br(),
-          Helpers
+          Utils
             .delimitedTags[Vector, RoomMetadata](
               debates.toVector.sortBy(-_.latestUpdateTime),
               getTag =
@@ -318,7 +319,7 @@ object LobbyPage {
               }
 
               ReactFragment(
-                Helpers.textInputWithEnterButton(
+                Utils.textInputWithEnterButton(
                   field = newProfileStr,
                   placeholderOpt = None,
                   buttonContent = <.i(c"bi bi-plus"),
@@ -480,7 +481,7 @@ object LobbyPage {
           }
         }
       }
-      .componentDidMount(_ => Callback(dom.window.document.title = Helpers.makePageTitle("Lobby")))
+      .componentDidMount(_ => Callback(dom.window.document.title = Utils.makePageTitle("Lobby")))
       .build
 
   def make(

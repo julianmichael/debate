@@ -1,4 +1,5 @@
 package debate
+package view.debate
 
 // import scala.annotation.nowarn
 

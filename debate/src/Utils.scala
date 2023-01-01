@@ -3,7 +3,7 @@ package debate
 import jjm.ling.Span
 import jjm.ling.Text
 
-object Utils {
+object Utils extends UtilsPlatformExtensions {
 
   // more efficient than the jjm default, which I didn't even realize was a problem haha
   def renderSpan(tokens: Vector[String], span: Span) = Text

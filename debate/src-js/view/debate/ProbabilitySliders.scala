@@ -1,4 +1,5 @@
 package debate
+package view.debate
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot

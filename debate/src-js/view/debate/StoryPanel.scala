@@ -1,4 +1,6 @@
 package debate
+package view.debate
+
 import cats.data.NonEmptyList
 
 import japgolly.scalajs.react._
@@ -15,7 +17,7 @@ import debate.util._
 
 object StoryPanel {
 
-//   import Helpers.ClassSetInterpolator
+//   import Utils.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 

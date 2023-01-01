@@ -3,8 +3,9 @@ package debate.util
 import japgolly.scalajs.react.vdom.TagMod
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
-import debate.Helpers.ClassSetInterpolator
 import japgolly.scalajs.react.Callback
+
+import debate.Utils.ClassSetInterpolator
 
 object Checkbox2 {
 

@@ -1,4 +1,5 @@
 package debate
+package view.debate
 
 import cats.implicits._
 
@@ -13,7 +14,7 @@ import japgolly.scalajs.react.extra.StateSnapshot
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
-  // import Helpers.ClassSetInterpolator
+  // import Utils.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 

@@ -1,4 +1,5 @@
 package debate
+package view.debate
 
 // import japgolly.scalajs.react._
 import java.time.Instant
@@ -13,7 +14,7 @@ import jjm.ling.ESpan
 
 object DebateRoundView {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
-  // import Helpers.ClassSetInterpolator
+  // import Utils.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 

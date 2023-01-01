@@ -1,5 +1,7 @@
 package debate
 
+import debate.facades.jQuery
+
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 import cats.implicits._
@@ -16,15 +18,20 @@ import jjm.ui.Mounting
 import debate.util._
 import scala.concurrent.Future
 import jjm.io.HttpUtil
+import io.circe.generic.JsonCodec
+
+@JsonCodec
+case class ConnectionSpec(isOfficial: Boolean, roomName: String, participantName: String)
 
 /** The main webapp. */
 object App {
+
   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
 
   val MainWebSocket = WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
 
   val mainWebsocketUri: String =
-    s"${Helpers.wsProtocol}//${dom.document.location.hostname}:8080/main-ws"
+    s"${Utils.wsProtocol}//${dom.document.location.hostname}:8080/main-ws"
 
   val httpProtocol = dom.document.location.protocol
   val qualityApiUrl: String =
@@ -88,18 +95,24 @@ object App {
                     connectionSpecOpt =>
                       connectionSpecOpt.value match {
                         case None =>
-                          LobbyPage.make(
-                            qualityService = qualityService,
-                            lobby = lobby.value,
-                            sendToMainChannel = sendToMainChannel,
-                            connect = (cs: ConnectionSpec) => connectionSpecOpt.setState(Some(cs))
-                          )
+                          view
+                            .lobby
+                            .LobbyPage
+                            .make(
+                              qualityService = qualityService,
+                              lobby = lobby.value,
+                              sendToMainChannel = sendToMainChannel,
+                              connect = (cs: ConnectionSpec) => connectionSpecOpt.setState(Some(cs))
+                            )
                         case Some(cs: ConnectionSpec) =>
-                          DebatePage.make(
-                            profiles = lobby.value.trackedDebaters,
-                            connectionSpec = cs,
-                            disconnect = connectionSpecOpt.setState(None)
-                          )
+                          view
+                            .debate
+                            .DebatePage
+                            .make(
+                              profiles = lobby.value.trackedDebaters,
+                              connectionSpec = cs,
+                              disconnect = connectionSpecOpt.setState(None)
+                            )
                       }
                   }
             }

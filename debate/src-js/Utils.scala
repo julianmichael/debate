@@ -10,9 +10,10 @@ import org.scalajs.dom
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.Callback
 
-object Helpers {
+// mish mash of stuff to be organized later when there's enough to warrant it.
+trait UtilsPlatformExtensions {
 
-  implicit class ClassSetInterpolator(val sc: StringContext) extends AnyVal {
+  implicit class ClassSetInterpolator(val sc: StringContext) {
     def c(args: Any*) =
       // concatenate everything: use the built-in S method (which happens to be used in the S interpolator)
       ^.classSet1(sc.s(args: _*))
@@ -48,8 +49,8 @@ object Helpers {
 
   def makePageTitle(x: String) = s"$x | Debate"
 
-  val S = Styles
-  val V = new jjm.ui.View(S)
+  private val S = Styles
+  private val V = new jjm.ui.View(S)
 
   def textInput(field: StateSnapshot[String], placeholderOpt: Option[String], enter: Callback) =
     V.LiveTextField

@@ -1,4 +1,5 @@
 package debate
+package view.lobby
 
 import java.time.Instant
 import java.time.ZoneId
@@ -16,7 +17,7 @@ import jjm.implicits._
 import jjm.ui.Rgba
 
 object MetadataBox {
-  import Helpers.ClassSetInterpolator
+  import Utils.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 
@@ -46,7 +47,7 @@ object MetadataBox {
         val label = <.span(
           <.span(S.correct)(f"$correctConfidence%.0f%%"),
           "/",
-          Helpers
+          Utils
             .delimitedTags[Vector, Double](
               otherConfidences,
               getTag = conf => <.span(S.incorrect)(f"$conf%.0f%%"),
@@ -96,7 +97,7 @@ object MetadataBox {
 
     val turnSpan = {
       val speakers = roomMetadata.currentSpeakers
-      val speakerElements = Helpers.delimitedTags[Vector, DebateRole](
+      val speakerElements = Utils.delimitedTags[Vector, DebateRole](
         speakers.toVector,
         speaker => <.span(getRoleStyle(speaker))(speaker.toString)
       )
@@ -114,7 +115,7 @@ object MetadataBox {
             case Some(result) =>
               <.span(S.bold)(
                 <.span(c"text-muted")("You were "),
-                Helpers
+                Utils
                   .delimitedTags[Vector, DebateRole](
                     myRoles,
                     {
@@ -131,7 +132,7 @@ object MetadataBox {
             case None =>
               <.span(S.bold)(
                 <.span(c"text-muted")("You are "),
-                Helpers
+                Utils
                   .delimitedTags[Vector, DebateRole](
                     myRoles,
                     {
@@ -188,7 +189,7 @@ object MetadataBox {
           .map(roles =>
             <.div(
               "Debaters: ",
-              Helpers
+              Utils
                 .delimitedTags[Vector, (Debater, String)](
                   roles.toVector.sortBy(_._1.answerIndex),
                   getTag = { case (role, name) =>
@@ -207,7 +208,7 @@ object MetadataBox {
     val presentParticipants = <
       .div(
         "Present: ",
-        Helpers.delimitedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
+        Utils.delimitedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
       )
       .when(roomMetadata.currentParticipants.nonEmpty)
 

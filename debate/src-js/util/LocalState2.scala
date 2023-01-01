@@ -55,7 +55,7 @@ class LocalState2[A] {
     didUpdate: (A, A) => Callback = (_, _) => Callback.empty,
     shouldRefresh: A => Boolean = (_: A) => true
   )(render: StateSnapshot[A] => VdomElement)(implicit enc: Encoder[A], dec: Decoder[A]) = {
-    val initialValue  = Helpers.decodeOptionallyFromStorage(storage, key).getOrElse(defaultValue)
+    val initialValue  = Utils.decodeOptionallyFromStorage(storage, key).getOrElse(defaultValue)
     val storeValue    = (a: A) => Callback(storage.setItem(key, a.asJson.noSpaces))
     val didUpdateFull = (p: A, c: A) => didUpdate(p, c) >> storeValue(c)
     Component(Props(initialValue, didUpdateFull, shouldRefresh, render))

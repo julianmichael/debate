@@ -22,7 +22,7 @@ case class ListConfig[A]() {
 
   val S = debate.Styles
 
-  import Helpers.ClassSetInterpolator
+  import Utils.ClassSetInterpolator
 
   def nice(items: StateSnapshot[Vector[A]], defaultItem: A, minItems: Int)(
     renderItem: Context[A] => VdomElement

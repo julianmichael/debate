@@ -1,4 +1,5 @@
 package debate
+package view.lobby
 
 import cats.~>
 import cats.data.NonEmptyChain
@@ -28,7 +29,7 @@ object FacilitatorPanel {
   val S = Styles
   val V = new jjm.ui.View(S)
 
-  import Helpers.ClassSetInterpolator
+  import Utils.ClassSetInterpolator
 
   val RoundTypeList = ListConfig[DebateRoundType](
     // DebateRoundType.SequentialSpeechesRound(500, None)
@@ -204,7 +205,7 @@ object FacilitatorPanel {
 
         <.span(
             s"Most recent $prefix rooms: ",
-            Helpers
+            Utils
               .delimitedTags[Vector, RoomMetadata](
                 rooms.toVector.sortBy(-_.creationTime).take(10),
                 { case roomMeta =>
@@ -307,7 +308,7 @@ object FacilitatorPanel {
     roomName: StateSnapshot[String],
     createDebateOpt: Option[Callback]
   ) = ReactFragment(
-    Helpers.textInputWithEnterButton(
+    Utils.textInputWithEnterButton(
       field = roomName,
       placeholderOpt = Some("Room name"),
       buttonContent = "Create",
@@ -548,7 +549,7 @@ object FacilitatorPanel {
                   correctAnswerIndex = newIndices
                     .get(setup.value.correctAnswerIndex)
                     .getOrElse(
-                      Helpers.clamp(0, setup.value.correctAnswerIndex, recombination.size - 1)
+                      Utils.clamp(0, setup.value.correctAnswerIndex, recombination.size - 1)
                     ),
                   roles = setup
                     .value
