@@ -8,17 +8,15 @@ import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
 import jjm.ling.ESpan
-import jjm.ui.LocalState
 import jjm.ui.Rgba
+
+import debate.util.Local
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
   // import Utils.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
-
-  val LocalSpans = new LocalState[Set[ESpan]]
-  val LocalBool  = new LocalState[Boolean]
 
   val curHighlightColor = Rgba(255, 255, 0, 0.8)
   val spanColorsByDebaterIndex = Map(
@@ -153,7 +151,7 @@ object DebatePanel {
       } yield turn
     val isUsersTurn = userTurn.nonEmpty
 
-    LocalSpans.make(Set.empty[ESpan]) { curMessageSpans =>
+    Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
       <.div(S.debatePanel, S.spaceySubcontainer)(
         StoryPanel(
           setup.sourceMaterial.contents,

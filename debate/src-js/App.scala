@@ -43,18 +43,12 @@ object App {
       .andThenK(toAsyncCallback)
   )
 
-  import jjm.ui.LocalState
-
   // Shortcuts for styles and view elements
 
   val S = Styles
   val V = new jjm.ui.View(S)
 
   // instantiate the HOCs we need
-
-  val LocalDouble            = new LocalState[Double]
-  val LocalConnectionSpecOpt = new LocalState2[Option[ConnectionSpec]]
-  val LocalLobby             = new LocalState[Lobby]
 
   val StringOptField = V
     .LiveTextField[Option[String]](x => Some(Option(x).filter(_.nonEmpty)), _.getOrElse(""))
@@ -72,7 +66,7 @@ object App {
       .builder[Unit]("Full UI")
       .render { _ =>
         <.div(S.app)(
-          LocalLobby.make(Lobby.empty) { lobby =>
+          Local[Lobby].make(Lobby.empty) { lobby =>
             MainWebSocket.make(
               mainWebsocketUri,
               onOpen = _ => Callback.empty,
@@ -89,7 +83,7 @@ object App {
               case MainWebSocket.Connecting =>
                 <.div(S.loading)("Connecting to metadata server...")
               case MainWebSocket.Connected(sendToMainChannel) =>
-                LocalConnectionSpecOpt
+                Local[Option[ConnectionSpec]]
                   .syncedWithSessionStorage(key = "connection-details", defaultValue = None) {
                     connectionSpecOpt =>
                       connectionSpecOpt.value match {

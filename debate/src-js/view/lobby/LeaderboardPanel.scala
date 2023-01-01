@@ -11,7 +11,7 @@ import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros.Lenses
 import scalacss.ScalaCssReact._
 
-import jjm.ui.LocalState
+import debate.util.Local
 
 import debate.Utils.ClassSetInterpolator
 
@@ -97,14 +97,12 @@ object LeaderboardPanel {
   }
 
   def renderRows(stats: Map[String, DebateStats], sortOrder: StateSnapshot[SortingOrder]) = {
-    stats.foreach(println)
     val rows = stats
       .toVector
       .map { case (name, stats) =>
         RowData(name, stats)
       }
     val sortedRows = sortBy(sortOrder.value, rows)
-    sortedRows.foreach(println)
     <.table(c"table table-striped")(
       <.thead(
         <.tr(
@@ -169,10 +167,8 @@ object LeaderboardPanel {
 
   val defaultSortingOrder = SortingOrder(isAscending = false, SortableColumn.Reward)
 
-  val LocalSortingOrder = new LocalState[SortingOrder]
-
   def renderSingleLeaderboard(category: LeaderboardCategory, stats: Map[String, DebateStats]) =
-    LocalSortingOrder.make(defaultSortingOrder) { sortOrder =>
+    Local[SortingOrder].make(defaultSortingOrder) { sortOrder =>
       <.div(
         ^.key := s"leaderboard-$category",
         <.h3(category.toString),

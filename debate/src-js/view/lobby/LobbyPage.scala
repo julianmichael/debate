@@ -11,14 +11,11 @@ import scalacss.ScalaCssReact._
 
 import debate.Utils.ClassSetInterpolator
 import debate.quality.QuALITYService
-import debate.util.LocalState2
+import debate.util.Local
 
 object LobbyPage {
   val S = Styles
   val V = new jjm.ui.View(S)
-
-  val LocalBool   = new LocalState2[Boolean]
-  val LocalString = new LocalState2[String]
 
   case class Props(
     qualityService: QuALITYService[AsyncCallback],
@@ -60,8 +57,8 @@ object LobbyPage {
               )
           )
 
-        LocalBool.syncedWithSessionStorage(key = "is-admin", defaultValue = false) { isAdmin =>
-          LocalString.syncedWithLocalStorage(key = "profile", defaultValue = "") { userName =>
+        Local[Boolean].syncedWithSessionStorage(key = "is-admin", defaultValue = false) { isAdmin =>
+          Local[String].syncedWithLocalStorage(key = "profile", defaultValue = "") { userName =>
             <.div(S.lobbyContainer, S.spaceyContainer)(
               profileSelector(isAdmin = isAdmin, userName = userName),
               <.div(c"card") {

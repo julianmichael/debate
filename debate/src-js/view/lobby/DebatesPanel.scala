@@ -7,14 +7,12 @@ import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
 import debate.Utils.ClassSetInterpolator
-import debate.util.LocalState2
+import debate.util.Local
 
 object DebatesPanel {
 
   val S = Styles
   val V = new jjm.ui.View(S)
-
-  val LocalString = new LocalState2[String]
 
   def debatesTab(
     isAdmin: Boolean,
@@ -25,7 +23,7 @@ object DebatesPanel {
     sendToMainChannel: MainChannelRequest => Callback
   ) =
     <.div(c"card-body", S.spaceySubcontainer)(
-      LocalString.syncedWithSessionStorage("room-name-search", "") { roomNameLive =>
+      Local[String].syncedWithSessionStorage("room-name-search", "") { roomNameLive =>
         val canEnter =
           roomNameLive.value.nonEmpty && userName.nonEmpty &&
             rooms.exists(_.name == roomNameLive.value)

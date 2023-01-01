@@ -6,8 +6,9 @@ import io.circe.Encoder
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
+import scala.reflect.ClassTag
 
-class LocalState2[A] {
+class Local[A] private (name: String) {
   type State   = A
   type Context = A => Callback
   case class Props(
@@ -19,7 +20,7 @@ class LocalState2[A] {
 
   val Component =
     ScalaComponent
-      .builder[Props]("Local State 2")
+      .builder[Props](s"Local $name")
       .initialStateFromProps(_.initialValue)
       .render { $ =>
         $.props.render(StateSnapshot.of($))
@@ -41,7 +42,7 @@ class LocalState2[A] {
     initialValue: A,
     didUpdate: (A, A) => Callback = (_, _) => Callback.empty,
     shouldRefresh: A => Boolean = (_: A) => true
-  )(render: StateSnapshot[A] => VdomElement) = Component(
+  )(render: StateSnapshot[A] => VdomElement): VdomElement = Component(
     Props(initialValue, didUpdate, shouldRefresh, render)
   )
 
@@ -54,7 +55,9 @@ class LocalState2[A] {
     defaultValue: A,
     didUpdate: (A, A) => Callback = (_, _) => Callback.empty,
     shouldRefresh: A => Boolean = (_: A) => true
-  )(render: StateSnapshot[A] => VdomElement)(implicit enc: Encoder[A], dec: Decoder[A]) = {
+  )(
+    render: StateSnapshot[A] => VdomElement
+  )(implicit enc: Encoder[A], dec: Decoder[A]): VdomElement = {
     val initialValue  = Utils.decodeOptionallyFromStorage(storage, key).getOrElse(defaultValue)
     val storeValue    = (a: A) => Callback(storage.setItem(key, a.asJson.noSpaces))
     val didUpdateFull = (p: A, c: A) => didUpdate(p, c) >> storeValue(c)
@@ -66,7 +69,9 @@ class LocalState2[A] {
     defaultValue: A,
     didUpdate: (A, A) => Callback = (_, _) => Callback.empty,
     shouldRefresh: A => Boolean = (_: A) => true
-  )(render: StateSnapshot[A] => VdomElement)(implicit enc: Encoder[A], dec: Decoder[A]) =
+  )(
+    render: StateSnapshot[A] => VdomElement
+  )(implicit enc: Encoder[A], dec: Decoder[A]): VdomElement =
     syncedWithStorage(dom.window.localStorage, key, defaultValue, didUpdate, shouldRefresh)(render)
 
   def syncedWithSessionStorage(
@@ -74,8 +79,35 @@ class LocalState2[A] {
     defaultValue: A,
     didUpdate: (A, A) => Callback = (_, _) => Callback.empty,
     shouldRefresh: A => Boolean = (_: A) => true
-  )(render: StateSnapshot[A] => VdomElement)(implicit enc: Encoder[A], dec: Decoder[A]) =
+  )(
+    render: StateSnapshot[A] => VdomElement
+  )(implicit enc: Encoder[A], dec: Decoder[A]): VdomElement =
     syncedWithStorage(dom.window.sessionStorage, key, defaultValue, didUpdate, shouldRefresh)(
       render
     )
+}
+object Local {
+  var instances = new collection.mutable.HashMap[String, Local[_]]
+  def apply[A](implicit ct: ClassTag[A]): Local[A] = {
+    val name = ct.runtimeClass.getName()
+    instances.get(name) match {
+      case None =>
+        val instance = new Local[A](name)
+        instances.put(name, instance)
+        instance
+      case Some(instance) =>
+        instance.asInstanceOf[Local[A]]
+    }
+  }
+  def named[A](name: String)(implicit ct: ClassTag[A]): Local[A] = {
+    val fullName = s"$name: " + ct.runtimeClass.getName()
+    instances.get(fullName) match {
+      case None =>
+        val instance = new Local[A](fullName)
+        instances.put(name, instance)
+        instance
+      case Some(instance) =>
+        instance.asInstanceOf[Local[A]]
+    }
+  }
 }

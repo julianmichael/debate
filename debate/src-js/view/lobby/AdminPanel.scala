@@ -11,14 +11,12 @@ import scalacss.ScalaCssReact._
 
 import debate.Utils.ClassSetInterpolator
 import debate.quality.QuALITYService
-import debate.util.LocalState2
+import debate.util.Local
 
 object AdminPanel {
 
   val S = Styles
   val V = new jjm.ui.View(S)
-
-  val LocalString = new LocalState2[String]
 
   def debaterCard(
     lobby: Lobby,
@@ -70,7 +68,7 @@ object AdminPanel {
     joinOfficialRoomOpt: Option[String => Callback],
     sendToMainChannel: MainChannelRequest => Callback
   ) =
-    LocalString.make("") { newProfileStr =>
+    Local[String].make("") { newProfileStr =>
       def profileMatchesQuery(profile: String) = itemMatchesKeywordQuery(
         itemTerms = Set(profile),
         queryKeywords = newProfileStr.value.split("\\s+").toSet
