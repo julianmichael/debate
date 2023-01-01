@@ -1,10 +1,7 @@
 package debate
 package view.lobby
 
-import io.circe.Decoder
-import io.circe.Encoder
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros.Lenses
@@ -12,45 +9,48 @@ import monocle.macros.Lenses
 import debate.Utils.ClassSetInterpolator
 import debate.util.LocalState2
 
-class TabNav[A: Encoder: Decoder] {
+object TabNav {
 
-  val LocalTab = new LocalState2[A]
+  val LocalInt = new LocalState2[Int]
+
+  case class TabInfo(content: VdomElement, numNotifications: Int = 0)
+  object TabInfo
+
+  def tab(content: VdomElement) = TabInfo(content)
+
+  def tabWithNotifications(numNotifications: Int)(content: VdomElement) = TabInfo(
+    content,
+    numNotifications
+  )
 
   @Lenses
-  case class Props(
-    key: String,
-    allTabs: Vector[A],
-    initialTab: A,
-    notifications: Map[A, Int],
-    render: StateSnapshot[A] => VdomElement
-  )
+  case class Props(key: String, initialTabIndex: Int, tabs: Vector[(String, TabInfo)])
   val S = Styles
   val V = new jjm.ui.View(S)
 
-  def make(key: String, allTabs: Vector[A], initialTab: A, notifications: Map[A, Int] = Map())(
-    render: StateSnapshot[A] => VdomElement
-  ) = Component(Props(key, allTabs, initialTab, notifications, render))
+  def apply(key: String, initialTabIndex: Int = 0)(tabs: (String, TabInfo)*) = Component(
+    Props(key, initialTabIndex, tabs.toVector)
+  )
 
   val Component =
     ScalaComponent
       .builder[Props]("Tab Nav")
       .render_P { props =>
-        LocalTab.syncedWithSessionStorage(props.key, props.initialTab) { tabState =>
+        LocalInt.syncedWithSessionStorage(props.key, props.initialTabIndex) { tabIndex =>
           ReactFragment(
             <.div(c"card-header")(
               <.ul(c"nav nav-fill nav-tabs card-header-tabs")(
                 props
-                  .allTabs
-                  .toVdomArray(tab =>
+                  .tabs
+                  .zipWithIndex
+                  .toVdomArray { case ((tab, tabInfo), index) =>
                     <.li(c"nav-item")(
-                      ^.key := tab.toString,
-                      <.a(^.classSet1("nav-link", "active" -> (tab == tabState.value)))(
+                      ^.key := tab,
+                      <.a(^.classSet1("nav-link", "active" -> (index == tabIndex.value)))(
                         ^.href := "#",
-                        ^.onClick --> tabState.setState(tab),
+                        ^.onClick --> tabIndex.setState(index),
                         tab.toString,
-                        props
-                          .notifications
-                          .get(tab)
+                        Option(tabInfo.numNotifications)
                           .filter(_ > 0)
                           .map { numNotifs =>
                             <.span(c"badge badge-danger badge-pill")(
@@ -61,10 +61,10 @@ class TabNav[A: Encoder: Decoder] {
                           }
                       )
                     )
-                  )
+                  }
               )
             ),
-            props.render(tabState)
+            props.tabs(tabIndex.value)._2.content
           )
         }
       }

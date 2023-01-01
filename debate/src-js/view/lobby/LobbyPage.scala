@@ -3,7 +3,6 @@ package view.lobby
 
 import cats.implicits._
 
-import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
@@ -18,31 +17,8 @@ object LobbyPage {
   val S = Styles
   val V = new jjm.ui.View(S)
 
-  @JsonCodec
-  sealed trait MainLobbyTab extends Product with Serializable {
-    import MainLobbyTab._
-    override def toString =
-      this match {
-        case Debates =>
-          "Debates"
-        case Leaderboard =>
-          "Leaderboard"
-        case Admin =>
-          "Admin"
-      }
-  }
-  object MainLobbyTab {
-    case object Debates     extends MainLobbyTab
-    case object Leaderboard extends MainLobbyTab
-    case object Admin       extends MainLobbyTab
-
-    def all = Vector(Debates, Leaderboard, Admin)
-  }
-
   val LocalBool   = new LocalState2[Boolean]
   val LocalString = new LocalState2[String]
-
-  val LocalMainTab = new LocalState2[MainLobbyTab]
 
   case class Props(
     qualityService: QuALITYService[AsyncCallback],
@@ -50,8 +26,6 @@ object LobbyPage {
     sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
     connect: ConnectionSpec => Callback
   )
-
-  val MainTabNav = new TabNav[MainLobbyTab]
 
   val Component =
     ScalaComponent
@@ -89,7 +63,8 @@ object LobbyPage {
         LocalBool.syncedWithSessionStorage(key = "is-admin", defaultValue = false) { isAdmin =>
           LocalString.syncedWithLocalStorage(key = "profile", defaultValue = "") { userName =>
             <.div(S.lobbyContainer, S.spaceyContainer)(
-              profileSelector(isAdmin = isAdmin, userName = userName), {
+              profileSelector(isAdmin = isAdmin, userName = userName),
+              <.div(c"card") {
                 val myDebates = lobby
                   .officialRooms
                   .filter(_.roleAssignments.values.toSet.contains(userName.value))
@@ -102,34 +77,28 @@ object LobbyPage {
                     }
                     .size
 
-                <.div(c"card")(
-                  MainTabNav.make(
-                    "main-tab",
-                    MainLobbyTab.all,
-                    MainLobbyTab.Debates,
-                    Map(MainLobbyTab.Debates -> numDebatesMyTurn)
-                  ) { mainTab =>
-                    mainTab.value match {
-                      case MainLobbyTab.Debates =>
-                        DebatesPanel(
-                          isAdmin = isAdmin.value,
-                          lobby = lobby,
-                          userName = userName.value,
-                          connect = connect,
-                          sendToMainChannel = sendToMainChannel
-                        )
-                      case MainLobbyTab.Leaderboard =>
-                        LeaderboardPanel(lobby)
-                      case MainLobbyTab.Admin =>
-                        AdminPanel(
-                          lobby = lobby,
-                          qualityService = qualityService,
-                          userName = userName.value,
-                          connect = connect,
-                          sendToMainChannel = sendToMainChannel
-                        )
-                    }
-                  }
+                TabNav("main-tab", 0)(
+                  "Debates" ->
+                    TabNav.tabWithNotifications(numDebatesMyTurn)(
+                      DebatesPanel(
+                        isAdmin = isAdmin.value,
+                        lobby = lobby,
+                        userName = userName.value,
+                        connect = connect,
+                        sendToMainChannel = sendToMainChannel
+                      )
+                    ),
+                  "Leaderboard" -> TabNav.tab(LeaderboardPanel(lobby)),
+                  "Admin" ->
+                    TabNav.tab(
+                      AdminPanel(
+                        lobby = lobby,
+                        qualityService = qualityService,
+                        userName = userName.value,
+                        connect = connect,
+                        sendToMainChannel = sendToMainChannel
+                      )
+                    )
                 )
               }
             )

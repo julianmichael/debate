@@ -4,7 +4,6 @@ package view.lobby
 import cats.Order
 import cats.implicits._
 
-import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
@@ -19,31 +18,12 @@ object AdminPanel {
   val S = Styles
   val V = new jjm.ui.View(S)
 
-  @JsonCodec
-  sealed trait AdminTab extends Product with Serializable {
-    import AdminTab._
-    override def toString =
-      this match {
-        case Profiles =>
-          "Profiles"
-        case CreateDebate =>
-          "Create Debate"
-      }
-  }
-  object AdminTab {
-    case object Profiles     extends AdminTab
-    case object CreateDebate extends AdminTab
-
-    def all: Vector[AdminTab] = Vector(Profiles, CreateDebate)
-  }
-
-  val AdminTabNav = new TabNav[AdminTab]
   val LocalString = new LocalState2[String]
 
   def debaterCard(
     lobby: Lobby,
     name: String,
-    joinOfficialRoom: String => Callback,
+    joinOfficialRoomOpt: Option[String => Callback],
     sendToMainChannel: MainChannelRequest => Callback
   ) = {
     val debates = lobby.officialRooms.filter(_.roleAssignments.values.exists(_ == name))
@@ -57,7 +37,12 @@ object AdminPanel {
             .delimitedTags[Vector, RoomMetadata](
               debates.toVector.sortBy(-_.latestUpdateTime),
               getTag =
-                room => <.a(^.href := "#", room.name, ^.onClick --> joinOfficialRoom(room.name))
+                room =>
+                  <.a(
+                    ^.href := "#",
+                    room.name,
+                    joinOfficialRoomOpt.whenDefined(join => ^.onClick --> join(room.name))
+                  )
             )
             .toVdomArray
         ),
@@ -80,6 +65,62 @@ object AdminPanel {
     )
   }
 
+  def profilesTab(
+    lobby: Lobby,
+    joinOfficialRoomOpt: Option[String => Callback],
+    sendToMainChannel: MainChannelRequest => Callback
+  ) =
+    LocalString.make("") { newProfileStr =>
+      def profileMatchesQuery(profile: String) = itemMatchesKeywordQuery(
+        itemTerms = Set(profile),
+        queryKeywords = newProfileStr.value.split("\\s+").toSet
+      )
+
+      val profileOrder = {
+        import Order._
+        whenEqual(reverse(by[String, Boolean](profileMatchesQuery)), Order[String])
+      }
+
+      ReactFragment(
+        Utils.textInputWithEnterButton(
+          field = newProfileStr,
+          placeholderOpt = None,
+          buttonContent = <.i(c"bi bi-plus"),
+          isEnabled =
+            newProfileStr.value.nonEmpty && !lobby.trackedDebaters.contains(newProfileStr.value),
+          enter =
+            sendToMainChannel(RegisterDebater(newProfileStr.value)) >> newProfileStr.setState("")
+        )(^.marginBottom := "1rem"),
+        <.h3("Active Profiles"),
+        <.div(S.profileListContainer, S.spaceySubcontainer)(
+          lobby
+            .trackedDebaters
+            .toVector
+            .sorted(catsKernelOrderingForOrder(profileOrder))
+            .toVdomArray { name =>
+              debaterCard(lobby, name, joinOfficialRoomOpt, sendToMainChannel)(
+                ^.key := name,
+                S.simpleUnselectable.when(!profileMatchesQuery(name))
+              )
+
+            }
+        ),
+        <.div(<.hr()),
+        <.h3("Inactive Profiles"),
+        <.div(S.profileListContainer, S.spaceySubcontainer)(
+          (lobby.allDebaters -- lobby.trackedDebaters)
+            .toVector
+            .sorted(catsKernelOrderingForOrder(profileOrder))
+            .toVdomArray { name =>
+              debaterCard(lobby, name, joinOfficialRoomOpt, sendToMainChannel)(
+                ^.key := name,
+                S.simpleUnselectable.when(!profileMatchesQuery(name))
+              )
+            }
+        )
+      )
+    }
+
   def apply(
     lobby: Lobby,
     qualityService: QuALITYService[AsyncCallback],
@@ -87,79 +128,37 @@ object AdminPanel {
     connect: ConnectionSpec => Callback,
     sendToMainChannel: MainChannelRequest => Callback
   ) = {
-    val joinOfficialRoom = (roomName: String) => connect(ConnectionSpec(true, roomName, userName))
-    AdminTabNav.make("admin-tab", AdminTab.all, AdminTab.CreateDebate) { tab =>
-      import AdminTab._
-      <.div(c"card-body", S.spaceySubcontainer)(
-        tab.value match {
-          case Profiles =>
-            LocalString.make("") { newProfileStr =>
-              def profileMatchesQuery(profile: String) = itemMatchesKeywordQuery(
-                itemTerms = Set(profile),
-                queryKeywords = newProfileStr.value.split("\\s+").toSet
-              )
+    val joinRoomOpt = Option(userName)
+      .filter(_.nonEmpty)
+      .map(userName =>
+        (isOfficial: Boolean, roomName: String) =>
+          connect(ConnectionSpec(isOfficial, roomName, userName))
+      )
+    val joinOfficialRoomOpt = joinRoomOpt
+      .map(joinRoom => (roomName: String) => joinRoom.apply(true, roomName))
 
-              val profileOrder = {
-                import Order._
-                whenEqual(reverse(by[String, Boolean](profileMatchesQuery)), Order[String])
-              }
-
-              ReactFragment(
-                Utils.textInputWithEnterButton(
-                  field = newProfileStr,
-                  placeholderOpt = None,
-                  buttonContent = <.i(c"bi bi-plus"),
-                  isEnabled =
-                    newProfileStr.value.nonEmpty &&
-                      !lobby.trackedDebaters.contains(newProfileStr.value),
-                  enter =
-                    sendToMainChannel(RegisterDebater(newProfileStr.value)) >>
-                      newProfileStr.setState("")
-                )(^.marginBottom := "1rem"),
-                <.h3("Active Profiles"),
-                <.div(S.profileListContainer, S.spaceySubcontainer)(
-                  lobby
-                    .trackedDebaters
-                    .toVector
-                    .sorted(catsKernelOrderingForOrder(profileOrder))
-                    .toVdomArray { name =>
-                      debaterCard(lobby, name, joinOfficialRoom, sendToMainChannel)(
-                        ^.key := name,
-                        S.simpleUnselectable.when(!profileMatchesQuery(name))
-                      )
-
-                    }
-                ),
-                <.div(<.hr()),
-                <.h3("Inactive Profiles"),
-                <.div(S.profileListContainer, S.spaceySubcontainer)(
-                  (lobby.allDebaters -- lobby.trackedDebaters)
-                    .toVector
-                    .sorted(catsKernelOrderingForOrder(profileOrder))
-                    .toVdomArray { name =>
-                      debaterCard(lobby, name, joinOfficialRoom, sendToMainChannel)(
-                        ^.key := name,
-                        S.simpleUnselectable.when(!profileMatchesQuery(name))
-                      )
-                    }
-                )
-              )
-            }
-          case CreateDebate =>
+    TabNav("admin-tab", initialTabIndex = 1)(
+      "Profiles" ->
+        TabNav.tab(
+          <.div(c"card-body", S.spaceySubcontainer)(
+            profilesTab(
+              lobby = lobby,
+              joinOfficialRoomOpt = joinOfficialRoomOpt,
+              sendToMainChannel = sendToMainChannel
+            )
+          )
+        ),
+      "Create Debate" ->
+        TabNav.tab(
+          <.div(c"card-body", S.spaceySubcontainer)(
             DebateCreationPanel(
               lobby = lobby,
               qualityService = qualityService,
-              joinDebate = Option(userName)
-                .filter(_.nonEmpty)
-                .map(userName =>
-                  (isOfficial: Boolean, roomName: String) =>
-                    connect(ConnectionSpec(isOfficial, roomName, userName))
-                ),
+              joinDebate = joinRoomOpt,
               initDebate = sendToMainChannel
             )
-        }
-      )
-    }
+          )
+        )
+    )
   }
-
 }

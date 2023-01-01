@@ -189,13 +189,17 @@ object LeaderboardPanel {
         renderSingleLeaderboard(category, fullData)
       }
 
-  val LeaderboardTabNav = new TabNav[LeaderboardCategory]
+  def apply(lobby: Lobby) = {
+    def makeTab(category: LeaderboardCategory) = TabNav.tab(
+      <.div(c"card-body", S.spaceySubcontainer)(
+        makeSingle(lobby.trackedDebaters, lobby.leaderboard, category)
+      )
+    )
+    TabNav("leaderboard-tab", 0)(
+      "Judge"             -> makeTab(LeaderboardCategory.Judge),
+      "Honest Debater"    -> makeTab(LeaderboardCategory.HonestDebater),
+      "Dishonest Debater" -> makeTab(LeaderboardCategory.DishonestDebater)
+    )
 
-  def apply(lobby: Lobby) =
-    LeaderboardTabNav.make("leaderboard-tab", LeaderboardCategory.all, LeaderboardCategory.Judge) {
-      leaderboardTab =>
-        <.div(c"card-body", S.spaceySubcontainer)(
-          makeSingle(lobby.trackedDebaters, lobby.leaderboard, leaderboardTab.value)
-        )
-    }
+  }
 }
