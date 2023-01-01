@@ -5,13 +5,13 @@ import cats.implicits._
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom.ext.KeyCode
 import scalacss.ScalaCssReact._
 
 import jjm.DotPair
 import jjm.ui.LocalState
-import japgolly.scalajs.react.feature.ReactFragment
 
 object SpeechInput {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._

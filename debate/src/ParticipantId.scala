@@ -1,10 +1,11 @@
 package debate
 
+import cats.kernel.Order
+
 import io.circe.KeyDecoder
 import io.circe.KeyEncoder
 import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
-import cats.kernel.Order
 
 /** Identifier for a debate participant, including the role they're currently
   * playing.

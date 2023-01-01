@@ -1,13 +1,12 @@
 package debate
 package view.debate
 
-import debate.facades.jQuery
-
 import cats.implicits._
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.function.{all => Optics}
 import org.scalajs.dom
@@ -16,8 +15,8 @@ import scalacss.ScalaCssReact._
 import jjm.ui.Mounting
 
 import debate.Utils.ClassSetInterpolator
+import debate.facades.jQuery
 import debate.util._
-import japgolly.scalajs.react.feature.ReactFragment
 
 object DebatePage {
   val S = Styles

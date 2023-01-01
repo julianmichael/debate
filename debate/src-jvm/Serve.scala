@@ -24,6 +24,8 @@ import org.http4s._
 import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
+import org.http4s.server.middleware.CORS
+import org.http4s.server.middleware.CORSConfig
 import org.http4s.server.websocket.WebSocketBuilder
 
 import jjm.DotKleisli
@@ -32,8 +34,6 @@ import jjm.io.FileUtil
 import jjm.io.HttpUtil
 
 import debate.quality._
-import org.http4s.server.middleware.CORSConfig
-import org.http4s.server.middleware.CORS
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.

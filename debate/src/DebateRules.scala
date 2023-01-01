@@ -1,10 +1,12 @@
 package debate
 
-import jjm.implicits._
+import cats.implicits._
+
 import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism
 import monocle.macros.Lenses
-import cats.implicits._
+
+import jjm.implicits._
 
 /** Rules of the debate. I expect to want to add more stuff here as we want to
   * vary the debates on different dimensions.

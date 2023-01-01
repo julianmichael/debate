@@ -1,9 +1,10 @@
 package debate
 
-import monocle.macros.Lenses
-import io.circe.generic.JsonCodec
-import cats.kernel.Order
 import cats.implicits._
+import cats.kernel.Order
+
+import io.circe.generic.JsonCodec
+import monocle.macros.Lenses
 
 @Lenses
 @JsonCodec

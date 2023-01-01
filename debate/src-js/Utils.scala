@@ -5,10 +5,10 @@ import cats.Functor
 import cats.implicits._
 
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.Callback
+import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
-import japgolly.scalajs.react.extra.StateSnapshot
-import japgolly.scalajs.react.Callback
 
 // mish mash of stuff to be organized later when there's enough to warrant it.
 trait UtilsPlatformExtensions {

@@ -3,12 +3,12 @@ package util
 
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.Prism
 import scalacss.ScalaCssReact._
 
 import jjm.ui.LocalState
-import japgolly.scalajs.react.feature.ReactFragment
 
 /** HOC middleman for sum types producing a config panel controlled with a
   * drop-down. You need to provide a list of prisms to correspond to the

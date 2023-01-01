@@ -1,9 +1,9 @@
 package debate.util
 
-import japgolly.scalajs.react.vdom.TagMod
-import japgolly.scalajs.react.extra.StateSnapshot
-import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.Callback
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.TagMod
+import japgolly.scalajs.react.vdom.html_<^._
 
 import debate.Utils.ClassSetInterpolator
 

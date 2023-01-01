@@ -1,24 +1,23 @@
 package debate
 
-import debate.facades.jQuery
-
+import scala.concurrent.Future
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 import cats.implicits._
 import cats.~>
 
+import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
+import jjm.io.HttpUtil
 import jjm.ui.Mounting
 
+import debate.facades.jQuery
 import debate.util._
-import scala.concurrent.Future
-import jjm.io.HttpUtil
-import io.circe.generic.JsonCodec
 
 @JsonCodec
 case class ConnectionSpec(isOfficial: Boolean, roomName: String, participantName: String)

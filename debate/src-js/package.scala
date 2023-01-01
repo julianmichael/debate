@@ -1,6 +1,7 @@
 package debate
 
 import cats.Monoid
+
 import japgolly.scalajs.react.Callback
 
 trait PackagePlatformExtensions {

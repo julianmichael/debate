@@ -3,14 +3,13 @@ package view.debate
 
 import cats.implicits._
 
-// import japgolly.scalajs.react._
+import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
 import jjm.ling.ESpan
 import jjm.ui.LocalState
 import jjm.ui.Rgba
-import japgolly.scalajs.react.extra.StateSnapshot
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
