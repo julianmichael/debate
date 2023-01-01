@@ -6,10 +6,14 @@ import monocle.macros.Lenses
 
 @JsonCodec
 sealed trait SourceMaterialSpec
+
 @Lenses
 @JsonCodec
 case class CustomSourceMaterialSpec(title: String, contents: String) extends SourceMaterialSpec
-object CustomSourceMaterialSpec
+object CustomSourceMaterialSpec {
+  def default = CustomSourceMaterialSpec(title = "Lorem Ipsum", contents = Lipsum.get)
+}
+
 @Lenses
 @JsonCodec
 case class QuALITYSourceMaterialSpec(articleId: String) extends SourceMaterialSpec
@@ -38,7 +42,7 @@ case class DebateSetupSpec(
 object DebateSetupSpec {
   def init = DebateSetupSpec(
     rules = DebateRules.default,
-    sourceMaterial = CustomSourceMaterialSpec("Title", "Source material."),
+    sourceMaterial = CustomSourceMaterialSpec.default,
     question = "Question?",
     answers = Vector("Answer 1", "Answer 2"),
     roles = Map(),

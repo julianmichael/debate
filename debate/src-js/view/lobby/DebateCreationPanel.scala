@@ -216,7 +216,12 @@ object DebateCreationPanel {
           )
           .when(rooms.nonEmpty)
       },
-      createDebateValidated.swap.toOption.whenDefined(_.toList.flatten.toVdomArray)
+      createDebateValidated
+        .swap
+        .toOption
+        .whenDefined(errorMessages =>
+          <.div(c"alert alert-danger")(errorMessages.toList.flatten.toVdomArray)
+        )
     )
   }
 
@@ -425,8 +430,7 @@ object DebateCreationPanel {
             choice =>
               choice match {
                 case None =>
-                  sourceMaterial
-                    .setState(CustomSourceMaterialSpec("Title", "Custom source material."))
+                  sourceMaterial.setState(CustomSourceMaterialSpec.default)
                 case Some((articleId, _)) =>
                   sourceMaterial.setState(QuALITYSourceMaterialSpec(articleId))
               }
