@@ -212,8 +212,9 @@ object MetadataBox {
       .when(roomMetadata.currentParticipants.nonEmpty)
 
     val deleteRoom =
-      <.button(c"btn btn-danger")(
-        "Delete",
+      <.button(c"btn btn-sm btn-outline-danger")(
+        <.i(c"bi bi-x"),
+        " Delete",
         ^.onClick ==>
           ((e: ReactMouseEvent) => {
             e.stopPropagation();

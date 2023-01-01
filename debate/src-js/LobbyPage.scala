@@ -238,7 +238,7 @@ object LobbyPage {
             Helpers.textInputWithEnterButton(
               field = roomNameLive,
               placeholderOpt = Some("Room"),
-              buttonText = "Join",
+              buttonContent = "Join",
               isEnabled = canEnter,
               enter = enter
             )(^.marginBottom := 1.rem),
@@ -277,14 +277,14 @@ object LobbyPage {
         if (lobby.trackedDebaters.contains(name)) {
           <.button(c"btn btn-sm btn-outline-danger", S.simpleSelectable)(
             <.i(c"bi bi-x"),
-            " Hide profile",
+            " Deactivate",
             ^.onClick --> sendToMainChannel(RemoveDebater(name))
           )
         } else {
           <.div(^.key := name)(
             <.button(c"btn btn-sm btn-outline-secondary", S.simpleSelectable)(
               <.i(c"bi bi-arrow-up"),
-              " Reactivate profile",
+              " Reactivate",
               ^.onClick --> sendToMainChannel(RegisterDebater(name))
             )
           )
@@ -320,8 +320,8 @@ object LobbyPage {
               ReactFragment(
                 Helpers.textInputWithEnterButton(
                   field = newProfileStr,
-                  placeholderOpt = Some("New debater"),
-                  buttonText = "+",
+                  placeholderOpt = None,
+                  buttonContent = <.i(c"bi bi-plus"),
                   isEnabled =
                     newProfileStr.value.nonEmpty &&
                       !lobby.trackedDebaters.contains(newProfileStr.value),

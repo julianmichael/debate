@@ -70,7 +70,7 @@ object Helpers {
   def textInputWithEnterButton(
     field: StateSnapshot[String],
     placeholderOpt: Option[String],
-    buttonText: String,
+    buttonContent: TagMod,
     isEnabled: Boolean,
     enter: Callback
   ) =
@@ -78,7 +78,7 @@ object Helpers {
       textInput(field = field, placeholderOpt = placeholderOpt, enter = enter),
       <.div(c"input-group-append")(
         <.button(c"btn btn-primary")(
-          buttonText,
+          buttonContent,
           ^.`type`   := "button",
           ^.disabled := !isEnabled,
           ^.onClick --> enter

@@ -310,7 +310,7 @@ object FacilitatorPanel {
     Helpers.textInputWithEnterButton(
       field = roomName,
       placeholderOpt = Some("Room name"),
-      buttonText = "Create",
+      buttonContent = "Create",
       isEnabled = createDebateOpt.nonEmpty,
       enter = createDebateOpt.combineAll
     ),

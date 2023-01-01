@@ -130,7 +130,7 @@ object LeaderboardTable {
                           sortOrder.setState(SortingOrder(isAscending = false, column = column))
                       )
                 }
-              <.th(thMod, S.simpleSelectable)(
+              <.th(thMod, S.simpleSelectable, c"text-center")(
                 ^.key := header,
                 <.div(S.row, c"w-100", ^.alignItems.center)(<.span(S.grow)(header), sortIcon)
               )
