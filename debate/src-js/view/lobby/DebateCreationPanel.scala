@@ -1,11 +1,14 @@
 package debate
 package view.lobby
 
-import cats.~>
+import scala.util.Random
+
 import cats.data.NonEmptyChain
 import cats.data.NonEmptySet
 import cats.data.Validated
 import cats.implicits._
+import cats.kernel.Order
+import cats.~>
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.MonocleReact._
@@ -22,8 +25,6 @@ import jjm.ui.LocalState
 
 import debate.quality._
 import debate.util._
-import cats.kernel.Order
-import scala.util.Random
 
 object DebateCreationPanel {
   val S = Styles

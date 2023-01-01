@@ -10,76 +10,9 @@ import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
 import scalacss.ScalaCssReact._
 
-import debate.util.LocalState2
-import japgolly.scalajs.react.feature.ReactFragment
-import debate.quality.QuALITYService
-import monocle.macros.Lenses
-import io.circe.Encoder
-import io.circe.Decoder
-
-import cats.Order
-
 import debate.Utils.ClassSetInterpolator
-
-class TabNav[A: Encoder: Decoder] {
-
-  val LocalTab = new LocalState2[A]
-
-  @Lenses
-  case class Props(
-    key: String,
-    allTabs: Vector[A],
-    initialTab: A,
-    notifications: Map[A, Int],
-    render: StateSnapshot[A] => VdomElement
-  )
-  val S = Styles
-  val V = new jjm.ui.View(S)
-
-  def make(key: String, allTabs: Vector[A], initialTab: A, notifications: Map[A, Int] = Map())(
-    render: StateSnapshot[A] => VdomElement
-  ) = Component(Props(key, allTabs, initialTab, notifications, render))
-
-  val Component =
-    ScalaComponent
-      .builder[Props]("Tab Nav")
-      .render_P { props =>
-        LocalTab.syncedWithSessionStorage(props.key, props.initialTab) { tabState =>
-          ReactFragment(
-            <.div(c"card-header")(
-              <.ul(c"nav nav-fill nav-tabs card-header-tabs")(
-                props
-                  .allTabs
-                  .toVdomArray(tab =>
-                    <.li(c"nav-item")(
-                      ^.key := tab.toString,
-                      <.a(^.classSet1("nav-link", "active" -> (tab == tabState.value)))(
-                        ^.href := "#",
-                        ^.onClick --> tabState.setState(tab),
-                        tab.toString,
-                        props
-                          .notifications
-                          .get(tab)
-                          .filter(_ > 0)
-                          .map { numNotifs =>
-                            <.span(c"badge badge-danger badge-pill")(
-                              ^.marginLeft  := "0.5rem",
-                              ^.marginRight := "-0.5rem",
-                              numNotifs
-                            )
-                          }
-                      )
-                    )
-                  )
-              )
-            ),
-            props.render(tabState)
-          )
-        }
-      }
-      .build
-
-}
+import debate.quality.QuALITYService
+import debate.util.LocalState2
 
 object LobbyPage {
   val S = Styles
@@ -106,275 +39,10 @@ object LobbyPage {
     def all = Vector(Debates, Leaderboard, Admin)
   }
 
-  @JsonCodec
-  sealed trait DebatesTab extends Product with Serializable {
-    import DebatesTab._
-    override def toString =
-      this match {
-        case MyDebates =>
-          "My Official Debates"
-        case AllOfficialDebates =>
-          "All Official Debates"
-        case PracticeDebates =>
-          "Practice Debates"
-      }
-  }
-  object DebatesTab {
-    case object MyDebates          extends DebatesTab
-    case object AllOfficialDebates extends DebatesTab
-    case object PracticeDebates    extends DebatesTab
-
-    def all = Vector(MyDebates, AllOfficialDebates, PracticeDebates)
-  }
-
-  @JsonCodec
-  sealed trait AdminTab extends Product with Serializable {
-    import AdminTab._
-    override def toString =
-      this match {
-        case Profiles =>
-          "Profiles"
-        case CreateDebate =>
-          "Create Debate"
-      }
-  }
-  object AdminTab {
-    case object Profiles     extends AdminTab
-    case object CreateDebate extends AdminTab
-
-    def all: Vector[AdminTab] = Vector(Profiles, CreateDebate)
-  }
-
   val LocalBool   = new LocalState2[Boolean]
   val LocalString = new LocalState2[String]
 
   val LocalMainTab = new LocalState2[MainLobbyTab]
-
-  val DebateTabNav = new TabNav[DebatesTab]
-  val AdminTabNav  = new TabNav[AdminTab]
-
-  def debatesSubtabs(
-    isAdmin: Boolean,
-    lobby: Lobby,
-    userName: String,
-    connect: ConnectionSpec => Callback,
-    sendToMainChannel: MainChannelRequest => CallbackTo[Unit]
-  ) = {
-
-    val myDebates = lobby.officialRooms.filter(_.roleAssignments.values.toSet.contains(userName))
-
-    DebateTabNav.make("debate-tab", DebatesTab.all, DebatesTab.MyDebates) { tab =>
-      import DebatesTab._
-      val isOfficial = tab.value != PracticeDebates
-      val currentRooms =
-        tab.value match {
-          case MyDebates =>
-            myDebates
-          case AllOfficialDebates =>
-            lobby.officialRooms
-          case PracticeDebates =>
-            lobby.practiceRooms
-        }
-
-      <.div(c"card-body", S.spaceySubcontainer)(
-        LocalString.syncedWithSessionStorage("room-name-search", "") { roomNameLive =>
-          val canEnter =
-            roomNameLive.value.nonEmpty && userName.nonEmpty &&
-              currentRooms.exists(_.name == roomNameLive.value)
-          val enter =
-            if (canEnter)
-              connect(ConnectionSpec(isOfficial, roomNameLive.value, userName))
-            else
-              Callback.empty
-
-          val (matchingRooms, nonMatchingRooms) =
-            if (roomNameLive.value.isEmpty)
-              currentRooms -> Set[RoomMetadata]()
-            else
-              currentRooms.partition(_.matchesQuery(roomNameLive.value))
-
-          def makeMetadatas(status: RoomStatus) = {
-            val statusStyle = {
-              import RoomStatus._
-              status match {
-                case WaitingToBegin =>
-                  S.waitingToBeginStatusLabel
-                case InProgress =>
-                  S.inProgressStatusLabel
-                case Complete =>
-                  S.completeStatusLabel
-              }
-            }
-            val hasRooms = currentRooms.exists(_.status == status)
-            ReactFragment(
-              <.h5(statusStyle)(status.titleString),
-              <.div(S.metadataListContainer, S.spaceySubcontainer)(
-                if (!hasRooms) {
-                  <.div("No rooms to show.")
-                } else {
-                  def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
-                    .toVector
-                    .sorted(RoomMetadata.getOrdering(userName))
-                    .toVdomArray { case rm: RoomMetadata =>
-                      MetadataBox(
-                        isAdmin = isAdmin,
-                        roomMetadata = rm,
-                        isOfficial = isOfficial,
-                        userName = userName,
-                        sendToMainChannel = sendToMainChannel,
-                        enterRoom = connect
-                      )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
-                    }
-
-                  ReactFragment(
-                    showRooms(matchingRooms.filter(_.status == status), true),
-                    showRooms(nonMatchingRooms.filter(_.status == status), false)
-                  )
-                }
-              )
-            )
-          }
-
-          ReactFragment(
-            Utils.textInputWithEnterButton(
-              field = roomNameLive,
-              placeholderOpt = Some("Room"),
-              buttonContent = "Join",
-              isEnabled = canEnter,
-              enter = enter
-            )(^.marginBottom := 1.rem),
-            makeMetadatas(RoomStatus.InProgress),
-            <.div(<.hr),
-            makeMetadatas(RoomStatus.WaitingToBegin),
-            <.div(<.hr),
-            makeMetadatas(RoomStatus.Complete)
-          )
-        }
-      )
-    }
-  }
-
-  def debaterCard(
-    lobby: Lobby,
-    name: String,
-    joinOfficialRoom: String => Callback,
-    sendToMainChannel: MainChannelRequest => Callback
-  ) = {
-    val debates = lobby.officialRooms.filter(_.roleAssignments.values.exists(_ == name))
-    <.div(c"card")(
-      <.div(c"card-body")(
-        <.h6(c"card-title")(name),
-        <.p(c"card-text small")(
-          s"Debates: ${debates.size}",
-          <.br(),
-          Utils
-            .delimitedTags[Vector, RoomMetadata](
-              debates.toVector.sortBy(-_.latestUpdateTime),
-              getTag =
-                room => <.a(^.href := "#", room.name, ^.onClick --> joinOfficialRoom(room.name))
-            )
-            .toVdomArray
-        ),
-        if (lobby.trackedDebaters.contains(name)) {
-          <.button(c"btn btn-sm btn-outline-danger", S.simpleSelectable)(
-            <.i(c"bi bi-x"),
-            " Deactivate",
-            ^.onClick --> sendToMainChannel(RemoveDebater(name))
-          )
-        } else {
-          <.div(^.key := name)(
-            <.button(c"btn btn-sm btn-outline-secondary", S.simpleSelectable)(
-              <.i(c"bi bi-arrow-up"),
-              " Reactivate",
-              ^.onClick --> sendToMainChannel(RegisterDebater(name))
-            )
-          )
-        }
-      )
-    )
-  }
-
-  def adminSubtabs(
-    lobby: Lobby,
-    qualityService: QuALITYService[AsyncCallback],
-    userName: String,
-    connect: ConnectionSpec => Callback,
-    sendToMainChannel: MainChannelRequest => Callback
-  ) = {
-    val joinOfficialRoom = (roomName: String) => connect(ConnectionSpec(true, roomName, userName))
-    AdminTabNav.make("admin-tab", AdminTab.all, AdminTab.CreateDebate) { tab =>
-      import AdminTab._
-      <.div(c"card-body", S.spaceySubcontainer)(
-        tab.value match {
-          case Profiles =>
-            LocalString.make("") { newProfileStr =>
-              def profileMatchesQuery(profile: String) = itemMatchesKeywordQuery(
-                itemTerms = Set(profile),
-                queryKeywords = newProfileStr.value.split("\\s+").toSet
-              )
-
-              val profileOrder = {
-                import Order._
-                whenEqual(reverse(by[String, Boolean](profileMatchesQuery)), apply[String])
-              }
-
-              ReactFragment(
-                Utils.textInputWithEnterButton(
-                  field = newProfileStr,
-                  placeholderOpt = None,
-                  buttonContent = <.i(c"bi bi-plus"),
-                  isEnabled =
-                    newProfileStr.value.nonEmpty &&
-                      !lobby.trackedDebaters.contains(newProfileStr.value),
-                  enter =
-                    sendToMainChannel(RegisterDebater(newProfileStr.value)) >>
-                      newProfileStr.setState("")
-                )(^.marginBottom := "1rem"),
-                <.h3("Active Profiles"),
-                <.div(S.profileListContainer, S.spaceySubcontainer)(
-                  lobby
-                    .trackedDebaters
-                    .toVector
-                    .sorted(catsKernelOrderingForOrder(profileOrder))
-                    .toVdomArray { name =>
-                      debaterCard(lobby, name, joinOfficialRoom, sendToMainChannel)(
-                        ^.key := name,
-                        S.simpleUnselectable.when(!profileMatchesQuery(name))
-                      )
-
-                    }
-                ),
-                <.div(<.hr()),
-                <.h3("Inactive Profiles"),
-                <.div(S.profileListContainer, S.spaceySubcontainer)(
-                  (lobby.allDebaters -- lobby.trackedDebaters)
-                    .toVector
-                    .sorted(catsKernelOrderingForOrder(profileOrder))
-                    .toVdomArray { name =>
-                      debaterCard(lobby, name, joinOfficialRoom, sendToMainChannel)(
-                        ^.key := name,
-                        S.simpleUnselectable.when(!profileMatchesQuery(name))
-                      )
-                    }
-                )
-              )
-            }
-          case CreateDebate =>
-            DebateCreationPanel(
-              lobby = lobby,
-              qualityService = qualityService,
-              joinDebate = Option(userName)
-                .filter(_.nonEmpty)
-                .map(userName =>
-                  (isOfficial: Boolean, roomName: String) =>
-                    connect(ConnectionSpec(isOfficial, roomName, userName))
-                ),
-              initDebate = sendToMainChannel
-            )
-        }
-      )
-    }
-  }
 
   case class Props(
     qualityService: QuALITYService[AsyncCallback],
@@ -383,8 +51,7 @@ object LobbyPage {
     connect: ConnectionSpec => Callback
   )
 
-  val MainTabNav        = new TabNav[MainLobbyTab]
-  val LeaderboardTabNav = new TabNav[LeaderboardCategory]
+  val MainTabNav = new TabNav[MainLobbyTab]
 
   val Component =
     ScalaComponent
@@ -444,7 +111,7 @@ object LobbyPage {
                   ) { mainTab =>
                     mainTab.value match {
                       case MainLobbyTab.Debates =>
-                        debatesSubtabs(
+                        DebatesPanel(
                           isAdmin = isAdmin.value,
                           lobby = lobby,
                           userName = userName.value,
@@ -452,21 +119,9 @@ object LobbyPage {
                           sendToMainChannel = sendToMainChannel
                         )
                       case MainLobbyTab.Leaderboard =>
-                        LeaderboardTabNav.make(
-                          "leaderboard-tab",
-                          LeaderboardCategory.all,
-                          LeaderboardCategory.Judge
-                        ) { leaderboardTab =>
-                          <.div(c"card-body", S.spaceySubcontainer)(
-                            LeaderboardTable.makeSingle(
-                              lobby.trackedDebaters,
-                              lobby.leaderboard,
-                              leaderboardTab.value
-                            )
-                          )
-                        }
+                        LeaderboardPanel(lobby)
                       case MainLobbyTab.Admin =>
-                        adminSubtabs(
+                        AdminPanel(
                           lobby = lobby,
                           qualityService = qualityService,
                           userName = userName.value,

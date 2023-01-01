@@ -1,20 +1,21 @@
 package debate
 package view.lobby
 
+import cats.implicits._
+import cats.kernel.Monoid
+import cats.kernel.Order
+
+import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.MonocleReact._
+import monocle.macros.Lenses
 import scalacss.ScalaCssReact._
 
 import jjm.ui.LocalState
 
 import debate.Utils.ClassSetInterpolator
-import monocle.macros.Lenses
-import cats.kernel.Monoid
-import cats.implicits._
-import cats.kernel.Order
 
-object LeaderboardTable {
+object LeaderboardPanel {
 
   val S = Styles
 
@@ -188,14 +189,13 @@ object LeaderboardTable {
         renderSingleLeaderboard(category, fullData)
       }
 
-  // def make(leaderboard: Leaderboard): japgolly.scalajs.react.vdom.VdomElement = {
-  //   import LeaderboardCategory._
-  //   <.div(
-  //     List(Judge, HonestDebater, DishonestDebater)
-  //       .flatMap(category =>
-  //         leaderboard.data.get(category).map(rows => renderSingleLeaderboard(category, rows))
-  //       )
-  //       .toVdomArray
-  //   )
-  // }
+  val LeaderboardTabNav = new TabNav[LeaderboardCategory]
+
+  def apply(lobby: Lobby) =
+    LeaderboardTabNav.make("leaderboard-tab", LeaderboardCategory.all, LeaderboardCategory.Judge) {
+      leaderboardTab =>
+        <.div(c"card-body", S.spaceySubcontainer)(
+          makeSingle(lobby.trackedDebaters, lobby.leaderboard, leaderboardTab.value)
+        )
+    }
 }
