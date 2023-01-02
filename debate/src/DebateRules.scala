@@ -23,6 +23,7 @@ import jjm.implicits._
 case class DebateRules(
   fixedOpening: Vector[DebateRoundType],
   repeatingStructure: Vector[DebateRoundType],
+  maxNumRepeatedRounds: Option[Int],
   globalQuoteRestriction: Option[Int],
   scoringFunction: ScoringFunction
 ) {
@@ -49,17 +50,18 @@ object DebateRules {
 
   /** Default rules. */
   def default: DebateRules = DebateRules(
-    Vector(
+    fixedOpening = Vector(
       DebateRoundType.JudgeFeedbackRound(true, 500),
       DebateRoundType.SimultaneousSpeechesRound(500, None),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
-    Vector(
+    repeatingStructure = Vector(
       DebateRoundType.SequentialSpeechesRound(500, None),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
-    None,
-    ScoringFunction.LogScoreWithLinearPenalty.default
+    maxNumRepeatedRounds = None,
+    globalQuoteRestriction = None,
+    scoringFunction = ScoringFunction.LogScoreWithLinearPenalty.default
   )
 }
 

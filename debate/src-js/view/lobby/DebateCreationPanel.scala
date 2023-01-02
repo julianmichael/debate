@@ -70,13 +70,14 @@ object DebateCreationPanel {
 
   val defaultPerMessageQuoteLimit = 100
   val defaultGlobalQuoteLimit     = 500
+  val defaultMaxRepeatedRounds    = 5
 
   def optionalIntInput(
     field: StateSnapshot[Option[Int]],
     labelOpt: Option[String],
     defaultInt: Int
   ) = ReactFragment(
-    Checkbox2(
+    Checkbox2.mod(label = c"form-check-label mr-2")(
       field.zoomStateL(
         Iso[Option[Int], Boolean](_.nonEmpty)(b =>
           if (b)
@@ -87,7 +88,7 @@ object DebateCreationPanel {
       ),
       labelOpt
     ),
-    NumberField2.mod(input = TagMod(c"col form-control ml-2", ^.disabled := field.value.isEmpty))(
+    NumberField2.mod(input = TagMod(c"col form-control", ^.disabled := field.value.isEmpty))(
       field.zoomStateL(Iso[Option[Int], Int](_.getOrElse(defaultInt))(Some(_)).asLens)
     )
   )
@@ -239,79 +240,76 @@ object DebateCreationPanel {
   /** Config panel for setting a list of round types. */
   def roundTypeSelect(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
     val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None)
-    <.div(S.inputRowContents)(
-      RoundTypeList.nice(roundTypes, defaultRoundType, minItems) {
-        case ListConfig.Context(roundType, _) =>
-          val rowMod = TagMod(c"form-inline")
-          RoundTypeConfig
-            .mod(select = TagMod(S.listCardHeaderSelect), optionsDiv = c"card-body")(roundType)(
-              "Simultaneous Speeches" ->
-                SumConfigOption(
-                  DebateRoundType.SimultaneousSpeechesRound(500, None),
-                  DebateRoundType.simultaneousSpeechesRound
-                ) { simulSpeeches =>
-                  ReactFragment(
-                    <.div(rowMod, c"mb-1")(
-                      NumberField2(
-                        simulSpeeches
-                          .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.charLimit),
-                        Some("Character limit")
-                      )
-                    ),
-                    <.div(rowMod)(
-                      optionalIntInput(
-                        simulSpeeches
-                          .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.quoteLimit),
-                        Some("Quote character limit"),
-                        defaultPerMessageQuoteLimit
-                      )
+    RoundTypeList.nice(roundTypes, defaultRoundType, minItems) {
+      case ListConfig.Context(roundType, _) =>
+        val rowMod = TagMod(c"form-inline")
+        RoundTypeConfig
+          .mod(select = TagMod(S.listCardHeaderSelect), optionsDiv = c"card-body")(roundType)(
+            "Simultaneous Speeches" ->
+              SumConfigOption(
+                DebateRoundType.SimultaneousSpeechesRound(500, None),
+                DebateRoundType.simultaneousSpeechesRound
+              ) { simulSpeeches =>
+                ReactFragment(
+                  <.div(rowMod, c"mb-1")(
+                    NumberField2(
+                      simulSpeeches.zoomStateL(DebateRoundType.SimultaneousSpeechesRound.charLimit),
+                      Some("Character limit")
+                    )
+                  ),
+                  <.div(rowMod)(
+                    optionalIntInput(
+                      simulSpeeches
+                        .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.quoteLimit),
+                      Some("Quote character limit"),
+                      defaultPerMessageQuoteLimit
                     )
                   )
-                },
-              "Sequential Speeches" ->
-                SumConfigOption(
-                  DebateRoundType.SequentialSpeechesRound(500, None),
-                  DebateRoundType.sequentialSpeechesRound
-                ) { seqSpeeches =>
-                  ReactFragment(
-                    <.div(rowMod, c"mb-1")(
-                      NumberField2(
-                        seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.charLimit),
-                        labelOpt = Some("Character limit")
-                      )
-                    ),
-                    <.div(rowMod)(
-                      optionalIntInput(
-                        seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.quoteLimit),
-                        Some("Quote character limit"),
-                        defaultPerMessageQuoteLimit
-                      )
+                )
+              },
+            "Sequential Speeches" ->
+              SumConfigOption(
+                DebateRoundType.SequentialSpeechesRound(500, None),
+                DebateRoundType.sequentialSpeechesRound
+              ) { seqSpeeches =>
+                ReactFragment(
+                  <.div(rowMod, c"mb-1")(
+                    NumberField2(
+                      seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.charLimit),
+                      labelOpt = Some("Character limit")
+                    )
+                  ),
+                  <.div(rowMod)(
+                    optionalIntInput(
+                      seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.quoteLimit),
+                      Some("Quote character limit"),
+                      defaultPerMessageQuoteLimit
                     )
                   )
-                },
-              "Judge Feedback" ->
-                SumConfigOption(
-                  DebateRoundType.JudgeFeedbackRound(true, 500),
-                  DebateRoundType.judgeFeedbackRound
-                ) { judgeFeedback =>
-                  ReactFragment(
-                    <.div(rowMod, c"mb-1")(
-                      NumberField2(
-                        judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.charLimit),
-                        labelOpt = Some("Character limit")
-                      )
-                    ),
-                    <.div(rowMod)(
-                      Checkbox2(
-                        judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.reportBeliefs),
-                        Some("Report probabilities")
-                      )
+                )
+              },
+            "Judge Feedback" ->
+              SumConfigOption(
+                DebateRoundType.JudgeFeedbackRound(true, 500),
+                DebateRoundType.judgeFeedbackRound
+              ) { judgeFeedback =>
+                ReactFragment(
+                  <.div(rowMod, c"mb-1")(
+                    NumberField2(
+                      judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.charLimit),
+                      labelOpt = Some("Character limit")
+                    )
+                  ),
+                  <.div(rowMod)(
+                    Checkbox2(
+                      judgeFeedback.zoomStateL(DebateRoundType.JudgeFeedbackRound.reportBeliefs),
+                      Some("Report probabilities")
                     )
                   )
-                }
-            )
-      }
-    )
+                )
+              }
+          )
+    }
   }
 
   def roomSettings(
@@ -329,11 +327,29 @@ object DebateCreationPanel {
     <.div(S.row)(V.Checkbox(isOfficial, "Official debate"))
   )
 
-  def roundTypeConfig(
-    label: String,
-    rounds: StateSnapshot[Vector[DebateRoundType]],
-    minItems: Int
-  ) = <.div(S.mainLabeledInputRow)(<.div(S.inputRowLabel)(label), roundTypeSelect(rounds, minItems))
+  def openingRoundsConfig(rounds: StateSnapshot[Vector[DebateRoundType]]) =
+    <.div(S.mainLabeledInputRow)(
+      <.div(S.inputRowLabel)("Opening Rounds"),
+      <.div(S.inputRowContents)(roundTypeSelect(rounds, minItems = 0))
+    )
+
+  def repeatedRoundsConfig(
+    maxNumRounds: StateSnapshot[Option[Int]],
+    rounds: StateSnapshot[Vector[DebateRoundType]]
+  ) =
+    <.div(S.mainLabeledInputRow)(
+      <.div(S.inputRowLabel)("Repeated Rounds"),
+      <.div(S.inputRowContents)(
+        <.div(c"form-inline mb-1")(
+          optionalIntInput(
+            maxNumRounds,
+            Some("Maximum repeats (not yet implemented)"),
+            defaultMaxRepeatedRounds
+          )
+        ),
+        roundTypeSelect(rounds, minItems = 1)
+      )
+    )
 
   def scoringFunctionConfig(scoringFunction: StateSnapshot[ScoringFunction]) =
     <.div(S.mainLabeledInputRow)(
@@ -737,19 +753,17 @@ object DebateCreationPanel {
                     .syncedWithSessionStorage("selected-question", None) { qualityQuestionOpt =>
                       <.div(S.facilitatorColumn, S.spaceySubcontainer)(
                         headerBar(lobby, setup.value, joinDebate, initDebate, isOfficial, roomName),
-                        roundTypeConfig(
-                          "Opening Rounds",
-                          setup.zoomStateL(
-                            DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)
-                          ),
-                          minItems = 0
+                        openingRoundsConfig(
+                          setup
+                            .zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening))
                         ),
-                        roundTypeConfig(
-                          "Repeated Rounds",
+                        repeatedRoundsConfig(
+                          setup.zoomStateL(
+                            DebateSetupSpec.rules.composeLens(DebateRules.maxNumRepeatedRounds)
+                          ),
                           setup.zoomStateL(
                             DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)
-                          ),
-                          minItems = 1
+                          )
                         ),
                         globalQuoteRestrictionConfig(
                           setup.zoomStateL(
