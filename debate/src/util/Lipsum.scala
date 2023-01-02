@@ -1,4 +1,5 @@
 package debate
+package util
 
 object Lipsum {
   val get =

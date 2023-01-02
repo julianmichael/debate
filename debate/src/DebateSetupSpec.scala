@@ -4,6 +4,8 @@ import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism
 import monocle.macros.Lenses
 
+import debate.util.Lipsum
+
 @JsonCodec
 sealed trait SourceMaterialSpec
 
