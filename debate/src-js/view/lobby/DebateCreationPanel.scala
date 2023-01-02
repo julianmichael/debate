@@ -4,6 +4,7 @@ package view.lobby
 import scala.util.Random
 
 import cats.data.NonEmptyChain
+import cats.data.NonEmptyList
 import cats.data.NonEmptySet
 import cats.data.Validated
 import cats.implicits._
@@ -74,24 +75,22 @@ object DebateCreationPanel {
     field: StateSnapshot[Option[Int]],
     labelOpt: Option[String],
     defaultInt: Int
-  ) =
-// div = TagMod(c"ml-3 pl-3 my-auto")
-    ReactFragment(
-      Checkbox2(
-        field.zoomStateL(
-          Iso[Option[Int], Boolean](_.nonEmpty)(b =>
-            if (b)
-              Some(defaultInt)
-            else
-              None
-          ).asLens
-        ),
-        labelOpt
+  ) = ReactFragment(
+    Checkbox2(
+      field.zoomStateL(
+        Iso[Option[Int], Boolean](_.nonEmpty)(b =>
+          if (b)
+            Some(defaultInt)
+          else
+            None
+        ).asLens
       ),
-      NumberField2.mod(input = TagMod(c"col form-control ml-2", ^.disabled := field.value.isEmpty))(
-        field.zoomStateL(Iso[Option[Int], Int](_.getOrElse(defaultInt))(Some(_)).asLens)
-      )
+      labelOpt
+    ),
+    NumberField2.mod(input = TagMod(c"col form-control ml-2", ^.disabled := field.value.isEmpty))(
+      field.zoomStateL(Iso[Option[Int], Int](_.getOrElse(defaultInt))(Some(_)).asLens)
     )
+  )
 
   def getValidatedCreateDebateCb(
     lobby: Lobby,
@@ -230,7 +229,9 @@ object DebateCreationPanel {
         .swap
         .toOption
         .whenDefined(errorMessages =>
-          <.div(c"alert alert-danger")(errorMessages.toList.flatten.toVdomArray)
+          NonEmptyList
+            .fromList(errorMessages.toList.flatten)
+            .whenDefined(msgs => <.div(c"alert alert-danger")(msgs.toList.toVdomArray))
         )
     )
   }
