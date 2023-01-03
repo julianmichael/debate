@@ -17,6 +17,7 @@ import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.Iso
+import monocle.std.{all => StdOptics}
 import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
@@ -238,7 +239,7 @@ object DebateCreationPanel {
   }
 
   /** Config panel for setting a list of round types. */
-  def roundTypeSelect(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
+  def roundTypeList(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
     val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None)
     RoundTypeList.nice(roundTypes, defaultRoundType, minItems) {
       case ListConfig.Context(roundType, _) =>
@@ -327,28 +328,43 @@ object DebateCreationPanel {
     <.div(S.row)(V.Checkbox(isOfficial, "Official debate"))
   )
 
-  def openingRoundsConfig(rounds: StateSnapshot[Vector[DebateRoundType]]) =
+  def roundsConfig(label: String, minItems: Int, rounds: StateSnapshot[Vector[DebateRoundType]]) =
     <.div(S.mainLabeledInputRow)(
-      <.div(S.inputRowLabel)("Opening Rounds"),
-      <.div(S.inputRowContents)(roundTypeSelect(rounds, minItems = 0))
+      <.div(S.inputRowLabel)(label),
+      <.div(S.inputRowContents)(roundTypeList(rounds, minItems = minItems))
     )
 
-  def repeatedRoundsConfig(
-    maxNumRounds: StateSnapshot[Option[Int]],
-    rounds: StateSnapshot[Vector[DebateRoundType]]
-  ) =
+  def closingRoundsConfig(closingRules: StateSnapshot[Option[ClosingArgumentRules]]) =
     <.div(S.mainLabeledInputRow)(
-      <.div(S.inputRowLabel)("Repeated Rounds"),
-      <.div(S.inputRowContents)(
-        <.div(c"form-inline mb-1")(
-          optionalIntInput(
-            maxNumRounds,
-            Some("Maximum repeats (not yet implemented)"),
-            defaultMaxRepeatedRounds
-          )
-        ),
-        roundTypeSelect(rounds, minItems = 1)
-      )
+      <.div(S.inputRowLabel)("Closing Rounds (Not implemented yet)"),
+      Local[ClosingArgumentRules].make(ClosingArgumentRules.default) { storedArgRules =>
+        <.div(S.inputRowContents)(
+          <.div(c"form-inline", c"mb-1".when(closingRules.value.nonEmpty))(
+            Checkbox2.mod(label = c"form-check-label mr-2")(
+              closingRules.zoomStateL(
+                Iso[Option[ClosingArgumentRules], Boolean](_.nonEmpty)(b =>
+                  if (b)
+                    Some(storedArgRules.value)
+                  else
+                    None
+                ).asLens
+              ),
+              Some("Maximum number of cycles")
+            ),
+            NumberField2
+              .mod(input = TagMod(c"col form-control", ^.disabled := closingRules.value.isEmpty))(
+                closingRules.zoomStateL(
+                  Iso[Option[ClosingArgumentRules], Int](
+                    _.fold(storedArgRules.value.maxRepeatCycles)(_.maxRepeatCycles)
+                  )(n => Some(storedArgRules.value.copy(maxRepeatCycles = n))).asLens
+                )
+              )
+          ),
+          closingRules
+            .zoomStateO(StdOptics.some.asOptional.composeLens(ClosingArgumentRules.rounds))
+            .map(roundTypeList(_, minItems = 0))
+        )
+      }
     )
 
   def scoringFunctionConfig(scoringFunction: StateSnapshot[ScoringFunction]) =
@@ -753,17 +769,22 @@ object DebateCreationPanel {
                     .syncedWithSessionStorage("selected-question", None) { qualityQuestionOpt =>
                       <.div(S.facilitatorColumn, S.spaceySubcontainer)(
                         headerBar(lobby, setup.value, joinDebate, initDebate, isOfficial, roomName),
-                        openingRoundsConfig(
+                        roundsConfig(
+                          "Opening Rounds",
+                          0,
                           setup
                             .zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening))
                         ),
-                        repeatedRoundsConfig(
-                          setup.zoomStateL(
-                            DebateSetupSpec.rules.composeLens(DebateRules.maxNumRepeatedRounds)
-                          ),
+                        roundsConfig(
+                          "Repeated Rounds",
+                          1,
                           setup.zoomStateL(
                             DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)
                           )
+                        ),
+                        closingRoundsConfig(
+                          setup
+                            .zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.fixedClosing))
                         ),
                         globalQuoteRestrictionConfig(
                           setup.zoomStateL(

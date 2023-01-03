@@ -79,7 +79,15 @@ case class ListConfig[A]() {
           <.div(c"col")(renderItem(context))
         )
       )
-    }.toVdomArray
+    }.toVdomArray,
+    Option(items.value.size)
+      .filter(_ == 0)
+      .map(_ =>
+        <.button(c"btn btn-block btn-outline-primary")(
+          <.div(^.margin.auto, <.i(c"bi bi-plus")),
+          ^.onClick --> items.modState(_ :+ defaultItem)
+        )
+      )
   )
 
   def apply[B](values: StateSnapshot[Vector[A]], minItems: Int = 0)(

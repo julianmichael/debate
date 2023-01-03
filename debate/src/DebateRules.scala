@@ -8,22 +8,22 @@ import monocle.macros.Lenses
 
 import jjm.implicits._
 
+@Lenses
+@JsonCodec
+case class ClosingArgumentRules(maxRepeatCycles: Int, rounds: Vector[DebateRoundType])
+object ClosingArgumentRules {
+  def default = ClosingArgumentRules(5, Vector())
+}
+
 /** Rules of the debate. I expect to want to add more stuff here as we want to
   * vary the debates on different dimensions.
-  *
-  * @param fixedOpening
-  *   the structure of the opening rounds of the debate
-  * @param repeatingStructure
-  *   the structure to repeat indefinitely after the opening rounds
-  * @param scoringFunction
-  *   the scoring function to used in reward calculations
   */
 @Lenses
 @JsonCodec
 case class DebateRules(
   fixedOpening: Vector[DebateRoundType],
   repeatingStructure: Vector[DebateRoundType],
-  maxNumRepeatedRounds: Option[Int],
+  fixedClosing: Option[ClosingArgumentRules],
   globalQuoteRestriction: Option[Int],
   scoringFunction: ScoringFunction
 ) {
@@ -59,7 +59,7 @@ object DebateRules {
       DebateRoundType.SequentialSpeechesRound(500, None),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
-    maxNumRepeatedRounds = None,
+    fixedClosing = None,
     globalQuoteRestriction = None,
     scoringFunction = ScoringFunction.LogScoreWithLinearPenalty.default
   )
