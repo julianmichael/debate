@@ -66,13 +66,29 @@ case class DebateTransitionSet(
   def currentTurns    = giveSpeech.mapVals(_.fst)
 }
 
+@JsonCodec
+sealed trait DebateEndReason
+object DebateEndReason {
+  case object JudgeDecided extends DebateEndReason
+  case object TimeUp       extends DebateEndReason
+}
+
+@Lenses
+@JsonCodec
+case class JudgingResult(
+  correctAnswerIndex: Int,
+  numContinues: Int,
+  finalJudgement: Vector[Double],
+  judgeReward: Double
+)
+object JudgingResult
+
 @Lenses
 @JsonCodec
 case class DebateResult(
   correctAnswerIndex: Int,
-  numTurns: Int,
-  finalJudgement: Vector[Double],
-  judgeReward: Double
+  endedBy: DebateEndReason,
+  judgingInfo: Option[JudgingResult]
 )
 object DebateResult
 
@@ -95,7 +111,7 @@ case class Debate(setup: DebateSetup, rounds: Vector[DebateRound]) {
 
   def result: Option[DebateResult]           = currentTransitions.left.toOption
   def isOver: Boolean                        = result.nonEmpty
-  def finalJudgement: Option[Vector[Double]] = result.map(_.finalJudgement)
+  def finalJudgement: Option[Vector[Double]] = result.flatMap(_.judgingInfo.map(_.finalJudgement))
 
   def numContinues = rounds.foldMap {
     case JudgeFeedback(_, _, false) =>
@@ -195,17 +211,22 @@ case class Debate(setup: DebateSetup, rounds: Vector[DebateRound]) {
         case DebateTurnTypeResult.Turn(turn) =>
           Right(DebateTransitionSet(lastRoundUndos, curRoundSpeeches(turn)))
         case DebateTurnTypeResult.End(finalJudgement) =>
-          val numTurns = numContinues
           val judgeReward = setup
             .rules
             .scoringFunction
-            .eval(numTurns, finalJudgement, setup.correctAnswerIndex)
+            .eval(numContinues, finalJudgement, setup.correctAnswerIndex)
           Left(
             DebateResult(
               correctAnswerIndex = setup.correctAnswerIndex,
-              numTurns = numTurns,
-              finalJudgement = finalJudgement,
-              judgeReward = judgeReward
+              endedBy = DebateEndReason.JudgeDecided,
+              judgingInfo = Some(
+                JudgingResult(
+                  correctAnswerIndex = setup.correctAnswerIndex,
+                  numContinues = numContinues,
+                  finalJudgement = finalJudgement,
+                  judgeReward = judgeReward
+                )
+              )
             )
           )
         case DebateTurnTypeResult.Mismatch =>

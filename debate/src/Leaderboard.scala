@@ -15,7 +15,7 @@ object DebateStats {
   implicit val debateStatsMonoid: Monoid[DebateStats] = cats.derived.semiauto.monoid[DebateStats]
 
   def getUserStats(
-    debateResult: DebateResult,
+    result: JudgingResult,
     role: DebateRole,
     name: String
   ): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
@@ -27,7 +27,7 @@ object DebateStats {
     val leaderboardCategory =
       role match {
         case Debater(index) =>
-          if (index == debateResult.correctAnswerIndex) {
+          if (index == result.correctAnswerIndex) {
             LeaderboardCategory.HonestDebater
           } else
             LeaderboardCategory.DishonestDebater
@@ -37,21 +37,21 @@ object DebateStats {
     val userStats =
       role match {
         case Debater(index) =>
-          val correct = debateResult.finalJudgement(index) > 0.5
-          val reward  = math.log(debateResult.finalJudgement(index))
+          val correct = result.finalJudgement(index) > 0.5
+          val reward  = math.log(result.finalJudgement(index))
           DebateStats(Proportion.Stats(bool2int(correct), bool2int(!correct)), Numbers(reward))
         case Judge =>
-          val correct = debateResult.finalJudgement(debateResult.correctAnswerIndex) > 0.5
+          val correct = result.finalJudgement(result.correctAnswerIndex) > 0.5
           DebateStats(
             Proportion.Stats(bool2int(correct), bool2int(!correct)),
-            Numbers(debateResult.judgeReward)
+            Numbers(result.judgeReward)
           )
       }
     Chosen(Map(leaderboardCategory -> Chosen(Map(name -> userStats))))
   }
 
   def fromDebate(d: Debate): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] =
-    d.result match {
+    d.result.flatMap(_.judgingInfo) match {
       case None =>
         Chosen(Map.empty)
       case Some(result) =>
@@ -75,6 +75,16 @@ sealed trait LeaderboardCategory extends Product with Serializable {
         "Honest Debater"
       case DishonestDebater =>
         "Dishonest Debater"
+    }
+
+  def shortString =
+    this match {
+      case Judge =>
+        "Judge"
+      case HonestDebater =>
+        "Honest"
+      case DishonestDebater =>
+        "Dishonest"
     }
 }
 object LeaderboardCategory {

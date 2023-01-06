@@ -51,8 +51,13 @@ object DebatePanel {
     currentTurns.map(_.values.head) match {
       case Left(result) =>
         <.span(
-          s"The debate is over! The correct answer was ${answerLetter(result.correctAnswerIndex)}. ",
-          s"The judge has earned a reward of ${result.judgeReward}."
+          s"The debate is over! ",
+          s"The correct answer was ${answerLetter(result.correctAnswerIndex)}. ",
+          result
+            .judgingInfo
+            .map(judgingResult =>
+              <.span(s"The judge has earned a reward of ${judgingResult.judgeReward}.")
+            )
         )
       case Right(turn) =>
         turn match {

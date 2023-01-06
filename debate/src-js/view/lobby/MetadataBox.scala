@@ -21,6 +21,42 @@ object MetadataBox {
   val S = Styles
   val V = new jjm.ui.View(S)
 
+  def getRoleStyle(role: DebateRole): TagMod =
+    role match {
+      case Judge =>
+        S.judgeAssignment
+      case Debater(i) =>
+        S.debaterAssignment(i)
+    }
+
+  def getRoleStyle(role: LeaderboardCategory): TagMod =
+    role match {
+      case LeaderboardCategory.Judge =>
+        TagMod.empty
+      case LeaderboardCategory.HonestDebater =>
+        S.correct
+      case LeaderboardCategory.DishonestDebater =>
+        S.incorrect
+    }
+
+  def getLeaderboardCategoryForRole(role: DebateRole, correctAnswerIndex: Int) =
+    role match {
+      case Judge =>
+        LeaderboardCategory.Judge
+      case Debater(i) if i == correctAnswerIndex =>
+        LeaderboardCategory.HonestDebater
+      case Debater(_) =>
+        LeaderboardCategory.DishonestDebater
+    }
+
+  def getDebateEndReasonStyle(endReason: DebateEndReason): TagMod =
+    endReason match {
+      case DebateEndReason.JudgeDecided =>
+        TagMod.empty
+      case DebateEndReason.TimeUp =>
+        c"text-muted"
+    }
+
   def apply(
     isAdmin: Boolean,
     roomMetadata: RoomMetadata,
@@ -32,60 +68,92 @@ object MetadataBox {
     val canEnterRoom = userName.nonEmpty // &&
     // !roomMetadata.currentParticipants.contains(userName)
 
-    case class OverUnder(label: VdomNode, bgStyle: TagMod)
+    case class ResultDescription(label: VdomNode, bgStyle: TagMod)
 
-    val resultOverUnderOpt = roomMetadata
+    val resultDescriptionOpt = roomMetadata
       .result
+      // .flatMap(_.judgingInfo)
       .map { result =>
-        val correctConfidence = result.finalJudgement(result.correctAnswerIndex) * 100
-        val otherConfidences = result
-          .finalJudgement
-          .remove(result.correctAnswerIndex)
-          .sortBy(-_)
-          .map(_ * 100)
-
-        val label = <.span(
-          <.span(S.correct)(f"$correctConfidence%.0f%%"),
-          "/",
-          Utils
-            .delimitedTags[Vector, Double](
-              otherConfidences,
-              getTag = conf => <.span(S.incorrect)(f"$conf%.0f%%"),
-              delimiter = "/"
-            )
-            .toVdomArray
+        val endedBy = <.span(
+          <.span(c"text-muted")("Ended by "),
+          <.span(getDebateEndReasonStyle(result.endedBy))(
+            result.endedBy match {
+              case DebateEndReason.JudgeDecided =>
+                "Judge"
+              case DebateEndReason.TimeUp =>
+                "Time"
+            }
+          )
         )
 
-        val style =
-          otherConfidences.headOption match {
-            case None =>
-              TagMod.empty
-            case Some(secondGuessConfidence) =>
-              val correctnessScore = correctConfidence / (correctConfidence + secondGuessConfidence)
-              val opacity          = math.abs(correctnessScore - 0.5)
-              val color =
-                if (correctnessScore > 0.5)
-                  Rgba(0, 128, 0, opacity) // green
-                else
-                  Rgba(220, 20, 60, opacity) // crimson
-              TagMod(^.backgroundColor := color.toColorStyleString)
+        val overUnderOpt = result
+          .judgingInfo
+          .map { info =>
+            val correctConfidence = info.finalJudgement(info.correctAnswerIndex) * 100
+            val otherConfidences = info
+              .finalJudgement
+              .remove(info.correctAnswerIndex)
+              .sortBy(-_)
+              .map(_ * 100)
+
+            val label = <.span(
+              <.span(S.correct)(f"$correctConfidence%.0f%%"),
+              "/",
+              Utils
+                .delimitedTags[Vector, Double](
+                  otherConfidences,
+                  getTag = conf => <.span(S.incorrect)(f"$conf%.0f%%"),
+                  delimiter = "/"
+                )
+                .toVdomArray
+            )
+
+            label
           }
 
-        OverUnder(label, style)
-      }
+        val style =
+          result.judgingInfo match {
+            case None =>
+              TagMod(^.backgroundColor := "#eee")
+            case Some(info) =>
+              val correctConfidence = info.finalJudgement(info.correctAnswerIndex) * 100
+              val otherConfidences = info
+                .finalJudgement
+                .remove(info.correctAnswerIndex)
+                .sortBy(-_)
+                .map(_ * 100)
 
-    def getRoleStyle(role: DebateRole) =
-      role match {
-        case Judge =>
-          S.judgeAssignment
-        case Debater(i) =>
-          S.debaterAssignment(i)
+              otherConfidences.headOption match {
+                case None =>
+                  TagMod.empty
+                case Some(secondGuessConfidence) =>
+                  val correctnessScore =
+                    correctConfidence / (correctConfidence + secondGuessConfidence)
+                  val opacity = math.abs(correctnessScore - 0.5)
+                  val color =
+                    if (correctnessScore > 0.5)
+                      Rgba(0, 128, 0, opacity) // green
+                    else
+                      Rgba(220, 20, 60, opacity) // crimson
+                  TagMod(^.backgroundColor := color.toColorStyleString)
+              }
+          }
+
+        ResultDescription(
+          overUnderOpt match {
+            case Some(pctsLabel) =>
+              <.span(pctsLabel, <.span(c"text-muted")(" ("), endedBy, <.span(c"text-muted")(")"))
+            case None =>
+              endedBy
+          },
+          style
+        )
       }
 
     val bgStyle =
-      resultOverUnderOpt match {
-        case Some(overUnder) =>
-          overUnder.bgStyle
+      resultDescriptionOpt match {
+        case Some(description) =>
+          description.bgStyle
         case None =>
           val myRoles  = roomMetadata.roleAssignments.filter(_._2 == userName).keySet
           val isMyTurn = myRoles.intersect(roomMetadata.currentSpeakers).nonEmpty
@@ -118,13 +186,10 @@ object MetadataBox {
                 Utils
                   .delimitedTags[Vector, DebateRole](
                     myRoles,
-                    {
-                      case Judge =>
-                        <.span("Judge") // should just be black
-                      case Debater(i) if i == result.correctAnswerIndex =>
-                        <.span(S.correct, "Honest")
-                      case Debater(_) =>
-                        <.span(S.incorrect, "Dishonest")
+                    { role =>
+                      val category = getLeaderboardCategoryForRole(role, result.correctAnswerIndex)
+                      val style    = getRoleStyle(category)
+                      <.span(style, category.shortString)
                     }
                   )
                   .toVdomArray
@@ -151,9 +216,9 @@ object MetadataBox {
     val boxTitle = ReactFragment(
       <.h5(c"card-title")(roomMetadata.name),
       <.h6(c"card-subtitle", c"mb-2")(
-        resultOverUnderOpt match {
-          case Some(overUnder) =>
-            overUnder.label
+        resultDescriptionOpt match {
+          case Some(description) =>
+            description.label
           case None =>
             turnSpan
         }
