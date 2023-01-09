@@ -28,7 +28,7 @@ case class DebateRules(
 ) {
   def summary = {
     val mostCommonCharLimitOpt = (fixedOpening ++ repeatingStructure)
-      .foldMap(r => Map(r.charLimit -> 1))
+      .foldMap(_.charLimitOpt.foldMap(charLimit => Map(charLimit -> 1)))
       .toVector
       .maximaBy(_._2)
       .map(_._1)

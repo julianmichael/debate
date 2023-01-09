@@ -9,6 +9,8 @@ import io.circe.generic.JsonCodec
 import monocle.Lens
 
 import jjm.ling.ESpan
+import cats.UnorderedFoldable
+import cats.kernel.CommutativeMonoid
 
 package object debate extends PackagePlatformExtensions {
 
@@ -77,6 +79,14 @@ package object debate extends PackagePlatformExtensions {
 
   implicit class RichBoolean(a: Boolean) {
     def -->(b: => Boolean) = !a || b
+  }
+
+  implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {
+    // TODO: use laziness correctly here. I can't wrap my head around proper use of Eval
+    def existsAs(p: PartialFunction[A, Boolean]): Boolean =
+      fa.unorderedFoldMap(p)(CommutativeMonoid.instance(false, _ || _))
+    // fa.foldRight(Eval.False)((a, exEval) => exEval.map(ex => p.lift(a).getOrElse(false) || ex))
+    //   .value
   }
 
   implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {

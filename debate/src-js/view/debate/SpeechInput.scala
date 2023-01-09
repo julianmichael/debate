@@ -16,7 +16,7 @@ import debate.util.Local
 
 object SpeechInput {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
-  // import Utils.ClassSetInterpolator
+  import Utils.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 
@@ -32,9 +32,10 @@ object SpeechInput {
     val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
     val source                       = debate.value.setup.sourceMaterial.contents
 
-    val charLimit       = turn.fst.charLimit
-    val speechLength    = SpeechSegments.getSpeechLength(source, currentMessageSpeechSegments)
-    val speechIsTooLong = charLimit > 0 && speechLength > charLimit
+    val charLimitOpt = turn.fst.charLimitOpt
+    val speechLength = SpeechSegments.getSpeechLength(source, currentMessageSpeechSegments)
+    val speechIsTooLong = charLimitOpt
+      .exists(charLimit => charLimit > 0 && speechLength > charLimit)
 
     val quoteLimitOpt    = turn.fst.quoteLimit
     val quoteLength      = SpeechSegments.getQuoteCoverage(source, currentMessageSpeechSegments)
@@ -80,7 +81,7 @@ object SpeechInput {
         )(
           "Length: ",
           <.span(S.speechLengthPanelOverage.when(speechIsTooLong))(speechLength.toString),
-          <.span(" / ", charLimit.toString).when(charLimit > 0),
+          charLimitOpt.map(charLimit => <.span(" / ", charLimit.toString)),
           ReactFragment(
             ". Quote length: ",
             <.span(S.speechLengthPanelOverage.when(quotesAreTooLong))(quoteLength.toString),
@@ -152,7 +153,7 @@ object SpeechInput {
               )
             ) >> currentMessage.setState("")
 
-        Local[Boolean](false) { consideringContinue =>
+        Local(false) { consideringContinue =>
           val barWidthPx = 60
 
           <.div(S.row)(
@@ -285,6 +286,18 @@ object SpeechInput {
       }
     }
 
+    def negotiateEndInput(vote: Boolean => Debate) =
+      <.div(S.speechInputPanel)(
+        "Offer to end the debate?",
+        <.div(c"row")(
+          <.button(c"col-md-6 btn btn-primary")(
+            "Continue",
+            ^.onClick --> debate.setState(vote(false))
+          ),
+          <.button(c"col-md-6 btn btn-danger")("End", ^.onClick --> debate.setState(vote(false)))
+        )
+      )
+
     turn.fst match {
       case turnType @ DebateTurnType.SimultaneousSpeechesTurn(_, _, _) =>
         debaterSpeechInput(turn.get(turnType).get)
@@ -292,6 +305,8 @@ object SpeechInput {
         debaterSpeechInput(turn.get(turnType).get)
       case turnType @ DebateTurnType.JudgeFeedbackTurn(_, _, _) =>
         judgeSpeechInput(turnType, turn.get(turnType).get)
+      case turnType @ DebateTurnType.NegotiateEndTurn(_) =>
+        negotiateEndInput(turn.get(turnType).get)
     }
   }
 }

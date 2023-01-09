@@ -196,6 +196,24 @@ object DebateCreationPanel {
         "no judge assigned in judgeless debate",
         !setup.rules.hasJudge --> !setup.roles.contains(Judge),
         Some(<.div("No judge may be assigned in a judgeless debate."))
+      ) *>
+      ensure(
+        "no judge in debates which can end by agreement",
+        setup
+          .rules
+          .roundTypeSet
+          .existsAs { case DebateRoundType.NegotiateEndRound =>
+            true
+          } --> !setup.rules.hasJudge,
+        Some(
+          <.div(
+            "A debate which can end by mutual agreement must be judgeless. ",
+            "We currently don't have a way of ensuring that the judge reports their beliefs ",
+            "after reading the entire debate, and then extracting that report. ",
+            "This shouldn't be a problem as long as we only use ending by mutual agreement for ",
+            "offline-judged debates."
+          )
+        )
       ) *> createDebateCb.validNec[Option[VdomTag]]
   }
 

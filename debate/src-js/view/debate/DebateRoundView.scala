@@ -245,6 +245,57 @@ object DebateRoundView {
           .toVdomArray { case (speechBox, index) =>
             speechBox(^.key := s"speechbox-$index")
           }
+      case NegotiateEnd(votes) =>
+        if (votes.size < numDebaters) {
+          roleOpt
+            .collect { case Debater(index) =>
+              votes
+                .get(index)
+                .map { votedToEnd =>
+                  if (votedToEnd) {
+                    <.div("You voted to ", <.strong("end"), " the debate.")
+                  } else {
+                    <.div("You voted to ", <.strong("continue"), " the debate.")
+                  }
+                }
+            }
+            .flatten
+            .toVector
+            .zipWithIndex
+            .toVdomArray { case (el, i) =>
+              el(^.key := s"text-$i")
+            }
+        } else {
+          if (
+            roleOpt.existsAs { case Debater(_) | Facilitator =>
+              true
+            }
+          ) {
+            if (votes.values.forall(identity)) {
+              <.div("All debaters voted to ", <.strong("end"), " the debate.")
+            } else if (votes.values.forall(!_)) {
+              <.div("All debaters voted to ", <.strong("continue"), " the debate.")
+            } else {
+              <.div(
+                "Continue votes: ",
+                Utils
+                  .delimitedSpans(votes.filter(!_._2).keySet.toVector.sorted.map(answerLetter))
+                  .toVdomArray,
+                ". ",
+                "End votes: ",
+                Utils
+                  .delimitedSpans(votes.filter(_._2).keySet.toVector.sorted.map(answerLetter))
+                  .toVdomArray
+              )
+            }
+          } else {
+            if (votes.values.forall(identity)) {
+              <.div("All debaters have mutually agreed to end the debate.")
+            } else {
+              <.div("Debaters did not agree to end the debate.")
+            }
+          }
+        }
     }
   )
 }

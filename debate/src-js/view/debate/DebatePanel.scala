@@ -86,6 +86,17 @@ object DebatePanel {
               case _ =>
                 <.span(s"It is the Judge's turn to give feedback.")
             }
+          case DebateTurnType.NegotiateEndTurn(remainingDebaters) =>
+            roleOpt match {
+              case Some(Debater(index)) =>
+                if (remainingDebaters.contains(index)) {
+                  <.span("It is YOUR TURN. Debaters are voting on whether to end the debate.")
+                } else {
+                  <.span("Your vote has been received. Waiting for other debaters.")
+                }
+              case _ =>
+                <.span("Debaters are voting on whether to end the debate.")
+            }
         }
     }
   )

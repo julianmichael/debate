@@ -4,6 +4,7 @@ import scala.language.postfixOps
 
 import scalacss.DevDefaults._
 import scalacss.internal.ValueT
+import scala.annotation.nowarn
 
 /** Stylesheet for the webapp. Inherits default styles for the default view
   * components; these can be overridden.
@@ -511,6 +512,7 @@ object Styles extends jjm.ui.View.Styles {
     textAlign.right
   )
 
+  @nowarn
   val cardLeftSideXColumn = style(
     col,
     addClassNames("col-auto"),

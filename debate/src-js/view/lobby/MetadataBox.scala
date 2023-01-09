@@ -55,6 +55,8 @@ object MetadataBox {
         TagMod.empty
       case DebateEndReason.TimeUp =>
         c"text-muted"
+      case DebateEndReason.MutualAgreement =>
+        c"text-muted"
     }
 
   def apply(
@@ -82,6 +84,8 @@ object MetadataBox {
                 "Judge"
               case DebateEndReason.TimeUp =>
                 "Time"
+              case DebateEndReason.MutualAgreement =>
+                "Agreement"
             }
           )
         )
