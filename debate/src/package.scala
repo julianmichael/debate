@@ -75,14 +75,18 @@ package object debate extends PackagePlatformExtensions {
 
   def span2text(span: ESpan): String = s"<<${span.begin}-${span.endExclusive}>>"
 
+  implicit class RichBoolean(a: Boolean) {
+    def -->(b: => Boolean) = !a || b
+  }
+
   implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {
     // version of reduceLeftM which takes advantage of Monad.pure
     def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] =
       fa.reduceLeftTo(Monad[G].pure)((ga, a) => Monad[G].flatMap(ga)(g(_, a)))
   }
 
-  def itemMatchesKeywordQuery(itemTerms: Set[String], queryKeywords: Set[String]) =
-    queryKeywords.forall { qk =>
+  def itemMatchesKeywordQuery(itemTerms: Set[String], queryKeywords: Set[String]) = queryKeywords
+    .forall { qk =>
       val k = qk.toLowerCase
       itemTerms.exists(_.toLowerCase.contains(k))
     }

@@ -79,7 +79,7 @@ object DebatePanel {
               case _ =>
                 <.span(s"Debaters are writing their speeches.")
             }
-          case DebateTurnType.JudgeFeedbackTurn(_, _) =>
+          case DebateTurnType.JudgeFeedbackTurn(_, _, _) =>
             roleOpt match {
               case Some(Judge) =>
                 <.span("It is YOUR TURN as judge to give feedback.")

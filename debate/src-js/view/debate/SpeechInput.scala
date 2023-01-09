@@ -122,7 +122,7 @@ object SpeechInput {
     }
 
     def judgeSpeechInput(
-      // turnType: DebateTurnType.JudgeFeedbackTurn,
+      turnType: DebateTurnType.JudgeFeedbackTurn,
       giveSpeech: JudgeFeedbackContent => Debate
     ) = {
       val turnNum =
@@ -181,12 +181,13 @@ object SpeechInput {
                     ^.onClick --> submit(endDebate = true)
                   ),
                   <.button(S.grow)(
-                    f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
-                    ^.disabled := speechIsTooLong,
-                    ^.onMouseMove --> consideringContinue.setState(true),
-                    ^.onMouseLeave --> consideringContinue.setState(false),
-                    ^.onClick --> submit(endDebate = false)
-                  )
+                      f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
+                      ^.disabled := speechIsTooLong,
+                      ^.onMouseMove --> consideringContinue.setState(true),
+                      ^.onMouseLeave --> consideringContinue.setState(false),
+                      ^.onClick --> submit(endDebate = false)
+                    )
+                    .when(!turnType.mustEndDebate)
                 )
               ),
               <.div(S.col, ^.width := s"${barWidthPx * setup.answers.size}px") {
@@ -294,8 +295,8 @@ object SpeechInput {
         debaterSpeechInput(turn.get(turnType).get)
       case turnType @ DebateTurnType.DebaterSpeechTurn(_, _, _) =>
         debaterSpeechInput(turn.get(turnType).get)
-      case turnType @ DebateTurnType.JudgeFeedbackTurn(_, _) =>
-        judgeSpeechInput(turn.get(turnType).get)
+      case turnType @ DebateTurnType.JudgeFeedbackTurn(_, _, _) =>
+        judgeSpeechInput(turnType, turn.get(turnType).get)
     }
   }
 }

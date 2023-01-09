@@ -127,8 +127,8 @@ case class Debate(setup: DebateSetup, rounds: Vector[DebateRound]) {
     val numDebaters   = setup.answers.size
     val roundSequence = setup.rules.roundTypes
 
-    def newRoundSpeeches(roundType: DebateRoundType) = {
-      val turn = roundType.getFirstTurn(numDebaters)
+    def newRoundSpeeches(roundType: DebateRoundType, isLastTurn: Boolean) = {
+      val turn = roundType.getFirstTurn(numDebaters, isLastTurn)
       turn
         .currentRoles
         .map(role =>
@@ -201,13 +201,54 @@ case class Debate(setup: DebateSetup, rounds: Vector[DebateRound]) {
 
     // TODO: validate that the debate follows the specified structure?
     if (rounds.isEmpty)
-      Right(DebateTransitionSet(Map(), newRoundSpeeches(roundSequence.head)))
+      Right(
+        DebateTransitionSet(
+          Map(),
+          newRoundSpeeches(roundSequence.head, isLastTurn = roundSequence.tail.isEmpty)
+        )
+      )
     else {
+      // should always be nonempty since the last round should have a round type
       val lastRoundType #:: futureRoundTypes = roundSequence.drop(rounds.size - 1)
       val lastRound                          = rounds.last
       lastRoundType.getTurn(lastRound, numDebaters) match {
         case DebateTurnTypeResult.Next =>
-          Right(DebateTransitionSet(lastRoundUndos, newRoundSpeeches(futureRoundTypes.head)))
+          futureRoundTypes match {
+            case LazyList() => // time's up
+              Left(
+                DebateResult(
+                  correctAnswerIndex = setup.correctAnswerIndex,
+                  endedBy = DebateEndReason.TimeUp,
+                  judgingInfo =
+                    lastRound match {
+                      case JudgeFeedback(finalJudgement, feedback, endDebate) =>
+                        // judge shouldn't be allowed to say 'continue the debate' in the last turn
+                        require(endDebate)
+                        val judgeReward = setup
+                          .rules
+                          .scoringFunction
+                          .eval(numContinues, finalJudgement, setup.correctAnswerIndex)
+                        Some(
+                          JudgingResult(
+                            correctAnswerIndex = setup.correctAnswerIndex,
+                            numContinues = numContinues,
+                            finalJudgement = finalJudgement,
+                            judgeReward = judgeReward
+                          )
+                        )
+                      case _ =>
+                        None
+                    }
+                )
+              )
+            case nextRoundType #:: followingRoundTypes =>
+              Right(
+                DebateTransitionSet(
+                  lastRoundUndos,
+                  newRoundSpeeches(nextRoundType, isLastTurn = followingRoundTypes.isEmpty)
+                )
+              )
+          }
         case DebateTurnTypeResult.Turn(turn) =>
           Right(DebateTransitionSet(lastRoundUndos, curRoundSpeeches(turn)))
         case DebateTurnTypeResult.End(finalJudgement) =>
@@ -314,7 +355,8 @@ object DebateTurnType {
     type Round       = SimultaneousSpeeches
     type Input       = DebateSpeechContent
     def currentRoles = remainingDebaters.map(Debater(_))
-    def roundPrism   = DebateRound.simultaneousSpeeches
+
+    def roundPrism = DebateRound.simultaneousSpeeches
 
     def newRoundTransition(role: AllowedRole) = {
       case DebateSpeechContent(name, timestamp, contents) =>
@@ -351,7 +393,8 @@ object DebateTurnType {
         SequentialSpeeches.speeches.modify(_ + (debater -> speech))
     }
   }
-  case class JudgeFeedbackTurn(reportBeliefs: Boolean, charLimit: Int) extends DebateTurnType {
+  case class JudgeFeedbackTurn(reportBeliefs: Boolean, charLimit: Int, mustEndDebate: Boolean)
+      extends DebateTurnType {
     type AllowedRole = Judge.type
     type Round       = JudgeFeedback
     type Input       = JudgeFeedbackContent
@@ -361,6 +404,7 @@ object DebateTurnType {
 
     def newRoundTransition(role: AllowedRole) = {
       case JudgeFeedbackContent(name, timestamp, contents, distribution, endDebate) =>
+        require(!mustEndDebate || endDebate, "Judge must end the debate.")
         JudgeFeedback(
           distribution = distribution,
           DebateSpeech(ParticipantId(name, role), timestamp, contents),
@@ -370,11 +414,9 @@ object DebateTurnType {
 
     def curRoundSpeeches(
       role: AllowedRole
-    ): JudgeFeedbackContent => JudgeFeedback => JudgeFeedback = {
+    ): JudgeFeedbackContent => JudgeFeedback => JudgeFeedback =
       // no more speeches this round (shouldn't get here)
-      require(false)
       ???
-    }
   }
 }
 

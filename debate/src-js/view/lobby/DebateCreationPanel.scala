@@ -122,7 +122,7 @@ object DebateCreationPanel {
       ) *>
       ensure(
         "all roles assigned",
-        !isOfficial || setup.areAllRolesAssigned,
+        isOfficial --> setup.areAllRolesAssigned,
         Some(<.div("All roles must be assigned in official debates."))
       ) *>
       ensure(
@@ -176,6 +176,26 @@ object DebateCreationPanel {
             " add answers until you find a debater assigned to the new answer then remove them.)"
           )
         )
+      ) *>
+      ensure(
+        "judge concludes finite-length debates when present",
+        (setup.rules.hasJudge && setup.rules.fixedClosing.nonEmpty) -->
+          setup.rules.roundTypes.lastOption.exists(_.hasJudge),
+        Some(
+          <.div(
+            "In fixed-length debates with a live judge, the final round must be a Judge Feedback round."
+          )
+        )
+      ) *>
+      ensure(
+        "debate must be able to end",
+        setup.rules.hasJudge || setup.rules.fixedClosing.nonEmpty,
+        Some(<.div("Debate must be able to end (via judge or max length)"))
+      ) *>
+      ensure(
+        "no judge assigned in judgeless debate",
+        !setup.rules.hasJudge --> !setup.roles.contains(Judge),
+        Some(<.div("No judge may be assigned in a judgeless debate."))
       ) *> createDebateCb.validNec[Option[VdomTag]]
   }
 
@@ -189,6 +209,12 @@ object DebateCreationPanel {
   ) = {
     val createDebateValidated: Validated[NonEmptyChain[Option[VdomTag]], Callback] =
       getValidatedCreateDebateCb(lobby, roomName, isOfficial.value, setup, initDebate, joinDebate)
+
+    val infoMessages =
+      List(
+        Option(<.div("Debate has no live judge, but can be used for offline judging."))
+          .filter(_ => !setup.rules.hasJudge)
+      ).flatten
 
     <.div(S.spaceySubcontainer, S.stickyBanner)(
       roomSettings(isOfficial, roomName, createDebateValidated.toOption),
@@ -227,13 +253,16 @@ object DebateCreationPanel {
           }
           .when(rooms.nonEmpty)
       },
+      NonEmptyList
+        .fromList(infoMessages)
+        .whenDefined(msgs => <.div(c"alert alert-info mt-1")(msgs.toList.toVdomArray)),
       createDebateValidated
         .swap
         .toOption
         .whenDefined(errorMessages =>
           NonEmptyList
             .fromList(errorMessages.toList.flatten)
-            .whenDefined(msgs => <.div(c"alert alert-danger")(msgs.toList.toVdomArray))
+            .whenDefined(msgs => <.div(c"alert alert-danger mt-1")(msgs.toList.toVdomArray))
         )
     )
   }
@@ -336,8 +365,12 @@ object DebateCreationPanel {
 
   def closingRoundsConfig(closingRules: StateSnapshot[Option[ClosingArgumentRules]]) =
     <.div(S.mainLabeledInputRow)(
-      <.div(S.inputRowLabel)("Closing Rounds (Not implemented yet)"),
-      Local[ClosingArgumentRules].make(ClosingArgumentRules.default) { storedArgRules =>
+      <.div(S.inputRowLabel)("Closing Rounds"),
+      PartialStateBackup[Option[ClosingArgumentRules], ClosingArgumentRules](
+        state = closingRules,
+        initialPartValue = ClosingArgumentRules.default,
+        partOptional = StdOptics.some.asOptional
+      ) { (storedArgRules, syncedArgRulesOpt) =>
         <.div(S.inputRowContents)(
           <.div(c"form-inline", c"mb-1".when(closingRules.value.nonEmpty))(
             Checkbox2.mod(label = c"form-check-label mr-2")(
@@ -353,16 +386,14 @@ object DebateCreationPanel {
             ),
             NumberField2
               .mod(input = TagMod(c"col form-control", ^.disabled := closingRules.value.isEmpty))(
-                closingRules.zoomStateL(
-                  Iso[Option[ClosingArgumentRules], Int](
-                    _.fold(storedArgRules.value.maxRepeatCycles)(_.maxRepeatCycles)
-                  )(n => Some(storedArgRules.value.copy(maxRepeatCycles = n))).asLens
-                )
+                syncedArgRulesOpt
+                  .getOrElse(storedArgRules)
+                  .zoomStateL(ClosingArgumentRules.maxRepeatCycles)
               )
           ),
-          closingRules
-            .zoomStateO(StdOptics.some.asOptional.composeLens(ClosingArgumentRules.rounds))
-            .map(roundTypeList(_, minItems = 0))
+          syncedArgRulesOpt.map(rules =>
+            roundTypeList(rules.zoomStateL(ClosingArgumentRules.rounds), minItems = 0)
+          )
         )
       }
     )

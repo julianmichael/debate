@@ -36,15 +36,34 @@ case class DebateRules(
       .maximumOption
 
     mostCommonCharLimitOpt.foldMap(n => s"c$n ") +
-      fixedOpening.map(_.summary(mostCommonCharLimitOpt)).mkString(",") + "," + "(" +
-      repeatingStructure.map(_.summary(mostCommonCharLimitOpt)).mkString(",") + ")* " +
-      globalQuoteRestriction.foldMap(n => s"gq$n ") + scoringFunction.summary
+      fixedOpening.map(_.summary(mostCommonCharLimitOpt)).mkString(",") + "," +
+      Option("(" + repeatingStructure.map(_.summary(mostCommonCharLimitOpt)).mkString(",") + ")")
+        .filter(_ => fixedClosing.forall(_.maxRepeatCycles != 0))
+        .combineAll +
+      fixedClosing.fold("*")(closing =>
+        (if (closing.maxRepeatCycles > 1)
+           s"{1-${closing.maxRepeatCycles}}"
+         else
+           "") + closing.rounds.map(_.summary(mostCommonCharLimitOpt)).mkString(",")
+      )
+    globalQuoteRestriction.foldMap(n => s"gq$n ") + scoringFunction.summary
   }
 
-  def roundTypes: LazyList[DebateRoundType] =
-    // TODO change return type to some kind of infinite lazy list, it should always be that
-    LazyList.from(fixedOpening) #::: LazyList.continually(repeatingStructure).flatten
+  def roundTypes: LazyList[DebateRoundType] = {
+    val end =
+      fixedClosing match {
+        case None =>
+          LazyList.continually(repeatingStructure).flatten
+        case Some(ClosingArgumentRules(maxNumRepeats, closingRounds)) =>
+          LazyList.fill(maxNumRepeats)(repeatingStructure).flatten #::: LazyList.from(closingRounds)
+      }
+    LazyList.from(fixedOpening) #::: end
+  }
 
+  def roundTypeSet: Set[DebateRoundType] =
+    fixedOpening.toSet ++ repeatingStructure.toSet ++ fixedClosing.foldMap(_.rounds)
+
+  def hasJudge: Boolean = roundTypeSet.exists(_.hasJudge)
 }
 object DebateRules {
 
@@ -76,6 +95,7 @@ object DebateTurnTypeResult {
 /** Schema for round types used to set up the debate. */
 @JsonCodec
 sealed trait DebateRoundType {
+  def hasJudge: Boolean
   def charLimit: Int
 
   import DebateRoundType._
@@ -102,7 +122,7 @@ sealed trait DebateRoundType {
     }
   }
 
-  def getFirstTurn(numDebaters: Int): DebateTurnType = {
+  def getFirstTurn(numDebaters: Int, isLastTurn: Boolean): DebateTurnType = {
     require(numDebaters > 0)
     this match {
       case SimultaneousSpeechesRound(charLimit, quoteLimit) =>
@@ -110,7 +130,7 @@ sealed trait DebateRoundType {
       case SequentialSpeechesRound(charLimit, quoteLimit) =>
         DebateTurnType.DebaterSpeechTurn(0, charLimit, quoteLimit)
       case JudgeFeedbackRound(reportBeliefs, charLimit) =>
-        DebateTurnType.JudgeFeedbackTurn(reportBeliefs, charLimit)
+        DebateTurnType.JudgeFeedbackTurn(reportBeliefs, charLimit, mustEndDebate = isLastTurn)
     }
   }
 
@@ -150,15 +170,23 @@ object DebateRoundType {
   @Lenses
   @JsonCodec
   case class SimultaneousSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
-      extends DebateRoundType
+      extends DebateRoundType {
+
+    def hasJudge = false
+  }
   val simultaneousSpeechesRound = GenPrism[DebateRoundType, SimultaneousSpeechesRound]
   @Lenses
   @JsonCodec
   case class SequentialSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
-      extends DebateRoundType
+      extends DebateRoundType {
+
+    def hasJudge = false
+  }
   val sequentialSpeechesRound = GenPrism[DebateRoundType, SequentialSpeechesRound]
   @Lenses
   @JsonCodec
-  case class JudgeFeedbackRound(reportBeliefs: Boolean, charLimit: Int) extends DebateRoundType
+  case class JudgeFeedbackRound(reportBeliefs: Boolean, charLimit: Int) extends DebateRoundType {
+    def hasJudge = true
+  }
   val judgeFeedbackRound = GenPrism[DebateRoundType, JudgeFeedbackRound]
 }
