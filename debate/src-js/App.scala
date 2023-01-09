@@ -66,7 +66,7 @@ object App {
       .builder[Unit]("Full UI")
       .render { _ =>
         <.div(S.app)(
-          Local[Lobby].make(Lobby.empty) { lobby =>
+          Local[Lobby](Lobby.empty) { lobby =>
             MainWebSocket.make(
               mainWebsocketUri,
               onOpen = _ => Callback.empty,

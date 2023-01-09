@@ -68,7 +68,7 @@ object AdminPanel {
     joinOfficialRoomOpt: Option[String => Callback],
     sendToMainChannel: MainChannelRequest => Callback
   ) =
-    Local[String].make("") { newProfileStr =>
+    Local[String]("") { newProfileStr =>
       def profileMatchesQuery(profile: String) = itemMatchesKeywordQuery(
         itemTerms = Set(profile),
         queryKeywords = newProfileStr.value.split("\\s+").toSet

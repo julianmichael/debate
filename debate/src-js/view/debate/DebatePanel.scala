@@ -156,7 +156,7 @@ object DebatePanel {
       } yield turn
     val isUsersTurn = userTurn.nonEmpty
 
-    Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
+    Local[Set[ESpan]](Set.empty[ESpan]) { curMessageSpans =>
       <.div(S.debatePanel, S.spaceySubcontainer)(
         StoryPanel(
           setup.sourceMaterial.contents,
