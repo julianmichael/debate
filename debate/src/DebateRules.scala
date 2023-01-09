@@ -64,6 +64,7 @@ case class DebateRules(
     fixedOpening.toSet ++ repeatingStructure.toSet ++ fixedClosing.foldMap(_.rounds)
 
   def hasJudge: Boolean = roundTypeSet.exists(_.hasJudge)
+  def canEnd: Boolean   = fixedClosing.nonEmpty || roundTypeSet.exists(_.canEndDebate)
 }
 object DebateRules {
 
@@ -96,6 +97,7 @@ object DebateTurnTypeResult {
 @JsonCodec
 sealed trait DebateRoundType {
   def hasJudge: Boolean
+  def canEndDebate: Boolean
   def charLimit: Int
 
   import DebateRoundType._
@@ -172,7 +174,8 @@ object DebateRoundType {
   case class SimultaneousSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
       extends DebateRoundType {
 
-    def hasJudge = false
+    def hasJudge     = false
+    def canEndDebate = false
   }
   val simultaneousSpeechesRound = GenPrism[DebateRoundType, SimultaneousSpeechesRound]
   @Lenses
@@ -180,13 +183,15 @@ object DebateRoundType {
   case class SequentialSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
       extends DebateRoundType {
 
-    def hasJudge = false
+    def hasJudge     = false
+    def canEndDebate = false
   }
   val sequentialSpeechesRound = GenPrism[DebateRoundType, SequentialSpeechesRound]
   @Lenses
   @JsonCodec
   case class JudgeFeedbackRound(reportBeliefs: Boolean, charLimit: Int) extends DebateRoundType {
-    def hasJudge = true
+    def hasJudge     = true
+    def canEndDebate = true
   }
   val judgeFeedbackRound = GenPrism[DebateRoundType, JudgeFeedbackRound]
 }

@@ -189,7 +189,7 @@ object DebateCreationPanel {
       ) *>
       ensure(
         "debate must be able to end",
-        setup.rules.hasJudge || setup.rules.fixedClosing.nonEmpty,
+        setup.rules.canEnd,
         Some(<.div("Debate must be able to end (via judge or max length)"))
       ) *>
       ensure(

@@ -295,6 +295,7 @@ sealed trait DebateRound {
       allSpeeches.view.map(_.timestamp).maxOption
     }
 }
+
 @Lenses
 @JsonCodec
 case class SimultaneousSpeeches(
@@ -305,6 +306,7 @@ case class SimultaneousSpeeches(
 
 }
 object SimultaneousSpeeches
+
 @Lenses
 @JsonCodec
 case class SequentialSpeeches(speeches: Map[Int, DebateSpeech]) extends DebateRound {
@@ -313,6 +315,7 @@ case class SequentialSpeeches(speeches: Map[Int, DebateSpeech]) extends DebateRo
 
 }
 object SequentialSpeeches
+
 @Lenses
 @JsonCodec
 case class JudgeFeedback(
@@ -324,6 +327,7 @@ case class JudgeFeedback(
   def allSpeeches                  = Set(feedback)
 }
 object JudgeFeedback
+
 object DebateRound {
   val simultaneousSpeeches = GenPrism[DebateRound, SimultaneousSpeeches]
   val sequentialSpeeches   = GenPrism[DebateRound, SequentialSpeeches]
