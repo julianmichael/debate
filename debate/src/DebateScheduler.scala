@@ -4,6 +4,41 @@ object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
   case class DebateAssignment(honestDebater: String, dishonestDebater: String, judge: String)
 
+  def getCost(assignment: Vector[DebateAssignment]): Int = {
+    val nStoriesSpreadFactor           = 1 // TODO how to implement, see below
+    val nDebatesSpreadFactor           = 1 // TODO how to implement, see below
+    val nJudgesSpreadFactor            = 1 // TODO how to implement, see below
+    val nJudgesPerStorySpreadFactor    = 1 // TODO how to implement, see below
+    val nHonestSpreadFactor            = 1 // TODO how to implement, see below
+    val nJudgedPerDebaterSpreadFactor  = 1 // TODO how to implement, see below
+    val nDebatedPerDebaterSpreadFactor = 1 // TODO how to implement, see below
+    return nStoriesSpreadFactor + nDebatesSpreadFactor + nJudgesSpreadFactor +
+      nJudgesPerStorySpreadFactor + nHonestSpreadFactor + nJudgedPerDebaterSpreadFactor +
+      nDebatedPerDebaterSpreadFactor
+  }
+
+  def generateAllAssignments(
+    history: Vector[Debate],
+    numQuestions: Int,
+    debaters: Map[String, DebaterLoadConstraint]
+  ): Iterable[Vector[DebateAssignment]] =
+    for {
+      honestDebater    <- debaters.keys
+      dishonestDebater <- debaters.keys
+      judge            <- debaters.keys
+      if honestDebater != dishonestDebater && honestDebater != judge &&
+        dishonestDebater != judge && {
+          // TODO ensure we're obeying the load constraints
+          true
+        }
+    } yield Vector(
+      DebateAssignment(
+        honestDebater = honestDebater,
+        dishonestDebater = dishonestDebater,
+        judge = judge
+      )
+    )
+
   /**
      * Produces a list of assignments for a new story.
      * 
@@ -29,7 +64,23 @@ object DebateScheduler {
   def getScheduleForNewStory(
     history: Vector[Debate],
     numQuestions: Int,
-    debaters: Map[String, DebaterLoadConstraint]
-  ): Vector[DebateAssignment] = ???
-
+    debaters: Map[String, DebaterLoadConstraint] // TODO ensure nonempty? so we can't return None?
+  ): Vector[DebateAssignment] = {
+    var lowestCost = Int.MaxValue
+    // each vector in here is of length numQuestions
+    val allAssignments: Vector[Vector[DebateAssignment]] = generateAllAssignments(
+      history,
+      numQuestions
+    )
+    val allAssignmentsThatMeetConstraints: Vector[Vector[DebateAssignment]] = allAssignments
+      .filter { assignment =>
+        // TODO ensure we're obeying the load constraints
+        true
+      }
+    val assignmentsSortedByCost: Vector[Vector[DebateAssignment]] =
+      allAssignmentsThatMeetConstraints.sortBy { assignment =>
+        getCost(assignment) // TODO maybe amortize this so that it's faster
+      }
+    return assignmentsSortedByCost.head
+  }
 }
