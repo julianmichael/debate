@@ -38,7 +38,7 @@ class Local[A] private (name: String) {
       }
       .build
 
-  def apply(
+  def make(
     initialValue: A,
     didUpdate: (A, A) => Callback = (_, _) => Callback.empty,
     shouldRefresh: A => Boolean = (_: A) => true
@@ -89,13 +89,6 @@ class Local[A] private (name: String) {
 object Local {
   var instances = new collection.mutable.HashMap[String, Local[_]]
 
-  def apply[A: ClassTag](
-    initialValue: A,
-    didUpdate: (A, A) => Callback = (_: A, _: A) => Callback.empty,
-    shouldRefresh: A => Boolean = (_: A) => true
-  )(render: StateSnapshot[A] => VdomElement): VdomElement =
-    apply[A](initialValue, didUpdate, shouldRefresh)(render)
-
   def apply[A](implicit ct: ClassTag[A]): Local[A] = {
     val name = ct.runtimeClass.getName()
     instances.get(name) match {
@@ -119,4 +112,5 @@ object Local {
         instance.asInstanceOf[Local[A]]
     }
   }
+
 }

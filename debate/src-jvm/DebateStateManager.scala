@@ -89,7 +89,7 @@ case class DebateStateManager(
   def pushUpdate = pushUpdateRef.get.flatten
 
   private[this] def getFreshFilePath(dir: NIOPath, name: String, extension: String): IO[NIOPath] = {
-    val nums  = None #:: scala.Stream.from(2).map(Option(_))
+    val nums  = None #:: LazyList.from(2).map(Option(_))
     val paths = nums.map(_.foldMap("__" + _)).map(name + _ + extension).map(dir.resolve)
     IO(paths.filter(p => !Files.exists(p)).head)
   }

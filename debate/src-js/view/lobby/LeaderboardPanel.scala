@@ -168,7 +168,7 @@ object LeaderboardPanel {
   val defaultSortingOrder = SortingOrder(isAscending = false, SortableColumn.Reward)
 
   def renderSingleLeaderboard(category: LeaderboardCategory, stats: Map[String, DebateStats]) =
-    Local[SortingOrder](defaultSortingOrder) { sortOrder =>
+    Local[SortingOrder].make(defaultSortingOrder) { sortOrder =>
       <.div(
         ^.key := s"leaderboard-$category",
         <.h3(category.toString),

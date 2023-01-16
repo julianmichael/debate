@@ -18,7 +18,7 @@ object PartialStateBackup {
     initialPartValue: Part,
     partOptional: Optional[State, Part]
   )(render: (StateSnapshot[Part], Option[StateSnapshot[Part]]) => VdomElement) =
-    Local[Part](initialPartValue) { storedPart =>
+    Local[Part].make(initialPartValue) { storedPart =>
       val syncedPartOpt: Option[StateSnapshot[Part]] = state
         .zoomStateO(partOptional)
         .map { partState =>
