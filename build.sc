@@ -6,32 +6,32 @@ import mill.scalalib.scalafmt._
 import mill.define.Task
 import coursier.maven.MavenRepository
 
-val thisScalaVersion = "2.13.8"
+val thisScalaVersion   = "2.13.8"
 val thisScalaJSVersion = "1.12.0"
 
 // plugins etc.
-val kindProjectorVersion = "0.13.2"
+val kindProjectorVersion   = "0.13.2"
 val organizeImportsVersion = "0.6.0"
 
 // scala deps
 // my libs
 val jjmVersion = "0.2.3"
 // other deps
-val circeVersion = "0.13.0"
-val declineVersion = "1.0.0"
+val circeVersion         = "0.13.0"
+val declineVersion       = "1.0.0"
 val scalaJavaTimeVersion = "2.3.0"
 // testing
-val munitVersion = "0.7.29"
+val munitVersion           = "0.7.29"
 val munitCatsEffectVersion = "1.0.7"
 
 // jvm deps
 val logbackVersion = "1.2.3"
-val osLibVersion = "0.8.0"
+val osLibVersion   = "0.8.0"
 
 // scalajs deps
-val scalajsDomVersion = "1.1.0"
-val scalajsJqueryVersion = "1.0.0"
-val scalacssVersion = "0.7.0"
+val scalajsDomVersion               = "1.1.0"
+val scalajsJqueryVersion            = "1.0.0"
+val scalacssVersion                 = "0.7.0"
 val scalajsMacrotaskExecutorVersion = "1.0.0"
 
 def public(jsTask: Task[Report]): Task[Map[String, os.Path]] = T.task {
@@ -43,15 +43,11 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
 
   def platformSegment: String
 
-  override def sources = T.sources(
-    millSourcePath / "src",
-    millSourcePath / s"src-$platformSegment"
-  )
+  override def sources = T.sources(millSourcePath / "src", millSourcePath / s"src-$platformSegment")
 
   override def repositoriesTask = T.task {
-    super.repositoriesTask() ++ Seq(
-      MavenRepository("https://oss.sonatype.org/content/repositories/snapshots")
-    )
+    super.repositoriesTask() ++
+      Seq(MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"))
   }
 
   override def scalacOptions = Seq(
@@ -63,9 +59,8 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     "-Ywarn-unused"
   )
 
-  override def scalacPluginIvyDeps = super.scalacPluginIvyDeps() ++ Agg(
-    ivy"org.typelevel:::kind-projector:$kindProjectorVersion"
-  )
+  override def scalacPluginIvyDeps =
+    super.scalacPluginIvyDeps() ++ Agg(ivy"org.typelevel:::kind-projector:$kindProjectorVersion")
 
   def scalafixIvyDeps = Agg(ivy"com.github.liancheng::organize-imports:$organizeImportsVersion")
 
@@ -89,22 +84,24 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
 object debate extends Module {
 
   object js extends CommonModule with ScalaJSModule {
-    def millSourcePath = build.millSourcePath / "debate"
+    def millSourcePath  = build.millSourcePath / "debate"
     def platformSegment = "js"
-    def scalaJSVersion = thisScalaJSVersion
+    def scalaJSVersion  = thisScalaJSVersion
 
-    override def moduleKind = ModuleKind.ESModule
-    override def moduleSplitStyle =
-      ModuleSplitStyle.SmallModulesFor(List("debate"))
+    override def moduleKind       = ModuleKind.ESModule
+    override def moduleSplitStyle = ModuleSplitStyle.FewestModules
+    // ModuleSplitStyle.SmallModulesFor(List("debate"))
 
-    override def ivyDeps = super.ivyDeps() ++ Agg(
-      ivy"org.julianmichael::jjm-ui::$jjmVersion",
-      ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
-      ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
-      ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
-      ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
-      ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion"
-    )
+    override def ivyDeps =
+      super.ivyDeps() ++
+        Agg(
+          ivy"org.julianmichael::jjm-ui::$jjmVersion",
+          ivy"com.github.japgolly.scalacss::core::$scalacssVersion",
+          ivy"com.github.japgolly.scalacss::ext-react::$scalacssVersion",
+          ivy"org.scala-js::scalajs-dom::$scalajsDomVersion",
+          ivy"be.doeraene::scalajs-jquery::$scalajsJqueryVersion",
+          ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion"
+        )
 
     def publicDev = T {
       public(fastLinkJS)()
@@ -115,30 +112,31 @@ object debate extends Module {
     }
     object test extends super.Tests with CommonTestModule {
       def platformSegment = "js"
-      def scalaJSVersion = T(thisScalaJSVersion)
-      def moduleKind = T(ModuleKind.ESModule)
+      def scalaJSVersion  = T(thisScalaJSVersion)
+      def moduleKind      = T(ModuleKind.ESModule)
     }
   }
 
   object jvm extends CommonModule {
-    def millSourcePath = build.millSourcePath / "debate"
+    def millSourcePath  = build.millSourcePath / "debate"
     def platformSegment = "jvm"
 
     override def mainClass = T(Some("debate.Serve"))
 
-    override def ivyDeps = super.ivyDeps() ++ Agg(
-      ivy"org.julianmichael::jjm-corenlp::$jjmVersion",
-      ivy"com.lihaoyi::os-lib:$osLibVersion",
-      ivy"com.monovore::decline::$declineVersion",
-      ivy"com.monovore::decline-effect::$declineVersion",
-      // java dependencies
-      ivy"ch.qos.logback:logback-classic:$logbackVersion",
-      ivy"io.circe::circe-generic-extras::$circeVersion"
-    )
+    override def ivyDeps =
+      super.ivyDeps() ++
+        Agg(
+          ivy"org.julianmichael::jjm-corenlp::$jjmVersion",
+          ivy"com.lihaoyi::os-lib:$osLibVersion",
+          ivy"com.monovore::decline::$declineVersion",
+          ivy"com.monovore::decline-effect::$declineVersion",
+          // java dependencies
+          ivy"ch.qos.logback:logback-classic:$logbackVersion",
+          ivy"io.circe::circe-generic-extras::$circeVersion"
+        )
 
     object test extends super.Tests with CommonTestModule {
       def platformSegment = "jvm"
     }
   }
 }
-
