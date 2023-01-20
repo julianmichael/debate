@@ -1,6 +1,7 @@
 package debate
+package view.debate
 
-import scala.annotation.nowarn
+// import scala.annotation.nowarn
 
 import cats.implicits._
 
@@ -31,7 +32,7 @@ object LocalQuotingMessage {
     render: StateSnapshot[String] => VdomElement
   )
 
-  @nowarn("msg=deprecated")
+  // @nowarn("msg=deprecated")
   val Component =
     ScalaComponent
       .builder[Props]("Local Quoting Message")
@@ -66,12 +67,12 @@ object LocalQuotingMessage {
 
         val spanCb =
           if (messageSpans != $.currentProps.spans.value) {
-            $.currentProps.spans.setState(messageSpans)
+            $.currentProps.spans.setStateAsync(messageSpans)
           } else
-            Callback.empty
+            AsyncCallback.unit
 
         Callback(dom.window.localStorage.setItem($.currentProps.messageKeyId, $.currentState)) >>
-          spanCb >> $.currentProps.didUpdate($.currentState)
+          (spanCb >> $.currentProps.didUpdate($.currentState).asAsyncCallback).toCallback
       }
       .build
 

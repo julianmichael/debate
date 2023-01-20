@@ -1,4 +1,6 @@
 package debate
+package view.debate
+
 import cats.data.NonEmptyList
 
 import japgolly.scalajs.react._
@@ -15,12 +17,15 @@ import debate.util._
 
 object StoryPanel {
 
-//   import Helpers.ClassSetInterpolator
+//   import Utils.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 
   // TODO move all the coloring decisions into one place
   val midHighlightColor = Rgba(255, 128, 0, 0.8)
+
+  def apply(tokens: Vector[String], highlights: Vector[(ESpan, Rgba)], addSpan: ESpan => Callback) =
+    Component(Props(tokens, highlights, addSpan))
 
   case class Props(
     tokens: Vector[String],
@@ -64,45 +69,47 @@ object StoryPanel {
           <.div(S.sourceMaterialSubpanel)(
             segmentsWithHighlights
               .toList
-              .toVdomArray { case (segment, highlights) =>
+              .map { case (segment, highlights) =>
                 val offset = segment.head._2
-                SpanSelection2
-                  .make(true, ispan => $.props.addSpan(ispan.toExclusive.translate(offset))) {
-                    case (status, context) =>
-                      val selectingSpanColorOpt = SpanSelection2
-                        .Status
-                        .selecting
-                        .getOption(status)
-                        .map { case SpanSelection2.Selecting(begin, end) =>
-                          ISpan(begin, end) -> midHighlightColor
-                        }
-                      val allHighlights = highlights ++ selectingSpanColorOpt
+                TagMod(
+                  SpanSelection2
+                    .make(true, ispan => $.props.addSpan(ispan.toExclusive.translate(offset))) {
+                      case (status, context) =>
+                        val selectingSpanColorOpt = SpanSelection2
+                          .Status
+                          .selecting
+                          .getOption(status)
+                          .map { case SpanSelection2.Selecting(begin, end) =>
+                            ISpan(begin, end) -> midHighlightColor
+                          }
+                        val allHighlights = highlights ++ selectingSpanColorOpt
 
-                      <.div(
-                        V.Spans
-                          .renderHighlightedTokens(
-                            segment.map(_._1),
-                            allHighlights.toList,
-                            segment
-                              .indices
-                              .map(i =>
-                                i ->
-                                  ((el: VdomTag) =>
-                                    if (segment(i)._1 == "\n") {
-                                      <.br(^.key := s"word-${i + offset}")
-                                    } else
-                                      el(
-                                        ^.onMouseMove --> context.hover(i),
-                                        ^.onClick --> context.touch(i)
-                                      )
-                                  )
-                              )
-                              .toMap
-                          ),
-                        <.br()
-                      )
-                  }
-              }
+                        <.div(
+                          V.Spans
+                            .renderHighlightedTokens(
+                              segment.map(_._1),
+                              allHighlights.toList,
+                              segment
+                                .indices
+                                .map(i =>
+                                  i ->
+                                    ((el: VdomTag) =>
+                                      if (segment(i)._1 == "\n") {
+                                        <.br()
+                                      } else
+                                        el(
+                                          ^.onMouseMove --> context.hover(i),
+                                          ^.onClick --> context.touch(i)
+                                        )
+                                    )
+                                )
+                                .toMap
+                            ),
+                          <.br()
+                        )
+                    }
+                )
+              }: _*
           )
         )
       }

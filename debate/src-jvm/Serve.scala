@@ -24,6 +24,8 @@ import org.http4s._
 import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
+import org.http4s.server.middleware.CORS
+import org.http4s.server.middleware.CORSConfig
 import org.http4s.server.websocket.WebSocketBuilder
 
 import jjm.DotKleisli
@@ -152,21 +154,23 @@ object Serve
         .init(initializeDebate(qualityDataset), officialRoomsDir(saveDir), pushUpdateRef)
       practiceDebates <- DebateStateManager
         .init(initializeDebate(qualityDataset), practiceRoomsDir(saveDir), pushUpdateRef)
-      officialRooms <- officialDebates.getRoomList
-      practiceRooms <- practiceDebates.getRoomList
+      officialRooms <- officialDebates.getRoomMetadata
+      practiceRooms <- practiceDebates.getRoomMetadata
       // channel to update all clients on the lobby state
       leaderboard <- officialDebates.getLeaderboard
+      allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
       mainChannel <- Topic[IO, Lobby](
-        Lobby(trackedDebaters, officialRooms, practiceRooms, leaderboard)
+        Lobby(allDebaters, trackedDebaters, officialRooms, practiceRooms, leaderboard)
       )
       pushUpdate = {
         for {
-          debaters         <- trackedDebatersRef.get
-          officialRoomList <- officialDebates.getRoomList
-          practiceRoomList <- practiceDebates.getRoomList
-          leaderboard      <- officialDebates.getLeaderboard
+          debaters      <- trackedDebatersRef.get
+          officialRooms <- officialDebates.getRoomMetadata
+          practiceRooms <- practiceDebates.getRoomMetadata
+          leaderboard   <- officialDebates.getLeaderboard
+          allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
           _ <- mainChannel
-            .publish1(Lobby(debaters, officialRoomList, practiceRoomList, leaderboard))
+            .publish1(Lobby(allDebaters, debaters, officialRooms, practiceRooms, leaderboard))
         } yield ()
       }
       _ <- pushUpdateRef.set(pushUpdate)
@@ -187,9 +191,23 @@ object Serve
           }
         }
       )
+
+      // We need to configure CORS for the AJAX APIs if we're using a separate
+      // endpoint for static file serving.
+      // TODO: allow requests from our hostname instead of any
+      // (but this requires us to know our hostname)
+      // unless we set up Vite as a proxy
+      val corsConfig = CORSConfig(
+        anyOrigin = true,
+        anyMethod = false,
+        allowedMethods = Some(Set("GET", "POST")),
+        allowCredentials = true,
+        maxAge = 1.day.toSeconds
+      )
+
       HttpsRedirect(
         Router(
-          s"/$qualityServiceApiEndpoint" -> qualityService,
+          s"/$qualityServiceApiEndpoint" -> CORS(qualityService, corsConfig),
           "/" ->
             service(
               saveDir,
@@ -240,12 +258,13 @@ object Serve
     val createLobbyWebsocket =
       for {
         debaters      <- trackedDebaters.get
-        officialRooms <- officialDebates.getRoomList
-        practiceRooms <- practiceDebates.getRoomList
+        officialRooms <- officialDebates.getRoomMetadata
+        practiceRooms <- practiceDebates.getRoomMetadata
         leaderboard   <- officialDebates.getLeaderboard
+        allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
         outStream = Stream
           .emit[IO, Option[Lobby]](
-            Some(Lobby(debaters, officialRooms, practiceRooms, leaderboard))
+            Some(Lobby(allDebaters, debaters, officialRooms, practiceRooms, leaderboard))
           ) // send the current set of debaters and rooms on connect
           .merge(Stream.awakeEvery[IO](30.seconds).map(_ => None)) // send a heartbeat every 30s
           .merge(mainChannel.subscribe(100).map(Some(_))) // and subscribe to the main channel
@@ -267,6 +286,11 @@ object Serve
                       officialDebates.deleteDebate(roomName)
                     else
                       practiceDebates.deleteDebate(roomName)
+                  case CreateRoom(isOfficial, roomName, setupSpec) =>
+                    if (isOfficial)
+                      officialDebates.createDebate(roomName, setupSpec)
+                    else
+                      practiceDebates.createDebate(roomName, setupSpec)
                 },
           onClose = IO.unit
         )

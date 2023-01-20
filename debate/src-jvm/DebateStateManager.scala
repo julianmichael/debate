@@ -10,7 +10,6 @@ import cats.effect.IO
 import cats.effect.Timer
 import cats.effect.concurrent.Ref
 import cats.implicits._
-import cats.kernel.Order
 
 import fs2.Stream
 import fs2.concurrent.Topic
@@ -29,21 +28,12 @@ import jjm.io.FileUtil
   *   the channel on which to send debate state updates to all participants
   */
 @Lenses
-case class DebateRoom(debate: DebateState, channel: Topic[IO, DebateState])
+case class DebateRoom(debate: DebateState, channel: Topic[IO, DebateState]) {
+  def pushUpdate = channel.publish1(debate)
+}
 object DebateRoom {
-  def create(debate: DebateState = DebateState.init)(implicit c: Concurrent[IO]) =
-    Topic[IO, DebateState](debate).map(DebateRoom(debate, _))
-
-  /** Order: 1) new uninitialized rooms, 2) latest turns taken
-    */
-  implicit val debateRoomOrder: Order[DebateRoom] = Order.by(
-    _.debate.debate match {
-      case None =>
-        0L
-      case Some(debate) =>
-        debate.rounds.view.flatMap(_.timestamp(debate.setup.numDebaters)).lastOption.fold(1L)(-_)
-    }
-  )
+  def create(debate: DebateState)(implicit c: Concurrent[IO]) = Topic[IO, DebateState](debate)
+    .map(DebateRoom(debate, _))
 }
 
 case class DebateStateManager(
@@ -64,73 +54,96 @@ case class DebateStateManager(
     .composePrism(StdOptics.some[DebateRoom])
     .composeLens(DebateRoom.debate)
 
-  def getRoomList = rooms
+  def getRoomMetadata = rooms
     .get
     .map {
       _.toVector
-        .sortBy(_._2)
         .map { case (roomName, room) =>
           RoomMetadata(
-            roomName,
-            room.debate.debate.unorderedFoldMap(_.setup.roles.values.toSet),
-            room.debate.participants.map(_.name),
-            room.debate.status
+            name = roomName,
+            storyTitle = room.debate.debate.setup.sourceMaterial.title,
+            roleAssignments = room.debate.debate.setup.roles,
+            creationTime = room.debate.debate.setup.startTime,
+            status = room.debate.status,
+            latestUpdateTime = room
+              .debate
+              .debate
+              .rounds
+              .view
+              .flatMap(_.timestamp(room.debate.debate.setup.numDebaters))
+              .lastOption
+              .getOrElse(room.debate.debate.setup.startTime),
+            result = room.debate.debate.result,
+            currentSpeakers = room
+              .debate
+              .debate
+              .currentTransitions
+              .toOption
+              .foldMap(_.currentSpeakers),
+            currentParticipants = room.debate.participants.keySet
           )
         }
+        .toSet
     }
 
   def pushUpdate = pushUpdateRef.get.flatten
 
-  // Ensure a debate room is present (initialize if necessary)
-  def ensureDebate(roomName: String) =
-    for {
-      roomOpt <- rooms.get.map(_.get(roomName))
-      _ <- IO(roomOpt.nonEmpty).ifM(
-        ifTrue = IO.unit,
-        ifFalse = DebateRoom
-          .create()
-          .flatMap(room =>
-            rooms.update(rooms =>
-              if (rooms.contains(roomName))
-                rooms
-              else
-                rooms + (roomName -> room)
-            ) >> pushUpdate
-          )
-      )
-    } yield ()
+  private[this] def getFreshFilePath(dir: NIOPath, name: String, extension: String): IO[NIOPath] = {
+    val nums  = None #:: LazyList.from(2).map(Option(_))
+    val paths = nums.map(_.foldMap("__" + _)).map(name + _ + extension).map(dir.resolve)
+    IO(paths.filter(p => !Files.exists(p)).head)
+  }
 
   def deleteDebate(roomName: String) =
     for {
-      _ <- rooms.update(_ - roomName)
-      _ <- IO(Files.delete(saveDir.resolve(roomName + ".json")))
-      _ <- pushUpdate
+      roomOpt <- rooms.get.map(_.get(roomName))
+      trashDir = DebateStateManager.getTrashDir(saveDir)
+      filePath <- getFreshFilePath(trashDir, roomName, ".json")
+      _        <- roomOpt.map(_.debate.debate).traverse(FileUtil.writeJson(filePath))
+      _        <- rooms.update(_ - roomName)
+      _        <- IO(Files.delete(saveDir.resolve(roomName + ".json")))
+      _        <- pushUpdate
     } yield ()
 
-  def addParticipant(roomName: String, participantId: String) =
+  def addParticipant(roomName: String, participantName: String) =
     for {
-      _ <- ensureDebate(roomName)
       _ <- rooms.update(
         roomStateL(roomName).modify { debateState =>
           val role = debateState
             .debate
-            .flatMap(debate => debate.setup.roles.find(_._2 == participantId).map(_._1))
+            .setup
+            .roles
+            .find(_._2 == participantName)
+            .map(_._1)
             .getOrElse(Observer)
-          debateState.addParticipant(ParticipantId(participantId, role))
+          debateState.addParticipant(participantName, role)
         }
       )
-      room <- rooms.get.map(_.apply(roomName))
-      _    <- room.channel.publish1(room.debate)
-      _    <- pushUpdate
+      _ <- rooms.get.flatMap(_.get(roomName).traverse_(_.pushUpdate))
+      _ <- pushUpdate
     } yield ()
 
-  def removeParticipant(roomName: String, participantId: String) =
+  def removeParticipant(roomName: String, participantName: String) =
     for {
-      _    <- rooms.update(roomMembersL(roomName).modify(_.filter(_.name != participantId)))
-      room <- rooms.get.map(_.apply(roomName))
-      _    <- room.channel.publish1(room.debate)
-      _ <- IO(room.debate.participants.isEmpty && room.debate.debate.isEmpty)
-        .ifM(rooms.update(_ - roomName), IO.unit)
+      _ <- rooms.update(roomMembersL(roomName).modify(_ - participantName))
+      _ <- rooms.get.map(_.get(roomName).traverse_(_.pushUpdate))
+      _ <- pushUpdate
+    } yield ()
+
+  def createDebate(roomName: String, setupSpec: DebateSetupSpec) =
+    for {
+      setup <- initializeDebate(setupSpec)
+      debate = Debate(setup, Vector())
+      room     <- DebateRoom.create(DebateState(debate = debate, participants = Map()))
+      curRooms <- rooms.get
+      _ <-
+        curRooms.get(roomName) match {
+          case Some(_) =>
+            IO.unit // do nothing
+          case None =>
+            rooms.update(_ + (roomName -> room)) >>
+              FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(debate)
+        }
       _ <- pushUpdate
     } yield ()
 
@@ -139,28 +152,17 @@ case class DebateStateManager(
       request match {
         case DebateStateUpdateRequest.State(debateState) =>
           rooms.update(roomStateL(roomName).set(debateState)) // update state
-        case DebateStateUpdateRequest.SetupSpec(setupSpec) =>
-          initializeDebate(setupSpec).flatMap { setup =>
-            rooms.update(
-              roomStateL(roomName)
-                .composeLens(DebateState.debate)
-                .set(Some(Debate(setup, Vector())))
-            )
-          }
       }
 
     for {
       _           <- updateState
       debateState <- rooms.get.map(_.apply(roomName).debate)
-      _ <- debateState
-        .debate
-        .traverse(
-          FileUtil.writeJson(saveDir.resolve(roomName + ".json"))
+      _ <-
+        FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(
+          debateState.debate
         ) // save after every change
-      // TODO: maybe update clients on the new room list since room order has changed? Or unnecessary computation?
-      // _ <- getRoomList.flatMap(mainChannel.publish1) // update all clients on the new room list
+      _ <- pushUpdate
     } yield debateState
-
   }
 
   def createWebsocket(roomName: String, participantName: String)(implicit timer: Timer[IO]) =
@@ -191,11 +193,14 @@ case class DebateStateManager(
   def getLeaderboard = rooms
     .get
     .map { roomMap =>
-      Leaderboard.fromDebates(roomMap.values.toList.flatMap(_.debate.debate.toList))
+      Leaderboard.fromDebates(roomMap.values.toList.map(_.debate.debate))
     }
 
 }
 object DebateStateManager {
+
+  def getTrashDir(saveDir: NIOPath) = saveDir.resolve("trash")
+
   def init(
     initializeDebate: DebateSetupSpec => IO[DebateSetup],
     saveDir: NIOPath,
@@ -204,12 +209,13 @@ object DebateStateManager {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
       _     <- IO(os.makeDir.all(saveDirOs))
+      _     <- IO(os.makeDir.all(os.Path(getTrashDir(saveDirOs.toNIO), os.pwd)))
       files <- IO(os.list(saveDirOs).map(_.toNIO).filter(_.toString.endsWith(".json")).toVector)
       rooms <- files
         .traverse(path =>
           FileUtil
             .readJson[Debate](path)
-            .flatMap(debate => DebateRoom.create(DebateState(Some(debate), Set())))
+            .flatMap(debate => DebateRoom.create(DebateState(debate, Map())))
             .map { room =>
               val roomName = path.getFileName.toString.dropRight(".json".length)
               roomName -> room

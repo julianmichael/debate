@@ -1,20 +1,18 @@
 package debate
+package view.debate
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
-import jjm.ui.LocalState
-
 /** HOC for probability sliders, where each outcome gets a slider and they're
   * constrained to constitute a probability distribution
   */
 object ProbabilitySliders {
 
-  val S           = debate.Styles
-  val V           = new jjm.ui.View(S)
-  val LocalString = new LocalState[String]
+  val S = debate.Styles
+  val V = new jjm.ui.View(S)
 
   // TODO have checkboxes for locking probabilities so they don't change when you change others
   // This would require making this stateful.

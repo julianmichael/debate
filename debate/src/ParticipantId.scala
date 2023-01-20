@@ -1,14 +1,19 @@
 package debate
 
+import cats.kernel.Order
+
 import io.circe.KeyDecoder
 import io.circe.KeyEncoder
 import io.circe.generic.JsonCodec
+import monocle.macros.Lenses
 
 /** Identifier for a debate participant, including the role they're currently
   * playing.
   */
+@Lenses
 @JsonCodec
 case class ParticipantId(name: String, role: Role)
+object ParticipantId
 
 /** The role someone plays in a debate.
   *   - Facilitators set things up.
@@ -17,7 +22,18 @@ case class ParticipantId(name: String, role: Role)
   *   - Observer can't do anything, just watches.
   */
 @JsonCodec
-sealed trait Role extends Product with Serializable
+sealed trait Role extends Product with Serializable {
+  def asDebateRoleOpt: Option[DebateRole] =
+    this match {
+      case Facilitator | Observer =>
+        None
+      case d @ Debater(i) =>
+        Some(d)
+      case Judge =>
+        Some(Judge)
+    }
+
+}
 case object Observer extends Role {
   override def toString = "Observer"
 }
@@ -50,6 +66,12 @@ object DebateRole {
       Some(Debater(index))
     case _ =>
       None
+  }
+  implicit val debateRoleOrder = Order.by[DebateRole, Int] {
+    case Judge =>
+      -1
+    case Debater(i) =>
+      i
   }
 }
 object Role {

@@ -1,0 +1,3 @@
+package debate
+
+trait UtilsPlatformExtensions

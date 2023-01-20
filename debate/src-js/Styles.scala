@@ -4,6 +4,7 @@ import scala.language.postfixOps
 
 import scalacss.DevDefaults._
 import scalacss.internal.ValueT
+import scala.annotation.nowarn
 
 /** Stylesheet for the webapp. Inherits default styles for the default view
   * components; these can be overridden.
@@ -17,7 +18,7 @@ object Styles extends jjm.ui.View.Styles {
   val mainHalfPadding    = 3 px
   val hoverBgColor       = c"#eee"
 
-  val customSelect = style(addClassNames("custom-select"), width.auto, flexGrow(1))
+  val customSelect = style(addClassNames("custom-select"), flexGrow(1))
 
   // overrides
 
@@ -25,7 +26,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val inputLabel = style(
     addClassNames("col-form-label"),
-    width(140 px),
+    width(160 px),
     textAlign.right,
     marginRight(mainHalfPadding)
   )
@@ -38,21 +39,35 @@ object Styles extends jjm.ui.View.Styles {
 
   // list config
 
-  val listConfigListDiv        = style(textAlign.left)
-  val listConfigRemoveItemSpan = style(color.gray, &.hover(color.black, fontWeight.bold))
+  val listConfigListDiv = style(textAlign.left)
+  // val listConfigRemoveItemSpan = style(color.gray, &.hover(color.black, fontWeight.bold))
   val listConfigAddItemDiv = style(
     // textAlign.left
   )
-  val listConfigAddItemSpan = listConfigRemoveItemSpan
+  // val listConfigAddItemSpan = listConfigRemoveItemSpan
 
   // sum config
 
-  val sumConfigOuterDiv = style()
-  val sumConfigInnerDiv = style()
-  val sumConfigSelect   = customSelect
+  val sumConfigOuterDiv   = style()
+  val sumConfigInnerDiv   = style()
+  val sumConfigSelect     = customSelect
+  val sumConfigOptionsDiv = style()
   // style(
   //   addClassNames("custom-select")
   // )
+  val listCardHeaderSelect = style(
+    addClassNames("custom-select", "card-header"),
+    // border.none,
+    borderTop.none,
+    borderLeft.none,
+    borderRight.none,
+    borderBottomLeftRadius(0 rem),
+    borderBottomRightRadius(0 rem),
+    padding(0 rem, 0 rem, 0 rem, 15 px),
+    // TODO maybe extract into another style for when there's something on the left
+    borderTopLeftRadius(0 rem)
+    // TODO border top right radius media query for when screen is small
+  )
 
   // prob sliders
 
@@ -98,8 +113,6 @@ object Styles extends jjm.ui.View.Styles {
 
   // App
 
-  val adminOnly = style(display.none)
-
   // generic arrangement styles
 
   val row = style(display.flex, flexDirection.row)
@@ -112,23 +125,39 @@ object Styles extends jjm.ui.View.Styles {
 
   // generic coloring/appearance styles
 
+  val veryGreyedOut = style(opacity(0.25))
+
   val simpleUnselectable = style(opacity(0.5))
 
   val simpleSelectable = style(cursor.pointer, &.hover(filter := "brightness(85%)"))
+
+  val simpleSelectableText = style(cursor.pointer, &.hover(fontStyle.italic))
+
+  val bold = style(fontWeight.bold)
 
   val simpleSelected = style(backgroundColor(c"#ddd"))
 
   val spaceyPadding = 6 px
   val spaceyContainer = style(
-    padding(spaceyPadding / 2),
+    paddingTop(spaceyPadding),
+    paddingLeft(spaceyPadding / 2),
+    paddingRight(spaceyPadding / 2),
     unsafeChild("> *") {
-      margin(spaceyPadding)
+      style(
+        marginLeft(spaceyPadding / 2),
+        marginRight(spaceyPadding / 2),
+        marginBottom(spaceyPadding)
+      )
     }
   )
   val spaceySubcontainer = style(
-    margin(0 em),
+    margin(0 em).important,
     unsafeChild("> *") {
-      margin(spaceyPadding)
+      style(
+        marginLeft(spaceyPadding / 2),
+        marginRight(spaceyPadding / 2),
+        marginBottom(spaceyPadding)
+      )
     }
   )
 
@@ -146,9 +175,9 @@ object Styles extends jjm.ui.View.Styles {
     overflowX.hidden
   )
 
-  val settingUpStatusLabel  = style(color.gold)
-  val inProgressStatusLabel = style(color.darkorange)
-  val completeStatusLabel   = style(color.darkgreen)
+  val waitingToBeginStatusLabel = style(color.gold)
+  val inProgressStatusLabel     = style(color.darkorange)
+  val completeStatusLabel       = style(color.darkgreen)
 
   val loading = style(
     gridRow    := "1/-1",
@@ -177,6 +206,8 @@ object Styles extends jjm.ui.View.Styles {
     // padding(mainHalfPadding),
   )
 
+  val facilitatorName = style(fontStyle.italic, color.dodgerblue)
+
   val optionBox = style(
     flexBasis := "0",
     flexGrow(1),
@@ -191,6 +222,16 @@ object Styles extends jjm.ui.View.Styles {
 
   val optionTitle = style(margin(2 px), fontWeight.bold)
 
+  val metadataListContainer = style(
+    display.grid,
+    gridTemplateColumns := "repeat(auto-fill,minmax(250px, 1fr))"
+  )
+
+  val profileListContainer = style(
+    display.grid,
+    gridTemplateColumns := "repeat(auto-fill,minmax(350px, 1fr))"
+  )
+
   val judgeColor      = darkgreen
   val judgeColorLight = green
 
@@ -203,6 +244,9 @@ object Styles extends jjm.ui.View.Styles {
     lightgoldenrodyellow,
     lightseagreen
   )
+
+  val judgeAssignment   = style(color(judgeColor))
+  val debaterAssignment = styleF.int(0 to 4)(i => styleS(color(answerColors(i))))
 
   val debateWidthOffset =
     styleF.int(0 to 4)(i =>
@@ -242,7 +286,7 @@ object Styles extends jjm.ui.View.Styles {
   val debateColumn = style(
     // position.relative,
     // margin.auto,
-    padding(10 px),
+    // padding(10 px),
     // width(100 %%),
     // height(100 %%),
     display.flex,
@@ -252,41 +296,40 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val facilitatorColumn = style(
-    spaceySubcontainer,
     display.flex,
     flexDirection.column,
     borderRadius(commonBorderRadius)
   )
 
+  val stickyBanner = style(position.sticky, top(0.px), backgroundColor.white, zIndex(10))
+
+  val debateHeaderRowCol = style(overflow.hidden, borderRadius(commonBorderRadius))
+
   val inDebateRoleBox = style(
-    backgroundColor.white,
     flexBasis := "0",
     flexGrow(1),
     // width(100 %%),
     fontSize(12 pt),
     textAlign.left,
-    borderRadius(commonBorderRadius),
     // margin(mainHalfPadding),
     padding(mainHalfPadding)
   )
 
-  val questionBox        = style(inDebateRoleBox, color(judgeColor))
+  val questionBox        = style(inDebateRoleBox, color(judgeColor), backgroundColor.white)
   val questionBoxCurrent = style(inDebateRoleBox, color.white, backgroundColor(judgeColor))
 
-  val questionTitle = style()
-
-  val questionLabel = style(fontWeight.bold)
+  val questionTitle = style(fontWeight.bold)
 
   val judgesLabel = style(fontWeight.bold)
 
   val judgesList = style()
 
-  val answerBoxesRow = style(display.flex, flexDirection.row)
-
-  val answerBox = styleF.int(0 to 4)(i => styleS(inDebateRoleBox, color(answerColors(i))))
-
   val missingParticipant = style(fontWeight.lighter, fontStyle.italic)
 
+  val answerBoxesRow = style(display.flex, flexDirection.row)
+
+  val answerBox =
+    styleF.int(0 to 4)(i => styleS(inDebateRoleBox, color(answerColors(i)), backgroundColor.white))
   val answerBoxCurrent =
     styleF.int(0 to 4)(i =>
       styleS(
@@ -336,13 +379,24 @@ object Styles extends jjm.ui.View.Styles {
   // )
 
   val mainLabeledInputRow = style(
-    row,
-    spaceyContainer,
+    addClassNames("row"),
+    // spaceyContainer,
+    padding(15 px, 0 px),
     borderRadius(commonBorderRadius),
     backgroundColor(c"#eee")
   )
 
-  val inputRowContents = style(display.flex, flexDirection.column, width(100 %%))
+  val inputRowLabel = style(
+    addClassNames("col-md-2 col-form-label"),
+    media.minWidth(768 px)(textAlign.right)
+  )
+
+  val inputRowContents = style(
+    addClassNames("col-md-10"),
+    display.flex,
+    flexDirection.column,
+    width(100 %%)
+  )
 
   val inputRowItem = style(margin.auto)
 
@@ -378,21 +432,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val correctAnswerLabel = style(color(niceGreen), fontWeight.bold)
 
-  val answerLabel = style(
-    addClassNames("col-form-label"),
-    marginRight(mainHalfPadding * 2)
-    // width(50 px),
-    // textAlign.right
-    // margin(mainHalfPadding)
-    // flexGrow(1),
-  )
-
-  val correctAnswerRadio = style(
-    inputRowItem,
-    margin.auto.important,
-    marginLeft(0.5 em).important,
-    marginRight(0.5 em).important
-  )
+  val correctAnswerRadio = style(marginLeft(0.5 em), marginRight(0.5 em))
 
   val inputLabelDeleteButton = style(color(c"#888"), &.hover(fontWeight.bold, color.black))
 
@@ -460,4 +500,24 @@ object Styles extends jjm.ui.View.Styles {
   val speechLengthPanel        = style()
   val speechLengthPanelOverage = style(color.red)
 
+  val correctColor   = green
+  val incorrectColor = crimson
+
+  val correct   = style(color(correctColor))
+  val incorrect = style(color(incorrectColor))
+
+  val timestampFooter = style(
+    marginTop(-.75 rem),
+    padding(0 rem, .75 rem, .75 rem),
+    textAlign.right
+  )
+
+  @nowarn
+  val cardLeftSideXColumn = style(
+    col,
+    addClassNames("col-auto"),
+    alignItems.center,
+    textAlign.center,
+    borderRight := "1px solid rgba(0,0,0,.125)" // TODO send to bottom with media queries
+  )
 }

@@ -46,41 +46,44 @@ class WebSocketConnection2[F[_], Request, Response](
 
   class Backend(scope: BackendScope[Props, State]) {
 
+    var isUnmounting = false
+
     def connect(props: Props): Callback =
       scope.state >>= {
         case ConnectedState(_) =>
           Callback(System.err.println("Already connected."))
         case Disconnected(_, _) | Connecting =>
-          scope.setState(Connecting) >>
-            Callback {
-              val socket = new WebSocket(props.websocketURI)
-              val send   = (r: Request) => sendRequest(socket, r)
-              socket.onopen = { (_: Event) =>
-                (scope.setState(ConnectedState(socket)) >> props.onOpen(send)).runNow()
-              }
-              socket.onerror = { (event: Event) =>
-                val msg = s"WebSocket connection failure. Error: $event"
+          val connectCb = Callback {
+            val socket = new WebSocket(props.websocketURI)
+            val send   = (r: Request) => sendRequest(socket, r)
+            socket.onopen = { (_: Event) =>
+              scope.setState(ConnectedState(socket), props.onOpen(send)).runNow()
+            }
+            socket.onerror = { (event: Event) =>
+              val msg = s"WebSocket connection failure. Error: $event"
+              System.err.println(msg)
+              scope.setState(Disconnected(connect(props), msg)).runNow()
+            }
+            socket.onmessage = { (event: MessageEvent) =>
+              props.onMessage(send, readResponse(event)).runNow()
+            }
+            socket.onclose = { (event: CloseEvent) =>
+              val cleanly =
+                if (event.wasClean)
+                  "cleanly"
+                else
+                  "uncleanly"
+              val msg =
+                s"WebSocket connection closed $cleanly with code ${event.code}. reason: ${event.reason}"
+              if (!event.wasClean) {
                 System.err.println(msg)
-                scope.setState(Disconnected(connect(props), msg)).runNow()
               }
-              socket.onmessage = { (event: MessageEvent) =>
-                props.onMessage(send, readResponse(event)).runNow()
-              }
-              socket.onclose = { (event: CloseEvent) =>
-                val cleanly =
-                  if (event.wasClean)
-                    "cleanly"
-                  else
-                    "uncleanly"
-                val msg =
-                  s"WebSocket connection closed $cleanly with code ${event.code}. reason: ${event.reason}"
-                if (!event.wasClean) {
-                  System.err.println(msg)
-                }
-                // will trigger a warning if closure was done with unmount i think
+              if (!isUnmounting) {
                 scope.setState(Disconnected(connect(props), msg)).runNow()
               }
             }
+          }
+          scope.setState(Connecting, connectCb)
       }
 
     def close(s: State): Callback =
@@ -110,8 +113,14 @@ class WebSocketConnection2[F[_], Request, Response](
       .builder[Props]("WebSocket")
       .initialState(Connecting: State)
       .renderBackend[Backend]
-      .componentDidMount(context => context.backend.connect(context.props))
-      .componentWillUnmount(context => context.backend.close(context.state))
+      .componentDidMount { $ =>
+        $.backend.isUnmounting = false;
+        $.backend.connect($.props)
+      }
+      .componentWillUnmount { $ =>
+        $.backend.isUnmounting = true;
+        $.backend.close($.state)
+      }
       .build
 
   def make(
