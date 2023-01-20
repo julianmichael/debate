@@ -1,9 +1,5 @@
 package debate
 
-// TODO get this to compile including w/o warnings
-// TODO can we write a test for this? how painful would it be?
-// TODO how can we know if this is clean and declarative enough?
-
 object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
   case class DebateAssignment(honestDebater: String, dishonestDebater: String, judge: String) {
@@ -32,7 +28,35 @@ object DebateScheduler {
     return true
   }
 
+  /** TODO 
+   * 
+   * 
+   * potentially implement cost using something like this
+   * 
+   * 
+   *
+proportions_debater_has_been_honest = ...
+expected_proportion_of_honesty = sum(proportions_has_been_honest) / len(proportions_has_been_honest)
+cost += map(lambda x: abs(x - expected_proportion_of_honest), proportions_debater_has_been_honest) 
+
+(this is a general notion of 'spread out ness')
+
+this_cost = 0
+for story in history:
+  for debater in all_debaters:
+    this_cost += abs(n_times_judging(debater, story) - (1 / n_debaters))
+for debater in all_debaters:
+  this_cost += abs(n_times_judging(debater, new_story) - (1 / n_debaters))
+   * 
+   * 
+   */
+
   def getCost(assignment: Vector[DebateAssignment]): Int = {
+    // one approach for how to implement is to compute a bunch of these values
+    // (e.g. the proportion of times each debater has been honest)
+    // and then compute a cost for that vector, measuring
+    // how far each value is from the ideal value (where the ideal value is
+    // avg(vector))
     val nStoriesSpreadFactor           = 1 // TODO how to implement, see below
     val nDebatesSpreadFactor           = 1 // TODO how to implement, see below
     val nJudgesSpreadFactor            = 1 // TODO how to implement, see below
@@ -56,11 +80,8 @@ object DebateScheduler {
       judge            <- debaters.keys
       // TODO when the spec says 'disjoint' does it mean 'no user is in more than one role'
       // should we *allow* users to be both the honest debater and the dishonest debater?
-      if honestDebater != dishonestDebater && honestDebater != judge &&
-        dishonestDebater != judge && {
-          // TODO ensure we're obeying the load constraints
-          true
-        }
+      if honestDebater != dishonestDebater && honestDebater != judge && dishonestDebater != judge &&
+        true
     } yield Vector(
       DebateAssignment(
         honestDebater = honestDebater,
