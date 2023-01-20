@@ -1,8 +1,36 @@
 package debate
 
+// TODO get this to compile including w/o warnings
+// TODO can we write a test for this? how painful would it be?
+// TODO how can we know if this is clean and declarative enough?
+
 object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
-  case class DebateAssignment(honestDebater: String, dishonestDebater: String, judge: String)
+  case class DebateAssignment(honestDebater: String, dishonestDebater: String, judge: String) {
+    def isAssigned(debater: String): Boolean =
+      honestDebater == debater || dishonestDebater == debater || judge == debater
+  }
+
+  // TODO should we rewrite the docstring for [getScheduleForNewStory] since we're not using probability?
+
+  def isAssignmentValid(
+    assignment: Vector[DebateAssignment],
+    debaters: Map[String, DebaterLoadConstraint]
+  ): Boolean = {
+    for (debater <- debaters.keys) {
+      val constraint = debaters(debater)
+      val nParticipanting = assignment.count {
+        _.isAssigned(debater)
+      }
+      if (constraint.max.isDefined && constraint.max.get < nParticipanting) {
+        return false
+      }
+      if (constraint.min.isDefined && constraint.min.get > nParticipanting) {
+        return false
+      }
+    }
+    return true
+  }
 
   def getCost(assignment: Vector[DebateAssignment]): Int = {
     val nStoriesSpreadFactor           = 1 // TODO how to implement, see below
@@ -26,6 +54,8 @@ object DebateScheduler {
       honestDebater    <- debaters.keys
       dishonestDebater <- debaters.keys
       judge            <- debaters.keys
+      // TODO when the spec says 'disjoint' does it mean 'no user is in more than one role'
+      // should we *allow* users to be both the honest debater and the dishonest debater?
       if honestDebater != dishonestDebater && honestDebater != judge &&
         dishonestDebater != judge && {
           // TODO ensure we're obeying the load constraints
@@ -66,20 +96,20 @@ object DebateScheduler {
     numQuestions: Int,
     debaters: Map[String, DebaterLoadConstraint] // TODO ensure nonempty? so we can't return None?
   ): Vector[DebateAssignment] = {
-    var lowestCost = Int.MaxValue
     // each vector in here is of length numQuestions
     val allAssignments: Vector[Vector[DebateAssignment]] = generateAllAssignments(
-      history,
-      numQuestions
+      history = history,
+      numQuestions = numQuestions,
+      debaters = debaters
     )
     val allAssignmentsThatMeetConstraints: Vector[Vector[DebateAssignment]] = allAssignments
       .filter { assignment =>
-        // TODO ensure we're obeying the load constraints
-        true
+        isAssignmentValid(assignment, debaters)
       }
     val assignmentsSortedByCost: Vector[Vector[DebateAssignment]] =
       allAssignmentsThatMeetConstraints.sortBy { assignment =>
-        getCost(assignment) // TODO maybe amortize this so that it's faster
+        // TODO someday amortize this so that it's faster
+        getCost(assignment)
       }
     return assignmentsSortedByCost.head
   }
