@@ -72,7 +72,7 @@ class SchedulerTests extends CatsEffectSuite {
     // the simplest cost to measure is debater cost
     var costs   = Vector.empty[Double]
     var history = Vector.empty[Debate]
-    for (_ <- 1 to 5) {
+    for (_ <- 1 to 50) {
       val newAssignment = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
@@ -85,6 +85,7 @@ class SchedulerTests extends CatsEffectSuite {
       assert {
         newAssignment.size == 1
       }
+      // TODO lol right now the costs are increasing :)
       history = history :+ testDebateOfAssignment(newAssignment.head)
       val thisCost = debaterCost(history.map(DebateAssignment.ofDebate).flatten)
       costs = costs :+ thisCost

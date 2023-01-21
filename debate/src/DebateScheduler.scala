@@ -102,7 +102,7 @@ object DebateScheduler {
       judge         <- debaters
       if honestDebater != judge
       allDishonestDebaters = debaters.toSet - honestDebater - judge
-      dishonestDebaters <- allDishonestDebaters.subsets()
+      dishonestDebaters <- allDishonestDebaters.toSeq.combinations(debaters.size - 2).map(_.toSet)
     } yield DebateAssignment(
       honestDebater = honestDebater,
       dishonestDebaters = dishonestDebaters,
