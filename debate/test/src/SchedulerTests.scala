@@ -24,6 +24,7 @@ class SchedulerTests extends CatsEffectSuite {
         assignment.honestDebater != assignment.judge &&
         assignment.dishonestDebater != assignment.judge
       };
+      throw new Exception("TODO")
       assignments ==
         Vector(
           DebateAssignment("debater1", "debater2", "debater3"),
