@@ -1,39 +1,34 @@
 package debate
 
 import munit.CatsEffectSuite
+import DebateScheduler._
 
 class SchedulerTests extends CatsEffectSuite {
-  // TODO i dont think this is the right effect
-  test("with no constraints, all debaters are assigned to all debates") {
+  val debater1 = "debater1"
+  val debater2 = "debater2"
+  val debater3 = "debater3"
+
+  test("with no constraints, assignment works") {
     val debaters = Map(
-      "debater1" -> DebaterLoadConstraint(None, None),
-      "debater2" -> DebaterLoadConstraint(None, None),
-      "debater3" -> DebaterLoadConstraint(None, None)
+      debater1 -> DebaterLoadConstraint(None, None),
+      debater2 -> DebaterLoadConstraint(None, None),
+      debater3 -> DebaterLoadConstraint(None, None)
     )
     val numQuestions = 5
-    val assignments = Scheduler.getScheduleForNewStory(
+    val assignments = getScheduleForNewStory(
       history = Vector.empty,
       numQuestions = numQuestions,
       debaters = debaters
     )
+    println(assignments)
     assert {
-      // TODO type system
+      // TODO type system for encoding length
       assignments.size == numQuestions;
       assignments.forall { assignment =>
-        assignment.honestDebater != assignment.dishonestDebater &&
         assignment.honestDebater != assignment.judge &&
-        assignment.dishonestDebater != assignment.judge
+        !assignment.dishonestDebaters.contains(assignment.honestDebater)
+        !assignment.dishonestDebaters.contains(assignment.judge)
       };
-      throw new Exception("TODO")
-      assignments ==
-        Vector(
-          DebateAssignment("debater1", "debater2", "debater3"),
-          DebateAssignment("debater1", "debater3", "debater2"),
-          DebateAssignment("debater2", "debater1", "debater3"),
-          DebateAssignment("debater2", "debater3", "debater1"),
-          DebateAssignment("debater3", "debater1", "debater2"),
-          DebateAssignment("debater3", "debater2", "debater1")
-        )
     }
   }
 }
