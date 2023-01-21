@@ -5,7 +5,7 @@ object DebateScheduler {
 
   case class DebateAssignment(
     honestDebater: String,
-    dishonestDebaters: Vector[String],
+    dishonestDebaters: Set[String],
     judge: String
   ) {
     def isAssigned(debater: String): Boolean =
@@ -49,54 +49,84 @@ object DebateScheduler {
     return true
   }
 
-  /** [assignments] is built from history and the new potential assignment */
+  // TODO note in the pr that the commits aren't meaningful - feature level review :)
+
+  /** 
+   * [assignments] is built from history and the new potential assignment.
+   * 
+   * this cost is the standard deviation of the number of times each debater has debated. (either as the honest or dishonest debater)
+   * 
+   */
   def debaterCost(assignments: Vector[DebateAssignment]): Double = {
-    // TODO what do the indices correspond to- does it matter?
-    val nTimesDebated: Vector[Int] = ???
+    val nTimesDebated: Map[String, Int] = assignments
+      .flatMap { assignment =>
+        assignment.dishonestDebaters + assignment.honestDebater
+      }
+      .groupBy { debater =>
+        debater
+      }
+      .map { case (debater, assignments) =>
+        (debater, assignments.length)
+      }
+    val totalN = nTimesDebated.values.sum
     val stdDev = math.sqrt(
       nTimesDebated
+        .values
         .map { n =>
           math.pow(n - 1, 2)
         }
-        .sum / nTimesDebated.length
+        .sum / totalN
     )
     return stdDev
   }
 
   /** result is non-negative */
-  def getBadnessScore(assignment: Vector[DebateAssignment]): Int = {
-    var cost = 0
-    val debaterCosts: Vector[Int] = timesDebated.map { debater =>
-      // TODO get the terms cost/"badness score" straight
-
-    }
-    cost = cost + debaterCosts.sum()
+  def getBadnessScore(newAssignments: Vector[DebateAssignment], history: Vector[Debate]): Double = {
+    var cost: Double = 0.0
+    val assignments  = history.flatMap(DebateAssignment.ofDebate) ++ newAssignments
+    cost = cost + debaterCost(assignments)
+    /*
     cost =
       cost +
         judgeCosts.sum() // TODO how to scale this down? (see the docstring for the main function)
+     */
     return cost
   }
 
+  // TODO unit test this function
+  def generateAllPossibleQuestionAssignments(debaters: Set[String]): Iterable[DebateAssignment] =
+    // TODO someday add some validation for the strings in the debaters map and the history
+    for {
+      honestDebater <- debaters
+      judge         <- debaters
+      if honestDebater != judge
+      allDishonestDebaters = debaters.toSet - honestDebater - judge
+      dishonestDebaters <- allDishonestDebaters.subsets()
+    } yield DebateAssignment(
+      honestDebater = honestDebater,
+      dishonestDebaters = dishonestDebaters,
+      judge = judge
+    )
+
   def generateAllAssignments(
-    history: Vector[Debate],
     numQuestions: Int,
     debaters: Map[String, DebaterLoadConstraint]
-  ): Iterable[Vector[DebateAssignment]] =
-    for {
-      honestDebater    <- debaters.keys
-      dishonestDebater <- debaters.keys
-      judge            <- debaters.keys
-      // TODO when the spec says 'disjoint' does it mean 'no user is in more than one role'
-      // should we *allow* users to be both the honest debater and the dishonest debater?
-      if honestDebater != dishonestDebater && honestDebater != judge && dishonestDebater != judge &&
-        true
-    } yield Vector(
-      DebateAssignment(
-        honestDebater = honestDebater,
-        dishonestDebater = dishonestDebater,
-        judge = judge
-      )
-    )
+  ): Vector[Vector[DebateAssignment]] = {
+    val allPossibleQuestionAssignments = generateAllPossibleQuestionAssignments(debaters.keySet)
+    allPossibleQuestionAssignments.toVector.combinations(numQuestions).toVector
+  }
+
+  def randomIndexOverProbabilities(probabilities: Vector[Double]): Int = {
+    val randomDouble = scala.util.Random.nextDouble()
+    var sum          = 0.0
+    for (i <- probabilities.indices) {
+      sum += probabilities(i)
+      if (randomDouble < sum) {
+        return i
+      }
+    }
+    return probabilities.length - 1
+  }
 
   /**
      * Produces a list of assignments for a new story.
@@ -127,7 +157,6 @@ object DebateScheduler {
   ): Vector[DebateAssignment] = {
     // each vector in here is of length numQuestions
     val allAssignments: Vector[Vector[DebateAssignment]] = generateAllAssignments(
-      history = history,
       numQuestions = numQuestions,
       debaters = debaters
     )
@@ -135,8 +164,8 @@ object DebateScheduler {
       .filter { assignment =>
         isAssignmentValid(assignment, debaters)
       }
-    val correspondingCosts = allAssignmentsThatMeetConstraints.map { assignment =>
-      getBadnessScore(assignment) * -1
+    val correspondingCosts = allAssignmentsThatMeetConstraints.map { newAssignments =>
+      getBadnessScore(newAssignments = newAssignments, history = history) * -1
     }
     val sumOfExps =
       correspondingCosts
@@ -147,17 +176,7 @@ object DebateScheduler {
     val probabilities = correspondingCosts.map { cost =>
       math.exp(cost) / sumOfExps
     }
-    val randomIndex = {
-      val randomDouble = scala.util.Random.nextDouble()
-      var sum          = 0.0
-      for (i <- probabilities.indices) {
-        sum += probabilities(i)
-        if (randomDouble < sum) {
-          return i
-        }
-      }
-      return probabilities.length - 1
-    }
-    return allAssignmentsThatMeetConstraints(randomIndex)
+    val index = randomIndexOverProbabilities(probabilities)
+    return allAssignmentsThatMeetConstraints(index)
   }
 }

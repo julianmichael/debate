@@ -107,7 +107,7 @@ case class Debate(setup: DebateSetup, rounds: Vector[DebateRound]) {
 
   def honestDebaterAssignment: Option[String] = setup.roles.get(Debater(setup.correctAnswerIndex))
 
-  def dishonestDebatersAssignments: Vector[String] =
+  def dishonestDebatersAssignments: Set[String] =
     setup
       .roles
       .keys
@@ -120,7 +120,7 @@ case class Debate(setup: DebateSetup, rounds: Vector[DebateRound]) {
       .map { role =>
         setup.roles(role)
       }
-      .toVector
+      .toSet
 
   def judgeAssignment: Option[String] = setup.roles.get(Judge)
 
