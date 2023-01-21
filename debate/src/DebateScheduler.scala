@@ -50,6 +50,17 @@ object DebateScheduler {
     return true
   }
 
+  def getNTimesDebated(assignments: Vector[DebateAssignment]): Map[String, Int] = assignments
+    .flatMap { assignment =>
+      assignment.dishonestDebaters + assignment.honestDebater
+    }
+    .groupBy { debater =>
+      debater
+    }
+    .map { case (debater, assignments) =>
+      (debater, assignments.length)
+    }
+
   // TODO note in the pr that the commits aren't meaningful - feature level review :)
 
   /** 
@@ -59,17 +70,8 @@ object DebateScheduler {
    * 
    */
   def debaterCost(assignments: Vector[DebateAssignment]): Double = {
-    val nTimesDebated: Map[String, Int] = assignments
-      .flatMap { assignment =>
-        assignment.dishonestDebaters + assignment.honestDebater
-      }
-      .groupBy { debater =>
-        debater
-      }
-      .map { case (debater, assignments) =>
-        (debater, assignments.length)
-      }
-    val totalN = nTimesDebated.values.sum
+    val nTimesDebated: Map[String, Int] = getNTimesDebated(assignments)
+    val totalN                          = nTimesDebated.values.sum
     val stdDev = math.sqrt(
       nTimesDebated
         .values
@@ -174,9 +176,12 @@ object DebateScheduler {
           math.exp(cost)
         }
         .sum
+    println("costs", correspondingCosts)
+    println("sumOfExps", sumOfExps)
     val probabilities = correspondingCosts.map { cost =>
       math.exp(cost) / sumOfExps
     }
+    println("probabilities", probabilities)
     val index = randomIndexOverProbabilities(probabilities)
     return allAssignmentsThatMeetConstraints(index)
   }

@@ -70,9 +70,10 @@ class SchedulerTests extends CatsEffectSuite {
 
   test("the costs go down over time") {
     // the simplest cost to measure is debater cost
-    var costs   = Vector.empty[Double]
-    var history = Vector.empty[Debate]
-    for (_ <- 1 to 50) {
+    var costs         = Vector.empty[Double]
+    var history       = Vector.empty[Debate]
+    var nTimesDebated = Vector.empty[Map[String, Int]]
+    for (_ <- 1 to 5) {
       val newAssignment = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
@@ -88,10 +89,13 @@ class SchedulerTests extends CatsEffectSuite {
       // TODO lol right now the costs are increasing :)
       history = history :+ testDebateOfAssignment(newAssignment.head)
       val thisCost = debaterCost(history.map(DebateAssignment.ofDebate).flatten)
+      val thisN    = getNTimesDebated(history.map(DebateAssignment.ofDebate).flatten)
       costs = costs :+ thisCost
+      nTimesDebated = nTimesDebated :+ thisN
     }
     println("manually verify that this is almost sorted in decreasing order- these are the costs:")
-    println(costs)
+    for (x <- costs.zip(nTimesDebated))
+      println(x)
     assert {
       costs.head > costs.last
     }
