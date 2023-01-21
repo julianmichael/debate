@@ -73,7 +73,8 @@ class SchedulerTests extends CatsEffectSuite {
     var costs         = Vector.empty[Double]
     var history       = Vector.empty[Debate]
     var nTimesDebated = Vector.empty[Map[String, Int]]
-    for (_ <- 1 to 5) {
+    println("manually verify that this is almost sorted in decreasing order- these are the costs:")
+    for (_ <- 1 to 5000) {
       val newAssignment = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
@@ -92,10 +93,11 @@ class SchedulerTests extends CatsEffectSuite {
       val thisN    = getNTimesDebated(history.map(DebateAssignment.ofDebate).flatten)
       costs = costs :+ thisCost
       nTimesDebated = nTimesDebated :+ thisN
+      println(
+        s"cost: $thisCost"
+      ) // TODO maybe the cost should also use the z-score instead of the raw value
+      println(s"nTimesDebated: $thisN")
     }
-    println("manually verify that this is almost sorted in decreasing order- these are the costs:")
-    for (x <- costs.zip(nTimesDebated))
-      println(x)
     assert {
       costs.head > costs.last
     }

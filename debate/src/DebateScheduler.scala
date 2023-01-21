@@ -167,8 +167,19 @@ object DebateScheduler {
       .filter { assignment =>
         isAssignmentValid(assignment, debaters)
       }
-    val correspondingCosts = allAssignmentsThatMeetConstraints.map { newAssignments =>
+    var correspondingCosts = allAssignmentsThatMeetConstraints.map { newAssignments =>
       getBadnessScore(newAssignments = newAssignments, history = history) * -1
+    }
+    val averageCost = correspondingCosts.sum / correspondingCosts.length
+    val stdDevCost = math.sqrt(
+      correspondingCosts
+        .map { cost =>
+          math.pow(cost - averageCost, 2)
+        }
+        .sum / correspondingCosts.length
+    )
+    correspondingCosts = correspondingCosts.map { cost =>
+      (cost - averageCost) / stdDevCost // TODO i think z-score scales better
     }
     val sumOfExps =
       correspondingCosts
@@ -176,12 +187,12 @@ object DebateScheduler {
           math.exp(cost)
         }
         .sum
-    println("costs", correspondingCosts)
-    println("sumOfExps", sumOfExps)
+    // println("costs", correspondingCosts)
+    // println("sumOfExps", sumOfExps)
     val probabilities = correspondingCosts.map { cost =>
       math.exp(cost) / sumOfExps
     }
-    println("probabilities", probabilities)
+    // println("probabilities", probabilities)
     val index = randomIndexOverProbabilities(probabilities)
     return allAssignmentsThatMeetConstraints(index)
   }
