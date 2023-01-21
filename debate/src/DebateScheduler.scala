@@ -2,12 +2,33 @@ package debate
 
 object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
-  case class DebateAssignment(honestDebater: String, dishonestDebater: String, judge: String) {
+
+  case class DebateAssignment(
+    honestDebater: String,
+    dishonestDebaters: Vector[String],
+    judge: String
+  ) {
     def isAssigned(debater: String): Boolean =
-      honestDebater == debater || dishonestDebater == debater || judge == debater
+      honestDebater == debater || dishonestDebaters.contains(debater) || judge == debater
   }
 
-  // TODO should we rewrite the docstring for [getScheduleForNewStory] since we're not using probability?
+  object DebateAssignment {
+
+    /**
+      * Returns the assignment of roles to users for a given debate.
+      * Returns None if the debate has not been assigned roles.
+      */
+    def ofDebate(debate: Debate): Option[DebateAssignment] =
+      for {
+        honestDebater <- debate.honestDebaterAssignment
+        dishonestDebaters = debate.dishonestDebatersAssignments
+        judge <- debate.judgeAssignment
+      } yield DebateAssignment(
+        honestDebater = honestDebater,
+        dishonestDebaters = dishonestDebaters,
+        judge = judge
+      )
+  }
 
   def isAssignmentValid(
     assignment: Vector[DebateAssignment],
@@ -28,45 +49,32 @@ object DebateScheduler {
     return true
   }
 
-  /** TODO 
-   * 
-   * 
-   * potentially implement cost using something like this
-   * 
-   * 
-   *
-proportions_debater_has_been_honest = ...
-expected_proportion_of_honesty = sum(proportions_has_been_honest) / len(proportions_has_been_honest)
-cost += map(lambda x: abs(x - expected_proportion_of_honest), proportions_debater_has_been_honest) 
+  /** [assignments] is built from history and the new potential assignment */
+  def debaterCost(assignments: Vector[DebateAssignment]): Double = {
+    // TODO what do the indices correspond to- does it matter?
+    val nTimesDebated: Vector[Int] = ???
+    val stdDev = math.sqrt(
+      nTimesDebated
+        .map { n =>
+          math.pow(n - 1, 2)
+        }
+        .sum / nTimesDebated.length
+    )
+    return stdDev
+  }
 
-(this is a general notion of 'spread out ness')
+  /** result is non-negative */
+  def getBadnessScore(assignment: Vector[DebateAssignment]): Int = {
+    var cost = 0
+    val debaterCosts: Vector[Int] = timesDebated.map { debater =>
+      // TODO get the terms cost/"badness score" straight
 
-this_cost = 0
-for story in history:
-  for debater in all_debaters:
-    this_cost += abs(n_times_judging(debater, story) - (1 / n_debaters))
-for debater in all_debaters:
-  this_cost += abs(n_times_judging(debater, new_story) - (1 / n_debaters))
-   * 
-   * 
-   */
-
-  def getCost(assignment: Vector[DebateAssignment]): Int = {
-    // one approach for how to implement is to compute a bunch of these values
-    // (e.g. the proportion of times each debater has been honest)
-    // and then compute a cost for that vector, measuring
-    // how far each value is from the ideal value (where the ideal value is
-    // avg(vector))
-    val nStoriesSpreadFactor           = 1 // TODO how to implement, see below
-    val nDebatesSpreadFactor           = 1 // TODO how to implement, see below
-    val nJudgesSpreadFactor            = 1 // TODO how to implement, see below
-    val nJudgesPerStorySpreadFactor    = 1 // TODO how to implement, see below
-    val nHonestSpreadFactor            = 1 // TODO how to implement, see below
-    val nJudgedPerDebaterSpreadFactor  = 1 // TODO how to implement, see below
-    val nDebatedPerDebaterSpreadFactor = 1 // TODO how to implement, see below
-    return nStoriesSpreadFactor + nDebatesSpreadFactor + nJudgesSpreadFactor +
-      nJudgesPerStorySpreadFactor + nHonestSpreadFactor + nJudgedPerDebaterSpreadFactor +
-      nDebatedPerDebaterSpreadFactor
+    }
+    cost = cost + debaterCosts.sum()
+    cost =
+      cost +
+        judgeCosts.sum() // TODO how to scale this down? (see the docstring for the main function)
+    return cost
   }
 
   def generateAllAssignments(
@@ -102,7 +110,7 @@ for debater in all_debaters:
      *     (one must read a story to debate; cannot have read it to judge it)
      *   - the number of times each person has debated 
      *   - the number of times each person has judged each story
-     *     - the number of times each person has judged (less important than judging per story)
+     *   - the number of times each person has judged (less important than judging per story)
      *   - the proportion of times each debater has been honest
      *   - the number of times each judge has judged each debater
      *   - the number of times each debater has debated each other
@@ -127,11 +135,29 @@ for debater in all_debaters:
       .filter { assignment =>
         isAssignmentValid(assignment, debaters)
       }
-    val assignmentsSortedByCost: Vector[Vector[DebateAssignment]] =
-      allAssignmentsThatMeetConstraints.sortBy { assignment =>
-        // TODO someday amortize this so that it's faster
-        getCost(assignment)
+    val correspondingCosts = allAssignmentsThatMeetConstraints.map { assignment =>
+      getBadnessScore(assignment) * -1
+    }
+    val sumOfExps =
+      correspondingCosts
+        .map { cost =>
+          math.exp(cost)
+        }
+        .sum
+    val probabilities = correspondingCosts.map { cost =>
+      math.exp(cost) / sumOfExps
+    }
+    val randomIndex = {
+      val randomDouble = scala.util.Random.nextDouble()
+      var sum          = 0.0
+      for (i <- probabilities.indices) {
+        sum += probabilities(i)
+        if (randomDouble < sum) {
+          return i
+        }
       }
-    return assignmentsSortedByCost.head
+      return probabilities.length - 1
+    }
+    return allAssignmentsThatMeetConstraints(randomIndex)
   }
 }

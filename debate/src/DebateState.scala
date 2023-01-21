@@ -105,6 +105,25 @@ object DebateResult
 @JsonCodec
 case class Debate(setup: DebateSetup, rounds: Vector[DebateRound]) {
 
+  def honestDebaterAssignment: Option[String] = setup.roles.get(Debater(setup.correctAnswerIndex))
+
+  def dishonestDebatersAssignments: Vector[String] =
+    setup
+      .roles
+      .keys
+      .filter {
+        case Debater(index) =>
+          index != setup.correctAnswerIndex
+        case _ =>
+          false
+      }
+      .map { role =>
+        setup.roles(role)
+      }
+      .toVector
+
+  def judgeAssignment: Option[String] = setup.roles.get(Judge)
+
   /** Time of the first round of the debate (not the init time of the debate
     * setup).
     */
