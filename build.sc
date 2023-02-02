@@ -90,7 +90,6 @@ object debate extends Module {
 
     override def moduleKind       = ModuleKind.ESModule
     override def moduleSplitStyle = ModuleSplitStyle.FewestModules
-    // ModuleSplitStyle.SmallModulesFor(List("debate"))
 
     override def ivyDeps =
       super.ivyDeps() ++
