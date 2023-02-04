@@ -37,8 +37,8 @@ val scalacssVersion                 = "0.7.0"
 val scalajsMacrotaskExecutorVersion = "1.0.0"
 
 // raw JS
-val jqueryVersion = "2.1.4"
-val reactVersion  = "15.6.1"
+val jqueryVersion = "2.2.1"
+val reactVersion  = "17.0.2"
 
 // for some reason the $file import doesn't work anymore?
 // import $file.`scripts-build`.SimpleJSDepsBuild, SimpleJSDepsBuild.SimpleJSDeps
@@ -200,8 +200,8 @@ object debate extends Module {
 
     def jsDeps = Agg(
       s"https://code.jquery.com/jquery-$jqueryVersion.min.js",
-      s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react.js",
-      s"https://cdnjs.cloudflare.com/ajax/libs/react/$reactVersion/react-dom.js"
+      s"https://unpkg.com/react@$reactVersion/umd/react.development.js",
+      s"https://unpkg.com/react-dom@$reactVersion/umd/react-dom.development.js"
     )
 
     object test extends super.Tests with CommonTestModule {
