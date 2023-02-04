@@ -84,7 +84,9 @@ package object debate extends PackagePlatformExtensions {
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {
     // TODO: use laziness correctly here. I can't wrap my head around proper use of Eval
     def existsAs(p: PartialFunction[A, Boolean]): Boolean =
-      fa.unorderedFoldMap(p)(CommutativeMonoid.instance(false, _ || _))
+      fa.unorderedFoldMap(a => p.lift(a).getOrElse(false))(
+        CommutativeMonoid.instance(false, _ || _)
+      )
     // fa.foldRight(Eval.False)((a, exEval) => exEval.map(ex => p.lift(a).getOrElse(false) || ex))
     //   .value
   }
