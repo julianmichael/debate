@@ -1,5 +1,7 @@
 import $ivy.`com.goyeau::mill-scalafix::0.2.11`
 import com.goyeau.mill.scalafix.ScalafixModule
+import $ivy.`io.github.nafg.millbundler::jsdeps::0.1.0`, io.github.nafg.millbundler.jsdeps._
+import $ivy.`io.github.nafg.millbundler::millbundler::0.1.0`, io.github.nafg.millbundler._
 import mill._, mill.scalalib._, mill.scalajslib._
 import mill.scalajslib.api.{ModuleKind, ModuleSplitStyle, Report}
 import mill.scalalib.scalafmt._
@@ -153,7 +155,7 @@ object debate extends Module {
     }
   }
 
-  object js extends CommonModule with ScalaJSModule with SimpleJSDeps {
+  object js extends CommonModule with ScalaJSModule with ScalaJSWebpackModule.AsApplication {
     def millSourcePath  = build.millSourcePath / "debate"
     def platformSegment = "js"
     def scalaJSVersion  = thisScalaJSVersion
@@ -198,13 +200,25 @@ object debate extends Module {
           ivy"org.scala-js::scala-js-macrotask-executor::$scalajsMacrotaskExecutorVersion"
         )
 
-    def jsDeps = Agg(
-      s"https://code.jquery.com/jquery-$jqueryVersion.min.js",
-      s"https://unpkg.com/react@$reactVersion/umd/react.development.js",
-      s"https://unpkg.com/react-dom@$reactVersion/umd/react-dom.development.js"
-    )
+    // def jsDeps = Agg(
+    //   s"https://code.jquery.com/jquery-$jqueryVersion.min.js",
+    //   s"https://unpkg.com/react@$reactVersion/umd/react.development.js",
+    //   s"https://unpkg.com/react-dom@$reactVersion/umd/react-dom.development.js"
+    // )
+    override def jsDeps =
+      super.jsDeps() ++
+        JsDeps(dependencies =
+          Map("jquery" -> jqueryVersion, "react" -> reactVersion, "react-dom" -> reactVersion)
+        // examples of other things you can add. see mill-bundler repo
+        // devDependencies = Map(
+        //   "typescript" -> "*"
+        // ),
+        // jsSources = Map(
+        //   "demo.js" -> "console.log('hello world')"
+        // )
+        )
 
-    object test extends super.Tests with CommonTestModule {
+    object test extends super.Tests with CommonTestModule with ScalaJSWebpackModule.Test {
       def platformSegment = "js"
       def scalaJSVersion  = T(thisScalaJSVersion)
       def moduleKind      = T(ModuleKind.ESModule)
@@ -218,9 +232,10 @@ object debate extends Module {
         "debate.Serve",
         Seq(
           "--js",
-          js.fastestOpt().path.toString,
+          js.devBundle().head.path.toString,
           "--jsDeps",
-          js.aggregatedJSDeps().path.toString
+          "test.js"
+          // js.aggregatedJSDeps().path.toString
         ) ++ args
       )
     }
@@ -231,8 +246,13 @@ object debate extends Module {
       val runMain = jvm.runMainFn()
       runMain(
         "debate.Serve",
-        Seq("--js", js.fullOpt().path.toString, "--jsDeps", js.aggregatedJSDeps().path.toString) ++
-          args
+        Seq(
+          "--js",
+          js.prodBundle().head.path.toString,
+          "--jsDeps",
+          "test.js"
+          // js.aggregatedJSDeps().path.toString
+        ) ++ args
       )
     }
   }
