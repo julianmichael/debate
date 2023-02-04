@@ -14,6 +14,8 @@ import cats.kernel.CommutativeMonoid
 
 package object debate extends PackagePlatformExtensions {
 
+  val appDivId = "app"
+
   @JsonCodec
   sealed trait DebateStateUpdateRequest
   object DebateStateUpdateRequest {
