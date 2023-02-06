@@ -128,14 +128,20 @@ package object debate extends PackagePlatformExtensions {
     def -->(b: => Boolean) = !a || b
   }
 
+  private val orEvalMonoid: CommutativeMonoid[Eval[Boolean]] =
+    new CommutativeMonoid[Eval[Boolean]] {
+      val empty: Eval[Boolean] = Eval.False
+      def combine(lx: Eval[Boolean], ly: Eval[Boolean]): Eval[Boolean] = lx.flatMap {
+        case true =>
+          Eval.True
+        case false =>
+          ly
+      }
+    }
+
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {
-    // TODO: use laziness correctly here. I can't wrap my head around proper use of Eval
     def existsAs(p: PartialFunction[A, Boolean]): Boolean =
-      fa.unorderedFoldMap(a => p.lift(a).getOrElse(false))(
-        CommutativeMonoid.instance(false, _ || _)
-      )
-    // fa.foldRight(Eval.False)((a, exEval) => exEval.map(ex => p.lift(a).getOrElse(false) || ex))
-    //   .value
+      fa.unorderedFoldMap(a => Eval.later(p.lift(a).getOrElse(false)))(orEvalMonoid).value
   }
 
   implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {
