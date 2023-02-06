@@ -18,8 +18,8 @@ trait RoomHeading {
     this match {
       case AwaitingFeedback =>
         "awaiting feedback"
-      case ReadyForOfflineJudging =>
-        "ready for offline judging"
+      case EligibleForOfflineJudging =>
+        "eligible for offline judging"
       case InProgress =>
         "in progress"
       case WaitingToBegin =>
@@ -40,8 +40,8 @@ trait RoomHeading {
     this match {
       case AwaitingFeedback =>
         "Awaiting Your Feedback"
-      case ReadyForOfflineJudging =>
-        "Ready for You to Judge"
+      case EligibleForOfflineJudging =>
+        "Eligible for You to Judge"
       case InProgress =>
         "In Progress"
       case WaitingToBegin =>
@@ -51,11 +51,11 @@ trait RoomHeading {
     }
 }
 object RoomHeading {
-  case object AwaitingFeedback       extends RoomHeading
-  case object ReadyForOfflineJudging extends RoomHeading
-  case object InProgress             extends RoomHeading
-  case object WaitingToBegin         extends RoomHeading
-  case object Complete               extends RoomHeading
+  case object AwaitingFeedback          extends RoomHeading
+  case object EligibleForOfflineJudging extends RoomHeading
+  case object InProgress                extends RoomHeading
+  case object WaitingToBegin            extends RoomHeading
+  case object Complete                  extends RoomHeading
 
   def infer(metadata: RoomMetadata, user: String): RoomHeading =
     metadata.status match {
@@ -73,7 +73,7 @@ object RoomHeading {
         } else if (offlineJudging.contains(user)) {
           Complete
         } else
-          ReadyForOfflineJudging
+          EligibleForOfflineJudging
     }
 }
 
@@ -112,8 +112,8 @@ object DebatesPanel {
                 S.awaitingFeedbackStatusLabel
               case InProgress =>
                 S.inProgressStatusLabel
-              case ReadyForOfflineJudging =>
-                S.readyForOfflineJudgingStatusLabel
+              case EligibleForOfflineJudging =>
+                S.eligibleForOfflineJudgingStatusLabel
               case WaitingToBegin =>
                 S.waitingToBeginStatusLabel
               case Complete =>
@@ -132,10 +132,11 @@ object DebatesPanel {
                   .sorted(RoomMetadata.getOrdering(userName))
                   .toVdomArray { case rm: RoomMetadata =>
                     MetadataBox(
-                      isAdmin = isAdmin,
                       roomMetadata = rm,
                       isOfficial = isOfficial,
                       userName = userName,
+                      isAdmin = isAdmin,
+                      hideResults = heading == RoomHeading.EligibleForOfflineJudging,
                       sendToMainChannel = sendToMainChannel,
                       enterRoom = connect
                     )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
@@ -185,11 +186,11 @@ object DebatesPanel {
       .partition(_.roleAssignments.values.toSet.contains(userName))
     import RoomHeading._
     val liveDebateHeadings     = List(AwaitingFeedback, InProgress, WaitingToBegin, Complete)
-    val offlineJudgingHeadings = List(AwaitingFeedback, ReadyForOfflineJudging, Complete)
+    val offlineJudgingHeadings = List(AwaitingFeedback, EligibleForOfflineJudging, Complete)
     val allHeadings = List(
       AwaitingFeedback,
       InProgress,
-      ReadyForOfflineJudging,
+      EligibleForOfflineJudging,
       WaitingToBegin,
       Complete
     )

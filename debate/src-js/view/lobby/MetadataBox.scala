@@ -60,10 +60,11 @@ object MetadataBox {
     }
 
   def apply(
-    isAdmin: Boolean,
     roomMetadata: RoomMetadata,
     isOfficial: Boolean,
     userName: String,
+    isAdmin: Boolean,
+    hideResults: Boolean,
     enterRoom: ConnectionSpec => CallbackTo[Unit],
     sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
   ) = {
@@ -74,6 +75,7 @@ object MetadataBox {
 
     val resultDescriptionOpt = roomMetadata
       .result
+      .filter(_ => !hideResults)
       // .flatMap(_.judgingInfo)
       .map { result =>
         val endedBy = <.span(
