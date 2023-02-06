@@ -1,6 +1,7 @@
 /** Cross-platform code used by both the JVM and JS packages.
   */
 
+import cats.Eval
 import cats.Monad
 import cats.Reducible
 import cats.UnorderedFoldable
