@@ -175,9 +175,11 @@ object Styles extends jjm.ui.View.Styles {
     overflowX.hidden
   )
 
-  val waitingToBeginStatusLabel = style(color.gold)
-  val inProgressStatusLabel     = style(color.darkorange)
-  val completeStatusLabel       = style(color.darkgreen)
+  val awaitingFeedbackStatusLabel       = style(color.purple)
+  val inProgressStatusLabel             = style(color.darkorange)
+  val readyForOfflineJudgingStatusLabel = style(color.blue)
+  val waitingToBeginStatusLabel         = style(color.gold)
+  val completeStatusLabel               = style(color.darkgreen)
 
   val loading = style(
     gridRow    := "1/-1",

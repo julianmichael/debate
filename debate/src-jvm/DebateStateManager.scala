@@ -73,7 +73,6 @@ case class DebateStateManager(
               .flatMap(_.timestamp(room.debate.debate.setup.numDebaters))
               .lastOption
               .getOrElse(room.debate.debate.setup.startTime),
-            result = room.debate.debate.result,
             currentSpeakers = room
               .debate
               .debate

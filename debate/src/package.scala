@@ -78,43 +78,6 @@ package object debate extends PackagePlatformExtensions {
       extends MainChannelRequest
   case class DeleteRoom(isOfficial: Boolean, roomName: String) extends MainChannelRequest
 
-  @JsonCodec
-  sealed trait RoomStatus {
-    import RoomStatus._
-    override def toString =
-      this match {
-        case WaitingToBegin =>
-          "waiting to begin"
-        case InProgress =>
-          "in progress"
-        case Complete =>
-          "complete"
-      }
-
-    def isComplete =
-      this match {
-        case Complete =>
-          true
-        case _ =>
-          false
-      }
-
-    def titleString =
-      this match {
-        case WaitingToBegin =>
-          "Waiting to Begin"
-        case InProgress =>
-          "In Progress"
-        case Complete =>
-          "Complete"
-      }
-  }
-  object RoomStatus {
-    case object WaitingToBegin extends RoomStatus
-    case object InProgress     extends RoomStatus
-    case object Complete       extends RoomStatus
-  }
-
   def makePageTitle(x: String) =
     Option(x.trim).filter(_.nonEmpty).map(_ + " | ").combineAll + "Debate"
 

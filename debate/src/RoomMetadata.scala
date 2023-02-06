@@ -5,6 +5,21 @@ import cats.kernel.Order
 
 import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
+import monocle.macros.GenPrism
+
+@JsonCodec
+sealed trait RoomStatus {}
+object RoomStatus {
+  case object WaitingToBegin extends RoomStatus
+  case object InProgress     extends RoomStatus
+  case class Complete(
+    result: DebateResult,
+    offlineJudgingResults: Map[String, OfflineJudgingResult],
+    feedbackProviders: Set[String]
+  ) extends RoomStatus
+
+  val complete = GenPrism[RoomStatus, Complete]
+}
 
 @Lenses
 @JsonCodec
@@ -15,10 +30,11 @@ case class RoomMetadata(
   creationTime: Long,
   status: RoomStatus,
   latestUpdateTime: Long,
-  result: Option[DebateResult],
   currentSpeakers: Set[DebateRole],
   currentParticipants: Set[String]
 ) {
+  def result = RoomStatus.complete.getOption(status).map(_.result)
+
   def matchesQuery(query: String) = itemMatchesKeywordQuery(
     itemTerms = roleAssignments.values.toSet ++ currentParticipants + name + status.toString,
     queryKeywords = query.split("\\s+").toSet

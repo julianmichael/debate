@@ -18,7 +18,7 @@ case class DebateState(debate: Debate, participants: Map[String, Role]) {
   def status: RoomStatus = debate
     .currentTransitions
     .fold(
-      _ => RoomStatus.Complete,
+      result => RoomStatus.Complete(result, debate.offlineJudgingResults, debate.feedback.keySet),
       _ =>
         if (debate.rounds.isEmpty)
           RoomStatus.WaitingToBegin
