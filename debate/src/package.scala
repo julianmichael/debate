@@ -19,8 +19,18 @@ package object debate extends PackagePlatformExtensions {
   @JsonCodec
   sealed trait OfflineJudgingResult
   object OfflineJudgingResult {
-    case class Timed(judgment: Vector[Double], timeTakenMillis: Long) extends OfflineJudgingResult
-    case class Stepped(numContinues: Int, judgment: Vector[Double])
+    case class Timed(
+      judgment: Vector[Double],
+      explanation: String,
+      timestamp: Long,
+      timeTakenMillis: Long
+    ) extends OfflineJudgingResult
+    case class Stepped(
+      judgment: Vector[Double],
+      explanation: String,
+      timestamp: Long,
+      numContinues: Int
+    )
   }
 
   @JsonCodec

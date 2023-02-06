@@ -4,12 +4,14 @@ import cats.implicits._
 
 import io.circe.generic.JsonCodec
 import monocle.Prism
+import monocle.std.{all => StdOptics}
 import monocle.function.{all => Optics}
 import monocle.macros.GenPrism
 import monocle.macros.Lenses
 
 import jjm.DotPair
 import jjm.implicits._
+import monocle.Optional
 
 sealed trait DebateTurnTypeResult2 extends Product with Serializable
 object DebateTurnTypeResult2 {
@@ -168,7 +170,13 @@ case class DebateSpeech2(speaker: String, timestamp: Long, content: Vector[Speec
     span
   }
 }
-object DebateSpeech2 {}
+object DebateSpeech2 {
+  def fromSpeech(speech: DebateSpeech) = DebateSpeech2(
+    speech.speaker.name,
+    speech.timestamp,
+    speech.content
+  )
+}
 
 /** Set of operations available to a particular role. */
 case class DebateTransitionSet2(
@@ -189,7 +197,12 @@ case class DebateTransitionSet2(
   */
 @Lenses
 @JsonCodec
-case class Debate2(setup: DebateSetup, rounds: Vector[DebateRound2]) {
+case class Debate2(
+  setup: DebateSetup,
+  rounds: Vector[DebateRound2],
+  offlineJudgingResults: Map[String, OfflineJudgingResult],
+  feedback: Map[String, Unit] // placeholder for when we add it in later
+) {
 
   /** Time of the first round of the debate (not the init time of the debate
     * setup).
@@ -389,7 +402,97 @@ case class Debate2(setup: DebateSetup, rounds: Vector[DebateRound2]) {
   }
 }
 object Debate2 {
-  def init(setup: DebateSetup): Debate2 = Debate2(setup, Vector())
+  def init(setup: DebateSetup): Debate2 = Debate2(setup, Vector(), Map(), Map())
+
+  def fromDebate(debate: Debate) = {
+
+    val numDebaters  = debate.setup.numDebaters
+    val wasJudgeless = debate.rounds.exists(_.allSpeeches.exists(_.speaker.name == "Nobody"))
+
+    def modRounds(whichRounds: Optional[DebateRules, Vector[DebateRoundType]]) = DebateSetup
+      .rules
+      .composeOptional(whichRounds)
+      .composeTraversal(Optics.each)
+      .modify {
+        case DebateRoundType.JudgeFeedbackRound(reportBeliefs, charLimit) =>
+          DebateRoundType.NegotiateEndRound
+        case x =>
+          x
+      }
+
+    val setup =
+      modRounds(DebateRules.fixedOpening.asOptional)
+        .andThen(modRounds(DebateRules.repeatingStructure.asOptional))
+        .andThen(
+          modRounds(
+            DebateRules
+              .fixedClosing
+              .composePrism(StdOptics.some[ClosingArgumentRules])
+              .composeLens(ClosingArgumentRules.rounds)
+          )
+        )(debate.setup)
+
+    val rounds = {
+      val initRounds = debate
+        .rounds
+        .map {
+          case SimultaneousSpeeches(speeches) =>
+            SimultaneousSpeeches2(speeches.mapVals(DebateSpeech2.fromSpeech))
+          case JudgeFeedback(dist, feedback, end) =>
+            if (feedback.speaker.name == "Nobody") {
+              NegotiateEnd2((0 until numDebaters).map(_ -> false).toMap)
+            } else {
+              JudgeFeedback2(dist, DebateSpeech2.fromSpeech(feedback), end)
+            }
+          case NegotiateEnd(votes) =>
+            NegotiateEnd2(votes)
+          case SequentialSpeeches(speeches) =>
+            SequentialSpeeches2(speeches.mapVals(DebateSpeech2.fromSpeech))
+        }
+
+      val fullRounds =
+        if (wasJudgeless) {
+          Optics
+            .lastOption[Vector[DebateRound2], DebateRound2]
+            .modify {
+              case JudgeFeedback2(distribution, feedback, endDebate) =>
+                NegotiateEnd2((0 until numDebaters).map(_ -> true).toMap)
+              case _ =>
+                throw new NotImplementedError
+            }(initRounds)
+        } else
+          initRounds
+
+      fullRounds
+    }
+
+    val offlineJudgingResults: Map[String, OfflineJudgingResult] =
+      if (wasJudgeless) {
+        debate
+          .rounds
+          .lastOption
+          .collect { case JudgeFeedback(distribution, feedback, endDebate) =>
+            Map(
+              feedback.speaker.name ->
+                OfflineJudgingResult.Timed(
+                  distribution,
+                  SpeechSegments.getString(feedback.content),
+                  feedback.timestamp,
+                  timeTakenMillis = -1L
+                )
+            )
+          }
+          .getOrElse(Map())
+      } else
+        Map()
+
+    Debate2(
+      setup = setup,
+      rounds = rounds,
+      offlineJudgingResults = offlineJudgingResults,
+      feedback = Map()
+    )
+  }
 }
 
 /** Outcome of a debate turn after some/all relevant parties have submitted
