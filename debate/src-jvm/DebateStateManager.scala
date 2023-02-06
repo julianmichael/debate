@@ -133,7 +133,7 @@ case class DebateStateManager(
   def createDebate(roomName: String, setupSpec: DebateSetupSpec) =
     for {
       setup <- initializeDebate(setupSpec)
-      debate = Debate(setup, Vector())
+      debate = Debate(setup, Vector(), Map(), Map())
       room     <- DebateRoom.create(DebateState(debate = debate, participants = Map()))
       curRooms <- rooms.get
       _ <-

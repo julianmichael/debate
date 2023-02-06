@@ -49,10 +49,15 @@ object DebateRoundView {
     )
   }
 
-  def speechToHTML(speech: DebateSpeech, startTimeOpt: Option[Long], userRoleOpt: Option[Role]) = {
-    val roleString = speech.speaker.role.toString
+  def speechHeaderHTML(
+    role: Role,
+    speech: DebateSpeech,
+    startTimeOpt: Option[Long],
+    userRoleOpt: Option[Role]
+  ) = {
+    val roleString = role.toString
     <.div(S.speechHeader)(
-      speech.speaker.name,
+      speech.speaker,
       s" ($roleString) ",
       startTimeOpt.whenDefined(startTime =>
         timestampHTML(startTime, speech.timestamp).when(
@@ -84,7 +89,7 @@ object DebateRoundView {
         .toVdomArray { case (debaterIndex, speech) =>
           <.div(S.speechBox, S.answerBg(debaterIndex))(
             ^.key := s"speech-$debaterIndex",
-            speechToHTML(speech, startTimeOpt, userRoleOpt),
+            speechHeaderHTML(Debater(debaterIndex), speech, startTimeOpt, userRoleOpt),
             speech
               .content
               .map {
@@ -103,6 +108,7 @@ object DebateRoundView {
 
   def makeSpeechHtml(
     source: Vector[String],
+    role: Role,
     speech: DebateSpeech,
     startTimeOpt: Option[Long],
     userRoleOpt: Option[Role],
@@ -110,7 +116,7 @@ object DebateRoundView {
     // speechIndex: Int
   ) =
     <.div(S.speechBox, style)(
-      speechToHTML(speech, startTimeOpt, userRoleOpt),
+      speechHeaderHTML(role, speech, startTimeOpt, userRoleOpt),
       speech
         .content
         .map {
@@ -157,7 +163,14 @@ object DebateRoundView {
                     S.pendingBg,
                     S.debateWidthOffset(index)
                   )
-                  makeSpeechHtml(source, speech, debateStartTime, roleOpt, speechStyle)
+                  makeSpeechHtml(
+                    source,
+                    Debater(index),
+                    speech,
+                    debateStartTime,
+                    roleOpt,
+                    speechStyle
+                  )
                 }
             }
             .flatten
@@ -175,52 +188,45 @@ object DebateRoundView {
         }
       case SequentialSpeeches(speeches) =>
         val speechesToShow =
-          if (speeches.size < numDebaters) {
-            if (
-              roleOpt
-                .collect { case Facilitator | Debater(_) =>
-                  ()
-                }
-                .nonEmpty
-            ) {
-              speeches.toVector.sortBy(_._1).map(_._2)
-            } else
-              Vector()
+          if (
+            speeches.size < numDebaters &&
+            !roleOpt.existsAs { case Facilitator | Debater(_) =>
+              true
+            }
+          ) {
+            Map[Int, DebateSpeech]()
           } else
-            speeches.values.toVector
+            speeches
 
         speechesToShow
-          .zipWithIndex
-          .toVdomArray { case (speech, index) =>
-            val speechStyle =
-              speech.speaker.role match {
-                case Facilitator =>
-                  TagMod(S.facilitatorBg)
-                case Observer =>
-                  TagMod(S.observerBg)
-                case Judge =>
-                  TagMod(S.judgeFeedbackBg)
-                case Debater(index) =>
-                  TagMod(S.answerBg(index), S.debateWidthOffset(index))
-              }
-            makeSpeechHtml(source, speech, debateStartTime, roleOpt, speechStyle)(
-              ^.key := s"speech-$index"
-            )
+          .toVector
+          .sortBy(_._1)
+          .toVdomArray { case (debaterIndex, speech) =>
+            val speechStyle = TagMod(S.answerBg(debaterIndex), S.debateWidthOffset(debaterIndex))
+            // val speechStyle =
+            //   speech.speaker.role match {
+            //     case Facilitator =>
+            //       TagMod(S.facilitatorBg)
+            //     case Observer =>
+            //       TagMod(S.observerBg)
+            //     case Judge =>
+            //       TagMod(S.judgeFeedbackBg)
+            //     case Debater(index) =>
+            //       TagMod(S.answerBg(index), S.debateWidthOffset(index))
+            //   }
+            makeSpeechHtml(
+              source,
+              Debater(debaterIndex),
+              speech,
+              debateStartTime,
+              roleOpt,
+              speechStyle
+            )(^.key := s"speech-$debaterIndex")
           }
       case JudgeFeedback(probabilities, speech, endsDebate) =>
-        val speechStyle =
-          speech.speaker.role match {
-            case Facilitator =>
-              TagMod(S.facilitatorBg)
-            case Observer =>
-              TagMod(S.observerBg)
-            case Judge =>
-              TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
-            case Debater(index) =>
-              TagMod(S.answerBg(index), S.debateWidthOffset(index))
-          }
+        val speechStyle = TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
         Vector(
-          Option(makeSpeechHtml(source, speech, debateStartTime, roleOpt, speechStyle)),
+          Option(makeSpeechHtml(source, Judge, speech, debateStartTime, roleOpt, speechStyle)),
           Option(
             <.div(
               ^.display       := "flex",
