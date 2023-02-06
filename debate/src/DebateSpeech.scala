@@ -6,17 +6,8 @@ import io.circe.generic.JsonCodec
 
 import jjm.ling.ESpan
 
-/** A single contiguous argument by a debater.
-  *
-  * @param speaker
-  *   the ID of the debater who wrote the speech.
-  * @param timestamp
-  *   millis from epoch from which the speech was written.
-  * @param content
-  *   the debater's argument
-  */
 @JsonCodec
-case class DebateSpeech(speaker: ParticipantId, timestamp: Long, content: Vector[SpeechSegment]) {
+case class DebateSpeech(speaker: String, timestamp: Long, content: Vector[SpeechSegment]) {
   def allQuotes = content.collect { case SpeechSegment.Quote(span) =>
     span
   }

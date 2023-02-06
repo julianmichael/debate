@@ -48,7 +48,7 @@ object SpeechInput {
         debate
           .value
           .rounds
-          .foldMap(_.allSpeeches.toVector.filter(_.speaker.role == role).foldMap(_.content))
+          .foldMap(_.allSpeeches.filter(_._1 == role).values.toVector.foldMap(_.content))
     )
     val totalQuoteLimitExceeded = globalQuoteLimitOpt.exists(globalQuoteNumChars > _)
 
@@ -109,12 +109,11 @@ object SpeechInput {
 
     def debaterSpeechInput(
       // turnType: DebateTurnType { type Input = DebateSpeechContent },
-      giveSpeech: DebateSpeechContent => Debate
+      giveSpeech: DebateSpeech => Debate
     ) = {
       def submit = CallbackTo(System.currentTimeMillis()).flatMap(time =>
-        debate.setState(
-          giveSpeech(DebateSpeechContent(userName, time, currentMessageSpeechSegments))
-        ) >> currentMessage.setState("")
+        debate.setState(giveSpeech(DebateSpeech(userName, time, currentMessageSpeechSegments))) >>
+          currentMessage.setState("")
       )
       <.div(S.col)(
         speechInputPanel(_ => submit, true),
@@ -124,7 +123,7 @@ object SpeechInput {
 
     def judgeSpeechInput(
       turnType: DebateTurnType.JudgeFeedbackTurn,
-      giveSpeech: JudgeFeedbackContent => Debate
+      giveSpeech: JudgeFeedback => Debate
     ) = {
       val turnNum =
         debate
@@ -143,11 +142,13 @@ object SpeechInput {
               CallbackTo(System.currentTimeMillis()).flatMap(time =>
                 debate.setState(
                   giveSpeech(
-                    JudgeFeedbackContent(
-                      speakerName = userName,
-                      timestamp = time,
-                      speech = currentMessageSpeechSegments,
+                    JudgeFeedback(
                       distribution = probs.value,
+                      feedback = DebateSpeech(
+                        speaker = userName,
+                        timestamp = time,
+                        content = currentMessageSpeechSegments
+                      ),
                       endDebate = endDebate
                     )
                   )

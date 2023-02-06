@@ -41,6 +41,12 @@ import debate.quality._
 object Serve
     extends CommandIOApp(name = "mill -i debate.jvm.run", header = "Serve the live chat app.") {
 
+  val jsPathO = Opts
+    .option[NIOPath]("js", metavar = "path", help = "Where to get the JS main file.")
+
+  val jsDepsPathO = Opts
+    .option[NIOPath]("jsDeps", metavar = "path", help = "Where to get the JS dependencies file.")
+
   val portO = Opts
     .option[Int]("port", metavar = "<port number>", help = "Port where to host the server.")
     .withDefault(8080)
@@ -73,14 +79,15 @@ object Serve
     * @return
     *   the process's exit code.
     */
-  def main: Opts[IO[ExitCode]] = (portO, saveO, sslO).mapN { (port, save, ssl) =>
-    for {
-      builder <- getBuilder(ssl)
-      _ <- Blocker[IO].use { blocker =>
-        makeHttpApp(save, blocker)
-          .flatMap(app => builder.bindHttp(port, "0.0.0.0").withHttpApp(app).serve.compile.drain)
-      }
-    } yield ExitCode.Success
+  def main: Opts[IO[ExitCode]] = (jsPathO, jsDepsPathO, portO, saveO, sslO).mapN {
+    (jsPath, jsDepsPath, port, save, ssl) =>
+      for {
+        builder <- getBuilder(ssl)
+        _ <- Blocker[IO].use { blocker =>
+          makeHttpApp(jsPath, jsDepsPath, save, blocker)
+            .flatMap(app => builder.bindHttp(port, "0.0.0.0").withHttpApp(app).serve.compile.drain)
+        }
+      } yield ExitCode.Success
   }
 
   def tokenizeStory(x: String): Vector[String] = {
@@ -136,7 +143,7 @@ object Serve
     * @return
     *   the full HTTP app
     */
-  def makeHttpApp(saveDir: NIOPath, blocker: Blocker) =
+  def makeHttpApp(jsPathO: NIOPath, jsDepsPathO: NIOPath, saveDir: NIOPath, blocker: Blocker) =
     for {
       qualityDataset <- QuALITYUtils.readQuALITY(qualityDataPath, blocker)
       trackedDebaters <- FileUtil
@@ -210,12 +217,15 @@ object Serve
           s"/$qualityServiceApiEndpoint" -> CORS(qualityService, corsConfig),
           "/" ->
             service(
+              jsPathO,
+              jsDepsPathO,
               saveDir,
               mainChannel,
               trackedDebatersRef,
               officialDebates,
               practiceDebates,
-              pushUpdate
+              pushUpdate,
+              blocker
             )
         )
       ).orNotFound
@@ -229,12 +239,15 @@ object Serve
     * webapp's functionality.
     */
   def service(
+    jsPath: NIOPath,
+    jsDepsPath: NIOPath,
     saveDir: NIOPath,              // where to save the debates as JSON
     mainChannel: Topic[IO, Lobby], // channel for updates to
     trackedDebaters: Ref[IO, Set[String]],
     officialDebates: DebateStateManager,
     practiceDebates: DebateStateManager,
-    pushUpdate: IO[Unit]
+    pushUpdate: IO[Unit],
+    blocker: Blocker
   ) = {
 
     // Operations executed by the server
@@ -300,7 +313,31 @@ object Serve
     // import _root_.io.circe.syntax._
     // import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
 
+    val jsLocation     = "out.js"
+    val jsMapLocation  = jsLocation + ".map"
+    val jsDepsLocation = "deps.js"
+
     HttpRoutes.of[IO] {
+
+      // homepage
+      case GET -> Root =>
+        Ok(
+          debate.Page(jsLocation = jsLocation, jsDepsLocation = jsDepsLocation).render,
+          Header("Content-Type", "text/html")
+        )
+
+      // js file
+      case req @ GET -> Root / `staticFilePrefix` / `jsLocation` =>
+        StaticFile.fromString(jsPath.toString, blocker, Some(req)).getOrElseF(NotFound())
+
+      // source map
+      case req @ GET -> Root / `staticFilePrefix` / `jsMapLocation` =>
+        StaticFile.fromString(jsPath.toString + ".map", blocker, Some(req)).getOrElseF(NotFound())
+
+      // js deps
+      case req @ GET -> Root / `staticFilePrefix` / `jsDepsLocation` =>
+        StaticFile.fromString(jsDepsPath.toString, blocker, Some(req)).getOrElseF(NotFound())
+
       // connect to the lobby to see open rooms / who's in them, etc.
       case GET -> Root / "main-ws" =>
         createLobbyWebsocket

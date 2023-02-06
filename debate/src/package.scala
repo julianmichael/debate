@@ -1,14 +1,65 @@
 /** Cross-platform code used by both the JVM and JS packages.
   */
 
-import cats.{Eval, Monad, Reducible, UnorderedFoldable}
+import cats.Monad
+import cats.Reducible
+import cats.UnorderedFoldable
 import cats.implicits._
-import io.circe.generic.JsonCodec
-import monocle.Lens
-import jjm.ling.ESpan
 import cats.kernel.CommutativeMonoid
 
+import io.circe.generic.JsonCodec
+import monocle.Lens
+import monocle.macros.Lenses
+
+import jjm.ling.ESpan
+
 package object debate extends PackagePlatformExtensions {
+
+  val appDivId = "app"
+
+  @JsonCodec
+  sealed trait DebateEndReason
+  object DebateEndReason {
+    case object JudgeDecided    extends DebateEndReason
+    case object TimeUp          extends DebateEndReason
+    case object MutualAgreement extends DebateEndReason
+  }
+
+  @Lenses
+  @JsonCodec
+  case class JudgingResult(
+    correctAnswerIndex: Int,
+    numContinues: Int,
+    finalJudgement: Vector[Double],
+    judgeReward: Double
+  )
+  object JudgingResult
+
+  @Lenses
+  @JsonCodec
+  case class DebateResult(
+    correctAnswerIndex: Int,
+    endedBy: DebateEndReason,
+    judgingInfo: Option[JudgingResult]
+  )
+  object DebateResult
+
+  @JsonCodec
+  sealed trait OfflineJudgingResult
+  object OfflineJudgingResult {
+    case class Timed(
+      judgment: Vector[Double],
+      explanation: String,
+      timestamp: Long,
+      timeTakenMillis: Long
+    ) extends OfflineJudgingResult
+    case class Stepped(
+      judgment: Vector[Double],
+      explanation: String,
+      timestamp: Long,
+      numContinues: Int
+    )
+  }
 
   @JsonCodec
   sealed trait DebateStateUpdateRequest
@@ -77,18 +128,20 @@ package object debate extends PackagePlatformExtensions {
     def -->(b: => Boolean) = !a || b
   }
 
-  private val orEvalMonoid: CommutativeMonoid[Eval[Boolean]] = new CommutativeMonoid[Eval[Boolean]] {
-    val empty: Eval[Boolean] = Eval.False
-    def combine(lx: Eval[Boolean], ly: Eval[Boolean]): Eval[Boolean] =
-      lx.flatMap {
-        case true => Eval.True
-        case false => ly
+  private val orEvalMonoid: CommutativeMonoid[Eval[Boolean]] =
+    new CommutativeMonoid[Eval[Boolean]] {
+      val empty: Eval[Boolean] = Eval.False
+      def combine(lx: Eval[Boolean], ly: Eval[Boolean]): Eval[Boolean] = lx.flatMap {
+        case true =>
+          Eval.True
+        case false =>
+          ly
       }
-  }
+    }
 
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {
     def existsAs(p: PartialFunction[A, Boolean]): Boolean =
-       fa.unorderedFoldMap(a => Eval.later(p.lift(a).getOrElse(false)))(orEvalMonoid).value
+      fa.unorderedFoldMap(a => Eval.later(p.lift(a).getOrElse(false)))(orEvalMonoid).value
   }
 
   implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {

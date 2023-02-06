@@ -116,12 +116,19 @@ object DebatePanel {
   def debateSpansWithSpeaker(roleOpt: Option[Role], numDebaters: Int, rounds: Vector[DebateRound]) =
     rounds.flatMap { round =>
       if (round.isComplete(numDebaters)) {
-        round.allSpeeches.view.flatMap(speech => speech.allQuotes.map(speech.speaker -> _)).toVector
+        round
+          .allSpeeches
+          .view
+          .flatMap { case (role, speech) =>
+            speech.allQuotes.map(role -> _)
+          }
+          .toVector
       } else {
         roleOpt
           .view
-          .flatMap(role => round.allSpeeches.filter(_.speaker.role == role))
-          .flatMap(speech => speech.allQuotes.map(speech.speaker -> _))
+          .flatMap { role =>
+            round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
+          }
           .toVector
       }
     }
@@ -132,8 +139,8 @@ object DebatePanel {
     rounds: Vector[DebateRound],
     curMessageSpans: Set[ESpan]
   ) =
-    debateSpansWithSpeaker(roleOpt, numDebaters, rounds).map { case (id, span) =>
-      span -> getSpanColorForRole(id.role)
+    debateSpansWithSpeaker(roleOpt, numDebaters, rounds).map { case (role, span) =>
+      span -> getSpanColorForRole(role)
     } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
 
   def getInProgressSpeechStyle(role: Role) =
@@ -205,7 +212,8 @@ object DebatePanel {
                 DebateRoundView
                   .makeSpeechHtml(
                     setup.sourceMaterial.contents,
-                    DebateSpeech(ParticipantId(userName, role), -1L, currentMessageSpeechSegments),
+                    role,
+                    DebateSpeech(userName, -1L, currentMessageSpeechSegments),
                     debate.value.startTime,
                     Some(role),
                     getInProgressSpeechStyle(role)

@@ -1,7 +1,6 @@
 package debate
 
 import scala.concurrent.Future
-import scala.scalajs.js.annotation.JSExportTopLevel
 
 import cats.implicits._
 import cats.~>
@@ -16,7 +15,8 @@ import scalacss.ScalaCssReact._
 import jjm.io.HttpUtil
 import jjm.ui.Mounting
 
-import debate.facades.jQuery
+import org.scalajs.jquery.jQuery
+// import debate.facades.jQuery
 import debate.util._
 
 @JsonCodec
@@ -29,12 +29,11 @@ object App {
 
   val MainWebSocket = WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
 
-  val mainWebsocketUri: String =
-    s"${Utils.wsProtocol}//${dom.document.location.hostname}:8080/main-ws"
+  val mainWebsocketUri: String = s"${Utils.wsProtocol}//${dom.document.location.host}/main-ws"
 
   val httpProtocol = dom.document.location.protocol
   val qualityApiUrl: String =
-    s"$httpProtocol//${dom.document.location.hostname}:8080/$qualityServiceApiEndpoint"
+    s"$httpProtocol//${dom.document.location.host}/$qualityServiceApiEndpoint"
   type DelayedFuture[A] = () => Future[A]
   val toAsyncCallback = λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
   val qualityService = quality.QuALITYService(
@@ -116,11 +115,11 @@ object App {
 
   def setupUI(): Unit = {
     Styles.addToDocument()
-    Component().renderIntoDOM(org.scalajs.dom.document.getElementById("app"))
+    Component().renderIntoDOM(org.scalajs.dom.document.getElementById(appDivId))
   }
 
-  @JSExportTopLevel("main")
-  final def main(): Unit = jQuery { () =>
+  // @JSExportTopLevel("main")
+  final def main(args: Array[String]): Unit = jQuery { () =>
     dom.experimental.Notification.requestPermission(_ => ())
     setupUI()
   }
