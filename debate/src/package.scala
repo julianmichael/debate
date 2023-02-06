@@ -17,6 +17,13 @@ package object debate extends PackagePlatformExtensions {
   val appDivId = "app"
 
   @JsonCodec
+  sealed trait OfflineJudgingResult
+  object OfflineJudgingResult {
+    case class Timed(judgment: Vector[Double], timeTakenMillis: Long) extends OfflineJudgingResult
+    case class Stepped(numContinues: Int, judgment: Vector[Double])
+  }
+
+  @JsonCodec
   sealed trait DebateStateUpdateRequest
   object DebateStateUpdateRequest {
     case class State(state: DebateState) extends DebateStateUpdateRequest
