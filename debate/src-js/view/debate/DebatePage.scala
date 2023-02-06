@@ -15,7 +15,8 @@ import scalacss.ScalaCssReact._
 import jjm.ui.Mounting
 
 import debate.Utils.ClassSetInterpolator
-import debate.facades.jQuery
+import org.scalajs.jquery.jQuery
+// import debate.facades.jQuery
 import debate.util._
 
 object DebatePage {
@@ -36,7 +37,7 @@ object DebatePage {
         "official"
       else
         "practice"
-    s"${Utils.wsProtocol}//${dom.document.location.hostname}:8080/$prefix-ws/$roomName?name=$participantId"
+    s"${Utils.wsProtocol}//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
   val scrollDebateToBottom = Callback {

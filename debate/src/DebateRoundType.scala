@@ -106,6 +106,7 @@ sealed trait DebateRoundType {
     }
 }
 object DebateRoundType {
+
   @Lenses
   @JsonCodec
   case class SimultaneousSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
