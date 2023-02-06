@@ -3,18 +3,46 @@
 
 import cats.Monad
 import cats.Reducible
+import cats.UnorderedFoldable
 import cats.implicits._
+import cats.kernel.CommutativeMonoid
 
 import io.circe.generic.JsonCodec
 import monocle.Lens
+import monocle.macros.Lenses
 
 import jjm.ling.ESpan
-import cats.UnorderedFoldable
-import cats.kernel.CommutativeMonoid
 
 package object debate extends PackagePlatformExtensions {
 
   val appDivId = "app"
+
+  @JsonCodec
+  sealed trait DebateEndReason
+  object DebateEndReason {
+    case object JudgeDecided    extends DebateEndReason
+    case object TimeUp          extends DebateEndReason
+    case object MutualAgreement extends DebateEndReason
+  }
+
+  @Lenses
+  @JsonCodec
+  case class JudgingResult(
+    correctAnswerIndex: Int,
+    numContinues: Int,
+    finalJudgement: Vector[Double],
+    judgeReward: Double
+  )
+  object JudgingResult
+
+  @Lenses
+  @JsonCodec
+  case class DebateResult(
+    correctAnswerIndex: Int,
+    endedBy: DebateEndReason,
+    judgingInfo: Option[JudgingResult]
+  )
+  object DebateResult
 
   @JsonCodec
   sealed trait OfflineJudgingResult

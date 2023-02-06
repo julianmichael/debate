@@ -6,6 +6,14 @@ import io.circe.generic.JsonCodec
 
 import jjm.ling.ESpan
 
+@JsonCodec
+case class DebateSpeech(speaker: String, timestamp: Long, content: Vector[SpeechSegment]) {
+  def allQuotes = content.collect { case SpeechSegment.Quote(span) =>
+    span
+  }
+}
+object DebateSpeech {}
+
 /** Segment of a single contiguous argument by a debater. Can be free text
   * (Text) or evidence (Quote). We could potentially incorporate other types of
   * evidence or content later (e.g., links, images, etc.).
