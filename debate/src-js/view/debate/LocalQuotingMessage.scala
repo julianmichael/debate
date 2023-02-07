@@ -1,7 +1,7 @@
 package debate
 package view.debate
 
-// import scala.annotation.nowarn
+import scala.annotation.nowarn
 
 import cats.implicits._
 
@@ -32,7 +32,7 @@ object LocalQuotingMessage {
     render: StateSnapshot[String] => VdomElement
   )
 
-  // @nowarn("msg=deprecated")
+  @nowarn("msg=deprecated")
   val Component =
     ScalaComponent
       .builder[Props]("Local Quoting Message")
