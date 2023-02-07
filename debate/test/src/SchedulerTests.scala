@@ -30,15 +30,6 @@ class SchedulerTests extends CatsEffectSuite {
     }
   }
 
-  // TODO probably export this to the debate rules object
-  val testRules = DebateRules(
-    scoringFunction = ScoringFunction.SphericalScoreWithLinearPenalty(0.5, 0.5),
-    fixedClosing = None,
-    fixedOpening = Vector.empty[DebateRoundType],
-    repeatingStructure = Vector.empty[DebateRoundType],
-    globalQuoteRestriction = None
-  )
-
   val testSourceMaterial = CustomSourceMaterial(title = "test", contents = Vector.empty[String])
 
   def testDebateSetup(assignment: DebateAssignment): DebateSetup = {
@@ -51,7 +42,7 @@ class SchedulerTests extends CatsEffectSuite {
         (Judge                       -> assignment.judge)
 
     DebateSetup(
-      rules = testRules,
+      rules = DebateRules.default,
       sourceMaterial = testSourceMaterial,
       question = "test question",
       answers = Vector.empty[String],
