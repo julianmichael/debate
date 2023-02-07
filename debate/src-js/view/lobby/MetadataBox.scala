@@ -379,9 +379,9 @@ object MetadataBox {
     def inspectButton(text: String, toggle: StateSnapshot[Boolean]) = {
       val icon =
         if (toggle.value)
-          "bi-eye"
-        else
           "bi-eye-slash"
+        else
+          "bi-eye"
 
       <.button(c"btn btn-sm btn-outline-primary mr-1")(
         <.i(c"bi $icon"),
