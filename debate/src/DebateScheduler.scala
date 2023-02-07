@@ -165,7 +165,7 @@ object DebateScheduler {
   }
 
   def judgingPerStory(history: Vector[Debate], newAssignments: Vector[DebateAssignment]): Double = {
-    // TODO refactor lmao
+    // TODO someday refactor
     val judgingInHistory: Map[String, Map[String, Int]] =
       history
         .flatMap { debate =>
@@ -252,30 +252,19 @@ object DebateScheduler {
     return cost
   }
 
-  // TODO unit test this function
-  def generateAllPossibleQuestionAssignments(debaters: Set[String]): Iterable[DebateAssignment] = {
+  def generateAllPossibleQuestionAssignments(debaters: Set[String]): Iterable[DebateAssignment] =
     // TODO someday add some validation for the strings in the debaters map and the history
-    // TODO i tried this the elegant way and it didn't work :( (put it back)
-    var result = Vector[DebateAssignment]()
-    for (honestDebater <- debaters)
-      for (judge <- debaters - honestDebater) {
-        val allDishonestDebaters = debaters - honestDebater - judge
-        for (
-          dishonestDebaters <- allDishonestDebaters
-            .toSeq
-            .combinations(debaters.size - 2)
-            .map(_.toSet)
-        )
-          result =
-            result :+
-              DebateAssignment(
-                honestDebater = honestDebater,
-                dishonestDebaters = dishonestDebaters,
-                judge = judge
-              )
-      }
-    result
-  }
+    for {
+      honestDebater <- debaters
+      judge         <- debaters - honestDebater
+      if judge != honestDebater
+      allDishonestDebaters = debaters.toSet - honestDebater - judge
+      dishonestDebaters <- allDishonestDebaters.toSeq.combinations(debaters.size - 2).map(_.toSet)
+    } yield DebateAssignment(
+      honestDebater = honestDebater,
+      judge = judge,
+      dishonestDebaters = dishonestDebaters
+    )
 
   def generateAllAssignments(
     numQuestions: Int,
@@ -349,7 +338,10 @@ object DebateScheduler {
   def getScheduleForNewStory(
     history: Vector[Debate],
     numQuestions: Int,
-    debaters: Map[String, DebaterLoadConstraint] // TODO ensure nonempty? so we can't return None?
+    debaters: Map[
+      String,
+      DebaterLoadConstraint
+    ] // TODO someday ensure nonempty? so we can't return None?
   ): Vector[DebateAssignment] = {
     // each vector in here is of length numQuestions
     val allAssignmentsThatMeetConstraints: Vector[Vector[DebateAssignment]] =
