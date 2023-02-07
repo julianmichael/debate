@@ -65,6 +65,7 @@ object MetadataBox {
     userName: String,
     isAdmin: Boolean,
     hideResults: Boolean,
+    anonymize: Boolean,
     enterRoom: ConnectionSpec => CallbackTo[Unit],
     sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
   ) = {
@@ -127,6 +128,7 @@ object MetadataBox {
               Rgba(220, 20, 60, opacity) // crimson
           color
         }
+
         def getBgColorModFromJudgment(judgment: Vector[Double]) = {
           val correctConfidence = judgment(result.correctAnswerIndex) * 100
           val otherConfidences  = judgment.remove(result.correctAnswerIndex).sortBy(-_).map(_ * 100)
@@ -185,18 +187,19 @@ object MetadataBox {
             }
 
           val judgmentsDisplay =
-            if (true) { // TODO: add anonymization parameter
+            if (anonymize) {
+              judgmentElements.map(_._2).toVdomArray
+            } else
               judgmentElements.toVdomArray { case (judge, bar) =>
                 <.div(S.row, ^.key := s"offline-judge-$judge")(
                   <.div(S.judgmentBarLabel)(judge.takeWhile(_ != ' ')),
                   <.div(c"w-100")(bar)
                 )
               }
-            } else
-              judgmentElements.map(_._2).toVdomArray
 
           <.div(
-            <.div(c"small text-center")("Offline Judgments").when(offlineJudgingResults.nonEmpty),
+            <.div(c"small text-center mt-1")("Offline Judgments")
+              .when(offlineJudgingResults.nonEmpty),
             judgmentsDisplay
           )
 
@@ -334,12 +337,21 @@ object MetadataBox {
       )
     }
 
-    val presentParticipants = <
-      .div(
-        "Present: ",
-        Utils.delimitedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
-      )
-      .when(roomMetadata.currentParticipants.nonEmpty)
+    val presentParticipants = {
+
+      val participants =
+        if (anonymize) {
+          roomMetadata
+            .currentParticipants
+            .view
+            .flatMap(name => roomMetadata.roleAssignments.find(_._2 == name).map(_._1))
+            .map(_.toString)
+            .toList
+            .sorted
+        } else
+          roomMetadata.currentParticipants.toList.sorted
+      <.div("Present: ", Utils.delimitedSpans(participants).toVdomArray).when(participants.nonEmpty)
+    }
 
     val deleteRoom =
       <.button(c"btn btn-sm btn-outline-danger")(
@@ -399,7 +411,7 @@ object MetadataBox {
         boxTitle,
         <.div(c"card-text", c"mb-3".when(isAdmin))(
           storyTitle,
-          roleAssignments,
+          roleAssignments.when(!anonymize),
           presentParticipants,
           resultDescriptionOpt.map(_.offlineResults)
         ),

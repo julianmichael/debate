@@ -137,6 +137,7 @@ object DebatesPanel {
                       userName = userName,
                       isAdmin = isAdmin,
                       hideResults = heading == RoomHeading.EligibleForOfflineJudging,
+                      anonymize = true, // TODO let admin modify this
                       sendToMainChannel = sendToMainChannel,
                       enterRoom = connect
                     )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
