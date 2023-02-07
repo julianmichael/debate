@@ -131,6 +131,34 @@ object DebateScheduler {
     Numbers(storiesReadCounts.values.toVector).stats.stdev
   }
 
+  def judgingPerStory(history: Vector[Debate], newAssignments: Vector[DebateAssignment]): Double = {
+    // TODO refactor lmao
+    val judgingInHistory: Map[String, Map[String, Int]] =
+      history
+        .flatMap { debate =>
+          DebateAssignment
+            .ofDebate(debate)
+            .map { assignment =>
+              debate.setup.sourceMaterial.title -> Map(assignment.judge -> 1)
+            }
+        }
+        .toMap
+    var randomKey = scala.util.Random.nextString(10)
+    while (newAssignments.map(_.judge).contains(randomKey))
+      randomKey = scala.util.Random.nextString(10)
+    val judgingInNewAssignments: Map[String, Map[String, Int]] = Map(
+      randomKey -> newAssignments.map(_.judge).counts
+    )
+    val storyToPersonToJudgeCount: Map[String, Map[String, Int]] =
+      judgingInHistory ++ judgingInNewAssignments
+    storyToPersonToJudgeCount
+      .values
+      .map { personToJudgeCount =>
+        Numbers(personToJudgeCount.values.toVector).stats.stdev
+      }
+      .sum
+  }
+
   /** result is non-negative */
   def getBadnessScore(
     newAssignments: Vector[DebateAssignment],
@@ -142,7 +170,7 @@ object DebateScheduler {
     cost = cost + debaterCost(assignments)
     cost = cost + storiesRead(history = history, newAssignments = newAssignments)
     cost = cost + (judgeCost(assignments) * judgeScaleDownFactor)
-    cost = cost + judgingPerStory(assignments)
+    cost = cost + judgingPerStory(history = history, newAssignments = newAssignments)
     cost = cost + fractionsHonestWhenDebating(assignments)
     cost = cost + judgedPerDebater(assignments)
     cost = cost + debatedOtherDebaters(assignments)
