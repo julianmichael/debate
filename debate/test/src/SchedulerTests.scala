@@ -91,4 +91,27 @@ class SchedulerTests extends CatsEffectSuite {
     println("costs.head", costs.head)
     println("costs.last", costs.last)
   }
+
+  test("assignments using full costs are reasonable") {
+    var costs   = Vector.empty[Double]
+    var history = Vector.empty[Debate]
+    for (_ <- 1 to 100) {
+      val newAssignment = getScheduleForNewStory(
+        history = history,
+        numQuestions = 1,
+        debaters = Map(
+          debater1 -> DebaterLoadConstraint(None, None),
+          debater2 -> DebaterLoadConstraint(None, None),
+          debater3 -> DebaterLoadConstraint(None, None)
+        )
+      )
+      assert {
+        newAssignment.size == 1
+      }
+      history = history :+ testDebateOfAssignment(newAssignment.head)
+      val thisCost = getBadnessScore(history = history, newAssignments = newAssignment)
+      costs = costs :+ thisCost
+    }
+    println("for full cost measurement: ", costs)
+  }
 }

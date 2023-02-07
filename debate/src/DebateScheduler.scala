@@ -1,6 +1,7 @@
 package debate
 
 import jjm.implicits._
+import jjm.metrics.Numbers
 
 object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
@@ -77,22 +78,74 @@ object DebateScheduler {
    * this cost is the standard deviation of the number of times each debater has debated. (either as the honest or dishonest debater)
    * 
    */
-  def debaterCost(assignments: Vector[DebateAssignment]): Double = {
-    import jjm.metrics.Numbers
-    val x = Numbers(getNTimesDebated(assignments).values.toVector).stats
-    x.stdev
+  def debaterCost(assignments: Vector[DebateAssignment]): Double =
+    Numbers(getNTimesDebated(assignments).values.toVector).stats.stdev
+
+  def judgeCost(assignments: Vector[DebateAssignment]): Double =
+    Numbers(assignments.map(_.judge).counts.values.toVector).stats.stdev
+
+  def storiesRead(history: Vector[Debate], newAssignments: Vector[DebateAssignment]): Double = {
+    val honestStoriesRead: Map[String, Set[String]] =
+      history
+        .flatMap { debate =>
+          DebateAssignment
+            .ofDebate(debate)
+            .map { assignment =>
+              assignment.honestDebater -> Set(debate.setup.sourceMaterial.title)
+            }
+        }
+        .toMap
+    // TODO someday refactor this, I got into a fight with scalac
+    val dishonestDebatersToStory: Vector[(String, Set[String])] = history.flatMap { debate =>
+      val dba: Option[DebateAssignment]  = DebateAssignment.ofDebate(debate)
+      val dishonestDebaters: Set[String] = dba.map(_.dishonestDebaters).getOrElse(Set.empty)
+      (debate.setup.sourceMaterial.title, dishonestDebaters) :: Nil
+    }
+    val dishonestStoriesRead: Map[String, Set[String]] =
+      dishonestDebatersToStory
+        .flatMap { case (title, dishonestDebaters) =>
+          dishonestDebaters.map { debater =>
+            debater -> Set(title)
+          }
+        }
+        .toMap
+    val countsInNewAssignment: Map[String, Int] =
+      newAssignments
+        .map { assignment =>
+          assignment.honestDebater -> 1
+        }
+        .toMap ++
+        newAssignments
+          .flatMap { assignment =>
+            assignment
+              .dishonestDebaters
+              .map { debater =>
+                debater -> 1
+              }
+          }
+          .toMap
+    val combined: Map[String, Int] = (honestStoriesRead ++ dishonestStoriesRead)
+      .mapValues(_.size)
+      .toMap
+    val storiesReadCounts: Map[String, Int] = combined ++ countsInNewAssignment
+    Numbers(storiesReadCounts.values.toVector).stats.stdev
   }
 
   /** result is non-negative */
-  def getBadnessScore(newAssignments: Vector[DebateAssignment], history: Vector[Debate]): Double = {
+  def getBadnessScore(
+    newAssignments: Vector[DebateAssignment],
+    history: Vector[Debate],
+    judgeScaleDownFactor: Double = 0.3 // TODO is this a good value?
+  ): Double = {
     var cost: Double = 0.0
     val assignments  = history.flatMap(DebateAssignment.ofDebate) ++ newAssignments
     cost = cost + debaterCost(assignments)
-    /*
-    cost =
-      cost +
-        judgeCosts.sum() // TODO how to scale this down? (see the docstring for the main function)
-     */
+    cost = cost + storiesRead(history = history, newAssignments = newAssignments)
+    cost = cost + (judgeCost(assignments) * judgeScaleDownFactor)
+    cost = cost + judgingPerStory(assignments)
+    cost = cost + fractionsHonestWhenDebating(assignments)
+    cost = cost + judgedPerDebater(assignments)
+    cost = cost + debatedOtherDebaters(assignments)
     return cost
   }
 
