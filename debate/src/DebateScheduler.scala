@@ -63,16 +63,14 @@ object DebateScheduler {
     constraint.min.forall(_ <= nParticipating) && constraint.max.forall(_ >= nParticipating)
   }
 
-  def getNTimesDebated(assignments: Vector[DebateAssignment]): Map[String, Int] = assignments
-    .flatMap { assignment =>
-      assignment.dishonestDebaters + assignment.honestDebater
-    }
-    .groupBy { debater =>
-      debater
-    }
-    .map { case (debater, assignments) =>
-      (debater, assignments.length)
-    }
+  def getNTimesDebated(assignments: Vector[DebateAssignment]): Map[String, Int] = {
+    import jjm.implicits._
+    assignments
+      .flatMap { assignment =>
+        assignment.dishonestDebaters + assignment.honestDebater
+      }
+      .counts
+  }
 
   /** 
    * [assignments] is built from history and the new potential assignment.
