@@ -74,8 +74,6 @@ object DebateScheduler {
       (debater, assignments.length)
     }
 
-  // TODO note in the pr that the commits aren't meaningful - feature level review :)
-
   /** 
    * [assignments] is built from history and the new potential assignment.
    * 
