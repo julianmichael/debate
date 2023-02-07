@@ -22,18 +22,31 @@ trait UtilsPlatformExtensions {
   // inclusive
   def clamp(min: Int, value: Int, max: Int): Int = math.min(max, math.max(min, value))
 
+  def tagDelimitedElements[F[_]: Foldable: Functor, A](
+    fa: F[A],
+    getElement: A => VdomElement,
+    delimiter: VdomTag
+  ) = fa.map(x => Vector(getElement(x))).intercalate(Vector(delimiter))
+
+  def tagDelimitedTags[F[_]: Foldable: Functor, A](
+    fa: F[A],
+    getTag: A => VdomTag,
+    delimiter: VdomTag,
+    getKey: Int => Option[String] = i => Some(s"$i")
+  ) = fa
+    .map(x => Vector(getTag(x)))
+    .intercalate(Vector(delimiter))
+    .zipWithIndex
+    .map { case (x, i) =>
+      x(getKey(i).whenDefined(^.key := _))
+    }
+
   def delimitedTags[F[_]: Foldable: Functor, A](
     fa: F[A],
     getTag: A => VdomTag,
     delimiter: String = ", ",
     getKey: Int => Option[String] = i => Some(s"$i")
-  ) = fa
-    .map(x => Vector(getTag(x)))
-    .intercalate(Vector(<.span(delimiter)))
-    .zipWithIndex
-    .map { case (x, i) =>
-      x(getKey(i).whenDefined(^.key := _))
-    }
+  ) = tagDelimitedTags(fa, getTag, <.span(delimiter), getKey)
 
   def delimitedSpans[F[_]: Foldable: Functor](
     fa: F[String],

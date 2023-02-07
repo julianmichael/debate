@@ -175,9 +175,11 @@ object Styles extends jjm.ui.View.Styles {
     overflowX.hidden
   )
 
-  val waitingToBeginStatusLabel = style(color.gold)
-  val inProgressStatusLabel     = style(color.darkorange)
-  val completeStatusLabel       = style(color.darkgreen)
+  val awaitingFeedbackStatusLabel          = style(color.purple)
+  val inProgressStatusLabel                = style(color.darkorange)
+  val eligibleForOfflineJudgingStatusLabel = style(color.grey)
+  val waitingToBeginStatusLabel            = style(color.gold)
+  val completeStatusLabel                  = style(color.darkgreen)
 
   val loading = style(
     gridRow    := "1/-1",
@@ -226,6 +228,9 @@ object Styles extends jjm.ui.View.Styles {
     display.grid,
     gridTemplateColumns := "repeat(auto-fill,minmax(250px, 1fr))"
   )
+
+  val judgmentBarLabel = style(fontSize(8 px), width(50 px))
+  val judgmentBar = style(row, overflow.hidden, fontSize(7 px), height(10 px), borderRadius(5 px))
 
   val profileListContainer = style(
     display.grid,
@@ -505,6 +510,12 @@ object Styles extends jjm.ui.View.Styles {
 
   val correct   = style(color(correctColor))
   val incorrect = style(color(incorrectColor))
+
+  val correctBg   = style(backgroundColor(correctColor))
+  val incorrectBg = style(backgroundColor(incorrectColor))
+
+  val correctBgText   = style(color(white))
+  val incorrectBgText = style(color(white))
 
   val timestampFooter = style(
     marginTop(-.75 rem),

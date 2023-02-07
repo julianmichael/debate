@@ -1,6 +1,8 @@
 package debate
 package view.lobby
 
+import cats.implicits._
+
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
@@ -8,6 +10,72 @@ import scalacss.ScalaCssReact._
 
 import debate.Utils.ClassSetInterpolator
 import debate.util.Local
+
+trait RoomHeading {
+  import RoomHeading._
+
+  override def toString =
+    this match {
+      case AwaitingFeedback =>
+        "awaiting feedback"
+      case EligibleForOfflineJudging =>
+        "eligible for offline judging"
+      case InProgress =>
+        "in progress"
+      case WaitingToBegin =>
+        "waiting to begin"
+      case Complete =>
+        "complete"
+    }
+
+  // def isComplete =
+  //   this match {
+  //     case Complete =>
+  //       true
+  //     case _ =>
+  //       false
+  //   }
+
+  def titleString =
+    this match {
+      case AwaitingFeedback =>
+        "Awaiting Your Feedback"
+      case EligibleForOfflineJudging =>
+        "Eligible for You to Judge"
+      case InProgress =>
+        "In Progress"
+      case WaitingToBegin =>
+        "Waiting to Begin"
+      case Complete =>
+        "Complete"
+    }
+}
+object RoomHeading {
+  case object AwaitingFeedback          extends RoomHeading
+  case object EligibleForOfflineJudging extends RoomHeading
+  case object InProgress                extends RoomHeading
+  case object WaitingToBegin            extends RoomHeading
+  case object Complete                  extends RoomHeading
+
+  def infer(metadata: RoomMetadata, user: String): RoomHeading =
+    metadata.status match {
+      case RoomStatus.InProgress =>
+        InProgress
+      case RoomStatus.WaitingToBegin =>
+        WaitingToBegin
+      case RoomStatus.Complete(_, offlineJudging, feedbackProviders) =>
+        if (metadata.roleAssignments.values.toSet.contains(user)) {
+          if (feedbackProviders.contains(user)) {
+            Complete
+          } else {
+            AwaitingFeedback
+          }
+        } else if (offlineJudging.contains(user)) {
+          Complete
+        } else
+          EligibleForOfflineJudging
+    }
+}
 
 object DebatesPanel {
 
@@ -18,6 +86,7 @@ object DebatesPanel {
     isAdmin: Boolean,
     userName: String,
     isOfficial: Boolean,
+    headings: List[RoomHeading],
     rooms: Set[RoomMetadata],
     connect: ConnectionSpec => Callback,
     sendToMainChannel: MainChannelRequest => Callback
@@ -33,49 +102,59 @@ object DebatesPanel {
           else
             Callback.empty
 
-        val (matchingRooms, nonMatchingRooms) =
-          if (roomNameLive.value.isEmpty)
-            rooms -> Set[RoomMetadata]()
-          else
-            rooms.partition(_.matchesQuery(roomNameLive.value))
+        val metadatasByHeading = rooms.groupBy(RoomHeading.infer(_, userName))
 
-        def makeMetadatas(status: RoomStatus) = {
-          val statusStyle = {
-            import RoomStatus._
-            status match {
-              case WaitingToBegin =>
-                S.waitingToBeginStatusLabel
+        def showMetadatasWithHeading(heading: RoomHeading) = {
+          val headingStyle = {
+            import RoomHeading._
+            heading match {
+              case AwaitingFeedback =>
+                S.awaitingFeedbackStatusLabel
               case InProgress =>
                 S.inProgressStatusLabel
+              case EligibleForOfflineJudging =>
+                S.eligibleForOfflineJudgingStatusLabel
+              case WaitingToBegin =>
+                S.waitingToBeginStatusLabel
               case Complete =>
                 S.completeStatusLabel
             }
           }
-          val hasRooms = rooms.exists(_.status == status)
+          val roomsForHeading = metadatasByHeading.get(heading).combineAll
           ReactFragment(
-            <.h5(statusStyle)(status.titleString),
+            <.h5(headingStyle)(heading.titleString),
             <.div(S.metadataListContainer, S.spaceySubcontainer)(
-              if (!hasRooms) {
+              if (roomsForHeading.isEmpty) {
                 <.div("No rooms to show.")
               } else {
                 def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
                   .toVector
                   .sorted(RoomMetadata.getOrdering(userName))
                   .toVdomArray { case rm: RoomMetadata =>
-                    MetadataBox(
-                      isAdmin = isAdmin,
-                      roomMetadata = rm,
-                      isOfficial = isOfficial,
-                      userName = userName,
-                      sendToMainChannel = sendToMainChannel,
-                      enterRoom = connect
-                    )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+                    Local[Boolean]
+                      .make(heading == RoomHeading.EligibleForOfflineJudging) { hideResults =>
+                        Local[Boolean].make(true) { anonymize =>
+                          MetadataBox(
+                            roomMetadata = rm,
+                            isOfficial = isOfficial,
+                            userName = userName,
+                            isAdmin = isAdmin,
+                            hideResults = hideResults,
+                            anonymize = anonymize,
+                            sendToMainChannel = sendToMainChannel,
+                            enterRoom = connect
+                          )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+                        }
+                      }
                   }
 
-                ReactFragment(
-                  showRooms(matchingRooms.filter(_.status == status), true),
-                  showRooms(nonMatchingRooms.filter(_.status == status), false)
-                )
+                val (matchingRooms, nonMatchingRooms) =
+                  if (roomNameLive.value.isEmpty)
+                    roomsForHeading -> Set[RoomMetadata]()
+                  else
+                    roomsForHeading.partition(_.matchesQuery(roomNameLive.value))
+
+                ReactFragment(showRooms(matchingRooms, true), showRooms(nonMatchingRooms, false))
               }
             )
           )
@@ -89,11 +168,13 @@ object DebatesPanel {
             isEnabled = canEnter,
             enter = enter
           )(^.marginBottom := 1.rem),
-          makeMetadatas(RoomStatus.InProgress),
-          <.div(<.hr),
-          makeMetadatas(RoomStatus.WaitingToBegin),
-          <.div(<.hr),
-          makeMetadatas(RoomStatus.Complete)
+          ReactFragment(
+            Utils.tagDelimitedElements(
+              headings,
+              getElement = showMetadatasWithHeading,
+              delimiter = <.div(<.hr)
+            ): _*
+          )
         )
       }
     )
@@ -106,23 +187,42 @@ object DebatesPanel {
     sendToMainChannel: MainChannelRequest => CallbackTo[Unit]
   ) = {
 
-    val myDebates = lobby.officialRooms.filter(_.roleAssignments.values.toSet.contains(userName))
-
-    def makeTab(isOfficial: Boolean, rooms: Set[RoomMetadata]) = TabNav.tab(
-      debatesTab(
-        isAdmin = isAdmin,
-        userName = userName,
-        isOfficial = isOfficial,
-        rooms = rooms,
-        connect = connect,
-        sendToMainChannel = sendToMainChannel
-      )
+    val (myDebates, notMyDebates) = lobby
+      .officialRooms
+      .partition(_.roleAssignments.values.toSet.contains(userName))
+    import RoomHeading._
+    val liveDebateHeadings     = List(AwaitingFeedback, InProgress, WaitingToBegin, Complete)
+    val offlineJudgingHeadings = List(AwaitingFeedback, EligibleForOfflineJudging, Complete)
+    val allHeadings = List(
+      AwaitingFeedback,
+      InProgress,
+      EligibleForOfflineJudging,
+      WaitingToBegin,
+      Complete
     )
 
+    def makeTab(isOfficial: Boolean, headings: List[RoomHeading], rooms: Set[RoomMetadata]) = TabNav
+      .tab(
+        debatesTab(
+          isAdmin = isAdmin,
+          userName = userName,
+          isOfficial = isOfficial,
+          headings = headings,
+          rooms = rooms,
+          connect = connect,
+          sendToMainChannel = sendToMainChannel
+        )
+      )
+
     TabNav("debate-tab", initialTabIndex = 0)(
-      "My Debates"           -> makeTab(isOfficial = true, rooms = myDebates),
-      "All Official Debates" -> makeTab(isOfficial = true, rooms = lobby.officialRooms),
-      "Practice Debates"     -> makeTab(isOfficial = false, rooms = lobby.practiceRooms)
+      "My Live Debates" ->
+        makeTab(isOfficial = true, headings = liveDebateHeadings, rooms = myDebates),
+      "My Offline Judging" ->
+        makeTab(isOfficial = true, headings = offlineJudgingHeadings, rooms = notMyDebates),
+      "All Official Debates" ->
+        makeTab(isOfficial = true, headings = allHeadings, rooms = lobby.officialRooms),
+      "Practice Debates" ->
+        makeTab(isOfficial = false, headings = allHeadings, rooms = lobby.practiceRooms)
     )
   }
 }

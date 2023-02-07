@@ -2,16 +2,13 @@ package debate
 package view.debate
 
 import cats.implicits._
-
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom.ext.KeyCode
 import scalacss.ScalaCssReact._
-
 import jjm.DotPair
-
 import debate.util.Local
 
 object SpeechInput {
@@ -48,7 +45,7 @@ object SpeechInput {
         debate
           .value
           .rounds
-          .foldMap(_.allSpeeches.toVector.filter(_.speaker.role == role).foldMap(_.content))
+          .foldMap(_.allSpeeches.filter(_._1 == role).values.toVector.foldMap(_.content))
     )
     val totalQuoteLimitExceeded = globalQuoteLimitOpt.exists(globalQuoteNumChars > _)
 
@@ -109,12 +106,11 @@ object SpeechInput {
 
     def debaterSpeechInput(
       // turnType: DebateTurnType { type Input = DebateSpeechContent },
-      giveSpeech: DebateSpeechContent => Debate
+      giveSpeech: DebateSpeech => Debate
     ) = {
       def submit = CallbackTo(System.currentTimeMillis()).flatMap(time =>
-        debate.setState(
-          giveSpeech(DebateSpeechContent(userName, time, currentMessageSpeechSegments))
-        ) >> currentMessage.setState("")
+        debate.setState(giveSpeech(DebateSpeech(userName, time, currentMessageSpeechSegments))) >>
+          currentMessage.setState("")
       )
       <.div(S.col)(
         speechInputPanel(_ => submit, true),
@@ -124,7 +120,7 @@ object SpeechInput {
 
     def judgeSpeechInput(
       turnType: DebateTurnType.JudgeFeedbackTurn,
-      giveSpeech: JudgeFeedbackContent => Debate
+      giveSpeech: JudgeFeedback => Debate
     ) = {
       val turnNum =
         debate
@@ -143,11 +139,13 @@ object SpeechInput {
               CallbackTo(System.currentTimeMillis()).flatMap(time =>
                 debate.setState(
                   giveSpeech(
-                    JudgeFeedbackContent(
-                      speakerName = userName,
-                      timestamp = time,
-                      speech = currentMessageSpeechSegments,
+                    JudgeFeedback(
                       distribution = probs.value,
+                      feedback = DebateSpeech(
+                        speaker = userName,
+                        timestamp = time,
+                        content = currentMessageSpeechSegments
+                      ),
                       endDebate = endDebate
                     )
                   )
@@ -155,7 +153,14 @@ object SpeechInput {
               ) >> currentMessage.setState("")
 
           Local[Boolean].make(false) { consideringContinue =>
-            val barWidthPx = 60
+            val answerIndices = setup.answers.indices
+            val currentScores = answerIndices.map(setup.rules.scoringFunction.eval(turnNum, probs.value, _))
+            val hypotheticalScores = answerIndices.map(setup.rules.scoringFunction.eval(turnNum + 1, probs.value, _))
+            val reqdDeltas = ScoringFunction.deltasForNextTurnToBeWorthwhile(
+              setup.rules.scoringFunction, probs.value, turnNum
+            )
+            val scores = if (consideringContinue.value) hypotheticalScores else currentScores
+            val range = math.max(scores.max, 0) - math.min(scores.min, 0)
 
             <.div(S.row)(
               <.div(S.grow)(
@@ -191,101 +196,26 @@ object SpeechInput {
                     .when(!turnType.mustEndDebate)
                 )
               ),
-              <.div(S.col, ^.width := s"${barWidthPx * setup.answers.size}px") {
-                val currentScores = setup
-                  .answers
-                  .indices
-                  .map(index => setup.rules.scoringFunction.eval(turnNum, probs.value, index))
-                val hypotheticalScores = setup
-                  .answers
-                  .indices
-                  .map(index => setup.rules.scoringFunction.eval(turnNum + 1, probs.value, index))
 
-                val reqdDeltas = ScoringFunction.deltasForNextTurnToBeWorthwhile(
-                  setup.rules.scoringFunction,
-                  probs.value,
-                  turnNum
-                )
-
-                val scores =
-                  if (consideringContinue.value)
-                    hypotheticalScores
-                  else
-                    currentScores
-
-                val maxNegMagnitude = 20.0
-                val min             = math.min(0, math.max(-maxNegMagnitude, scores.min))
-                val range           = setup.rules.scoringFunction.max - min
-                val maxRelScore     = math.abs(setup.rules.scoringFunction.max) / range
-                val maxNegRelScore  = math.min(maxNegMagnitude, math.abs(min)) / range
-                TagMod(
-                  <.div(S.col, S.grow)(
-                    <.div(S.row)(
-                        setup
-                          .answers
-                          .indices
-                          .zip(scores)
-                          .toVdomArray { case (index, _) =>
-                            <.div(S.col, ^.width := s"${barWidthPx}px")(
-                              reqdDeltas(index)
-                                .whenDefined(delta => <.span(f"+${delta * 100}%.0f%%"))
-                            )
-                          }
-                      )
-                      .when(consideringContinue.value),
-                    <.div(S.row, ^.height := f"${maxRelScore * 100}%.2f%%")(
-                      setup
-                        .answers
-                        .indices
-                        .zip(scores)
-                        .toVdomArray { case (index, score) =>
-                          val relScore = math.abs(score) / range
-                          <.div(S.col, ^.width := s"${barWidthPx}px")(
-                            <.div(S.col, S.grow, ^.justifyContent := "flex-end")(
-                                ^.position := "relative",
-                                <.div(f"$$$score%.2f").when(relScore <= 0.10),
-                                <.div(
-                                  S.answerBg(index),
-                                  ^.height := f"${relScore / maxRelScore * 100}%.2f%%",
-                                  <.div(f"$$$score%.2f").when(relScore > 0.10)
-                                )
-                              )
-                              .when(score >= 0.0)
-                          )
-                        }
+              <.div(S.row)(
+                scores.zipWithIndex.toVdomArray { case (score, index) =>
+                  val relScore = math.abs(score) / range
+                  val justify = if (score >= scores.max) "flex-start" else "flex-end"
+                  val (scoreTopMarg, scoreBotMarg) = if (score > 0) ("initial", "auto") else ("auto", "initial")
+                  val deltaPerc = reqdDeltas(index).map(d => f"+${d * 100}%.0f%%").getOrElse("")
+                  <.div(S.col, ^.alignItems := "center")(
+                    <.div(^.fontStyle := "italic", if (consideringContinue.value) deltaPerc else "\u00A0"), // unicode non-breaking space (&nbsp;)
+                    <.div(S.grow, S.col, ^.justifyContent := justify)(
+                      <.div(S.col, S.answerBg(index), ^.alignItems := "center",
+                        ^.height := f"${relScore * 100}%.2f%%", ^.margin := "0", ^.minWidth:="6em")(
+                        <.div(S.answerBg(index), ^.textAlign:="center", ^.marginTop := scoreTopMarg,
+                          ^.marginBottom := scoreBotMarg, ^.color := "white", ^.minWidth:="4em", f"$$$score%.2f")
+                      ),
                     ),
-                    <.div(S.row, ^.height := f"${maxNegRelScore * 100}%.2f%%")(
-                      setup
-                        .answers
-                        .indices
-                        .zip(scores)
-                        .toVdomArray { case (index, score) =>
-                          val relScore = math.min(maxNegMagnitude, math.abs(score)) / range
-                          <.div(S.col, ^.width := s"${barWidthPx}px")(
-                            <.div(S.col, S.grow, ^.justifyContent := "flex-start")(
-                                ^.position := "relative",
-                                <.div(S.col, ^.justifyContent := "flex-end")(
-                                  S.answerBg(index),
-                                  ^.height := f"${relScore / maxNegRelScore * 100}%.2f%%",
-                                  <.div(f"$$$score%.2f").when(relScore < -0.10)
-                                ),
-                                <.div(f"$$$score%.2f").when(relScore >= -0.10)
-                              )
-                              .when(score < 0.0)
-                          )
-                        }
-                    )
-                  ),
-                  <.div(S.row)(
-                    setup
-                      .answers
-                      .indices
-                      .toVdomArray { case index =>
-                        <.div(S.inputRowItem, ^.width := s"${barWidthPx}px")(answerLetter(index))
-                      }
+                    <.div(^.fontWeight:="bold", ^.marginTop := "2em", answerLetter(index))
                   )
-                )
-              }
+                }
+              )
             )
           }
       }

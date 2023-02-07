@@ -1,18 +1,70 @@
 /** Cross-platform code used by both the JVM and JS packages.
   */
 
+import cats.Eval
 import cats.Monad
 import cats.Reducible
+import cats.UnorderedFoldable
 import cats.implicits._
+import cats.kernel.CommutativeMonoid
 
 import io.circe.generic.JsonCodec
 import monocle.Lens
+import monocle.macros.Lenses
 
 import jjm.ling.ESpan
-import cats.UnorderedFoldable
-import cats.kernel.CommutativeMonoid
 
 package object debate extends PackagePlatformExtensions {
+
+  val appDivId = "app"
+
+  @JsonCodec
+  sealed trait DebateEndReason
+  object DebateEndReason {
+    case object JudgeDecided    extends DebateEndReason
+    case object TimeUp          extends DebateEndReason
+    case object MutualAgreement extends DebateEndReason
+  }
+
+  @Lenses
+  @JsonCodec
+  case class JudgingResult(
+    correctAnswerIndex: Int,
+    numContinues: Int,
+    finalJudgement: Vector[Double],
+    judgeReward: Double
+  )
+  object JudgingResult
+
+  @Lenses
+  @JsonCodec
+  case class DebateResult(
+    correctAnswerIndex: Int,
+    endedBy: DebateEndReason,
+    judgingInfo: Option[JudgingResult]
+  )
+  object DebateResult
+
+  @JsonCodec
+  sealed trait OfflineJudgingResult {
+    def judgment: Vector[Double]
+    def explanation: String
+    def timestamp: Long
+  }
+  object OfflineJudgingResult {
+    case class Timed(
+      val judgment: Vector[Double],
+      val explanation: String,
+      val timestamp: Long,
+      timeTakenMillis: Long
+    ) extends OfflineJudgingResult
+    case class Stepped(
+      val judgment: Vector[Double],
+      val explanation: String,
+      val timestamp: Long,
+      numContinues: Int
+    )
+  }
 
   @JsonCodec
   sealed trait DebateStateUpdateRequest
@@ -30,43 +82,6 @@ package object debate extends PackagePlatformExtensions {
       extends MainChannelRequest
   case class DeleteRoom(isOfficial: Boolean, roomName: String) extends MainChannelRequest
 
-  @JsonCodec
-  sealed trait RoomStatus {
-    import RoomStatus._
-    override def toString =
-      this match {
-        case WaitingToBegin =>
-          "waiting to begin"
-        case InProgress =>
-          "in progress"
-        case Complete =>
-          "complete"
-      }
-
-    def isComplete =
-      this match {
-        case Complete =>
-          true
-        case _ =>
-          false
-      }
-
-    def titleString =
-      this match {
-        case WaitingToBegin =>
-          "Waiting to Begin"
-        case InProgress =>
-          "In Progress"
-        case Complete =>
-          "Complete"
-      }
-  }
-  object RoomStatus {
-    case object WaitingToBegin extends RoomStatus
-    case object InProgress     extends RoomStatus
-    case object Complete       extends RoomStatus
-  }
-
   def makePageTitle(x: String) =
     Option(x.trim).filter(_.nonEmpty).map(_ + " | ").combineAll + "Debate"
 
@@ -81,12 +96,20 @@ package object debate extends PackagePlatformExtensions {
     def -->(b: => Boolean) = !a || b
   }
 
+  private val orEvalMonoid: CommutativeMonoid[Eval[Boolean]] =
+    new CommutativeMonoid[Eval[Boolean]] {
+      val empty: Eval[Boolean] = Eval.False
+      def combine(lx: Eval[Boolean], ly: Eval[Boolean]): Eval[Boolean] = lx.flatMap {
+        case true =>
+          Eval.True
+        case false =>
+          ly
+      }
+    }
+
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {
-    // TODO: use laziness correctly here. I can't wrap my head around proper use of Eval
     def existsAs(p: PartialFunction[A, Boolean]): Boolean =
-      fa.unorderedFoldMap(p)(CommutativeMonoid.instance(false, _ || _))
-    // fa.foldRight(Eval.False)((a, exEval) => exEval.map(ex => p.lift(a).getOrElse(false) || ex))
-    //   .value
+      fa.unorderedFoldMap(a => Eval.later(p.lift(a).getOrElse(false)))(orEvalMonoid).value
   }
 
   implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {

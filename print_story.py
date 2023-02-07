@@ -5,6 +5,23 @@ import re
 file = sys.argv[1]
 title = sys.argv[2]
 
+story_data = {}
+i = 0
+with open(file) as f:
+    for line in f:
+        story = json.loads(line)
+        article_id = story['article_id']
+        if article_id in story_data:
+            story_data[article_id]['questions'].extend(story['questions'])
+        else:
+            story_data[article_id] = story
+
+        print(type(story['questions']))
+        print(len(story_data))
+        i = i + 1
+        if i >= 5:
+            exit(0)
+
 story_data = []
 with open(file) as f:
     for line in f:
@@ -17,13 +34,13 @@ if not story_data:
 
 
 spacing_tags = [
-        '<h1>', '<h2>',
-        '</h1>', '</h2>', '</p>', '<p>',
-        '<i>', '</i>', '<html>', '</html>',
-        '<p class="ph3">'
+    '<h1>', '<h2>',
+    '</h1>', '</h2>', '</p>', '<p>',
+    '<i>', '</i>', '<html>', '</html>',
+    '<p class="ph3">'
 ]
 
-#print(story)
+# print(story)
 story = story_data[0]['article']
 prev_story_iter = None
 story = re.sub(r'[\n ]+<i>[\n ]+(.*?)[\n ]+</i>[\n ]+', ' *\\1* ', story)

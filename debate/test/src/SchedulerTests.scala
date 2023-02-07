@@ -65,7 +65,8 @@ class SchedulerTests extends CatsEffectSuite {
 
   def testDebateOfAssignment(assignment: DebateAssignment) = Debate(
     setup = testDebateSetup(assignment),
-    rounds = Vector.empty[DebateRound]
+    rounds = Vector.empty[DebateRound], 
+    offlineJudgingResults = Map(), feedback = Map()
   )
 
   test("the costs go down over time") {

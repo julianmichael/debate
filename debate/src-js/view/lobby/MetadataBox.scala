@@ -15,6 +15,7 @@ import scalacss.ScalaCssReact._
 
 import jjm.implicits._
 import jjm.ui.Rgba
+import japgolly.scalajs.react.extra.StateSnapshot
 
 object MetadataBox {
   import Utils.ClassSetInterpolator
@@ -60,22 +61,31 @@ object MetadataBox {
     }
 
   def apply(
-    isAdmin: Boolean,
     roomMetadata: RoomMetadata,
     isOfficial: Boolean,
     userName: String,
+    isAdmin: Boolean,
+    hideResults: StateSnapshot[Boolean],
+    anonymize: StateSnapshot[Boolean],
     enterRoom: ConnectionSpec => CallbackTo[Unit],
     sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
   ) = {
     val canEnterRoom = userName.nonEmpty // &&
     // !roomMetadata.currentParticipants.contains(userName)
 
-    case class ResultDescription(label: VdomNode, bgStyle: TagMod)
+    case class ResultDescription(
+      label: VdomNode,
+      bgStyle: TagMod,
+      offlineResults: Option[VdomNode],
+      feedbackNotice: Option[VdomNode]
+    )
 
-    val resultDescriptionOpt = roomMetadata
-      .result
+    val resultDescriptionOpt = RoomStatus
+      .complete
+      .getOption(roomMetadata.status)
+      .filter(_ => !hideResults.value)
       // .flatMap(_.judgingInfo)
-      .map { result =>
+      .map { case RoomStatus.Complete(result, offlineJudgingResults, feedbackProviders) =>
         val endedBy = <.span(
           <.span(c"text-muted")("Ended by "),
           <.span(getDebateEndReasonStyle(result.endedBy))(
@@ -115,33 +125,96 @@ object MetadataBox {
             label
           }
 
+        def getColorFromCorrectnessScore(correctnessScore: Double) = {
+          val opacity = math.abs(correctnessScore - 0.5)
+          val color =
+            if (correctnessScore > 0.5)
+              Rgba(0, 128, 0, opacity) // green
+            else
+              Rgba(220, 20, 60, opacity) // crimson
+          color
+        }
+
+        def getBgColorModFromJudgment(judgment: Vector[Double]) = {
+          val correctConfidence = judgment(result.correctAnswerIndex) * 100
+          val otherConfidences  = judgment.remove(result.correctAnswerIndex).sortBy(-_).map(_ * 100)
+
+          otherConfidences.headOption match {
+            case None =>
+              TagMod.empty
+            case Some(secondGuessConfidence) =>
+              val correctnessScore = correctConfidence / (correctConfidence + secondGuessConfidence)
+              TagMod(
+                ^.backgroundColor :=
+                  getColorFromCorrectnessScore(correctnessScore).toColorStyleString
+              )
+          }
+        }
+
         val style =
           result.judgingInfo match {
             case None =>
-              TagMod(^.backgroundColor := "#eee")
+              if (offlineJudgingResults.nonEmpty) {
+                val avgJudgment =
+                  offlineJudgingResults
+                    .map(_._2.judgment)
+                    .view
+                    .transpose
+                    .map(v => v.sum / v.size)
+                    .toVector
+                getBgColorModFromJudgment(avgJudgment)
+              } else
+                TagMod(^.backgroundColor := "#eee")
             case Some(info) =>
-              val correctConfidence = info.finalJudgement(info.correctAnswerIndex) * 100
-              val otherConfidences = info
-                .finalJudgement
-                .remove(info.correctAnswerIndex)
-                .sortBy(-_)
-                .map(_ * 100)
-
-              otherConfidences.headOption match {
-                case None =>
-                  TagMod.empty
-                case Some(secondGuessConfidence) =>
-                  val correctnessScore =
-                    correctConfidence / (correctConfidence + secondGuessConfidence)
-                  val opacity = math.abs(correctnessScore - 0.5)
-                  val color =
-                    if (correctnessScore > 0.5)
-                      Rgba(0, 128, 0, opacity) // green
-                    else
-                      Rgba(220, 20, 60, opacity) // crimson
-                  TagMod(^.backgroundColor := color.toColorStyleString)
-              }
+              getBgColorModFromJudgment(info.finalJudgement)
           }
+
+        val offlineResults = Option {
+          val judgmentElements = offlineJudgingResults
+            .toVector
+            .sortBy(_._2.timestamp)
+            .map { case (judge, judgment) =>
+              val pctCorrect         = judgment.judgment(result.correctAnswerIndex) * 100.0
+              val pctCorrectString   = f"$pctCorrect%.0f%%"
+              val pctIncorrect       = 100.0 - pctCorrect
+              val pctIncorrectString = f"$pctIncorrect%.0f%%"
+              judge ->
+                <.div(
+                  ^.key := s"offline-judgment-$judge",
+                  <.div(S.judgmentBar)(
+                    <.div(S.correctBg, ^.width := pctCorrectString)(
+                      <.span(S.correctBgText, c"ml-1")(pctCorrectString)
+                    ),
+                    <.div(S.incorrectBg, ^.width := pctIncorrectString)(
+                      <.span(S.incorrectBgText, c"ml-1")(pctIncorrectString)
+                    )
+                  )
+                )
+            }
+
+          val judgmentsDisplay =
+            if (anonymize.value) {
+              judgmentElements.map(_._2).toVdomArray
+            } else
+              judgmentElements.toVdomArray { case (judge, bar) =>
+                <.div(S.row, ^.key := s"offline-judge-$judge")(
+                  <.div(S.judgmentBarLabel)(judge.takeWhile(_ != ' ')),
+                  <.div(c"w-100")(bar)
+                )
+              }
+
+          <.div(<.div(c"small text-center mt-1")("Offline Judgments"), judgmentsDisplay)
+        }.filter(_ => offlineJudgingResults.nonEmpty)
+
+        val peopleMissingFeedback =
+          (roomMetadata.roleAssignments.values.toSet ++ offlineJudgingResults.keySet) --
+            feedbackProviders
+        val feedbackNotice = Option(
+          <.div(
+            <.span(S.awaitingFeedbackStatusLabel)("Awaiting feedback from: "),
+            Utils.delimitedSpans(peopleMissingFeedback.toList.sorted).toVdomArray
+          )
+        ).filter(_ => !anonymize.value && peopleMissingFeedback.nonEmpty)
 
         ResultDescription(
           overUnderOpt match {
@@ -150,7 +223,9 @@ object MetadataBox {
             case None =>
               endedBy
           },
-          style
+          style,
+          offlineResults,
+          feedbackNotice
         )
       }
 
@@ -274,14 +349,23 @@ object MetadataBox {
       )
     }
 
-    val presentParticipants = <
-      .div(
-        "Present: ",
-        Utils.delimitedSpans(roomMetadata.currentParticipants.toList.sorted).toVdomArray
-      )
-      .when(roomMetadata.currentParticipants.nonEmpty)
+    val presentParticipants = {
 
-    val deleteRoom =
+      val participants =
+        if (anonymize.value) {
+          roomMetadata
+            .currentParticipants
+            .view
+            .flatMap(name => roomMetadata.roleAssignments.find(_._2 == name).map(_._1))
+            .map(_.toString)
+            .toList
+            .sorted
+        } else
+          roomMetadata.currentParticipants.toList.sorted
+      <.div("Present: ", Utils.delimitedSpans(participants).toVdomArray).when(participants.nonEmpty)
+    }
+
+    val deleteRoomButton =
       <.button(c"btn btn-sm btn-outline-danger")(
         <.i(c"bi bi-x"),
         " Delete",
@@ -291,6 +375,27 @@ object MetadataBox {
             sendToMainChannel(DeleteRoom(isOfficial, roomMetadata.name))
           })
       )
+
+    def inspectButton(text: String, toggle: StateSnapshot[Boolean]) = {
+      val icon =
+        if (toggle.value)
+          "bi-eye-slash"
+        else
+          "bi-eye"
+
+      <.button(c"btn btn-sm btn-outline-primary mr-1")(
+        <.i(c"bi $icon"),
+        s" $text",
+        ^.onClick ==>
+          ((e: ReactMouseEvent) => {
+            e.stopPropagation();
+            toggle.modState(!_)
+          })
+      )
+    }
+
+    val inspectPeopleButton  = inspectButton("People", anonymize)
+    val inspectResultsButton = inspectButton("Results", hideResults)
 
     val timeDisplay = {
 
@@ -339,10 +444,14 @@ object MetadataBox {
         boxTitle,
         <.div(c"card-text", c"mb-3".when(isAdmin))(
           storyTitle,
-          roleAssignments,
-          presentParticipants
+          roleAssignments.when(!anonymize.value),
+          presentParticipants,
+          resultDescriptionOpt.map(_.offlineResults),
+          resultDescriptionOpt.map(_.feedbackNotice)
         ),
-        deleteRoom.when(isAdmin)
+        inspectPeopleButton.when(isAdmin),
+        inspectResultsButton.when(isAdmin),
+        deleteRoomButton.when(isAdmin)
       ),
       <.div(S.timestampFooter)(timeDisplay),
       (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName)))
