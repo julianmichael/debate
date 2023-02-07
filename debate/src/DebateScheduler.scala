@@ -58,20 +58,9 @@ object DebateScheduler {
   def isAssignmentValid(
     assignment: Vector[DebateAssignment],
     debaters: Map[String, DebaterLoadConstraint]
-  ): Boolean = {
-    for (debater <- debaters.keys) {
-      val constraint = debaters(debater)
-      val nParticipanting = assignment.count {
-        _.isAssigned(debater)
-      }
-      if (constraint.max.isDefined && constraint.max.get < nParticipanting) {
-        return false
-      }
-      if (constraint.min.isDefined && constraint.min.get > nParticipanting) {
-        return false
-      }
-    }
-    return true
+  ): Boolean = debaters.forall { case (debater, constraint) =>
+    val nParticipating = assignment.count(_.isAssigned(debater))
+    constraint.min.forall(_ <= nParticipating) && constraint.max.forall(_ >= nParticipating)
   }
 
   def getNTimesDebated(assignments: Vector[DebateAssignment]): Map[String, Int] = assignments
