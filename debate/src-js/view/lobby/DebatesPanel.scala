@@ -92,90 +92,93 @@ object DebatesPanel {
     sendToMainChannel: MainChannelRequest => Callback
   ) =
     <.div(c"card-body", S.spaceySubcontainer)(
-      Local[String].syncedWithSessionStorage("room-name-search", "") { roomNameLive =>
-        val canEnter =
-          roomNameLive.value.nonEmpty && userName.nonEmpty &&
-            rooms.exists(_.name == roomNameLive.value)
-        val enter =
-          if (canEnter)
-            connect(ConnectionSpec(isOfficial, roomNameLive.value, userName))
-          else
-            Callback.empty
+      Local[Boolean].make(true) { anonymizeAll =>
+        Local[String].syncedWithSessionStorage("room-name-search", "") { roomNameLive =>
+          val canEnter =
+            roomNameLive.value.nonEmpty && userName.nonEmpty &&
+              rooms.exists(_.name == roomNameLive.value)
+          val enter =
+            if (canEnter)
+              connect(ConnectionSpec(isOfficial, roomNameLive.value, userName))
+            else
+              Callback.empty
 
-        val metadatasByHeading = rooms.groupBy(RoomHeading.infer(_, userName))
+          val metadatasByHeading = rooms.groupBy(RoomHeading.infer(_, userName))
 
-        def showMetadatasWithHeading(heading: RoomHeading) = {
-          val headingStyle = {
-            import RoomHeading._
-            heading match {
-              case AwaitingFeedback =>
-                S.awaitingFeedbackStatusLabel
-              case InProgress =>
-                S.inProgressStatusLabel
-              case EligibleForOfflineJudging =>
-                S.eligibleForOfflineJudgingStatusLabel
-              case WaitingToBegin =>
-                S.waitingToBeginStatusLabel
-              case Complete =>
-                S.completeStatusLabel
-            }
-          }
-          val roomsForHeading = metadatasByHeading.get(heading).combineAll
-          ReactFragment(
-            <.h5(headingStyle)(heading.titleString),
-            <.div(S.metadataListContainer, S.spaceySubcontainer)(
-              if (roomsForHeading.isEmpty) {
-                <.div("No rooms to show.")
-              } else {
-                def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
-                  .toVector
-                  .sorted(RoomMetadata.getOrdering(userName))
-                  .toVdomArray { case rm: RoomMetadata =>
-                    Local[Boolean]
-                      .make(heading == RoomHeading.EligibleForOfflineJudging) { hideResults =>
-                        Local[Boolean].make(true) { anonymize =>
-                          MetadataBox(
-                            roomMetadata = rm,
-                            isOfficial = isOfficial,
-                            userName = userName,
-                            isAdmin = isAdmin,
-                            hideResults = hideResults,
-                            anonymize = anonymize,
-                            sendToMainChannel = sendToMainChannel,
-                            enterRoom = connect
-                          )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
-                        }
-                      }
-                  }
-
-                val (matchingRooms, nonMatchingRooms) =
-                  if (roomNameLive.value.isEmpty)
-                    roomsForHeading -> Set[RoomMetadata]()
-                  else
-                    roomsForHeading.partition(_.matchesQuery(roomNameLive.value))
-
-                ReactFragment(showRooms(matchingRooms, true), showRooms(nonMatchingRooms, false))
+          def showMetadatasWithHeading(heading: RoomHeading) = {
+            val headingStyle = {
+              import RoomHeading._
+              heading match {
+                case AwaitingFeedback =>
+                  S.awaitingFeedbackStatusLabel
+                case InProgress =>
+                  S.inProgressStatusLabel
+                case EligibleForOfflineJudging =>
+                  S.eligibleForOfflineJudgingStatusLabel
+                case WaitingToBegin =>
+                  S.waitingToBeginStatusLabel
+                case Complete =>
+                  S.completeStatusLabel
               }
+            }
+            val roomsForHeading = metadatasByHeading.get(heading).combineAll
+            ReactFragment(
+              <.h5(headingStyle)(heading.titleString),
+              <.div(S.metadataListContainer, S.spaceySubcontainer)(
+                if (roomsForHeading.isEmpty) {
+                  <.div("No rooms to show.")
+                } else {
+                  def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
+                    .toVector
+                    .sorted(RoomMetadata.getOrdering(userName))
+                    .toVdomArray { case rm: RoomMetadata =>
+                      Local[Boolean]
+                        .make(heading == RoomHeading.EligibleForOfflineJudging) { hideResults =>
+                          Local[Boolean].make(true) { anonymize =>
+                            MetadataBox(
+                              roomMetadata = rm,
+                              isOfficial = isOfficial,
+                              userName = userName,
+                              isAdmin = isAdmin,
+                              hideResults = hideResults,
+                              anonymize = anonymize,
+                              sendToMainChannel = sendToMainChannel,
+                              enterRoom = connect
+                            )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+                          }
+                        }
+                    }
+
+                  val (matchingRooms, nonMatchingRooms) =
+                    if (roomNameLive.value.isEmpty)
+                      roomsForHeading -> Set[RoomMetadata]()
+                    else
+                      roomsForHeading
+                        .partition(_.matchesQuery(roomNameLive.value, anonymizeAll.value))
+
+                  ReactFragment(showRooms(matchingRooms, true), showRooms(nonMatchingRooms, false))
+                }
+              )
+            )
+          }
+
+          ReactFragment(
+            Utils.textInputWithEnterButton(
+              field = roomNameLive,
+              placeholderOpt = Some("Room"),
+              buttonContent = "Join",
+              isEnabled = canEnter,
+              enter = enter
+            )(^.marginBottom := 1.rem),
+            ReactFragment(
+              Utils.tagDelimitedElements(
+                headings,
+                getElement = showMetadatasWithHeading,
+                delimiter = <.div(<.hr)
+              ): _*
             )
           )
         }
-
-        ReactFragment(
-          Utils.textInputWithEnterButton(
-            field = roomNameLive,
-            placeholderOpt = Some("Room"),
-            buttonContent = "Join",
-            isEnabled = canEnter,
-            enter = enter
-          )(^.marginBottom := 1.rem),
-          ReactFragment(
-            Utils.tagDelimitedElements(
-              headings,
-              getElement = showMetadatasWithHeading,
-              delimiter = <.div(<.hr)
-            ): _*
-          )
-        )
       }
     )
 

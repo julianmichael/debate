@@ -35,10 +35,16 @@ case class RoomMetadata(
 ) {
   def result = RoomStatus.complete.getOption(status).map(_.result)
 
-  def matchesQuery(query: String) = itemMatchesKeywordQuery(
-    itemTerms = roleAssignments.values.toSet ++ currentParticipants + name + status.toString,
-    queryKeywords = query.split("\\s+").toSet
-  )
+  def matchesQuery(query: String, anonymize: Boolean) = {
+    val itemTerms =
+      Set(name, storyTitle) ++
+        (if (anonymize)
+           Set[String]()
+         else
+           roleAssignments.values.toSet ++ currentParticipants)
+
+    itemMatchesKeywordQuery(itemTerms = itemTerms, queryKeywords = query.split("\\s+").toSet)
+  }
 
 }
 object RoomMetadata {
