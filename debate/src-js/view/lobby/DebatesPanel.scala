@@ -131,16 +131,21 @@ object DebatesPanel {
                   .toVector
                   .sorted(RoomMetadata.getOrdering(userName))
                   .toVdomArray { case rm: RoomMetadata =>
-                    MetadataBox(
-                      roomMetadata = rm,
-                      isOfficial = isOfficial,
-                      userName = userName,
-                      isAdmin = isAdmin,
-                      hideResults = heading == RoomHeading.EligibleForOfflineJudging,
-                      anonymize = true, // TODO let admin modify this
-                      sendToMainChannel = sendToMainChannel,
-                      enterRoom = connect
-                    )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+                    Local[Boolean]
+                      .make(heading == RoomHeading.EligibleForOfflineJudging) { hideResults =>
+                        Local[Boolean].make(true) { anonymize =>
+                          MetadataBox(
+                            roomMetadata = rm,
+                            isOfficial = isOfficial,
+                            userName = userName,
+                            isAdmin = isAdmin,
+                            hideResults = hideResults,
+                            anonymize = anonymize,
+                            sendToMainChannel = sendToMainChannel,
+                            enterRoom = connect
+                          )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+                        }
+                      }
                   }
 
                 val (matchingRooms, nonMatchingRooms) =

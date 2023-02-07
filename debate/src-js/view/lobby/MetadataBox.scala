@@ -15,6 +15,7 @@ import scalacss.ScalaCssReact._
 
 import jjm.implicits._
 import jjm.ui.Rgba
+import japgolly.scalajs.react.extra.StateSnapshot
 
 object MetadataBox {
   import Utils.ClassSetInterpolator
@@ -64,8 +65,8 @@ object MetadataBox {
     isOfficial: Boolean,
     userName: String,
     isAdmin: Boolean,
-    hideResults: Boolean,
-    anonymize: Boolean,
+    hideResults: StateSnapshot[Boolean],
+    anonymize: StateSnapshot[Boolean],
     enterRoom: ConnectionSpec => CallbackTo[Unit],
     sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
   ) = {
@@ -82,7 +83,7 @@ object MetadataBox {
     val resultDescriptionOpt = RoomStatus
       .complete
       .getOption(roomMetadata.status)
-      .filter(_ => !hideResults)
+      .filter(_ => !hideResults.value)
       // .flatMap(_.judgingInfo)
       .map { case RoomStatus.Complete(result, offlineJudgingResults, feedbackProviders) =>
         val endedBy = <.span(
@@ -192,7 +193,7 @@ object MetadataBox {
             }
 
           val judgmentsDisplay =
-            if (anonymize) {
+            if (anonymize.value) {
               judgmentElements.map(_._2).toVdomArray
             } else
               judgmentElements.toVdomArray { case (judge, bar) =>
@@ -343,7 +344,7 @@ object MetadataBox {
     val presentParticipants = {
 
       val participants =
-        if (anonymize) {
+        if (anonymize.value) {
           roomMetadata
             .currentParticipants
             .view
@@ -356,7 +357,7 @@ object MetadataBox {
       <.div("Present: ", Utils.delimitedSpans(participants).toVdomArray).when(participants.nonEmpty)
     }
 
-    val deleteRoom =
+    val deleteRoomButton =
       <.button(c"btn btn-sm btn-outline-danger")(
         <.i(c"bi bi-x"),
         " Delete",
@@ -366,6 +367,27 @@ object MetadataBox {
             sendToMainChannel(DeleteRoom(isOfficial, roomMetadata.name))
           })
       )
+
+    def inspectButton(text: String, toggle: StateSnapshot[Boolean]) = {
+      val icon =
+        if (toggle.value)
+          "bi-eye"
+        else
+          "bi-eye-slash"
+
+      <.button(c"btn btn-sm btn-outline-primary mr-1")(
+        <.i(c"bi $icon"),
+        s" $text",
+        ^.onClick ==>
+          ((e: ReactMouseEvent) => {
+            e.stopPropagation();
+            toggle.modState(!_)
+          })
+      )
+    }
+
+    val inspectPeopleButton  = inspectButton("People", anonymize)
+    val inspectResultsButton = inspectButton("Results", hideResults)
 
     val timeDisplay = {
 
@@ -414,12 +436,14 @@ object MetadataBox {
         boxTitle,
         <.div(c"card-text", c"mb-3".when(isAdmin))(
           storyTitle,
-          roleAssignments.when(!anonymize),
+          roleAssignments.when(!anonymize.value),
           presentParticipants,
           resultDescriptionOpt.map(_.offlineResults),
           resultDescriptionOpt.map(_.feedbackNotice)
         ),
-        deleteRoom.when(isAdmin)
+        inspectPeopleButton.when(isAdmin),
+        inspectResultsButton.when(isAdmin),
+        deleteRoomButton.when(isAdmin)
       ),
       <.div(S.timestampFooter)(timeDisplay),
       (^.onClick --> enterRoom(ConnectionSpec(isOfficial, roomMetadata.name, userName)))
