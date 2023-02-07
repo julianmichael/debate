@@ -133,8 +133,8 @@ object DebateScheduler {
     allPossibleQuestionAssignments.toVector.combinations(numQuestions).toVector
   }
 
-  def randomIndexOverProbabilities(probabilities: Vector[Double]): Int = {
-    val randomDouble = scala.util.Random.nextDouble()
+  def sample(probabilities: Vector[Double], rng: scala.util.Random = scala.util.Random): Int = {
+    val randomDouble = rng.nextDouble()
     var sum          = 0.0
     for (i <- probabilities.indices) {
       sum += probabilities(i)
@@ -204,7 +204,7 @@ object DebateScheduler {
     val probabilities = correspondingCosts.map { cost =>
       math.exp(cost) / sumOfExps
     }
-    val index = randomIndexOverProbabilities(probabilities)
+    val index = sample(probabilities)
     return allAssignmentsThatMeetConstraints(index)
   }
 }
