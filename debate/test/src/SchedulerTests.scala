@@ -21,7 +21,6 @@ class SchedulerTests extends CatsEffectSuite {
       debaters = debaters
     )
     assert {
-      // TODO type system for encoding length
       assignments.size == numQuestions;
       assignments.forall { assignment =>
         assignment.honestDebater != assignment.judge &&
