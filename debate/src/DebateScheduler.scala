@@ -1,5 +1,7 @@
 package debate
 
+import jjm.implicits._
+
 object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
 
@@ -63,14 +65,12 @@ object DebateScheduler {
     constraint.min.forall(_ <= nParticipating) && constraint.max.forall(_ >= nParticipating)
   }
 
-  def getNTimesDebated(assignments: Vector[DebateAssignment]): Map[String, Int] = {
-    import jjm.implicits._
+  def getNTimesDebated(assignments: Vector[DebateAssignment]): Map[String, Int] =
     assignments
       .flatMap { assignment =>
         assignment.dishonestDebaters + assignment.honestDebater
       }
       .counts
-  }
 
   /** 
    * [assignments] is built from history and the new potential assignment.
