@@ -38,7 +38,7 @@ class SchedulerTests extends CatsEffectSuite {
       assignment.dishonestDebaters.map(Debater(1 + correctAnswerIndex) -> _).toMap
     val roles: Map[DebateRole, String] =
       dishonestRoles +
-        (Debater(correctAnswerIndex) -> assignment.dishonestDebaters.head) +
+        (Debater(correctAnswerIndex) -> assignment.honestDebater) +
         (Judge                       -> assignment.judge)
 
     DebateSetup(
@@ -114,7 +114,7 @@ class SchedulerTests extends CatsEffectSuite {
     }
     println("for full cost measurement: ", costs)
     println(
-      "for full cost measurement, all assignments: ",
+      "for full cost measurement, all assignments: \n\n",
       history.map(DebateAssignment.ofDebate).map(o => o.map(_.toPrettyString))
     )
   }

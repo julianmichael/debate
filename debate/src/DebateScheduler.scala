@@ -6,28 +6,20 @@ import jjm.metrics.Numbers
 object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
 
+  /** Don't use this directly, use [DebateAssignment.apply] instead */
   class DebateAssignment(
     val honestDebater: String,
     val dishonestDebaters: Set[String],
     val judge: String
   ) {
-    def apply(
-      honestDebater: String,
-      dishonestDebaters: Set[String],
-      judge: String
-    ): DebateAssignment = {
-      throw new IllegalArgumentException("Use DebateAssignment.apply instead")
 
-      if (honestDebater == judge)
-        throw new IllegalArgumentException("Honest debater and judge cannot be the same person")
-      if (dishonestDebaters.contains(judge))
-        throw new IllegalArgumentException("Dishonest debaters and judge cannot be the same person")
-      if (dishonestDebaters.contains(honestDebater))
-        throw new IllegalArgumentException(
-          "Honest debater and dishonest debaters cannot be the same person"
-        )
-      new DebateAssignment(honestDebater, dishonestDebaters, judge)
-    }
+    /*
+
+    val honestDebater: String,
+    val dishonestDebaters: Set[String],
+    val judge: String)
+
+     */
 
     def isAssigned(debater: String): Boolean =
       honestDebater == debater || dishonestDebaters.contains(debater) || judge == debater
@@ -39,6 +31,23 @@ object DebateScheduler {
   }
 
   object DebateAssignment {
+    def apply(
+      honestDebater: String,
+      dishonestDebaters: Set[String],
+      judge: String
+    ): DebateAssignment = {
+      if (honestDebater == judge)
+        throw new IllegalArgumentException("Honest debater and judge cannot be the same person")
+      if (dishonestDebaters.contains(judge))
+        throw new IllegalArgumentException("Dishonest debaters and judge cannot be the same person")
+      if (dishonestDebaters.contains(honestDebater))
+        throw new IllegalArgumentException(
+          s"Honest debater and dishonest debaters cannot be the same person (honest = $honestDebater, dishonest = ${dishonestDebaters
+              .mkString(", ")})"
+        )
+      new DebateAssignment(honestDebater, dishonestDebaters, judge)
+    }
+
     // Used in [ofDebate]
     private def honestDebaterAssignment(d: Debate): Option[String] = d
       .setup
@@ -244,19 +253,29 @@ object DebateScheduler {
   }
 
   // TODO unit test this function
-  def generateAllPossibleQuestionAssignments(debaters: Set[String]): Iterable[DebateAssignment] =
+  def generateAllPossibleQuestionAssignments(debaters: Set[String]): Iterable[DebateAssignment] = {
     // TODO someday add some validation for the strings in the debaters map and the history
-    for {
-      honestDebater <- debaters
-      judge         <- debaters
-      if honestDebater != judge
-      allDishonestDebaters = debaters.toSet - honestDebater - judge
-      dishonestDebaters <- allDishonestDebaters.toSeq.combinations(debaters.size - 2).map(_.toSet)
-    } yield DebateAssignment(
-      honestDebater = honestDebater,
-      dishonestDebaters = dishonestDebaters,
-      judge = judge
-    )
+    // TODO i tried this the elegant way and it didn't work :( (put it back)
+    var result = Vector[DebateAssignment]()
+    for (honestDebater <- debaters)
+      for (judge <- debaters - honestDebater) {
+        val allDishonestDebaters = debaters - honestDebater - judge
+        for (
+          dishonestDebaters <- allDishonestDebaters
+            .toSeq
+            .combinations(debaters.size - 2)
+            .map(_.toSet)
+        )
+          result =
+            result :+
+              DebateAssignment(
+                honestDebater = honestDebater,
+                dishonestDebaters = dishonestDebaters,
+                judge = judge
+              )
+      }
+    result
+  }
 
   def generateAllAssignments(
     numQuestions: Int,
