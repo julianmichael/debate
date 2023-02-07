@@ -55,7 +55,6 @@ object DebateScheduler {
         judge = judge
       )
   }
-  // TODO do we need to obey the constraints on the number of judges and dishonest debaters? (present in the debates in the history)
 
   def isAssignmentValid(
     assignments: Vector[DebateAssignment],
@@ -79,17 +78,9 @@ object DebateScheduler {
    * 
    */
   def debaterCost(assignments: Vector[DebateAssignment]): Double = {
-    val nTimesDebated: Map[String, Int] = getNTimesDebated(assignments)
-    val totalN                          = nTimesDebated.values.sum
-    val stdDev = math.sqrt(
-      nTimesDebated
-        .values
-        .map { n =>
-          math.pow(n - 1, 2)
-        }
-        .sum / totalN
-    )
-    return stdDev
+    import jjm.metrics.Numbers
+    val x = Numbers(getNTimesDebated(assignments).values.toVector).stats
+    x.stdev
   }
 
   /** result is non-negative */
