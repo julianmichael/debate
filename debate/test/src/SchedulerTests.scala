@@ -65,8 +65,9 @@ class SchedulerTests extends CatsEffectSuite {
 
   def testDebateOfAssignment(assignment: DebateAssignment) = Debate(
     setup = testDebateSetup(assignment),
-    rounds = Vector.empty[DebateRound], 
-    offlineJudgingResults = Map(), feedback = Map()
+    rounds = Vector.empty[DebateRound],
+    offlineJudgingResults = Map(),
+    feedback = Map()
   )
 
   test("the costs go down over time") {
@@ -88,8 +89,8 @@ class SchedulerTests extends CatsEffectSuite {
       assert {
         newAssignment.size == 1
       }
-      // TODO lol right now the costs are increasing :)
       history = history :+ testDebateOfAssignment(newAssignment.head)
+      // TODO generalize this cost- this just counts the number of times a debater has been in a debate
       val thisCost = debaterCost(history.map(DebateAssignment.ofDebate).flatten)
       val thisN    = getNTimesDebated(history.map(DebateAssignment.ofDebate).flatten)
       costs = costs :+ thisCost

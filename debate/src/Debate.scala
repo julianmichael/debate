@@ -29,25 +29,6 @@ case class Debate(
 ) {
   import Debate.DebateTransitionSet
 
-  def honestDebaterAssignment: Option[String] = setup.roles.get(Debater(setup.correctAnswerIndex))
-
-  def dishonestDebatersAssignments: Set[String] =
-    setup
-      .roles
-      .keys
-      .filter {
-        case Debater(index) =>
-          index != setup.correctAnswerIndex
-        case _ =>
-          false
-      }
-      .map { role =>
-        setup.roles(role)
-      }
-      .toSet
-
-  def judgeAssignment: Option[String] = setup.roles.get(Judge)
-
   /** Time of the first round of the debate (not the init time of the debate
     * setup).
     */

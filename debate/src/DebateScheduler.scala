@@ -13,6 +13,30 @@ object DebateScheduler {
   }
 
   object DebateAssignment {
+    // Used in [ofDebate]
+    private def honestDebaterAssignment(d: Debate): Option[String] = d
+      .setup
+      .roles
+      .get(Debater(d.setup.correctAnswerIndex))
+
+    // Used in [ofDebate]
+    private def dishonestDebatersAssignments(d: Debate): Set[String] =
+      d.setup
+        .roles
+        .keys
+        .filter {
+          case Debater(index) =>
+            index != d.setup.correctAnswerIndex
+          case _ =>
+            false
+        }
+        .map { role =>
+          d.setup.roles(role)
+        }
+        .toSet
+
+    // Used in [ofDebate]
+    private def judgeAssignment(d: Debate): Option[String] = d.setup.roles.get(Judge)
 
     /**
       * Returns the assignment of roles to users for a given debate.
@@ -20,9 +44,9 @@ object DebateScheduler {
       */
     def ofDebate(debate: Debate): Option[DebateAssignment] =
       for {
-        honestDebater <- debate.honestDebaterAssignment
-        dishonestDebaters = debate.dishonestDebatersAssignments
-        judge <- debate.judgeAssignment
+        honestDebater <- honestDebaterAssignment(debate)
+        dishonestDebaters = dishonestDebatersAssignments(debate)
+        judge <- judgeAssignment(debate)
       } yield DebateAssignment(
         honestDebater = honestDebater,
         dishonestDebaters = dishonestDebaters,
