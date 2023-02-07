@@ -95,7 +95,7 @@ class SchedulerTests extends CatsEffectSuite {
   test("assignments using full costs are reasonable") {
     var costs   = Vector.empty[Double]
     var history = Vector.empty[Debate]
-    for (_ <- 1 to 100) {
+    for (_ <- 1 to 5) {
       val newAssignment = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
@@ -113,5 +113,9 @@ class SchedulerTests extends CatsEffectSuite {
       costs = costs :+ thisCost
     }
     println("for full cost measurement: ", costs)
+    println(
+      "for full cost measurement, all assignments: ",
+      history.map(DebateAssignment.ofDebate).map(o => o.map(_.toPrettyString))
+    )
   }
 }

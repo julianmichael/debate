@@ -6,13 +6,36 @@ import jjm.metrics.Numbers
 object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
 
-  case class DebateAssignment(
-    honestDebater: String,
-    dishonestDebaters: Set[String],
-    judge: String
+  class DebateAssignment(
+    val honestDebater: String,
+    val dishonestDebaters: Set[String],
+    val judge: String
   ) {
+    def apply(
+      honestDebater: String,
+      dishonestDebaters: Set[String],
+      judge: String
+    ): DebateAssignment = {
+      throw new IllegalArgumentException("Use DebateAssignment.apply instead")
+
+      if (honestDebater == judge)
+        throw new IllegalArgumentException("Honest debater and judge cannot be the same person")
+      if (dishonestDebaters.contains(judge))
+        throw new IllegalArgumentException("Dishonest debaters and judge cannot be the same person")
+      if (dishonestDebaters.contains(honestDebater))
+        throw new IllegalArgumentException(
+          "Honest debater and dishonest debaters cannot be the same person"
+        )
+      new DebateAssignment(honestDebater, dishonestDebaters, judge)
+    }
+
     def isAssigned(debater: String): Boolean =
       honestDebater == debater || dishonestDebaters.contains(debater) || judge == debater
+
+    def toPrettyString: String =
+      s"""Honest debater: $honestDebater
+         |Dishonest debaters: ${dishonestDebaters.mkString(", ")}
+         |Judge: $judge""".stripMargin
   }
 
   object DebateAssignment {
@@ -125,6 +148,7 @@ object DebateScheduler {
           }
           .toMap
     val combined: Map[String, Int] = (honestStoriesRead ++ dishonestStoriesRead)
+      .view
       .mapValues(_.size)
       .toMap
     val storiesReadCounts: Map[String, Int] = combined ++ countsInNewAssignment
@@ -157,6 +181,48 @@ object DebateScheduler {
         Numbers(personToJudgeCount.values.toVector).stats.stdev
       }
       .sum
+  }
+
+  def debatedOtherDebaters(assignments: Vector[DebateAssignment]): Double = {
+    val adversarialPairs: Map[Set[String], Int] =
+      assignments
+        .flatMap { assignment =>
+          val allSets: Set[Set[String]] = assignment
+            .dishonestDebaters
+            .map(Set(assignment.honestDebater, _))
+          allSets.map(_ -> 1)
+        }
+        .toMap
+    Numbers(adversarialPairs.values.toVector).stats.stdev
+  }
+
+  def judgedPerDebater(assignments: Vector[DebateAssignment]): Double = {
+    val judgeToDebaters: Map[String, Set[String]] =
+      assignments
+        .map { assignment =>
+          assignment.judge -> (Set(assignment.honestDebater) ++ assignment.dishonestDebaters)
+        }
+        .toMap
+    // keys are tuples of (judge, debater)
+    val judgedPerDebater: Map[(String, String), Int] =
+      judgeToDebaters
+        .flatMap { case (judge, debaters) =>
+          debaters.map { debater =>
+            (judge, debater) -> 1
+          }
+        }
+        .toMap
+    Numbers(judgedPerDebater.values.toVector).stats.stdev
+  }
+
+  def fractionsHonestWhenDebating(assignments: Vector[DebateAssignment]): Double = {
+    val timesHonest: Map[String, Int]    = assignments.map(_.honestDebater).counts
+    val timesDishonest: Map[String, Int] = assignments.flatMap(_.dishonestDebaters).counts
+    val fractionsHonest: Map[String, Double] = timesHonest.map { case (debater, nHonest) =>
+      val nDishonest = timesDishonest.getOrElse(debater, 0)
+      debater -> (nHonest.toDouble / (nHonest + nDishonest))
+    }
+    Numbers(fractionsHonest.values.toVector).stats.stdev
   }
 
   /** result is non-negative */
