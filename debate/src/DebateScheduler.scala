@@ -115,6 +115,20 @@ object DebateScheduler {
     numQuestions: Int,
     debaters: Map[String, DebaterLoadConstraint]
   ): Vector[Vector[DebateAssignment]] = {
+
+    /** TODO someday: notes from Julian
+      * [combinations] seems fine for now, as repeating assignments in a single
+      * round of scheduling seems very unlikely to be something we want, but
+      * technically we might either:
+      *
+      * 1. be in the situation where an assignment needs to repeat in order to
+      * balance things out (I think this is ok if it happens — after all,
+      * they won't know it's happening, necessarily, or if they do, then
+        it's probably intentional e.g. with load constraints), or
+      * 
+      * 2. we're scheduling more debates than there are possible assignments
+      * (if we want to use for longer-term scheduling)
+      */
     val allPossibleQuestionAssignments = generateAllPossibleQuestionAssignments(debaters.keySet)
     allPossibleQuestionAssignments.toVector.combinations(numQuestions).toVector
   }
