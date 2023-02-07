@@ -56,10 +56,10 @@ object DebateScheduler {
   // TODO do we need to obey the constraints on the number of judges and dishonest debaters? (present in the debates in the history)
 
   def isAssignmentValid(
-    assignment: Vector[DebateAssignment],
+    assignments: Vector[DebateAssignment],
     debaters: Map[String, DebaterLoadConstraint]
   ): Boolean = debaters.forall { case (debater, constraint) =>
-    val nParticipating = assignment.count(_.isAssigned(debater))
+    val nParticipating = assignments.count(_.isAssigned(debater))
     constraint.min.forall(_ <= nParticipating) && constraint.max.forall(_ >= nParticipating)
   }
 
