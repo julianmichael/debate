@@ -8,6 +8,13 @@ import monocle.macros.Lenses
 import monocle.macros.GenPrism
 
 @JsonCodec
+sealed trait SourceMaterialId
+object SourceMaterialId {
+  case class QuALITYStory(id: String) extends SourceMaterialId
+  case class Custom(title: String)    extends SourceMaterialId
+}
+
+@JsonCodec
 sealed trait RoomStatus {}
 object RoomStatus {
   case object WaitingToBegin extends RoomStatus
@@ -25,11 +32,13 @@ object RoomStatus {
 @JsonCodec
 case class RoomMetadata(
   name: String,
+  sourceMaterialId: SourceMaterialId,
   storyTitle: String,
   roleAssignments: Map[DebateRole, String],
   creationTime: Long,
   status: RoomStatus,
   latestUpdateTime: Long,
+  peopleWhoHaveSpoken: Set[String], // people who have taken turns
   currentSpeakers: Set[DebateRole],
   currentParticipants: Set[String]
 ) {

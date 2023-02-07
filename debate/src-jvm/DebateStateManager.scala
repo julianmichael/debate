@@ -59,26 +59,30 @@ case class DebateStateManager(
     .map {
       _.toVector
         .map { case (roomName, room) =>
+          val debate = room.debate.debate
           RoomMetadata(
             name = roomName,
-            storyTitle = room.debate.debate.setup.sourceMaterial.title,
-            roleAssignments = room.debate.debate.setup.roles,
-            creationTime = room.debate.debate.setup.startTime,
+            sourceMaterialId =
+              debate.setup.sourceMaterial match {
+                case CustomSourceMaterial(title, _) =>
+                  SourceMaterialId.Custom(title)
+                case QuALITYSourceMaterial(articleId, _, _) =>
+                  SourceMaterialId.QuALITYStory(articleId)
+              },
+            storyTitle = debate.setup.sourceMaterial.title,
+            roleAssignments = debate.setup.roles,
+            creationTime = debate.setup.startTime,
             status = room.debate.status,
-            latestUpdateTime = room
-              .debate
-              .debate
+            latestUpdateTime = debate
               .rounds
               .view
               .flatMap(_.timestamp(room.debate.debate.setup.numDebaters))
               .lastOption
-              .getOrElse(room.debate.debate.setup.startTime),
-            currentSpeakers = room
-              .debate
-              .debate
-              .currentTransitions
-              .toOption
-              .foldMap(_.currentSpeakers),
+              .getOrElse(debate.setup.startTime),
+            peopleWhoHaveSpoken = debate
+              .rounds
+              .foldMap(_.allSpeeches.values.view.map(_.speaker).toSet),
+            currentSpeakers = debate.currentTransitions.toOption.foldMap(_.currentSpeakers),
             currentParticipants = room.debate.participants.keySet
           )
         }
