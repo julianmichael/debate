@@ -168,13 +168,9 @@ object DebateScheduler {
     debaters: Map[String, DebaterLoadConstraint] // TODO ensure nonempty? so we can't return None?
   ): Vector[DebateAssignment] = {
     // each vector in here is of length numQuestions
-    val allAssignments: Vector[Vector[DebateAssignment]] = generateAllAssignments(
-      numQuestions = numQuestions,
-      debaters = debaters
-    )
-    val allAssignmentsThatMeetConstraints: Vector[Vector[DebateAssignment]] = allAssignments
-      .filter { assignment =>
-        isAssignmentValid(assignment, debaters)
+    val allAssignmentsThatMeetConstraints: Vector[Vector[DebateAssignment]] =
+      generateAllAssignments(numQuestions = numQuestions, debaters = debaters).filter {
+        assignment => isAssignmentValid(assignment, debaters)
       }
     var correspondingCosts = allAssignmentsThatMeetConstraints.map { newAssignments =>
       getBadnessScore(newAssignments = newAssignments, history = history) * -1
