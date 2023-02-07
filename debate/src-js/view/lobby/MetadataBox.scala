@@ -72,7 +72,12 @@ object MetadataBox {
     val canEnterRoom = userName.nonEmpty // &&
     // !roomMetadata.currentParticipants.contains(userName)
 
-    case class ResultDescription(label: VdomNode, bgStyle: TagMod, offlineResults: VdomNode)
+    case class ResultDescription(
+      label: VdomNode,
+      bgStyle: TagMod,
+      offlineResults: Option[VdomNode],
+      feedbackNotice: Option[VdomNode]
+    )
 
     val resultDescriptionOpt = RoomStatus
       .complete
@@ -163,7 +168,7 @@ object MetadataBox {
               getBgColorModFromJudgment(info.finalJudgement)
           }
 
-        val offlineResults = {
+        val offlineResults = Option {
           val judgmentElements = offlineJudgingResults
             .toVector
             .sortBy(_._2.timestamp)
@@ -197,13 +202,10 @@ object MetadataBox {
                 )
               }
 
-          <.div(
-            <.div(c"small text-center mt-1")("Offline Judgments")
-              .when(offlineJudgingResults.nonEmpty),
-            judgmentsDisplay
-          )
+          <.div(<.div(c"small text-center mt-1")("Offline Judgments"), judgmentsDisplay)
+        }.filter(_ => offlineJudgingResults.nonEmpty)
 
-        }
+        val feedbackNotice = None
 
         ResultDescription(
           overUnderOpt match {
@@ -213,7 +215,8 @@ object MetadataBox {
               endedBy
           },
           style,
-          offlineResults
+          offlineResults,
+          feedbackNotice
         )
       }
 
@@ -413,7 +416,8 @@ object MetadataBox {
           storyTitle,
           roleAssignments.when(!anonymize),
           presentParticipants,
-          resultDescriptionOpt.map(_.offlineResults)
+          resultDescriptionOpt.map(_.offlineResults),
+          resultDescriptionOpt.map(_.feedbackNotice)
         ),
         deleteRoom.when(isAdmin)
       ),
