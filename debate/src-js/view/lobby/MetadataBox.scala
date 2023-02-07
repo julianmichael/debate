@@ -211,7 +211,7 @@ object MetadataBox {
             feedbackProviders
         val feedbackNotice = Option(
           <.div(
-            <.span(S.awaitingFeedbackStatusLabel)("Need feedback from: "),
+            <.span(S.awaitingFeedbackStatusLabel)("Awaiting feedback from: "),
             Utils.delimitedSpans(peopleMissingFeedback.toList.sorted).toVdomArray
           )
         ).filter(_ => !anonymize.value && peopleMissingFeedback.nonEmpty)
