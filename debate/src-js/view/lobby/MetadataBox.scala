@@ -71,13 +71,14 @@ object MetadataBox {
     val canEnterRoom = userName.nonEmpty // &&
     // !roomMetadata.currentParticipants.contains(userName)
 
-    case class ResultDescription(label: VdomNode, bgStyle: TagMod)
+    case class ResultDescription(label: VdomNode, bgStyle: TagMod, offlineResults: VdomNode)
 
-    val resultDescriptionOpt = roomMetadata
-      .result
+    val resultDescriptionOpt = RoomStatus
+      .complete
+      .getOption(roomMetadata.status)
       .filter(_ => !hideResults)
       // .flatMap(_.judgingInfo)
-      .map { result =>
+      .map { case RoomStatus.Complete(result, offlineJudgingResults, feedbackProviders) =>
         val endedBy = <.span(
           <.span(c"text-muted")("Ended by "),
           <.span(getDebateEndReasonStyle(result.endedBy))(
@@ -145,6 +146,47 @@ object MetadataBox {
               }
           }
 
+        val offlineResults = {
+          val judgmentElements = offlineJudgingResults
+            .toVector
+            .sortBy(_._2.timestamp)
+            .map { case (judge, judgment) =>
+              val pctCorrect         = judgment.judgment(result.correctAnswerIndex) * 100.0
+              val pctCorrectString   = f"$pctCorrect%.0f%%"
+              val pctIncorrect       = 100.0 - pctCorrect
+              val pctIncorrectString = f"$pctIncorrect%.0f%%"
+              judge ->
+                <.div(
+                  ^.key := s"offline-judgment-$judge",
+                  <.div(S.judgmentBar)(
+                    <.div(S.correctBg, ^.width := pctCorrectString)(
+                      <.span(S.correctBgText, c"ml-1")(pctCorrectString)
+                    ),
+                    <.div(S.incorrectBg, ^.width := pctIncorrectString)(
+                      <.span(S.incorrectBgText, c"ml-1")(pctIncorrectString)
+                    )
+                  )
+                )
+            }
+
+          val judgmentsDisplay =
+            if (true) { // TODO: add anonymization parameter
+              judgmentElements.toVdomArray { case (judge, bar) =>
+                <.div(S.row, ^.key := s"offline-judge-$judge")(
+                  <.div(S.judgmentBarLabel)(judge.takeWhile(_ != ' ')),
+                  <.div(c"w-100")(bar)
+                )
+              }
+            } else
+              judgmentElements.map(_._2).toVdomArray
+
+          <.div(
+            <.div(c"small text-center")("Offline Judgments").when(offlineJudgingResults.nonEmpty),
+            judgmentsDisplay
+          )
+
+        }
+
         ResultDescription(
           overUnderOpt match {
             case Some(pctsLabel) =>
@@ -152,7 +194,8 @@ object MetadataBox {
             case None =>
               endedBy
           },
-          style
+          style,
+          offlineResults
         )
       }
 
@@ -342,7 +385,8 @@ object MetadataBox {
         <.div(c"card-text", c"mb-3".when(isAdmin))(
           storyTitle,
           roleAssignments,
-          presentParticipants
+          presentParticipants,
+          resultDescriptionOpt.map(_.offlineResults)
         ),
         deleteRoom.when(isAdmin)
       ),

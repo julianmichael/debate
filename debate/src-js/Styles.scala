@@ -229,6 +229,9 @@ object Styles extends jjm.ui.View.Styles {
     gridTemplateColumns := "repeat(auto-fill,minmax(250px, 1fr))"
   )
 
+  val judgmentBarLabel = style(fontSize(8 px), width(50 px))
+  val judgmentBar = style(row, overflow.hidden, fontSize(7 px), height(10 px), borderRadius(5 px))
+
   val profileListContainer = style(
     display.grid,
     gridTemplateColumns := "repeat(auto-fill,minmax(350px, 1fr))"
@@ -507,6 +510,12 @@ object Styles extends jjm.ui.View.Styles {
 
   val correct   = style(color(correctColor))
   val incorrect = style(color(incorrectColor))
+
+  val correctBg   = style(backgroundColor(correctColor))
+  val incorrectBg = style(backgroundColor(incorrectColor))
+
+  val correctBgText   = style(color(white))
+  val incorrectBgText = style(color(white))
 
   val timestampFooter = style(
     marginTop(-.75 rem),
