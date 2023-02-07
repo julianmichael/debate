@@ -7,7 +7,7 @@ object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
 
   /** Don't use this directly, use [DebateAssignment.apply] instead */
-  class DebateAssignment(
+  class DebateAssignment private (
     val honestDebater: String,
     val dishonestDebaters: Set[String],
     val judge: String
@@ -35,17 +35,23 @@ object DebateScheduler {
       honestDebater: String,
       dishonestDebaters: Set[String],
       judge: String
-    ): DebateAssignment = {
+    ): Either[DebateAssignment, Exception] = {
       if (honestDebater == judge)
-        throw new IllegalArgumentException("Honest debater and judge cannot be the same person")
-      if (dishonestDebaters.contains(judge))
-        throw new IllegalArgumentException("Dishonest debaters and judge cannot be the same person")
-      if (dishonestDebaters.contains(honestDebater))
-        throw new IllegalArgumentException(
-          s"Honest debater and dishonest debaters cannot be the same person (honest = $honestDebater, dishonest = ${dishonestDebaters
-              .mkString(", ")})"
+        return Right(
+          new IllegalArgumentException("Honest debater and judge cannot be the same person")
         )
-      new DebateAssignment(honestDebater, dishonestDebaters, judge)
+      else if (dishonestDebaters.contains(judge))
+        return Right(
+          new IllegalArgumentException("Dishonest debaters and judge cannot be the same person")
+        )
+      else if (dishonestDebaters.contains(honestDebater))
+        return Right(
+          new IllegalArgumentException(
+            s"Honest debater and dishonest debaters cannot be the same person (honest = $honestDebater, dishonest = ${dishonestDebaters
+                .mkString(", ")})"
+          )
+        )
+      Left(new DebateAssignment(honestDebater, dishonestDebaters, judge))
     }
 
     // Used in [ofDebate]
@@ -82,11 +88,13 @@ object DebateScheduler {
         honestDebater <- honestDebaterAssignment(debate)
         dishonestDebaters = dishonestDebatersAssignments(debate)
         judge <- judgeAssignment(debate)
-      } yield DebateAssignment(
-        honestDebater = honestDebater,
-        dishonestDebaters = dishonestDebaters,
-        judge = judge
-      )
+        debateAssignmentOrError = DebateAssignment(honestDebater, dishonestDebaters, judge)
+      } yield debateAssignmentOrError match {
+        case Left(assignment) =>
+          assignment
+        case Right(error) =>
+          throw error // this should never happen if the error comes from dishonest debater assignment, etc. , but technically it's possible in case there are new error  cases
+      }
   }
 
   def isAssignmentValid(
