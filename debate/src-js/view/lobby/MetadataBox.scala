@@ -206,7 +206,15 @@ object MetadataBox {
           <.div(<.div(c"small text-center mt-1")("Offline Judgments"), judgmentsDisplay)
         }.filter(_ => offlineJudgingResults.nonEmpty)
 
-        val feedbackNotice = None
+        val peopleMissingFeedback =
+          (roomMetadata.roleAssignments.values.toSet ++ offlineJudgingResults.keySet) --
+            feedbackProviders
+        val feedbackNotice = Option(
+          <.div(
+            <.span(S.awaitingFeedbackStatusLabel)("Need feedback from: "),
+            Utils.delimitedSpans(peopleMissingFeedback.toList.sorted).toVdomArray
+          )
+        ).filter(_ => !anonymize.value && peopleMissingFeedback.nonEmpty)
 
         ResultDescription(
           overUnderOpt match {
