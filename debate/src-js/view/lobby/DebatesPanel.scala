@@ -41,7 +41,7 @@ trait RoomHeading {
       case WaitingToBegin =>
         "Waiting to Begin"
       case MustJudgeBeforeDebating =>
-        "Must Judge Before Debating"
+        "Must Judge This Story Before Debating"
       case EligibleForOfflineJudging =>
         "Eligible for You to Judge"
       case Complete =>
@@ -142,44 +142,48 @@ object DebatesPanel {
               }
             }
             val roomsForHeading = metadatasByHeading.get(heading).combineAll
-            ReactFragment(
-              <.h5(headingStyle)(heading.titleString),
-              <.div(S.metadataListContainer, S.spaceySubcontainer)(
-                if (roomsForHeading.isEmpty) {
-                  <.div("No rooms to show.")
-                } else {
-                  def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
-                    .toVector
-                    .sorted(RoomMetadata.getOrdering(userName))
-                    .toVdomArray { case rm: RoomMetadata =>
-                      Local[Boolean]
-                        .make(heading == RoomHeading.EligibleForOfflineJudging) { hideResults =>
-                          Local[Boolean].make(true) { anonymize =>
-                            MetadataBox(
-                              roomMetadata = rm,
-                              isOfficial = isOfficial,
-                              userName = userName,
-                              isAdmin = isAdmin,
-                              hideResults = hideResults,
-                              anonymize = anonymize,
-                              sendToMainChannel = sendToMainChannel,
-                              enterRoom = connect
-                            )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+            if (roomsForHeading.isEmpty)
+              None
+            else
+              Some {
+                ReactFragment(
+                  <.h5(headingStyle)(heading.titleString),
+                  <.div(S.metadataListContainer, S.spaceySubcontainer) {
+                    def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
+                      .toVector
+                      .sorted(RoomMetadata.getOrdering(userName))
+                      .toVdomArray { case rm: RoomMetadata =>
+                        Local[Boolean]
+                          .make(heading == RoomHeading.EligibleForOfflineJudging) { hideResults =>
+                            Local[Boolean].make(true) { anonymize =>
+                              MetadataBox(
+                                roomMetadata = rm,
+                                isOfficial = isOfficial,
+                                userName = userName,
+                                isAdmin = isAdmin,
+                                hideResults = hideResults,
+                                anonymize = anonymize,
+                                sendToMainChannel = sendToMainChannel,
+                                enterRoom = connect
+                              )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+                            }
                           }
-                        }
-                    }
+                      }
 
-                  val (matchingRooms, nonMatchingRooms) =
-                    if (roomNameLive.value.isEmpty)
-                      roomsForHeading -> Set[RoomMetadata]()
-                    else
-                      roomsForHeading
-                        .partition(_.matchesQuery(roomNameLive.value, anonymizeAll.value))
+                    val (matchingRooms, nonMatchingRooms) =
+                      if (roomNameLive.value.isEmpty)
+                        roomsForHeading -> Set[RoomMetadata]()
+                      else
+                        roomsForHeading
+                          .partition(_.matchesQuery(roomNameLive.value, anonymizeAll.value))
 
-                  ReactFragment(showRooms(matchingRooms, true), showRooms(nonMatchingRooms, false))
-                }
-              )
-            )
+                    ReactFragment(
+                      showRooms(matchingRooms, true),
+                      showRooms(nonMatchingRooms, false)
+                    )
+                  }
+                )
+              }
           }
 
           ReactFragment(
@@ -192,8 +196,8 @@ object DebatesPanel {
             )(^.marginBottom := 1.rem),
             ReactFragment(
               Utils.tagDelimitedElements(
-                headings,
-                getElement = showMetadatasWithHeading,
+                headings.flatMap(showMetadatasWithHeading),
+                getElement = identity[VdomElement],
                 delimiter = <.div(<.hr)
               ): _*
             )
