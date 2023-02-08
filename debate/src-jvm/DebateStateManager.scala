@@ -59,32 +59,7 @@ case class DebateStateManager(
     .map {
       _.toVector
         .map { case (roomName, room) =>
-          val debate = room.debate.debate
-          RoomMetadata(
-            name = roomName,
-            sourceMaterialId =
-              debate.setup.sourceMaterial match {
-                case CustomSourceMaterial(title, _) =>
-                  SourceMaterialId.Custom(title)
-                case QuALITYSourceMaterial(articleId, title, _) =>
-                  SourceMaterialId.QuALITYStory(articleId, title)
-              },
-            storyTitle = debate.setup.sourceMaterial.title,
-            roleAssignments = debate.setup.roles,
-            creationTime = debate.setup.startTime,
-            status = room.debate.status,
-            latestUpdateTime = debate
-              .rounds
-              .view
-              .flatMap(_.timestamp(room.debate.debate.setup.numDebaters))
-              .lastOption
-              .getOrElse(debate.setup.startTime),
-            peopleWhoHaveSpoken = debate
-              .rounds
-              .foldMap(_.allSpeeches.values.view.map(_.speaker).toSet),
-            currentSpeakers = debate.currentTransitions.toOption.foldMap(_.currentSpeakers),
-            currentParticipants = room.debate.participants.keySet
-          )
+          room.debate.metadata(roomName)
         }
         .toSet
     }
@@ -108,23 +83,46 @@ case class DebateStateManager(
       _        <- pushUpdate
     } yield ()
 
-  def addParticipant(roomName: String, participantName: String) =
-    for {
-      _ <- rooms.update(
-        roomStateL(roomName).modify { debateState =>
-          val role = debateState
-            .debate
-            .setup
-            .roles
-            .find(_._2 == participantName)
-            .map(_._1)
-            .getOrElse(Observer)
-          debateState.addParticipant(participantName, role)
-        }
-      )
-      _ <- rooms.get.flatMap(_.get(roomName).traverse_(_.pushUpdate))
-      _ <- pushUpdate
-    } yield ()
+  def addParticipant(roomName: String, participantName: String) = rooms
+    .get
+    .map(roomStateL(roomName).getOption)
+    .flatMap(
+      _.traverse_ { room =>
+        val sourceMaterialId = SourceMaterialId.fromSourceMaterial(room.debate.setup.sourceMaterial)
+        for {
+          relevantMetadata <- getRoomMetadata.map(_.filter(_.sourceMaterialId == sourceMaterialId))
+          stats =
+            RoomMetadata
+              .constructStoryRecord(relevantMetadata)
+              .get(participantName)
+              .flatMap(_.get(sourceMaterialId))
+              .combineAll
+          heading = RoomHeading.infer(room.metadata(roomName), participantName, stats)
+          _ <- rooms.update(
+            roomStateL(roomName).modify { debateState =>
+              val role =
+                heading match {
+                  case RoomHeading.EligibleForOfflineJudging =>
+                    TimedOfflineJudge
+                  case RoomHeading.MustJudgeBeforeDebating =>
+                    Observer // maybe we shouldn't allow this? might be fine
+                  case _ =>
+                    debateState
+                      .debate
+                      .setup
+                      .roles
+                      .find(_._2 == participantName)
+                      .map(_._1)
+                      .getOrElse(Observer)
+                }
+              debateState.addParticipant(participantName, role)
+            }
+          )
+          _ <- rooms.get.flatMap(_.get(roomName).traverse_(_.pushUpdate))
+          _ <- pushUpdate
+        } yield ()
+      }
+    )
 
   def removeParticipant(roomName: String, participantName: String) =
     for {

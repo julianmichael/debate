@@ -14,6 +14,14 @@ sealed trait SourceMaterialId {
 object SourceMaterialId {
   case class QuALITYStory(id: String, val title: String) extends SourceMaterialId
   case class Custom(val title: String)                   extends SourceMaterialId
+
+  def fromSourceMaterial(sourceMaterial: SourceMaterial) =
+    sourceMaterial match {
+      case CustomSourceMaterial(title, _) =>
+        SourceMaterialId.Custom(title)
+      case QuALITYSourceMaterial(articleId, title, _) =>
+        SourceMaterialId.QuALITYStory(articleId, title)
+    }
 }
 
 sealed trait DebateProgressLabel
@@ -91,4 +99,61 @@ object RoomMetadata {
     (!isMyTurn, room.currentParticipants.size, -room.latestUpdateTime)
   }
   def getOrdering(userName: String) = catsKernelOrderingForOrder(getOrder(userName))
+
+  def constructStoryRecord(
+    rooms: Set[RoomMetadata]
+  ): Map[String, Map[SourceMaterialId, DebaterStoryStats]] = rooms.unorderedFoldMap { room =>
+    val live =
+      room
+        .roleAssignments
+        .view
+        .map { case (role, debater) =>
+          val label =
+            room.status match {
+              case RoomStatus.WaitingToBegin =>
+                DebateProgressLabel.Assigned
+              case RoomStatus.InProgress =>
+                if (room.peopleWhoHaveSpoken.contains(debater)) {
+                  DebateProgressLabel.Begun
+                } else
+                  DebateProgressLabel.Assigned
+              case RoomStatus.Complete(_, _, feedbackProviders) =>
+                if (feedbackProviders.contains(debater))
+                  DebateProgressLabel.Complete
+                else
+                  DebateProgressLabel.AwaitingFeedback
+            }
+          val stats =
+            if (role == Judge) {
+              DebaterStoryStats(liveJudging = Map(label -> Set(room.name)))
+            } else
+              DebaterStoryStats(debating = Map(label -> Set(room.name)))
+
+          Map(debater -> Map(room.sourceMaterialId -> stats))
+        }
+        .toVector
+        .combineAll
+
+    // TODO: add assignments for offline judging
+    val offline = RoomStatus
+      .complete
+      .getOption(room.status)
+      .foldMap { case RoomStatus.Complete(_, offlineJudgingResults, feedbackProviders) =>
+        offlineJudgingResults
+          .keySet
+          .view
+          .map { judge =>
+            val label =
+              if (feedbackProviders.contains(judge)) {
+                DebateProgressLabel.Complete
+              } else
+                DebateProgressLabel.AwaitingFeedback
+            val stats = DebaterStoryStats(offlineJudging = Map(label -> Set(room.name)))
+            judge -> Map(room.sourceMaterialId -> stats)
+          }
+          .toMap
+      }
+
+    live |+| offline
+  }
 }
