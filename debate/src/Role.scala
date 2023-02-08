@@ -24,6 +24,22 @@ sealed trait Role extends Product with Serializable {
         None
     }
 
+  def canSeeDebaterNames: Boolean = this == Facilitator
+
+  def canSeeStory: Boolean =
+    this match {
+      case Facilitator | Debater(_) =>
+        true
+      case _ =>
+        false
+    }
+  def canSeeIntermediateArguments: Boolean =
+    this match {
+      case Facilitator | Debater(_) =>
+        true
+      case _ =>
+        false
+    }
 }
 case object Observer extends Role {
   override def toString = "Observer"

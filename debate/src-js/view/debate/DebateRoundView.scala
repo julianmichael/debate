@@ -114,7 +114,6 @@ object DebateRoundView {
     startTimeOpt: Option[Long],
     userRole: Role,
     style: TagMod
-    // speechIndex: Int
   ) =
     <.div(S.speechBox, style)(
       speechHeaderHTML(role, speech, startTimeOpt, userRole),
@@ -201,17 +200,6 @@ object DebateRoundView {
           .sortBy(_._1)
           .toVdomArray { case (debaterIndex, speech) =>
             val speechStyle = TagMod(S.answerBg(debaterIndex), S.debateWidthOffset(debaterIndex))
-            // val speechStyle =
-            //   speech.speaker.role match {
-            //     case Facilitator =>
-            //       TagMod(S.facilitatorBg)
-            //     case Observer =>
-            //       TagMod(S.observerBg)
-            //     case Judge =>
-            //       TagMod(S.judgeFeedbackBg)
-            //     case Debater(index) =>
-            //       TagMod(S.answerBg(index), S.debateWidthOffset(index))
-            //   }
             makeSpeechHtml(
               source,
               Debater(debaterIndex),

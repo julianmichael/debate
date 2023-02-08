@@ -104,14 +104,7 @@ object DebatePanel {
   def visibleRounds(role: Role, debate: Debate) = debate
     .rounds
     .filter { round =>
-      val isFacilitatorOrDebater =
-        role match {
-          case Facilitator | Debater(_) =>
-            true
-          case _ =>
-            false
-        }
-      isFacilitatorOrDebater || round.isComplete(debate.setup.numDebaters)
+      role.canSeeIntermediateArguments || round.isComplete(debate.setup.numDebaters)
     }
 
   def debateSpansWithSpeaker(role: Role, numDebaters: Int, rounds: Vector[DebateRound]) = rounds
@@ -170,14 +163,7 @@ object DebatePanel {
           setup.sourceMaterial.contents,
           getHighlights(role, setup.numDebaters, rounds, curMessageSpans.value),
           span => curMessageSpans.modState(_ + span)
-        ).when(
-          role match {
-            case Facilitator | Debater(_) =>
-              true
-            case _ =>
-              false
-          }
-        ),
+        ).when(role.canSeeStory),
         LocalQuotingMessage.make(curMessageSpans, s"debate-message-$roomName") { currentMessage =>
           val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
 
