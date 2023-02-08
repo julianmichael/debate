@@ -66,8 +66,8 @@ case class DebateStateManager(
               debate.setup.sourceMaterial match {
                 case CustomSourceMaterial(title, _) =>
                   SourceMaterialId.Custom(title)
-                case QuALITYSourceMaterial(articleId, _, _) =>
-                  SourceMaterialId.QuALITYStory(articleId)
+                case QuALITYSourceMaterial(articleId, title, _) =>
+                  SourceMaterialId.QuALITYStory(articleId, title)
               },
             storyTitle = debate.setup.sourceMaterial.title,
             roleAssignments = debate.setup.roles,

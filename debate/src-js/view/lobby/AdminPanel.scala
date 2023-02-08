@@ -12,11 +12,27 @@ import scalacss.ScalaCssReact._
 import debate.Utils.ClassSetInterpolator
 import debate.quality.QuALITYService
 import debate.util.Local
+import debate.DebateProgressLabel.Assigned
+import debate.DebateProgressLabel.Begun
+import debate.DebateProgressLabel.AwaitingFeedback
+import debate.DebateProgressLabel.Complete
 
 object AdminPanel {
 
   val S = Styles
   val V = new jjm.ui.View(S)
+
+  def debateProgressLabelStyle(label: DebateProgressLabel) =
+    label match {
+      case Assigned =>
+        S.waitingToBeginStatusLabel
+      case Begun =>
+        S.inProgressStatusLabel
+      case AwaitingFeedback =>
+        S.awaitingFeedbackStatusLabel
+      case Complete =>
+        S.completeStatusLabel
+    }
 
   def debaterCard(
     lobby: Lobby,
@@ -25,9 +41,60 @@ object AdminPanel {
     sendToMainChannel: MainChannelRequest => Callback
   ) = {
     val debates = lobby.officialRooms.filter(_.roleAssignments.values.exists(_ == name))
+
+    def showStories(title: String, stories: Map[SourceMaterialId, DebaterStoryStats]) =
+      if (stories.isEmpty)
+        None
+      else
+        Some {
+          ReactFragment(
+            <.h6(title),
+            <.p(
+              stories.toVdomArray { case (sourceMaterialId, stats) =>
+                def showStats(stats: Map[DebateProgressLabel, Int]) =
+                  DebateProgressLabel
+                    .all
+                    .flatMap(label =>
+                      stats
+                        .get(label)
+                        .map { count =>
+                          <.span(^.key := label.toString, debateProgressLabelStyle(label))(
+                            count.toString,
+                            " "
+                          )
+                        }
+                    )
+                    .toVdomArray
+
+                <.p(c"card-text small")(
+                  <.div(S.bold)(sourceMaterialId.title),
+                  <.div("Debating: ", showStats(stats.debating)).when(stats.debating.nonEmpty),
+                  <.div("Live Judging: ", showStats(stats.liveJudging))
+                    .when(stats.liveJudging.nonEmpty),
+                  <.div("Offline Judging: ", showStats(stats.offlineJudging))
+                    .when(stats.offlineJudging.nonEmpty)
+                )
+              }
+            )
+          )
+        }
+
+    val stories                       = lobby.storyRecord.get(name).combineAll
+    val (storiesRead, storiesNotRead) = stories.partition(x => (x._2.debating - Assigned).nonEmpty)
+    val (storiesAssignedToRead, storiesNotAssignedToRead) = storiesNotRead
+      .partition(x => !storiesRead.contains(x._1) && x._2.debating.contains(Assigned))
+    val (storiesJudged, storiesNotJudged) = storiesNotAssignedToRead
+      .partition(x => (x._2.allJudging - Assigned).nonEmpty)
+    val storiesAssignedToJudge = storiesNotJudged.filter(_._2.allJudging.nonEmpty)
+
     <.div(c"card")(
       <.div(c"card-body")(
-        <.h6(c"card-title")(name),
+        <.h4(c"card-title")(name),
+        <.h5(s"Stories: ${stories.size}"),
+        showStories("Read", storiesRead),
+        showStories("Assigned to Read", storiesAssignedToRead),
+        showStories("Judged", storiesJudged),
+        showStories("Assigned to Judge", storiesAssignedToJudge),
         <.p(c"card-text small")(
           s"Debates: ${debates.size}",
           <.br(),

@@ -8,10 +8,22 @@ import monocle.macros.Lenses
 import monocle.macros.GenPrism
 
 @JsonCodec
-sealed trait SourceMaterialId
+sealed trait SourceMaterialId {
+  def title: String
+}
 object SourceMaterialId {
-  case class QuALITYStory(id: String) extends SourceMaterialId
-  case class Custom(title: String)    extends SourceMaterialId
+  case class QuALITYStory(id: String, val title: String) extends SourceMaterialId
+  case class Custom(val title: String)                   extends SourceMaterialId
+}
+
+sealed trait DebateProgressLabel
+object DebateProgressLabel {
+  case object Assigned         extends DebateProgressLabel
+  case object Begun            extends DebateProgressLabel
+  case object AwaitingFeedback extends DebateProgressLabel
+  case object Complete         extends DebateProgressLabel
+
+  def all = List(Assigned, Begun, AwaitingFeedback, Complete)
 }
 
 @JsonCodec
@@ -54,6 +66,22 @@ case class RoomMetadata(
 
     itemMatchesKeywordQuery(itemTerms = itemTerms, queryKeywords = query.split("\\s+").toSet)
   }
+
+  def getProgressLabel(person: String) =
+    status match {
+      case RoomStatus.WaitingToBegin =>
+        DebateProgressLabel.Assigned
+      case RoomStatus.InProgress =>
+        if (peopleWhoHaveSpoken.contains(person)) {
+          DebateProgressLabel.Begun
+        } else
+          DebateProgressLabel.Assigned
+      case RoomStatus.Complete(_, _, feedbackProviders) =>
+        if (feedbackProviders.contains(person))
+          DebateProgressLabel.Complete
+        else
+          DebateProgressLabel.AwaitingFeedback
+    }
 
 }
 object RoomMetadata {
