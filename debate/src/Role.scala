@@ -68,15 +68,18 @@ object DebateRole {
         None
   }
 
+  def fromString(x: String): Option[DebateRole] =
+    x match {
+      case "Judge" =>
+        Some(Judge)
+      case s"Debater ${DebaterIndex(index)}" =>
+        Some(Debater(index))
+      case _ =>
+        None
+    }
+
   implicit val debateRoleKeyEncoder = KeyEncoder.instance[DebateRole](_.toString)
-  implicit val debateRoleKeyDecoder = KeyDecoder.instance[DebateRole] {
-    case "Judge" =>
-      Some(Judge)
-    case s"Debater ${DebaterIndex(index)}" =>
-      Some(Debater(index))
-    case _ =>
-      None
-  }
+  implicit val debateRoleKeyDecoder = KeyDecoder.instance[DebateRole](fromString)
   implicit val debateRoleOrder = Order.by[DebateRole, Int] {
     case Judge =>
       -1
@@ -85,13 +88,17 @@ object DebateRole {
   }
 }
 object Role {
+  def fromString(x: String): Option[Role] =
+    x match {
+      case "Observer" =>
+        Some(Observer)
+      case "Facilitator" =>
+        Some(Facilitator)
+      case "Offline Judge (Timed)" =>
+        Some(TimedOfflineJudge)
+      case x =>
+        DebateRole.fromString(x)
+    }
   implicit val roleKeyEncoder = KeyEncoder.instance[Role](_.toString)
-  implicit val roleKeyDecoder = KeyDecoder.instance[Role] {
-    case "Observer" =>
-      Some(Observer)
-    case "Facilitator" =>
-      Some(Facilitator)
-    case x =>
-      DebateRole.debateRoleKeyDecoder(x)
-  }
+  implicit val roleKeyDecoder = KeyDecoder.instance[Role](fromString)
 }
