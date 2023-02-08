@@ -61,6 +61,7 @@ object MetadataBox {
     }
 
   def apply(
+    storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
     roomMetadata: RoomMetadata,
     isOfficial: Boolean,
     userName: String,
@@ -70,6 +71,8 @@ object MetadataBox {
     enterRoom: ConnectionSpec => CallbackTo[Unit],
     sendToMainChannel: debate.MainChannelRequest => japgolly.scalajs.react.CallbackTo[Unit]
   ) = {
+    val stats = storyRecord.get(userName).flatMap(_.get(roomMetadata.sourceMaterialId)).combineAll
+
     val canEnterRoom = userName.nonEmpty // &&
     // !roomMetadata.currentParticipants.contains(userName)
 
@@ -305,7 +308,37 @@ object MetadataBox {
       userRoleDisplay.map(<.h6(c"card-subtitle mb-2")(_))
     )
 
-    val storyTitle = <.div("Story: ", <.i(roomMetadata.storyTitle))
+    val storyTitle = {
+      import DebateProgressLabel.Assigned
+      val numDebated        = (stats.debating - Assigned).unorderedFoldMap(_.size)
+      val numDebatedPending = stats.debating.get(Assigned).foldMap(_.size)
+      val numJudged         = (stats.allJudging - Assigned).unorderedFoldMap(_.size)
+      val numJudgedPending  = stats.allJudging.get(Assigned).foldMap(_.size)
+      def nTimes(n: Int) =
+        if (n == 1)
+          "1 time"
+        else
+          s"$n times"
+      <.div(
+        <.div("Story: ", <.i(roomMetadata.storyTitle)),
+        <.div(c"small text-muted")(
+            <.span(
+              s"You've debated it ",
+              <.span(^.color.black)(nTimes(numDebated)),
+              <.span(s" ($numDebatedPending pending)").when(numDebatedPending > 0)
+            )
+          )
+          .when(numDebated + numDebatedPending > 0),
+        <.div(c"small text-muted")(
+            <.span(
+              s"You've judged it ",
+              <.span(^.color.black)(nTimes(numJudged)),
+              <.span(s" ($numJudgedPending pending)").when(numDebatedPending > 0)
+            )
+          )
+          .when(numJudged + numJudgedPending > 0)
+      )
+    }
 
     val roleAssignments = {
 
@@ -383,7 +416,7 @@ object MetadataBox {
         else
           "bi-eye"
 
-      <.button(c"btn btn-sm btn-outline-primary mr-1")(
+      <.button(c"btn btn-sm btn-outline-primary mr-1 mt-1")(
         <.i(c"bi $icon"),
         s" $text",
         ^.onClick ==>

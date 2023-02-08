@@ -148,6 +148,7 @@ object DebatesPanel {
                           .make(heading == RoomHeading.EligibleForOfflineJudging) { hideResults =>
                             Local[Boolean].make(true) { anonymize =>
                               MetadataBox(
+                                storyRecord = storyRecord,
                                 roomMetadata = rm,
                                 isOfficial = isOfficial,
                                 userName = userName,

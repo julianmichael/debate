@@ -743,7 +743,7 @@ object DebateCreationPanel {
                   )
                 },
               <.div(
-                <.button(c"btn btn-outline-secondary mr-1")(
+                <.button(c"btn btn-outline-secondary mr-1 mt-1")(
                   "Shuffle answers",
                   ^.onClick -->
                     Callback.lazily {
@@ -751,7 +751,7 @@ object DebateCreationPanel {
                       rearrangeAnswers(λ[Vector ~> Vector]((new Random(seed)).shuffle(_)))
                     }
                 ),
-                <.button(c"btn btn-outline-secondary mr-1")(
+                <.button(c"btn btn-outline-secondary mr-1 mt-1")(
                   "Shuffle Debaters",
                   ^.onClick -->
                     Callback.lazily {
