@@ -16,12 +16,12 @@ import io.circe.generic.JsonCodec
 sealed trait Role extends Product with Serializable {
   def asDebateRoleOpt: Option[DebateRole] =
     this match {
-      case Facilitator | Observer =>
-        None
       case d @ Debater(i) =>
         Some(d)
       case Judge =>
         Some(Judge)
+      case _ =>
+        None
     }
 
 }
@@ -30,6 +30,9 @@ case object Observer extends Role {
 }
 case object Facilitator extends Role {
   override def toString = "Facilitator"
+}
+case object TimedOfflineJudge extends Role {
+  override def toString = "Offline Judge (Timed)"
 }
 @JsonCodec
 sealed trait DebateRole extends Role

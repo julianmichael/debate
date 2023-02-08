@@ -28,14 +28,14 @@ object DebatePanel {
   )
   def getSpanColorForRole(role: Role) =
     role match {
-      case Observer =>
-        Rgba(0, 0, 0, 0.6)
-      case Facilitator =>
-        Rgba(285, 293, 200, 0.5)
-      case Judge =>
-        Rgba(0, 100, 0, 0.4)
       case Debater(index) =>
         spanColorsByDebaterIndex(index)
+      case Judge =>
+        Rgba(0, 100, 0, 0.4)
+      case Facilitator =>
+        Rgba(285, 293, 200, 0.5)
+      case Observer | TimedOfflineJudge =>
+        Rgba(0, 0, 0, 0.6)
     }
 
   /** Show whose turn it is. */
@@ -145,14 +145,14 @@ object DebatePanel {
 
   def getInProgressSpeechStyle(role: Role) =
     role match {
-      case Facilitator =>
-        TagMod(S.facilitatorOutline)
-      case Observer =>
-        TagMod(S.observerOutline)
-      case Judge =>
-        TagMod(S.judgeOutline)
       case Debater(index) =>
         TagMod(S.answerOutline(index), S.debateWidthOffset(index))
+      case Judge =>
+        TagMod(S.judgeOutline)
+      case Facilitator =>
+        TagMod(S.facilitatorOutline)
+      case Observer | TimedOfflineJudge =>
+        TagMod(S.observerOutline)
     }
 
   /** Show the debate. */
