@@ -1,25 +1,18 @@
 package debate
 
-import jjm.implicits._
+import cats.implicits._
 import jjm.metrics.Numbers
+import jjm.Duad
+import jjm.implicits._
 
 object DebateScheduler {
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
 
-  /** Don't use this directly, use [DebateAssignment.apply] instead */
   class DebateAssignment private (
     val honestDebater: String,
     val dishonestDebaters: Set[String],
     val judge: String
   ) {
-
-    /*
-
-    val honestDebater: String,
-    val dishonestDebaters: Set[String],
-    val judge: String)
-
-     */
 
     def isAssigned(debater: String): Boolean =
       honestDebater == debater || dishonestDebaters.contains(debater) || judge == debater
@@ -93,7 +86,8 @@ object DebateScheduler {
         case Left(assignment) =>
           assignment
         case Right(error) =>
-          throw error // this should never happen if the error comes from dishonest debater assignment, etc. , but technically it's possible in case there are new error  cases
+          // this should never happen if the error comes from dishonest debater assignment, etc. , but technically it's possible in case there are new error cases
+          throw error
       }
   }
 
@@ -125,8 +119,6 @@ object DebateScheduler {
     Numbers(assignments.map(_.judge).counts.values.toVector).stats.stdev
 
   def storiesReadCost(history: Vector[Debate], newAssignments: Vector[DebateAssignment]): Double = {
-    import cats.implicits._
-
     val debaterStoriesRead: Map[String, Set[String]] = history.foldMap { debate =>
       DebateAssignment
         .ofDebate(debate)
@@ -145,7 +137,8 @@ object DebateScheduler {
         .toMap
     }
 
-    val storiesReadCounts: Map[String, Int]          = debaterStoriesRead.view.mapValues(_.size).toMap ++ countsInNewAssignment
+    val storiesReadCounts: Map[String, Int] =
+      debaterStoriesRead.view.mapValues(_.size).toMap ++ countsInNewAssignment
     Numbers(storiesReadCounts.values.toVector).stats.stdev
   }
 
@@ -154,16 +147,13 @@ object DebateScheduler {
     newAssignments: Vector[DebateAssignment]
   ): Double = {
     // TODO someday refactor
-    val judgingInHistory: Map[String, Map[String, Int]] =
-      history
-        .flatMap { debate =>
-          DebateAssignment
-            .ofDebate(debate)
-            .map { assignment =>
-              debate.setup.sourceMaterial.title -> Map(assignment.judge -> 1)
-            }
+    val judgingInHistory: Map[String, Map[String, Int]] = history.foldMap { debate =>
+      DebateAssignment
+        .ofDebate(debate)
+        .foldMap { assignment =>
+          Map(debate.setup.sourceMaterial.title -> Map(assignment.judge -> 1))
         }
-        .toMap
+    }
     var randomKey = scala.util.Random.nextString(10)
     while (newAssignments.map(_.judge).contains(randomKey))
       randomKey = scala.util.Random.nextString(10)
@@ -181,13 +171,13 @@ object DebateScheduler {
   }
 
   def debatedOtherDebatersCost(assignments: Vector[DebateAssignment]): Double = {
-    val adversarialPairs: Map[Set[String], Int] =
+    val adversarialPairs: Map[Duad[String], Int] =
       assignments
-        .flatMap { assignment =>
-          val allSets: Set[Set[String]] = assignment
+        .foldMap { assignment =>
+          val allDuads: Set[Duad[String]] = assignment
             .dishonestDebaters
-            .map(Set(assignment.honestDebater, _))
-          allSets.map(_ -> 1)
+            .map(assignment.honestDebater <-> _)
+          allDuads.map(_ -> 1)
         }
         .toMap
     Numbers(adversarialPairs.values.toVector).stats.stdev
@@ -201,14 +191,16 @@ object DebateScheduler {
         }
         .toMap
     // keys are tuples of (judge, debater)
-    val judgedPerDebater: Map[(String, String), Int] =
-      judgeToDebaters
-        .flatMap { case (judge, debaters) =>
-          debaters.map { debater =>
-            (judge, debater) -> 1
+    val judgedPerDebater: Map[(String, String), Int] = judgeToDebaters
+      .toSeq
+      .foldMap { case (judge, debaters) =>
+        debaters
+          .toSeq
+          .foldMap { debater =>
+            Map((judge, debater) -> 1)
           }
-        }
-        .toMap
+      }
+
     Numbers(judgedPerDebater.values.toVector).stats.stdev
   }
 

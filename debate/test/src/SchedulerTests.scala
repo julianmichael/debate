@@ -45,7 +45,7 @@ class SchedulerTests extends CatsEffectSuite {
       rules = DebateRules.default,
       sourceMaterial = testSourceMaterial,
       question = "test question",
-      answers = Vector.empty[String],
+      answers = Vector("the answer to everything, trust me", "the answer to nothing, trust me"),
       correctAnswerIndex = correctAnswerIndex,
       roles = roles,
       startTime = 0
