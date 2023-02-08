@@ -28,8 +28,6 @@ trait RoomHeading {
         "eligible for offline judging"
       case Complete =>
         "complete"
-      case IneligibleForOfflineJudging =>
-        "ineligible for offline judging"
     }
 
   def titleString =
@@ -46,18 +44,15 @@ trait RoomHeading {
         "Eligible for You to Judge"
       case Complete =>
         "Complete"
-      case IneligibleForOfflineJudging =>
-        "Ineligible for Offline Judging"
     }
 }
 object RoomHeading {
-  case object AwaitingFeedback            extends RoomHeading
-  case object EligibleForOfflineJudging   extends RoomHeading
-  case object InProgress                  extends RoomHeading
-  case object WaitingToBegin              extends RoomHeading
-  case object MustJudgeBeforeDebating     extends RoomHeading
-  case object Complete                    extends RoomHeading
-  case object IneligibleForOfflineJudging extends RoomHeading
+  case object AwaitingFeedback          extends RoomHeading
+  case object EligibleForOfflineJudging extends RoomHeading
+  case object InProgress                extends RoomHeading
+  case object WaitingToBegin            extends RoomHeading
+  case object MustJudgeBeforeDebating   extends RoomHeading
+  case object Complete                  extends RoomHeading
 
   def infer(metadata: RoomMetadata, user: String, stats: DebaterStoryStats): RoomHeading =
     metadata.status match {
@@ -68,10 +63,8 @@ object RoomHeading {
           } else {
             AwaitingFeedback
           }
-        } else if (offlineJudging.contains(user)) {
+        } else if (offlineJudging.contains(user) || stats.hasReadStory) {
           Complete
-        } else if (stats.hasReadStory) {
-          IneligibleForOfflineJudging
         } else
           EligibleForOfflineJudging
       case _
@@ -137,8 +130,6 @@ object DebatesPanel {
                   S.mustJudgeBeforeDebatingStatusLabel
                 case Complete =>
                   S.completeStatusLabel
-                case IneligibleForOfflineJudging =>
-                  S.ineligibleForOfflineJudgingStatusLabel
               }
             }
             val roomsForHeading = metadatasByHeading.get(heading).combineAll
@@ -217,7 +208,26 @@ object DebatesPanel {
     val (myDebates, notMyDebates) = lobby
       .officialRooms
       .partition(_.roleAssignments.values.toSet.contains(userName))
+
     import RoomHeading._
+
+    // of the debates I wasn't assigned to participate in live,
+    val debatesForOfflineJudging = notMyDebates.filter(room =>
+      // either I've judged it offline,
+      RoomStatus
+        .complete
+        .getOption(room.status)
+        .exists(_.offlineJudgingResults.contains(userName)) ||
+        // or I _can_ judge it offline.
+        Set[RoomHeading](AwaitingFeedback, EligibleForOfflineJudging).contains(
+          RoomHeading.infer(
+            room,
+            userName,
+            lobby.storyRecord.get(userName).flatMap(_.get(room.sourceMaterialId)).combineAll
+          )
+        )
+    )
+
     val liveDebateHeadings = List(
       AwaitingFeedback,
       InProgress,
@@ -225,20 +235,14 @@ object DebatesPanel {
       MustJudgeBeforeDebating,
       Complete
     )
-    val offlineJudgingHeadings = List(
-      AwaitingFeedback,
-      EligibleForOfflineJudging,
-      Complete,
-      IneligibleForOfflineJudging
-    )
+    val offlineJudgingHeadings = List(AwaitingFeedback, EligibleForOfflineJudging, Complete)
     val allHeadings = List(
       AwaitingFeedback,
       InProgress,
       WaitingToBegin,
       MustJudgeBeforeDebating,
       EligibleForOfflineJudging,
-      Complete,
-      IneligibleForOfflineJudging
+      Complete
     )
 
     def makeTab(isOfficial: Boolean, headings: List[RoomHeading], rooms: Set[RoomMetadata]) = TabNav
@@ -259,7 +263,11 @@ object DebatesPanel {
       "My Live Debates" ->
         makeTab(isOfficial = true, headings = liveDebateHeadings, rooms = myDebates),
       "My Offline Judging" ->
-        makeTab(isOfficial = true, headings = offlineJudgingHeadings, rooms = notMyDebates),
+        makeTab(
+          isOfficial = true,
+          headings = offlineJudgingHeadings,
+          rooms = debatesForOfflineJudging
+        ),
       "All Official Debates" ->
         makeTab(isOfficial = true, headings = allHeadings, rooms = lobby.officialRooms),
       "Practice Debates" ->
