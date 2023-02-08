@@ -101,6 +101,7 @@ object DebatePage {
   /** Top row showing debate metadata and observers.  */
   def headerRow(
     userName: String,
+    userRole: Role,
     isOfficial: Boolean,
     roomName: String,
     debate: StateSnapshot[DebateState],
@@ -130,48 +131,61 @@ object DebatePage {
       <.div(<.strong("Name: "), userName),
       <.div(<.strong(s"$roomPrefix Room: "), roomName),
       <.div(S.grow)(
-        <.strong(
-          S.simpleSelectableText.when(canAssumeRole(Observer)),
-          s"Observers:",
-          ^.onClick --> tryAssumingRole(Observer)
-        ),
-        " ", {
-          val observers = debate
-            .value
-            .participants
-            .view
-            .collect { case (name, role @ (Observer | Facilitator)) =>
-              name -> (role == Facilitator)
-            }
-            .toVector
-            .sortBy(_._1)
+          <.strong(
+            S.simpleSelectableText.when(canAssumeRole(Observer)),
+            s"Observers:",
+            ^.onClick --> tryAssumingRole(Observer)
+          ),
+          " ", {
+            val observers = debate
+              .value
+              .participants
+              .view
+              .collect { case (name, role @ (Observer | Facilitator)) =>
+                name -> (role == Facilitator)
+              }
+              .toVector
+              .sortBy(_._1)
 
-          if (observers.isEmpty)
-            <.span(S.veryGreyedOut)("none")
-          else
-            Utils
-              .delimitedTags[Vector, (String, Boolean)](
-                observers,
-                getTag = { case (name, isAdmin) =>
-                  val roleToToggleTo =
-                    if (isAdmin)
-                      Observer
-                    else
-                      Facilitator
-                  <.span(S.facilitatorName.when(isAdmin))(
-                    name,
-                    (^.onClick --> (tryAssumingRole(roleToToggleTo))).when(name == userName)
-                  )
-                }
-              )
-              .toVdomArray
-        }
-      ),
+            if (observers.isEmpty)
+              <.span(S.veryGreyedOut)("none")
+            else
+              Utils
+                .delimitedTags[Vector, (String, Boolean)](
+                  observers,
+                  getTag = { case (name, isAdmin) =>
+                    val roleToToggleTo =
+                      if (isAdmin)
+                        Observer
+                      else
+                        Facilitator
+                    <.span(S.facilitatorName.when(isAdmin))(
+                      name,
+                      (^.onClick --> (tryAssumingRole(roleToToggleTo))).when(name == userName)
+                    )
+                  }
+                )
+                .toVdomArray
+          }
+        )
+        .when(userRole.canSeeDebaterNames || userRole == Observer),
       <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary)
     )
   }
 
+  def renderDebateParticipant(
+    isOfficial: Boolean,
+    userRole: Role,
+    participantRole: Role,
+    participantName: String
+  ): String =
+    if (!isOfficial || userRole.canSeeDebaterNames || userRole == participantRole) {
+      s"$participantRole ($participantName)"
+    } else
+      participantRole.toString
+
   def showRoleNames(
+    isOfficial: Boolean,
     debateState: StateSnapshot[DebateState],
     profiles: Set[String],
     userRole: Role,
@@ -179,12 +193,13 @@ object DebatePage {
   ) =
     debateState.value.debate.setup.roles.get(role) match {
       case Some(name) =>
-        val nameDisplay =
-          userRole match {
-            case Facilitator =>
+        userRole match {
+          case Facilitator =>
+            <.span(
+              s"$role: ",
               V.Select
                 .String
-                .mod(select = TagMod(S.customSelect))(
+                .mod(select = TagMod(S.customSelect, ^.width.auto))(
                   choices = profiles.toList.sorted,
                   debateState
                     .zoomStateO(
@@ -196,14 +211,17 @@ object DebatePage {
                     )
                     .get
                 )
-            case _ =>
-              <.span(name)
-          }
+            )
+          case _ =>
+            val nameDisplay = renderDebateParticipant(isOfficial, userRole, role, name)
+            if (userRole == role) {
+              <.span(S.presentParticipant)(nameDisplay)
+            } else if (debateState.value.participants.get(name).isEmpty) {
+              <.span(S.missingParticipant)(nameDisplay, " (not here)")
+            } else
+              <.span(S.presentParticipant)(nameDisplay, " (present)")
+        }
 
-        if (debateState.value.participants.get(name).isEmpty) {
-          <.span(S.missingParticipant)(nameDisplay, " (not here)")
-        } else
-          nameDisplay
       case None =>
         Utils
           .delimitedSpans(
@@ -234,13 +252,15 @@ object DebatePage {
   )
 
   def qaAndRolesRow(
+    isOfficial: Boolean,
     profiles: Set[String],
     userName: String,
     role: Role,
     debateState: StateSnapshot[DebateState]
   ) = {
+    def canAssumeRole(role: Role) = !isOfficial && debateState.value.canSwitchToRole(userName, role)
     def tryAssumingRole(role: Role): Callback =
-      if (!debateState.value.canSwitchToRole(userName, role))
+      if (!canAssumeRole(role))
         Callback.empty
       else {
         debateState.modState(_.addParticipant(userName, role))
@@ -253,14 +273,14 @@ object DebatePage {
             S.questionBoxCurrent
           else
             S.questionBox,
-          S.simpleSelectable.when(debateState.value.canSwitchToRole(userName, Judge))
+          S.simpleSelectable.when(canAssumeRole(Judge))
         )(
           <.div(S.grow)(
             <.span(S.questionTitle)("Question: "),
             debateState.value.debate.setup.question
           ),
           " ",
-          <.div(S.judgesList)(showRoleNames(debateState, profiles, role, Judge)),
+          <.div(S.judgesList)(showRoleNames(isOfficial, debateState, profiles, role, Judge)),
           ^.onClick --> tryAssumingRole(Judge)
         ),
         debateState
@@ -276,8 +296,7 @@ object DebatePage {
                 S.answerBoxCurrent(answerIndex)
               else
                 S.answerBox(answerIndex),
-              S.simpleSelectable
-                .when(debateState.value.canSwitchToRole(userName, Debater(answerIndex)))
+              S.simpleSelectable.when(canAssumeRole(Debater(answerIndex)))
             )(
               <.div(
                   correctAnswerRadio(
@@ -294,7 +313,7 @@ object DebatePage {
               <.div(S.grow)(<.span(S.answerTitle)(s"${answerLetter(answerIndex)}. "), answer),
               " ",
               <.div(S.debatersList)(
-                showRoleNames(debateState, profiles, role, Debater(answerIndex))
+                showRoleNames(isOfficial, debateState, profiles, role, Debater(answerIndex))
               ),
               ^.onClick --> tryAssumingRole(Debater(answerIndex))
             )
@@ -339,9 +358,10 @@ object DebatePage {
             val backgroundStyle = S.observerBg
 
             <.div(S.debateContainer, S.spaceyContainer)(
-              headerRow(userName, isOfficial, roomName, debateState, disconnect = disconnect),
+              headerRow(userName, role, isOfficial, roomName, debateState, disconnect = disconnect),
               <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
                 qaAndRolesRow(
+                  isOfficial = isOfficial,
                   profiles = profiles,
                   userName = userName,
                   role = role,

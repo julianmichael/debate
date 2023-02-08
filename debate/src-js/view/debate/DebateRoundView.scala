@@ -54,11 +54,12 @@ object DebateRoundView {
     speech: DebateSpeech,
     startTimeOpt: Option[Long],
     userRole: Role
-  ) = {
-    val roleString = role.toString
+  ) =
     <.div(S.speechHeader)(
-      speech.speaker,
-      s" ($roleString) ",
+      // for now just don't bother showing names in practice debates...whatever.
+      // can fix later if desired.
+      DebatePage.renderDebateParticipant(true, userRole, role, speech.speaker),
+      " ",
       startTimeOpt.whenDefined(startTime =>
         timestampHTML(startTime, speech.timestamp).when(
           userRole match {
@@ -70,7 +71,6 @@ object DebateRoundView {
         )
       )
     )
-  }
 
   def quoteToHTML(source: Vector[String], span: ESpan) = <.span(
     <.span(S.quoteText)(breakNewlines(Utils.renderSpan(source, span))),

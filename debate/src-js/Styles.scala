@@ -343,6 +343,7 @@ object Styles extends jjm.ui.View.Styles {
   val judgesList = style()
 
   val missingParticipant = style(fontWeight.lighter, fontStyle.italic)
+  val presentParticipant = style(fontWeight.bold)
 
   val answerBoxesRow = style(display.flex, flexDirection.row)
 
