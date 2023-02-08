@@ -113,10 +113,10 @@ class SchedulerTests extends CatsEffectSuite {
       val thisCost = getBadnessScore(history = history, newAssignments = newAssignment)
       costs = costs :+ thisCost
     }
-    println("for full cost measurement: ", costs)
+    println("for full cost measurement: " + costs)
     println(
-      "for full cost measurement, all assignments: \n\n",
-      history.map(DebateAssignment.ofDebate).map(o => o.map(_.toPrettyString))
+      "for full cost measurement, all assignments: \n\n" +
+        history.map(DebateAssignment.ofDebate).map(o => o.map(_.toPrettyString))
     )
   }
 }
