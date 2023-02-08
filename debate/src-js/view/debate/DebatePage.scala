@@ -51,13 +51,13 @@ object DebatePage {
     curDebate: DebateState
   ) =
     CallbackTo {
-      val prevRoleOpt = prevDebateOpt.flatMap(_.participants.get(userName))
-      val curRoleOpt  = curDebate.participants.get(userName)
+      val prevRole = prevDebateOpt.flatMap(_.participants.get(userName)).getOrElse(Observer)
+      val curRole  = curDebate.participants.get(userName).getOrElse(Observer)
 
       val shouldScroll =
         prevDebateOpt.fold(true)(prevDebate =>
-          DebatePanel.visibleRounds(prevRoleOpt, prevDebate.debate) !=
-            DebatePanel.visibleRounds(curRoleOpt, curDebate.debate)
+          DebatePanel.visibleRounds(prevRole, prevDebate.debate) !=
+            DebatePanel.visibleRounds(curRole, curDebate.debate)
         )
       if (!shouldScroll || jQuery("#speeches").length < 1)
         Callback.empty
@@ -174,14 +174,14 @@ object DebatePage {
   def showRoleNames(
     debateState: StateSnapshot[DebateState],
     profiles: Set[String],
-    userRoleOpt: Option[Role],
+    userRole: Role,
     role: DebateRole
   ) =
     debateState.value.debate.setup.roles.get(role) match {
       case Some(name) =>
         val nameDisplay =
-          userRoleOpt match {
-            case Some(Facilitator) =>
+          userRole match {
+            case Facilitator =>
               V.Select
                 .String
                 .mod(select = TagMod(S.customSelect))(
@@ -236,7 +236,7 @@ object DebatePage {
   def qaAndRolesRow(
     profiles: Set[String],
     userName: String,
-    roleOpt: Option[Role],
+    role: Role,
     debateState: StateSnapshot[DebateState]
   ) = {
     def tryAssumingRole(role: Role): Callback =
@@ -249,7 +249,7 @@ object DebatePage {
       <.div(S.grow, S.col, S.debateHeaderRowCol)( // question and answers
         <.div(
           S.row,
-          if (roleOpt == Some(Judge))
+          if (role == Judge)
             S.questionBoxCurrent
           else
             S.questionBox,
@@ -260,7 +260,7 @@ object DebatePage {
             debateState.value.debate.setup.question
           ),
           " ",
-          <.div(S.judgesList)(showRoleNames(debateState, profiles, roleOpt, Judge)),
+          <.div(S.judgesList)(showRoleNames(debateState, profiles, role, Judge)),
           ^.onClick --> tryAssumingRole(Judge)
         ),
         debateState
@@ -272,7 +272,7 @@ object DebatePage {
           .toVdomArray { case (answer, answerIndex) =>
             <.div(S.row)(
               ^.key := s"answer-$answerIndex",
-              if (roleOpt == Some(Debater(answerIndex)))
+              if (role == Debater(answerIndex))
                 S.answerBoxCurrent(answerIndex)
               else
                 S.answerBox(answerIndex),
@@ -290,11 +290,11 @@ object DebatePage {
                     )
                   )
                 )
-                .when(roleOpt == Some(Facilitator)),
+                .when(role == Facilitator),
               <.div(S.grow)(<.span(S.answerTitle)(s"${answerLetter(answerIndex)}. "), answer),
               " ",
               <.div(S.debatersList)(
-                showRoleNames(debateState, profiles, roleOpt, Debater(answerIndex))
+                showRoleNames(debateState, profiles, role, Debater(answerIndex))
               ),
               ^.onClick --> tryAssumingRole(Debater(answerIndex))
             )
@@ -332,7 +332,7 @@ object DebatePage {
           case SyncedDebate.Connected(_, None) =>
             <.div(S.loading)("Waiting for debate data...")
           case SyncedDebate.Connected(_, Some(debateState)) =>
-            val roleOpt = debateState.value.participants.get(userName)
+            val role = debateState.value.participants.get(userName).getOrElse(Observer)
 
             // looks really bad to use the others haha.
             // Might have to think through colors (or just do a redesign)
@@ -344,10 +344,10 @@ object DebatePage {
                 qaAndRolesRow(
                   profiles = profiles,
                   userName = userName,
-                  roleOpt = roleOpt,
+                  role = role,
                   debateState = debateState
                 ),
-                DebatePanel(roomName, userName, roleOpt, debateState.zoomStateL(DebateState.debate))
+                DebatePanel(roomName, userName, role, debateState.zoomStateL(DebateState.debate))
               )
             )
         }

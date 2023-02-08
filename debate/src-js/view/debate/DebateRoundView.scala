@@ -53,7 +53,7 @@ object DebateRoundView {
     role: Role,
     speech: DebateSpeech,
     startTimeOpt: Option[Long],
-    userRoleOpt: Option[Role]
+    userRole: Role
   ) = {
     val roleString = role.toString
     <.div(S.speechHeader)(
@@ -61,11 +61,12 @@ object DebateRoundView {
       s" ($roleString) ",
       startTimeOpt.whenDefined(startTime =>
         timestampHTML(startTime, speech.timestamp).when(
-          userRoleOpt
-            .collect { case Facilitator | Debater(_) =>
-              ()
-            }
-            .nonEmpty
+          userRole match {
+            case Facilitator | Debater(_) =>
+              true
+            case _ =>
+              false
+          }
         )
       )
     )
@@ -80,7 +81,7 @@ object DebateRoundView {
     source: Vector[String],
     speeches: Map[Int, DebateSpeech],
     startTimeOpt: Option[Long],
-    userRoleOpt: Option[Role]
+    userRole: Role
   ) =
     <.div(S.speechRow)(
       speeches
@@ -89,7 +90,7 @@ object DebateRoundView {
         .toVdomArray { case (debaterIndex, speech) =>
           <.div(S.speechBox, S.answerBg(debaterIndex))(
             ^.key := s"speech-$debaterIndex",
-            speechHeaderHTML(Debater(debaterIndex), speech, startTimeOpt, userRoleOpt),
+            speechHeaderHTML(Debater(debaterIndex), speech, startTimeOpt, userRole),
             speech
               .content
               .map {
@@ -111,12 +112,12 @@ object DebateRoundView {
     role: Role,
     speech: DebateSpeech,
     startTimeOpt: Option[Long],
-    userRoleOpt: Option[Role],
+    userRole: Role,
     style: TagMod
     // speechIndex: Int
   ) =
     <.div(S.speechBox, style)(
-      speechHeaderHTML(role, speech, startTimeOpt, userRoleOpt),
+      speechHeaderHTML(role, speech, startTimeOpt, userRole),
       speech
         .content
         .map {
@@ -133,7 +134,7 @@ object DebateRoundView {
 
   def makeRoundHtml(
     source: Vector[String],
-    roleOpt: Option[Role],
+    role: Role,
     debateStartTime: Option[Long],
     numDebaters: Int,
     round: DebateRound
@@ -144,16 +145,17 @@ object DebateRoundView {
         debateStartTime.whenDefined(startTime => timestampHTML(startTime, roundTime))
       )
       .when(
-        roleOpt
-          .collect { case Facilitator | Debater(_) =>
-            ()
-          }
-          .isEmpty
+        role match {
+          case Facilitator | Debater(_) =>
+            false
+          case _ =>
+            true
+        }
       ),
     round match {
       case SimultaneousSpeeches(speeches) =>
         if (speeches.size < numDebaters) {
-          roleOpt
+          Option(role)
             .collect { case Debater(index) =>
               speeches
                 .get(index)
@@ -163,14 +165,7 @@ object DebateRoundView {
                     S.pendingBg,
                     S.debateWidthOffset(index)
                   )
-                  makeSpeechHtml(
-                    source,
-                    Debater(index),
-                    speech,
-                    debateStartTime,
-                    roleOpt,
-                    speechStyle
-                  )
+                  makeSpeechHtml(source, Debater(index), speech, debateStartTime, role, speechStyle)
                 }
             }
             .flatten
@@ -180,7 +175,7 @@ object DebateRoundView {
               el(^.key := s"text-$i")
             }
         } else {
-          Vector(makeSimultaneousSpeechesHtml(source, speeches, debateStartTime, roleOpt))
+          Vector(makeSimultaneousSpeechesHtml(source, speeches, debateStartTime, role))
             .zipWithIndex
             .toVdomArray { case (el, i) =>
               el(^.key := s"text-$i")
@@ -190,9 +185,12 @@ object DebateRoundView {
         val speechesToShow =
           if (
             speeches.size < numDebaters &&
-            !roleOpt.existsAs { case Facilitator | Debater(_) =>
-              true
-            }
+            (role match {
+              case Facilitator | Debater(_) =>
+                false
+              case _ =>
+                true
+            })
           ) {
             Map[Int, DebateSpeech]()
           } else
@@ -219,14 +217,14 @@ object DebateRoundView {
               Debater(debaterIndex),
               speech,
               debateStartTime,
-              roleOpt,
+              role,
               speechStyle
             )(^.key := s"speech-$debaterIndex")
           }
       case JudgeFeedback(probabilities, speech, endsDebate) =>
         val speechStyle = TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
         Vector(
-          Option(makeSpeechHtml(source, Judge, speech, debateStartTime, roleOpt, speechStyle)),
+          Option(makeSpeechHtml(source, Judge, speech, debateStartTime, role, speechStyle)),
           Option(
             <.div(
               ^.display       := "flex",
@@ -253,7 +251,7 @@ object DebateRoundView {
           }
       case NegotiateEnd(votes) =>
         if (votes.size < numDebaters) {
-          roleOpt
+          Option(role)
             .collect { case Debater(index) =>
               votes
                 .get(index)
@@ -273,7 +271,7 @@ object DebateRoundView {
             }
         } else {
           if (
-            roleOpt.existsAs { case Debater(_) | Facilitator =>
+            Option(role).existsAs { case Debater(_) | Facilitator =>
               true
             }
           ) {

@@ -101,20 +101,21 @@ object DebatePanel {
     }
   )
 
-  def visibleRounds(roleOpt: Option[Role], debate: Debate) = debate
+  def visibleRounds(role: Role, debate: Debate) = debate
     .rounds
     .filter { round =>
       val isFacilitatorOrDebater =
-        roleOpt
-          .collect { case Facilitator | Debater(_) =>
-            ()
-          }
-          .nonEmpty
+        role match {
+          case Facilitator | Debater(_) =>
+            true
+          case _ =>
+            false
+        }
       isFacilitatorOrDebater || round.isComplete(debate.setup.numDebaters)
     }
 
-  def debateSpansWithSpeaker(roleOpt: Option[Role], numDebaters: Int, rounds: Vector[DebateRound]) =
-    rounds.flatMap { round =>
+  def debateSpansWithSpeaker(role: Role, numDebaters: Int, rounds: Vector[DebateRound]) = rounds
+    .flatMap { round =>
       if (round.isComplete(numDebaters)) {
         round
           .allSpeeches
@@ -124,22 +125,17 @@ object DebatePanel {
           }
           .toVector
       } else {
-        roleOpt
-          .view
-          .flatMap { role =>
-            round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
-          }
-          .toVector
+        round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
       }
     }
 
   def getHighlights(
-    roleOpt: Option[Role],
+    role: Role,
     numDebaters: Int,
     rounds: Vector[DebateRound],
     curMessageSpans: Set[ESpan]
   ) =
-    debateSpansWithSpeaker(roleOpt, numDebaters, rounds).map { case (role, span) =>
+    debateSpansWithSpeaker(role, numDebaters, rounds).map { case (role, span) =>
       span -> getSpanColorForRole(role)
     } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
 
@@ -156,18 +152,12 @@ object DebatePanel {
     }
 
   /** Show the debate. */
-  def apply(
-    roomName: String,
-    userName: String,
-    roleOpt: Option[Role],
-    debate: StateSnapshot[Debate]
-  ) = {
+  def apply(roomName: String, userName: String, role: Role, debate: StateSnapshot[Debate]) = {
     import debate.value.{setup, rounds}
 
     val currentTransitions = debate.value.currentTransitions
     val userTurn =
       for {
-        role        <- roleOpt
         debateRole  <- role.asDebateRoleOpt
         transitions <- currentTransitions.toOption
         turn        <- transitions.giveSpeech.get(debateRole)
@@ -178,10 +168,10 @@ object DebatePanel {
       <.div(S.debatePanel, S.spaceySubcontainer)(
         StoryPanel(
           setup.sourceMaterial.contents,
-          getHighlights(roleOpt, setup.numDebaters, rounds, curMessageSpans.value),
+          getHighlights(role, setup.numDebaters, rounds, curMessageSpans.value),
           span => curMessageSpans.modState(_ + span)
         ).when(
-          roleOpt.exists {
+          role match {
             case Facilitator | Debater(_) =>
               true
             case _ =>
@@ -194,13 +184,13 @@ object DebatePanel {
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
               ^.id := "speeches",
-              visibleRounds(roleOpt, debate.value)
+              visibleRounds(role, debate.value)
                 .zipWithIndex
                 .flatMap { case (round, roundIndex) =>
                   Option(
                     DebateRoundView.makeRoundHtml(
                       source = setup.sourceMaterial.contents,
-                      roleOpt = roleOpt,
+                      role = role,
                       debateStartTime = debate.value.startTime,
                       numDebaters = setup.answers.size,
                       round
@@ -208,48 +198,43 @@ object DebatePanel {
                   )
                 }
                 .toVdomArray,
-              roleOpt.whenDefined { role =>
-                DebateRoundView
-                  .makeSpeechHtml(
-                    setup.sourceMaterial.contents,
-                    role,
-                    DebateSpeech(userName, -1L, currentMessageSpeechSegments),
-                    debate.value.startTime,
-                    Some(role),
-                    getInProgressSpeechStyle(role)
-                  )
-                  .when(currentMessage.value.size > 0 && isUsersTurn)
-              }
+              DebateRoundView
+                .makeSpeechHtml(
+                  setup.sourceMaterial.contents,
+                  role,
+                  DebateSpeech(userName, -1L, currentMessageSpeechSegments),
+                  debate.value.startTime,
+                  role,
+                  getInProgressSpeechStyle(role)
+                )
+                .when(currentMessage.value.size > 0 && isUsersTurn)
             ),
-            turnDisplay(roleOpt.flatMap(_.asDebateRoleOpt), currentTransitions.map(_.currentTurns)),
-            roleOpt.whenDefined { role =>
-              currentTransitions
-                .toOption
-                .whenDefined { transitions =>
+            turnDisplay(role.asDebateRoleOpt, currentTransitions.map(_.currentTurns)),
+            currentTransitions
+              .toOption
+              .whenDefined { transitions =>
+                <.div(S.col)(
                   <.div(S.col)(
-                    <.div(S.col)(
-                      role
-                        .asDebateRoleOpt
-                        .flatMap(transitions.giveSpeech.get)
-                        .whenDefined { case turnDotPair =>
-                          SpeechInput
-                            .speechInput(debate, userName, role, turnDotPair, currentMessage)
-                        },
-                      role
-                        .asDebateRoleOpt
-                        .flatMap(transitions.undo.get)
-                        .whenDefined { case (speech, debateAfterUndo) =>
-                          <.button(
-                            "Undo",
-                            ^.onClick -->
-                              (debate.setState(debateAfterUndo) >>
-                                currentMessage.setState(SpeechSegments.getString(speech)))
-                          )
-                        }
-                    )
+                    role
+                      .asDebateRoleOpt
+                      .flatMap(transitions.giveSpeech.get)
+                      .whenDefined { case turnDotPair =>
+                        SpeechInput.speechInput(debate, userName, role, turnDotPair, currentMessage)
+                      },
+                    role
+                      .asDebateRoleOpt
+                      .flatMap(transitions.undo.get)
+                      .whenDefined { case (speech, debateAfterUndo) =>
+                        <.button(
+                          "Undo",
+                          ^.onClick -->
+                            (debate.setState(debateAfterUndo) >>
+                              currentMessage.setState(SpeechSegments.getString(speech)))
+                        )
+                      }
                   )
-                }
-            }
+                )
+              }
           )
         }
       )
