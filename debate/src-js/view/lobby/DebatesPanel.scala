@@ -18,51 +18,49 @@ trait RoomHeading {
     this match {
       case AwaitingFeedback =>
         "awaiting feedback"
-      case EligibleForOfflineJudging =>
-        "eligible for offline judging"
       case InProgress =>
         "in progress"
       case WaitingToBegin =>
         "waiting to begin"
+      case MustJudgeBeforeDebating =>
+        "must judge before debating"
+      case EligibleForOfflineJudging =>
+        "eligible for offline judging"
       case Complete =>
         "complete"
+      case IneligibleForOfflineJudging =>
+        "ineligible for offline judging"
     }
-
-  // def isComplete =
-  //   this match {
-  //     case Complete =>
-  //       true
-  //     case _ =>
-  //       false
-  //   }
 
   def titleString =
     this match {
       case AwaitingFeedback =>
         "Awaiting Your Feedback"
-      case EligibleForOfflineJudging =>
-        "Eligible for You to Judge"
       case InProgress =>
         "In Progress"
       case WaitingToBegin =>
         "Waiting to Begin"
+      case MustJudgeBeforeDebating =>
+        "Must Judge Before Debating"
+      case EligibleForOfflineJudging =>
+        "Eligible for You to Judge"
       case Complete =>
         "Complete"
+      case IneligibleForOfflineJudging =>
+        "Ineligible for Offline Judging"
     }
 }
 object RoomHeading {
-  case object AwaitingFeedback          extends RoomHeading
-  case object EligibleForOfflineJudging extends RoomHeading
-  case object InProgress                extends RoomHeading
-  case object WaitingToBegin            extends RoomHeading
-  case object Complete                  extends RoomHeading
+  case object AwaitingFeedback            extends RoomHeading
+  case object EligibleForOfflineJudging   extends RoomHeading
+  case object InProgress                  extends RoomHeading
+  case object WaitingToBegin              extends RoomHeading
+  case object MustJudgeBeforeDebating     extends RoomHeading
+  case object Complete                    extends RoomHeading
+  case object IneligibleForOfflineJudging extends RoomHeading
 
-  def infer(metadata: RoomMetadata, user: String): RoomHeading =
+  def infer(metadata: RoomMetadata, user: String, stats: DebaterStoryStats): RoomHeading =
     metadata.status match {
-      case RoomStatus.InProgress =>
-        InProgress
-      case RoomStatus.WaitingToBegin =>
-        WaitingToBegin
       case RoomStatus.Complete(_, offlineJudging, feedbackProviders) =>
         if (metadata.roleAssignments.values.toSet.contains(user)) {
           if (feedbackProviders.contains(user)) {
@@ -72,8 +70,22 @@ object RoomHeading {
           }
         } else if (offlineJudging.contains(user)) {
           Complete
+        } else if (stats.hasReadStory) {
+          IneligibleForOfflineJudging
         } else
           EligibleForOfflineJudging
+      case _
+          if metadata
+            .roleAssignments
+            .toVector
+            .existsAs { case (Debater(_), `user`) =>
+              true
+            } && stats.needsToJudgeStory =>
+        MustJudgeBeforeDebating
+      case RoomStatus.InProgress =>
+        InProgress
+      case RoomStatus.WaitingToBegin =>
+        WaitingToBegin
     }
 }
 
@@ -88,6 +100,7 @@ object DebatesPanel {
     isOfficial: Boolean,
     headings: List[RoomHeading],
     rooms: Set[RoomMetadata],
+    storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
     connect: ConnectionSpec => Callback,
     sendToMainChannel: MainChannelRequest => Callback
   ) =
@@ -103,7 +116,10 @@ object DebatesPanel {
             else
               Callback.empty
 
-          val metadatasByHeading = rooms.groupBy(RoomHeading.infer(_, userName))
+          def statsForStory(room: RoomMetadata) =
+            storyRecord.get(userName).flatMap(_.get(room.sourceMaterialId)).combineAll
+          val metadatasByHeading = rooms
+            .groupBy(room => RoomHeading.infer(room, userName, statsForStory(room)))
 
           def showMetadatasWithHeading(heading: RoomHeading) = {
             val headingStyle = {
@@ -117,8 +133,12 @@ object DebatesPanel {
                   S.eligibleForOfflineJudgingStatusLabel
                 case WaitingToBegin =>
                   S.waitingToBeginStatusLabel
+                case MustJudgeBeforeDebating =>
+                  S.mustJudgeBeforeDebatingStatusLabel
                 case Complete =>
                   S.completeStatusLabel
+                case IneligibleForOfflineJudging =>
+                  S.ineligibleForOfflineJudgingStatusLabel
               }
             }
             val roomsForHeading = metadatasByHeading.get(heading).combineAll
@@ -194,14 +214,27 @@ object DebatesPanel {
       .officialRooms
       .partition(_.roleAssignments.values.toSet.contains(userName))
     import RoomHeading._
-    val liveDebateHeadings     = List(AwaitingFeedback, InProgress, WaitingToBegin, Complete)
-    val offlineJudgingHeadings = List(AwaitingFeedback, EligibleForOfflineJudging, Complete)
+    val liveDebateHeadings = List(
+      AwaitingFeedback,
+      InProgress,
+      WaitingToBegin,
+      MustJudgeBeforeDebating,
+      Complete
+    )
+    val offlineJudgingHeadings = List(
+      AwaitingFeedback,
+      EligibleForOfflineJudging,
+      Complete,
+      IneligibleForOfflineJudging
+    )
     val allHeadings = List(
       AwaitingFeedback,
       InProgress,
-      EligibleForOfflineJudging,
       WaitingToBegin,
-      Complete
+      MustJudgeBeforeDebating,
+      EligibleForOfflineJudging,
+      Complete,
+      IneligibleForOfflineJudging
     )
 
     def makeTab(isOfficial: Boolean, headings: List[RoomHeading], rooms: Set[RoomMetadata]) = TabNav
@@ -212,6 +245,7 @@ object DebatesPanel {
           isOfficial = isOfficial,
           headings = headings,
           rooms = rooms,
+          storyRecord = lobby.storyRecord,
           connect = connect,
           sendToMainChannel = sendToMainChannel
         )

@@ -11,6 +11,9 @@ case class DebaterStoryStats(
   offlineJudging: Map[DebateProgressLabel, Set[String]] = Map()
 ) {
   def allJudging = liveJudging |+| offlineJudging
+  import DebateProgressLabel._
+  def hasReadStory      = (debating - Assigned).nonEmpty
+  def needsToJudgeStory = (allJudging - Complete - AwaitingFeedback).nonEmpty
 }
 object DebaterStoryStats {
   implicit val debaterStoryStatsCommutativeMonoid: CommutativeMonoid[DebaterStoryStats] =
