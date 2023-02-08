@@ -323,7 +323,7 @@ object MetadataBox {
         <.div("Story: ", <.i(roomMetadata.storyTitle)),
         <.div(c"small text-muted")(
             <.span(
-              s"You've debated it ",
+              s"You've debated ",
               <.span(^.color.black)(nTimes(numDebated)),
               <.span(s" ($numDebatedPending pending)").when(numDebatedPending > 0)
             )
@@ -331,7 +331,7 @@ object MetadataBox {
           .when(numDebated + numDebatedPending > 0),
         <.div(c"small text-muted")(
             <.span(
-              s"You've judged it ",
+              s"You've judged ",
               <.span(^.color.black)(nTimes(numJudged)),
               <.span(s" ($numJudgedPending pending)").when(numDebatedPending > 0)
             )
@@ -399,7 +399,7 @@ object MetadataBox {
     }
 
     val deleteRoomButton =
-      <.button(c"btn btn-sm btn-outline-danger")(
+      <.button(c"btn btn-sm btn-outline-danger mt-1")(
         <.i(c"bi bi-x"),
         " Delete",
         ^.onClick ==>
@@ -475,7 +475,7 @@ object MetadataBox {
     <.div(c"card", selectableStyle, bgStyle)(
       <.div(c"card-body")(
         boxTitle,
-        <.div(c"card-text", c"mb-3".when(isAdmin))(
+        <.div(c"card-text", c"mb-2".when(isAdmin))(
           storyTitle,
           roleAssignments.when(!anonymize.value),
           presentParticipants,
