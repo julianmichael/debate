@@ -73,7 +73,10 @@ object MetadataBox {
   ) = {
     val stats = storyRecord.get(userName).flatMap(_.get(roomMetadata.sourceMaterialId)).combineAll
 
-    val canEnterRoom = userName.nonEmpty // &&
+    val debatesUserMustJudgeFirst = stats.debatesUserMustJudgeFirst(roomMetadata.name)
+
+    val canEnterRoom = userName.nonEmpty && debatesUserMustJudgeFirst.isEmpty
+    // &&
     // !roomMetadata.currentParticipants.contains(userName)
 
     case class ResultDescription(
@@ -336,7 +339,23 @@ object MetadataBox {
               <.span(s" ($numJudgedPending pending)").when(numDebatedPending > 0)
             )
           )
-          .when(numJudged + numJudgedPending > 0)
+          .when(numJudged + numJudgedPending > 0),
+        <.div(c"small", ^.color.red)(
+          "Must first judge: ",
+          Utils
+            .delimitedTags[Vector, String](
+              debatesUserMustJudgeFirst.toVector.sorted,
+              // getTag = { case (room, label) =>
+              getTag =
+                name =>
+                  <.a(
+                    ^.href := "#",
+                    name,
+                    ^.onClick --> enterRoom(ConnectionSpec(isOfficial, name, userName))
+                  )
+            )
+            .toVdomArray
+        )
       )
     }
 

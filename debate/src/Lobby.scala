@@ -14,6 +14,12 @@ case class DebaterStoryStats(
   import DebateProgressLabel._
   def hasReadStory      = (debating - Assigned).nonEmpty
   def needsToJudgeStory = (allJudging - Complete - AwaitingFeedback).nonEmpty
+  def debatesUserMustJudgeFirst(roomName: String): Set[String] =
+    if (debating.values.exists(_.contains(roomName))) {
+      val judging = allJudging
+      judging.get(Assigned).combineAll |+| judging.get(Begun).combineAll
+    } else
+      Set()
 }
 object DebaterStoryStats {
   implicit val debaterStoryStatsCommutativeMonoid: CommutativeMonoid[DebaterStoryStats] =
