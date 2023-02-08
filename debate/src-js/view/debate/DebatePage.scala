@@ -130,7 +130,7 @@ object DebatePage {
       ),
       <.div(<.strong("Name: "), userName),
       <.div(<.strong(s"$roomPrefix Room: "), roomName),
-      <.div(S.grow)(
+      <.div(
           <.strong(
             S.simpleSelectableText.when(canAssumeRole(Observer)),
             s"Observers:",
@@ -169,6 +169,7 @@ object DebatePage {
           }
         )
         .when(userRole.canSeeDebaterNames || userRole == Observer),
+      <.div(S.grow),
       <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary)
     )
   }
@@ -359,16 +360,20 @@ object DebatePage {
 
             <.div(S.debateContainer, S.spaceyContainer)(
               headerRow(userName, role, isOfficial, roomName, debateState, disconnect = disconnect),
-              <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
-                qaAndRolesRow(
-                  isOfficial = isOfficial,
-                  profiles = profiles,
-                  userName = userName,
-                  role = role,
-                  debateState = debateState
-                ),
-                DebatePanel(roomName, userName, role, debateState.zoomStateL(DebateState.debate))
-              )
+              if (role == TimedOfflineJudge) {
+                <.div("Offline judging isn't implemented yet! Check back in later.")
+              } else {
+                <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
+                  qaAndRolesRow(
+                    isOfficial = isOfficial,
+                    profiles = profiles,
+                    userName = userName,
+                    role = role,
+                    debateState = debateState
+                  ),
+                  DebatePanel(roomName, userName, role, debateState.zoomStateL(DebateState.debate))
+                )
+              }
             )
         }
       }
