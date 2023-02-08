@@ -341,21 +341,22 @@ object MetadataBox {
           )
           .when(numJudged + numJudgedPending > 0),
         <.div(c"small", ^.color.red)(
-          "Must first judge: ",
-          Utils
-            .delimitedTags[Vector, String](
-              debatesUserMustJudgeFirst.toVector.sorted,
-              // getTag = { case (room, label) =>
-              getTag =
-                name =>
-                  <.a(
-                    ^.href := "#",
-                    name,
-                    ^.onClick --> enterRoom(ConnectionSpec(isOfficial, name, userName))
-                  )
-            )
-            .toVdomArray
-        )
+            "Must first judge: ",
+            Utils
+              .delimitedTags[Vector, String](
+                debatesUserMustJudgeFirst.toVector.sorted,
+                // getTag = { case (room, label) =>
+                getTag =
+                  name =>
+                    <.a(
+                      ^.href := "#",
+                      name,
+                      ^.onClick --> enterRoom(ConnectionSpec(isOfficial, name, userName))
+                    )
+              )
+              .toVdomArray
+          )
+          .when(debatesUserMustJudgeFirst.nonEmpty)
       )
     }
 

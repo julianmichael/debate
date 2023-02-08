@@ -34,7 +34,7 @@ object DebatePanel {
         Rgba(0, 100, 0, 0.4)
       case Facilitator =>
         Rgba(285, 293, 200, 0.5)
-      case Observer | TimedOfflineJudge =>
+      case Observer | TimedOfflineJudge | Peeper =>
         Rgba(0, 0, 0, 0.6)
     }
 
@@ -140,7 +140,7 @@ object DebatePanel {
         TagMod(S.judgeOutline)
       case Facilitator =>
         TagMod(S.facilitatorOutline)
-      case Observer | TimedOfflineJudge =>
+      case Observer | TimedOfflineJudge | Peeper =>
         TagMod(S.observerOutline)
     }
 

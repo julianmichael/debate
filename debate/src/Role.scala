@@ -47,6 +47,10 @@ case object Observer extends Role {
 case object Facilitator extends Role {
   override def toString = "Facilitator"
 }
+// peeper: someone trying to look at a debate they don't have permission to
+case object Peeper extends Role {
+  override def toString = "Peeper"
+}
 case object TimedOfflineJudge extends Role {
   override def toString = "Offline Judge (Timed)"
 }
@@ -96,6 +100,8 @@ object Role {
         Some(Facilitator)
       case "Offline Judge (Timed)" =>
         Some(TimedOfflineJudge)
+      case "Peeper" =>
+        Some(Peeper)
       case x =>
         DebateRole.fromString(x)
     }

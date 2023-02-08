@@ -362,6 +362,8 @@ object DebatePage {
               headerRow(userName, role, isOfficial, roomName, debateState, disconnect = disconnect),
               if (role == TimedOfflineJudge) {
                 <.div("Offline judging isn't implemented yet! Check back in later.")
+              } else if (role == Peeper) {
+                <.div("No peeping! Go judge your assigned debates for this story first.")
               } else {
                 <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
                   qaAndRolesRow(

@@ -28,7 +28,7 @@ trait RoomHeading {
       case WaitingToBegin =>
         "Waiting to Begin"
       case MustJudgeBeforeDebating =>
-        "Must Judge This Story Before Debating"
+        "Must Judge the Story Before Debating"
       case EligibleForOfflineJudging =>
         "Eligible for You to Judge"
       case Complete =>
