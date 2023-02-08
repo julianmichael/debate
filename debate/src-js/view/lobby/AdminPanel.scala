@@ -40,7 +40,7 @@ object AdminPanel {
     joinOfficialRoomOpt: Option[String => Callback],
     sendToMainChannel: MainChannelRequest => Callback
   ) = {
-    val debates = lobby.officialRooms.filter(_.roleAssignments.values.exists(_ == name))
+    val debatesByName = lobby.officialRooms.view.map(r => r.name -> r).toMap
 
     def showStories(title: String, stories: Map[SourceMaterialId, DebaterStoryStats]) =
       if (stories.isEmpty)
@@ -48,31 +48,44 @@ object AdminPanel {
       else
         Some {
           ReactFragment(
-            <.h6(title),
-            <.p(
+            <.h6(c"mt-2")(title, s" (${stories.size})"),
+            <.div(S.storyListContainer)(
               stories.toVdomArray { case (sourceMaterialId, stats) =>
-                def showStats(stats: Map[DebateProgressLabel, Int]) =
-                  DebateProgressLabel
-                    .all
-                    .flatMap(label =>
-                      stats
-                        .get(label)
-                        .map { count =>
-                          <.span(^.key := label.toString, debateProgressLabelStyle(label))(
-                            count.toString,
-                            " "
-                          )
-                        }
+                def showStats(stats: Map[DebateProgressLabel, Set[String]]) = {
+                  val debatesInRevChronOrder = stats
+                    .view
+                    .flatMap { case (label, names) =>
+                      names.view.map(name => debatesByName(name) -> label).toVector
+                    }
+                    .toVector
+                    .sortBy(-_._1.latestUpdateTime)
+                  Utils
+                    .tagDelimitedTags[Vector, (RoomMetadata, DebateProgressLabel)](
+                      debatesInRevChronOrder,
+                      delimiter = <.br(),
+                      getTag = { case (room, label) =>
+                        <.a(debateProgressLabelStyle(label))(
+                          ^.href := "#",
+                          room.name,
+                          joinOfficialRoomOpt.whenDefined(join => ^.onClick --> join(room.name))
+                        )
+                      }
                     )
                     .toVdomArray
+                }
 
-                <.p(c"card-text small")(
-                  <.div(S.bold)(sourceMaterialId.title),
-                  <.div("Debating: ", showStats(stats.debating)).when(stats.debating.nonEmpty),
-                  <.div("Live Judging: ", showStats(stats.liveJudging))
-                    .when(stats.liveJudging.nonEmpty),
-                  <.div("Offline Judging: ", showStats(stats.offlineJudging))
-                    .when(stats.offlineJudging.nonEmpty)
+                <.div(c"card")(
+                  <.div(c"card-body p-2")(
+                    <.div(c"card-text small")(
+                      <.div(S.bold)(sourceMaterialId.title),
+                      <.div("Debating", <.br(), showStats(stats.debating))
+                        .when(stats.debating.nonEmpty),
+                      <.div("Live Judging", <.br(), showStats(stats.liveJudging))
+                        .when(stats.liveJudging.nonEmpty),
+                      <.div("Offline Judging", <.br(), showStats(stats.offlineJudging))
+                        .when(stats.offlineJudging.nonEmpty)
+                    )
+                  )
                 )
               }
             )
@@ -90,36 +103,20 @@ object AdminPanel {
     <.div(c"card")(
       <.div(c"card-body")(
         <.h4(c"card-title")(name),
-        <.h5(s"Stories: ${stories.size}"),
+        <.h5(s"Stories"),
         showStories("Read", storiesRead),
         showStories("Assigned to Read", storiesAssignedToRead),
         showStories("Judged", storiesJudged),
         showStories("Assigned to Judge", storiesAssignedToJudge),
-        <.p(c"card-text small")(
-          s"Debates: ${debates.size}",
-          <.br(),
-          Utils
-            .delimitedTags[Vector, RoomMetadata](
-              debates.toVector.sortBy(-_.latestUpdateTime),
-              getTag =
-                room =>
-                  <.a(
-                    ^.href := "#",
-                    room.name,
-                    joinOfficialRoomOpt.whenDefined(join => ^.onClick --> join(room.name))
-                  )
-            )
-            .toVdomArray
-        ),
         if (lobby.trackedDebaters.contains(name)) {
-          <.button(c"btn btn-sm btn-outline-danger", S.simpleSelectable)(
+          <.button(c"mt-2 btn btn-sm btn-outline-danger", S.simpleSelectable)(
             <.i(c"bi bi-x"),
             " Deactivate",
             ^.onClick --> sendToMainChannel(RemoveDebater(name))
           )
         } else {
           <.div(^.key := name)(
-            <.button(c"btn btn-sm btn-outline-secondary", S.simpleSelectable)(
+            <.button(c"mt-2 btn btn-sm btn-outline-secondary", S.simpleSelectable)(
               <.i(c"bi bi-arrow-up"),
               " Reactivate",
               ^.onClick --> sendToMainChannel(RegisterDebater(name))

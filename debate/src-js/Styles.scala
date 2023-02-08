@@ -5,6 +5,11 @@ import scala.language.postfixOps
 import scalacss.DevDefaults._
 import scalacss.internal.ValueT
 import scala.annotation.nowarn
+import scalacss.internal.Attr
+
+object gridGap extends ValueT.TypedAttrT1[ValueT.Len] with ValueT.ZeroLit {
+  override val attr = Attr.real("grid-gap")
+}
 
 /** Stylesheet for the webapp. Inherits default styles for the default view
   * components; these can be overridden.
@@ -235,6 +240,12 @@ object Styles extends jjm.ui.View.Styles {
   val profileListContainer = style(
     display.grid,
     gridTemplateColumns := "repeat(auto-fill,minmax(350px, 1fr))"
+  )
+
+  val storyListContainer = style(
+    display.grid,
+    gridTemplateColumns := "repeat(auto-fill,minmax(200px, 1fr))",
+    gridGap(spaceyPadding)
   )
 
   val judgeColor      = darkgreen

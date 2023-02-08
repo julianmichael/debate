@@ -6,9 +6,9 @@ import monocle.macros.Lenses
 import cats.kernel.CommutativeMonoid
 
 case class DebaterStoryStats(
-  debating: Map[DebateProgressLabel, Int] = Map(),
-  liveJudging: Map[DebateProgressLabel, Int] = Map(),
-  offlineJudging: Map[DebateProgressLabel, Int] = Map()
+  debating: Map[DebateProgressLabel, Set[String]] = Map(),
+  liveJudging: Map[DebateProgressLabel, Set[String]] = Map(),
+  offlineJudging: Map[DebateProgressLabel, Set[String]] = Map()
 ) {
   def allJudging = liveJudging |+| offlineJudging
 }
@@ -50,9 +50,9 @@ case class Lobby(
               }
             val stats =
               if (role == Judge) {
-                DebaterStoryStats(liveJudging = Map(label -> 1))
+                DebaterStoryStats(liveJudging = Map(label -> Set(room.name)))
               } else
-                DebaterStoryStats(debating = Map(label -> 1))
+                DebaterStoryStats(debating = Map(label -> Set(room.name)))
 
             Map(debater -> Map(room.sourceMaterialId -> stats))
           }
@@ -73,7 +73,7 @@ case class Lobby(
                   DebateProgressLabel.Complete
                 } else
                   DebateProgressLabel.AwaitingFeedback
-              val stats = DebaterStoryStats(offlineJudging = Map(label -> 1))
+              val stats = DebaterStoryStats(offlineJudging = Map(label -> Set(room.name)))
               judge -> Map(room.sourceMaterialId -> stats)
             }
             .toMap
