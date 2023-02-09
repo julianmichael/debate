@@ -37,7 +37,8 @@ case class DebateSetup(
   answers: Vector[String],
   correctAnswerIndex: Int,
   roles: Map[DebateRole, String],
-  startTime: Long // TODO change this to creationTime to distinguish it more clearly from Debate#startTime
+  offlineJudges: Map[String, Unit], // TODO offline judging role type
+  creationTime: Long
 ) {
   def numDebaters = answers.size
 

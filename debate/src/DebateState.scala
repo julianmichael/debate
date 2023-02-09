@@ -33,14 +33,14 @@ case class DebateState(debate: Debate, participants: Map[String, Role]) {
     sourceMaterialId = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
     storyTitle = debate.setup.sourceMaterial.title,
     roleAssignments = debate.setup.roles,
-    creationTime = debate.setup.startTime,
+    creationTime = debate.setup.creationTime,
     status = status,
     latestUpdateTime = debate
       .rounds
       .view
       .flatMap(_.timestamp(debate.setup.numDebaters))
       .lastOption
-      .getOrElse(debate.setup.startTime),
+      .getOrElse(debate.setup.creationTime),
     peopleWhoHaveSpoken = debate.rounds.foldMap(_.allSpeeches.values.view.map(_.speaker).toSet),
     currentSpeakers = debate.currentTransitions.toOption.foldMap(_.currentSpeakers),
     currentParticipants = participants.keySet
