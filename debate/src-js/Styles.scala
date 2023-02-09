@@ -21,6 +21,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val commonBorderRadius = 5 px
   val mainHalfPadding    = 3 px
+  val spaceyPadding      = 6 px
   val hoverBgColor       = c"#eee"
 
   val customSelect = style(addClassNames("custom-select"), flexGrow(1))
@@ -82,9 +83,11 @@ object Styles extends jjm.ui.View.Styles {
 
   def quotedSeparatedStrings(xs: String*) = xs.map(x => "\"" + x + "\"").mkString(", ")
 
+  style(unsafeRoot("html")(fontSize(14 px)))
+
   style(
     unsafeRoot("body")(
-      margin(0 px),
+      margin.`0`,
       fontFamily :=!
         quotedSeparatedStrings(
           "-apple-system",
@@ -142,7 +145,6 @@ object Styles extends jjm.ui.View.Styles {
 
   val simpleSelected = style(backgroundColor(c"#ddd"))
 
-  val spaceyPadding = 6 px
   val spaceyContainer = style(
     paddingTop(spaceyPadding),
     paddingLeft(spaceyPadding / 2),
@@ -219,33 +221,39 @@ object Styles extends jjm.ui.View.Styles {
   val optionBox = style(
     flexBasis := "0",
     flexGrow(1),
-    minHeight(60 px),
+    minHeight(4 rem),
     // margin(mainHalfPadding),
-    padding(2 px),
+    padding(spaceyPadding / 3),
     borderStyle.solid,
     borderWidth(1 px),
     borderColor(c"#ddd"),
     borderRadius(commonBorderRadius)
   )
 
-  val optionTitle = style(margin(2 px), fontWeight.bold)
+  val optionTitle = style(margin(spaceyPadding / 3), fontWeight.bold)
 
   val metadataListContainer = style(
     display.grid,
-    gridTemplateColumns := "repeat(auto-fill,minmax(250px, 1fr))"
+    gridTemplateColumns := "repeat(auto-fill,minmax(18rem, 1fr))"
   )
 
-  val judgmentBarLabel = style(fontSize(8 px), width(50 px))
-  val judgmentBar = style(row, overflow.hidden, fontSize(7 px), height(10 px), borderRadius(5 px))
+  val judgmentBarLabel = style(fontSize(0.5 rem), width(3.5 rem))
+  val judgmentBar = style(
+    row,
+    overflow.hidden,
+    fontSize(0.5 rem),
+    height(0.7 rem),
+    borderRadius(0.5 rem)
+  )
 
   val profileListContainer = style(
     display.grid,
-    gridTemplateColumns := "repeat(auto-fill,minmax(350px, 1fr))"
+    gridTemplateColumns := "repeat(auto-fill,minmax(20rem, 1fr))"
   )
 
   val storyListContainer = style(
     display.grid,
-    gridTemplateColumns := "repeat(auto-fill,minmax(200px, 1fr))",
+    gridTemplateColumns := "repeat(auto-fill,minmax(10rem, 1fr))",
     gridGap(spaceyPadding)
   )
 
@@ -318,7 +326,7 @@ object Styles extends jjm.ui.View.Styles {
     borderRadius(commonBorderRadius)
   )
 
-  val stickyBanner = style(position.sticky, top(0.px), backgroundColor.white, zIndex(10))
+  val stickyBanner = style(position.sticky, top.`0`, backgroundColor.white, zIndex(10))
 
   val debateHeaderRowCol = style(overflow.hidden, borderRadius(commonBorderRadius))
 
@@ -399,7 +407,7 @@ object Styles extends jjm.ui.View.Styles {
   val mainLabeledInputRow = style(
     addClassNames("row"),
     // spaceyContainer,
-    padding(15 px, 0 px),
+    padding(1 rem, `0`),
     borderRadius(commonBorderRadius),
     backgroundColor(c"#eee")
   )
@@ -437,9 +445,9 @@ object Styles extends jjm.ui.View.Styles {
     styleF.int(0 to 4)(i =>
       styleS(
         color(answerColors(i)),
-        fontSize(14 pt),
+        fontSize(1.25 rem),
         fontWeight.bold,
-        minWidth(80 px),
+        minWidth(6 rem),
         textAlign.right
       )
     // styleS(
@@ -496,24 +504,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val speechInputPanel = style()
 
-  val roomBottomRow = style(height(200 px))
-
-  val helpModal = style(
-    position.fixed,
-    top(50 %%),
-    left(50 %%),
-    marginLeft(-300 px),
-    marginTop(-300 px),
-    width(600 px),
-    height(600 px),
-    padding(20 px),
-    zIndex(20),
-    overflowY.scroll,
-    backgroundColor(grey(240)),
-    borderRadius(10 px)
-  )
-
-  val helpModalCloseButton = style()
+  val roomBottomRow = style(height(15 rem))
 
   val speechLengthPanel        = style()
   val speechLengthPanelOverage = style(color.red)
