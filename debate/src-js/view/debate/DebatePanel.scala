@@ -11,6 +11,7 @@ import jjm.ling.ESpan
 import jjm.ui.Rgba
 
 import debate.util.Local
+import debate.view.lobby.TabNav
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -157,13 +158,32 @@ object DebatePanel {
       } yield turn
     val isUsersTurn = userTurn.nonEmpty
 
+    val timeForFeedback =
+      debate.value.isOver &&
+        (setup.roles.values.toVector.contains(userName) ||
+          debate.value.offlineJudgingResults.contains(userName))
+
     Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
+      val leftPanelTabs =
+        Vector(
+          Option(
+            "Story" ->
+              TabNav.tab(
+                StoryPanel(
+                  setup.sourceMaterial.contents,
+                  getHighlights(role, setup.numDebaters, rounds, curMessageSpans.value),
+                  span => curMessageSpans.modState(_ + span)
+                )
+              )
+          ).filter(_ => role.canSeeStory),
+          Option("Feedback Survey" -> TabNav.tab(<.div("to do!"))).filter(_ => timeForFeedback)
+        ).flatten
+
       <.div(S.debatePanel, S.spaceySubcontainer)(
-        StoryPanel(
-          setup.sourceMaterial.contents,
-          getHighlights(role, setup.numDebaters, rounds, curMessageSpans.value),
-          span => curMessageSpans.modState(_ + span)
-        ).when(role.canSeeStory),
+        if (leftPanelTabs.nonEmpty) {
+          Option(<.div(S.debateSubpanel)(TabNav(s"$roomName-story/feedback")(leftPanelTabs: _*)))
+        } else
+          None,
         LocalQuotingMessage.make(curMessageSpans, s"debate-message-$roomName") { currentMessage =>
           val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
 

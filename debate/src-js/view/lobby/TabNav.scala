@@ -11,15 +11,17 @@ import debate.util.Local
 
 object TabNav {
 
-  case class TabInfo(content: VdomElement, numNotifications: Int = 0)
+  case class TabInfo(content: VdomElement, enabled: Boolean = true, numNotifications: Int = 0)
   object TabInfo
 
   def tab(content: VdomElement) = TabInfo(content)
 
   def tabWithNotifications(numNotifications: Int)(content: VdomElement) = TabInfo(
     content,
-    numNotifications
+    numNotifications = numNotifications
   )
+
+  def tabIf(enabled: Boolean)(content: VdomElement) = TabInfo(content, enabled = enabled)
 
   @Lenses
   case class Props(key: String, initialTabIndex: Int, tabs: Vector[(String, TabInfo)])
@@ -46,9 +48,15 @@ object TabNav {
                     .toVdomArray { case ((tab, tabInfo), index) =>
                       <.li(c"nav-item")(
                         ^.key := tab,
-                        <.a(^.classSet1("nav-link", "active" -> (index == tabIndex.value)))(
+                        <.a(
+                          ^.classSet1(
+                            "nav-link",
+                            "disabled" -> !tabInfo.enabled,
+                            "active"   -> (index == tabIndex.value)
+                          )
+                        )(
                           ^.href := "#",
-                          ^.onClick --> tabIndex.setState(index),
+                          (^.onClick --> tabIndex.setState(index)).when(tabInfo.enabled),
                           tab.toString,
                           Option(tabInfo.numNotifications)
                             .filter(_ > 0)
@@ -64,7 +72,14 @@ object TabNav {
                     }
                 )
               ),
-              props.tabs(tabIndex.value)._2.content
+              props
+                .tabs
+                .zipWithIndex
+                .find(_._2 == tabIndex.value)
+                .map(_._1._2)
+                .filter(_.enabled)
+                .map(_.content)
+                .getOrElse(<.div("Tab nav error. Click a tab above to make things good again."))
             )
           }
       }

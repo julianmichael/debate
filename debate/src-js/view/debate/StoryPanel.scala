@@ -65,52 +65,50 @@ object StoryPanel {
               .map(Optics.first[(Span, Rgba), Span].modify(intersectSpans(segSpan, _)))
               .map(Optics.first[(Span, Rgba), Span].modify(_.translate(-segSpan.begin)))
         }
-        <.div(S.debateSubpanel)(
-          <.div(S.sourceMaterialSubpanel)(
-            segmentsWithHighlights
-              .toList
-              .map { case (segment, highlights) =>
-                val offset = segment.head._2
-                TagMod(
-                  SpanSelection2
-                    .make(true, ispan => $.props.addSpan(ispan.toExclusive.translate(offset))) {
-                      case (status, context) =>
-                        val selectingSpanColorOpt = SpanSelection2
-                          .Status
-                          .selecting
-                          .getOption(status)
-                          .map { case SpanSelection2.Selecting(begin, end) =>
-                            ISpan(begin, end) -> midHighlightColor
-                          }
-                        val allHighlights = highlights ++ selectingSpanColorOpt
+        <.div(S.sourceMaterialSubpanel)(
+          segmentsWithHighlights
+            .toList
+            .map { case (segment, highlights) =>
+              val offset = segment.head._2
+              TagMod(
+                SpanSelection2
+                  .make(true, ispan => $.props.addSpan(ispan.toExclusive.translate(offset))) {
+                    case (status, context) =>
+                      val selectingSpanColorOpt = SpanSelection2
+                        .Status
+                        .selecting
+                        .getOption(status)
+                        .map { case SpanSelection2.Selecting(begin, end) =>
+                          ISpan(begin, end) -> midHighlightColor
+                        }
+                      val allHighlights = highlights ++ selectingSpanColorOpt
 
-                        <.div(
-                          V.Spans
-                            .renderHighlightedTokens(
-                              segment.map(_._1),
-                              allHighlights.toList,
-                              segment
-                                .indices
-                                .map(i =>
-                                  i ->
-                                    ((el: VdomTag) =>
-                                      if (segment(i)._1 == "\n") {
-                                        <.br()
-                                      } else
-                                        el(
-                                          ^.onMouseMove --> context.hover(i),
-                                          ^.onClick --> context.touch(i)
-                                        )
-                                    )
-                                )
-                                .toMap
-                            ),
-                          <.br()
-                        )
-                    }
-                )
-              }: _*
-          )
+                      <.div(
+                        V.Spans
+                          .renderHighlightedTokens(
+                            segment.map(_._1),
+                            allHighlights.toList,
+                            segment
+                              .indices
+                              .map(i =>
+                                i ->
+                                  ((el: VdomTag) =>
+                                    if (segment(i)._1 == "\n") {
+                                      <.br()
+                                    } else
+                                      el(
+                                        ^.onMouseMove --> context.hover(i),
+                                        ^.onClick --> context.touch(i)
+                                      )
+                                  )
+                              )
+                              .toMap
+                          ),
+                        <.br()
+                      )
+                  }
+              )
+            }: _*
         )
       }
       .build
