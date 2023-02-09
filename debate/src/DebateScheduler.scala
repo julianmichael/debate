@@ -28,23 +28,23 @@ object DebateScheduler {
       honestDebater: String,
       dishonestDebaters: Set[String],
       judge: String
-    ): Either[DebateAssignment, Exception] = {
+    ): Either[Exception, DebateAssignment] = {
       if (honestDebater == judge)
-        return Right(
+        return Left(
           new IllegalArgumentException("Honest debater and judge cannot be the same person")
         )
       else if (dishonestDebaters.contains(judge))
-        return Right(
+        return Left(
           new IllegalArgumentException("Dishonest debaters and judge cannot be the same person")
         )
       else if (dishonestDebaters.contains(honestDebater))
-        return Right(
+        return Left(
           new IllegalArgumentException(
             s"Honest debater and dishonest debaters cannot be the same person (honest = $honestDebater, dishonest = ${dishonestDebaters
                 .mkString(", ")})"
           )
         )
-      Left(new DebateAssignment(honestDebater, dishonestDebaters, judge))
+      Right(new DebateAssignment(honestDebater, dishonestDebaters, judge))
     }
 
     // Used in [ofDebate]
@@ -83,9 +83,9 @@ object DebateScheduler {
         judge <- judgeAssignment(debate)
         debateAssignmentOrError = DebateAssignment(honestDebater, dishonestDebaters, judge)
       } yield debateAssignmentOrError match {
-        case Left(assignment) =>
+        case Right(assignment) =>
           assignment
-        case Right(error) =>
+        case Left(error) =>
           // this should never happen if the error comes from dishonest debater assignment, etc. , but technically it's possible in case there are new error cases
           throw error
       }
@@ -253,11 +253,11 @@ object DebateScheduler {
         dishonestDebaters = dishonestDebaters
       )
     } yield dba match {
-      case Left(value) =>
-        value
       case Right(value) =>
+        value
+      case Left(exception) =>
         // an error shouldn't have happened here; seems like an internal error
-        throw value
+        throw exception
     }
 
   def generateAllAssignments(
