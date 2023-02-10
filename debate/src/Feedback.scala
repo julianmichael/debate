@@ -268,4 +268,10 @@ object Feedback {
       )
     )
   )
+
+  def initAnswers: DotMap[Option, Key] = DotMap(
+    survey.map { pair =>
+      DotPair[Option](pair.fst: Key)(None)
+    }: _*
+  )
 }
