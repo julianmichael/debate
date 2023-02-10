@@ -3,6 +3,8 @@ package view.debate
 
 import cats.implicits._
 
+import monocle.function.{all => Optics}
+import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
@@ -176,7 +178,20 @@ object DebatePanel {
                 )
               )
           ).filter(_ => role.canSeeStory),
-          Option("Feedback Survey" -> TabNav.tab(FeedbackSurvey())).filter(_ => timeForFeedback)
+          Option(
+            "Feedback Survey" ->
+              TabNav.tab(
+                FeedbackSurvey(
+                  role,
+                  debate.value.feedback.get(userName).map(_.answers),
+                  submit =
+                    response =>
+                      debate
+                        .zoomStateL(Debate.feedback.composeLens(Optics.at(userName)))
+                        .setState(Some(response))
+                )
+              )
+          ).filter(_ => timeForFeedback)
         ).flatten
 
       <.div(S.debatePanel, S.spaceySubcontainer)(

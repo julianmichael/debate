@@ -10,20 +10,17 @@ import io.circe.KeyEncoder
 import io.circe.KeyDecoder
 import io.circe.Encoder
 import io.circe.Decoder
+import monocle.macros.Lenses
 
 object Feedback {
-
-  @JsonCodec
-  sealed trait SurveyResponse
-  object SurveyResponse {
-    case class Debater(answers: DotMap[Id, Key]) extends SurveyResponse
-    case class Judge(answers: DotMap[Id, Key])   extends SurveyResponse
-  }
 
   // self/opponent for debaters
   // A/B for judges
   @JsonCodec
-  case class ComparativeJudgment(first: Int, second: Int)
+  @Lenses
+  case class ComparativeJudgment(first: Int, second: Int) {
+    def isValid = first > -1 && second > -1
+  }
 
   sealed trait Key {
     def key: String
@@ -79,7 +76,11 @@ object Feedback {
       }
   }
 
-  sealed trait Question[Answer]
+  sealed trait Question[Answer] {
+    def debaterQuestion: Option[String]
+    def judgeQuestion: Option[String]
+    def questionDetails: Option[String]
+  }
   object Question {
 
     @JsonCodec
@@ -136,8 +137,8 @@ object Feedback {
           "How would you rate the quality of the evidence present in the story in favor of each side?"
         ),
         numOptions = 5,
-        minDescription = "Hardly anything to latch onto",
-        maxDescription = "Clear and convincing evidence"
+        minDescription = "Nothing to latch onto",
+        maxDescription = "Clear & convincing"
       )
     ),
     DotPair[Question](Key.ComparativeLikert("evidence use"))(
@@ -146,8 +147,8 @@ object Feedback {
           "How effectively did each of you use the evidence available to you?"
         ),
         numOptions = 5,
-        minDescription = "Poorly / missed very critical evidence",
-        maxDescription = "Made the best use of it"
+        minDescription = "Not at all",
+        maxDescription = "Best possible"
       )
     ),
     DotPair[Question](Key.ComparativeLikert("evidence in debate"))(
@@ -155,7 +156,7 @@ object Feedback {
         judgeQuestion = Some("How compelling was each debater's evidence?"),
         numOptions = 5,
         minDescription = "Poor / irrelevant",
-        maxDescription = "Strong & clearly supported their argument"
+        maxDescription = "Clear & effective"
       )
     ),
     DotPair[Question](Key.ComparativeLikert("factual accuracy"))(
@@ -172,8 +173,8 @@ object Feedback {
       Question.ComparativeLikert(
         judgeQuestion = Some("How much did each debater help you understand the story?"),
         numOptions = 5,
-        minDescription = "Hardly at all",
-        maxDescription = "Debater was highly informative"
+        minDescription = "Not at all",
+        maxDescription = "Highly informative"
       )
     ),
     DotPair[Question](Key.Likert("factual informativeness (total)"))(
@@ -182,8 +183,8 @@ object Feedback {
           "Did you feel like the debate as a whole helped you understand the story better as it progressed?"
         ),
         numOptions = 5,
-        minDescription = "Hardly at all",
-        maxDescription = "Debate was highly informative"
+        minDescription = "Not at all",
+        maxDescription = "Highly informative"
       )
     ),
     DotPair[Question](Key.ComparativeLikert("facts versus semantics"))(
@@ -195,8 +196,8 @@ object Feedback {
           "How much did each debater focus on matters of fact versus matters of semantics?"
         ),
         numOptions = 5,
-        minDescription = "Completely about facts",
-        maxDescription = "Completely about semantics"
+        minDescription = "Completely facts",
+        maxDescription = "Completely semantics"
       )
     ),
     DotPair[Question](Key.ComparativeLikert("clarity"))(
@@ -214,7 +215,7 @@ object Feedback {
         judgeQuestion = Some("How well did the debaters clash with each other's arguments?"),
         numOptions = 5,
         minDescription = "No clash",
-        maxDescription = "Perfect/excellent clash"
+        maxDescription = "Addressed all arguments"
       )
     ),
     DotPair[Question](Key.ComparativeLikert("judge adaptation"))(
@@ -269,9 +270,31 @@ object Feedback {
     )
   )
 
-  def initAnswers: DotMap[Option, Key] = DotMap(
-    survey.map { pair =>
-      DotPair[Option](pair.fst: Key)(None)
-    }: _*
+  def initAnswers(role: Role): DotMap[Option, Key] = DotMap(
+    survey
+      .filter(pair =>
+        role match {
+          case Debater(_) =>
+            pair.snd.debaterQuestion.nonEmpty
+          case Judge =>
+            pair.snd.judgeQuestion.nonEmpty
+          case _ =>
+            false
+        }
+      )
+      .map { pair =>
+        DotPair[Option](pair.fst: Key)(None)
+      }: _*
   )
+
+  @JsonCodec
+  sealed trait SurveyResponse {
+    def answers: DotMap[Id, Key]
+  }
+  object SurveyResponse {
+    case class Debater(answers: DotMap[Id, Key]) extends SurveyResponse
+    case class Judge(answers: DotMap[Id, Key])   extends SurveyResponse
+
+  }
+
 }

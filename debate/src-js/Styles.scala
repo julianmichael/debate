@@ -493,6 +493,11 @@ object Styles extends jjm.ui.View.Styles {
     overflowY.auto
   )
 
+  val feedbackSurveySubpanel = style(spaceyContainer, width(100 %%), height.auto, overflowY.auto)
+
+  val comparativeLikertLabel = style(addClassNames("mr-2"), width(5 rem))
+  val minMaxLikertLabel      = style(width(5 rem))
+
   val speechesSubpanel = style(
     flexGrow(1),
     display.flex,
