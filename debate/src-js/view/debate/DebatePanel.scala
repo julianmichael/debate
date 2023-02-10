@@ -176,7 +176,7 @@ object DebatePanel {
                 )
               )
           ).filter(_ => role.canSeeStory),
-          Option("Feedback Survey" -> TabNav.tab(<.div("to do!"))).filter(_ => timeForFeedback)
+          Option("Feedback Survey" -> TabNav.tab(FeedbackSurvey())).filter(_ => timeForFeedback)
         ).flatten
 
       <.div(S.debatePanel, S.spaceySubcontainer)(

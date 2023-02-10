@@ -25,7 +25,7 @@ case class Debate(
   setup: DebateSetup,
   rounds: Vector[DebateRound],
   offlineJudgingResults: Map[String, OfflineJudgingResult],
-  feedback: Map[String, Unit] // placeholder for when we add it in later
+  feedback: Map[String, Feedback.SurveyResponse]
 ) {
   import Debate.DebateTransitionSet
 
