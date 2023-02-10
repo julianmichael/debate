@@ -130,12 +130,12 @@ object FeedbackSurvey {
 
   def apply(
     role: Role,
-    uploadedAnswers: Option[DotMap[Id, Key]] = None, // TODO
+    uploadedAnswers: Option[DotMap[Id, Key]],
     submit: SurveyResponse => Callback
   ) = {
     val workingAnswers: DotMap[Option, Key] = uploadedAnswers
       .map { answers =>
-        DotMap(answers.iterator.toList.map(pair => DotPair[Option](pair.fst)(None)): _*)
+        DotMap(answers.iterator.toList.map(pair => DotPair[Option](pair.fst)(Option(pair.snd))): _*)
       }
       .getOrElse(Feedback.initAnswers(role))
     <.div(S.feedbackSurveySubpanel)(
