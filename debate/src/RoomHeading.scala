@@ -50,7 +50,11 @@ object RoomHeading {
           if (feedbackProviders.contains(user)) {
             Complete
           } else {
-            AwaitingFeedback
+            // XXX: just until we import the old feedback results, only ask for feedback for debates created as of 2023
+            if (metadata.creationTime < timeBeforeWhichToIgnoreMissingFeedback) {
+              Complete
+            } else
+              AwaitingFeedback
           }
         } else if (offlineJudging.contains(user) || stats.hasReadStory) {
           Complete

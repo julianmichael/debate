@@ -16,6 +16,8 @@ import jjm.ling.ESpan
 
 package object debate extends PackagePlatformExtensions {
 
+  val timeBeforeWhichToIgnoreMissingFeedback = 1672531200000L
+
   val appDivId = "app"
 
   @JsonCodec
