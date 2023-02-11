@@ -15,44 +15,58 @@ object AdminPanel {
   val S = Styles
   val V = new jjm.ui.View(S)
 
-  def apply(
-    lobby: Lobby,
+  case class Props(
     qualityService: QuALITYService[AsyncCallback],
-    userName: String,
+    lobby: Lobby,
+    sendToMainChannel: MainChannelRequest => Callback,
     connect: ConnectionSpec => Callback,
-    sendToMainChannel: MainChannelRequest => Callback
-  ) = {
-    val joinRoomOpt = Option(userName)
-      .filter(_.nonEmpty)
-      .map(userName =>
-        (isOfficial: Boolean, roomName: String) =>
-          connect(ConnectionSpec(isOfficial, roomName, userName))
-      )
-    val joinOfficialRoomOpt = joinRoomOpt
-      .map(joinRoom => (roomName: String) => joinRoom.apply(true, roomName))
+    userName: String
+  )
 
-    TabNav("admin-tab", initialTabIndex = 1)(
-      "Profiles" ->
-        TabNav.tab(
-          <.div(c"card-body", S.spaceySubcontainer)(
-            ProfilesPanel(
-              lobby = lobby,
-              joinOfficialRoomOpt = joinOfficialRoomOpt,
-              sendToMainChannel = sendToMainChannel
-            )
+  val Component =
+    ScalaComponent
+      .builder[Props]("Admin Panel")
+      .render_P { case Props(qualityService, lobby, sendToMainChannel, connect, userName) =>
+        val joinRoomOpt = Option(userName)
+          .filter(_.nonEmpty)
+          .map(userName =>
+            (isOfficial: Boolean, roomName: String) =>
+              connect(ConnectionSpec(isOfficial, roomName, userName))
           )
-        ),
-      "Create Debate" ->
-        TabNav.tab(
-          <.div(c"card-body", S.spaceySubcontainer)(
-            DebateCreationPanel(
-              lobby = lobby,
-              qualityService = qualityService,
-              joinDebate = joinRoomOpt,
-              initDebate = sendToMainChannel
+        val joinOfficialRoomOpt = joinRoomOpt
+          .map(joinRoom => (roomName: String) => joinRoom.apply(true, roomName))
+
+        TabNav("admin-tab", initialTabIndex = 1)(
+          "Profiles" ->
+            TabNav.tab(
+              <.div(c"card-body", S.spaceySubcontainer)(
+                ProfilesPanel(
+                  lobby = lobby,
+                  joinOfficialRoomOpt = joinOfficialRoomOpt,
+                  sendToMainChannel = sendToMainChannel
+                )
+              )
+            ),
+          "Create Debate" ->
+            TabNav.tab(
+              <.div(c"card-body", S.spaceySubcontainer)(
+                DebateCreationPanel.make(
+                  lobby = lobby,
+                  qualityService = qualityService,
+                  joinDebate = joinRoomOpt,
+                  initDebate = sendToMainChannel
+                )
+              )
             )
-          )
         )
-    )
-  }
+      }
+      .build
+
+  def make(
+    qualityService: QuALITYService[AsyncCallback],
+    lobby: Lobby,
+    sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
+    connect: ConnectionSpec => Callback,
+    userName: String
+  ) = Component(Props(qualityService, lobby, sendToMainChannel, connect, userName))
 }

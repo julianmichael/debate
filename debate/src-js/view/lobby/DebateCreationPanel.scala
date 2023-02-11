@@ -779,92 +779,120 @@ object DebateCreationPanel {
   }
 
   /** Config panel for facilitator to set the rules of the debate. */
-  def apply(
+  def make(
     lobby: Lobby,
     qualityService: QuALITYService[AsyncCallback],
     joinDebate: Option[(Boolean, String) => Callback],
     initDebate: CreateRoom => Callback
-  ) =
-    Local[DebateSetupSpec].syncedWithSessionStorage("debate-setup", DebateSetupSpec.init) { setup =>
-      Local[String].syncedWithSessionStorage("debate-setup-room-name", "") { roomName =>
-        Local[Boolean].syncedWithSessionStorage("debate-setup-is-official", true) { isOfficial =>
-          QuALITYIndexFetch
-            .make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
-              indexFetch =>
-                val indexOpt =
-                  indexFetch match {
-                    case QuALITYIndexFetch.Loading =>
-                      None
-                    case QuALITYIndexFetch.Loaded(index) =>
-                      Some(index)
-                  }
-                val articleIdOpt = SourceMaterialSpec
-                  .quality
-                  .getOption(setup.value.sourceMaterial)
-                  .map(_.articleId)
-                QuALITYStoryOptFetch.make(
-                  request = articleIdOpt,
-                  sendRequest =
-                    articleIdOpt =>
-                      articleIdOpt match {
-                        case None =>
-                          OrWrapped.pure[AsyncCallback](None)
-                        case Some(articleId) =>
-                          OrWrapped.wrapped(qualityService.getStory(articleId).map(Option(_)))
-                      }
-                ) { storyOptFetch =>
-                  val qualityStoryOpt = storyOptFetch.toOption.flatten
-                  Local[Option[QuALITYQuestion]]
-                    .syncedWithSessionStorage("selected-question", None) { qualityQuestionOpt =>
-                      <.div(S.facilitatorColumn, S.spaceySubcontainer)(
-                        headerBar(lobby, setup.value, joinDebate, initDebate, isOfficial, roomName),
-                        roundsConfig(
-                          "Opening Rounds",
-                          0,
-                          setup
-                            .zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening))
-                        ),
-                        roundsConfig(
-                          "Repeated Rounds",
-                          1,
-                          setup.zoomStateL(
-                            DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)
-                          )
-                        ),
-                        closingRoundsConfig(
-                          setup
-                            .zoomStateL(DebateSetupSpec.rules.composeLens(DebateRules.fixedClosing))
-                        ),
-                        globalQuoteRestrictionConfig(
-                          setup.zoomStateL(
-                            DebateSetupSpec.rules.composeLens(DebateRules.globalQuoteRestriction)
-                          )
-                        ),
-                        scoringFunctionConfig(
-                          setup.zoomStateL(
-                            DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction)
-                          )
-                        ),
-                        sourceMaterialConfig(
-                          setup.zoomStateL(DebateSetupSpec.sourceMaterial),
-                          indexOpt,
-                          articleIdOpt,
-                          qualityStoryOpt
-                        ),
-                        questionConfig(
-                          lobby.trackedDebaters,
-                          setup,
-                          qualityStoryOpt,
-                          qualityQuestionOpt
-                        ),
-                        answersConfig(lobby, setup, qualityQuestionOpt.value)
-                      )
-                    }
+  ) = Component(Props(lobby, qualityService, joinDebate, initDebate))
 
-                }
+  case class Props(
+    lobby: Lobby,
+    qualityService: QuALITYService[AsyncCallback],
+    joinDebate: Option[(Boolean, String) => Callback],
+    initDebate: CreateRoom => Callback
+  )
+
+  val Component =
+    ScalaComponent
+      .builder[Props]("Debate Creation Panel")
+      .render_P { case Props(lobby, qualityService, joinDebate, initDebate) =>
+        Local[DebateSetupSpec].syncedWithSessionStorage("debate-setup", DebateSetupSpec.init) {
+          setup =>
+            Local[String].syncedWithSessionStorage("debate-setup-room-name", "") { roomName =>
+              Local[Boolean].syncedWithSessionStorage("debate-setup-is-official", true) {
+                isOfficial =>
+                  QuALITYIndexFetch.make(
+                    request = (),
+                    sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)
+                  ) { indexFetch =>
+                    val indexOpt =
+                      indexFetch match {
+                        case QuALITYIndexFetch.Loading =>
+                          None
+                        case QuALITYIndexFetch.Loaded(index) =>
+                          Some(index)
+                      }
+                    val articleIdOpt = SourceMaterialSpec
+                      .quality
+                      .getOption(setup.value.sourceMaterial)
+                      .map(_.articleId)
+                    QuALITYStoryOptFetch.make(
+                      request = articleIdOpt,
+                      sendRequest =
+                        articleIdOpt =>
+                          articleIdOpt match {
+                            case None =>
+                              OrWrapped.pure[AsyncCallback](None)
+                            case Some(articleId) =>
+                              OrWrapped.wrapped(qualityService.getStory(articleId).map(Option(_)))
+                          }
+                    ) { storyOptFetch =>
+                      val qualityStoryOpt = storyOptFetch.toOption.flatten
+                      Local[Option[QuALITYQuestion]]
+                        .syncedWithSessionStorage("selected-question", None) { qualityQuestionOpt =>
+                          <.div(S.facilitatorColumn, S.spaceySubcontainer)(
+                            headerBar(
+                              lobby,
+                              setup.value,
+                              joinDebate,
+                              initDebate,
+                              isOfficial,
+                              roomName
+                            ),
+                            roundsConfig(
+                              "Opening Rounds",
+                              0,
+                              setup.zoomStateL(
+                                DebateSetupSpec.rules.composeLens(DebateRules.fixedOpening)
+                              )
+                            ),
+                            roundsConfig(
+                              "Repeated Rounds",
+                              1,
+                              setup.zoomStateL(
+                                DebateSetupSpec.rules.composeLens(DebateRules.repeatingStructure)
+                              )
+                            ),
+                            closingRoundsConfig(
+                              setup.zoomStateL(
+                                DebateSetupSpec.rules.composeLens(DebateRules.fixedClosing)
+                              )
+                            ),
+                            globalQuoteRestrictionConfig(
+                              setup.zoomStateL(
+                                DebateSetupSpec
+                                  .rules
+                                  .composeLens(DebateRules.globalQuoteRestriction)
+                              )
+                            ),
+                            scoringFunctionConfig(
+                              setup.zoomStateL(
+                                DebateSetupSpec.rules.composeLens(DebateRules.scoringFunction)
+                              )
+                            ),
+                            sourceMaterialConfig(
+                              setup.zoomStateL(DebateSetupSpec.sourceMaterial),
+                              indexOpt,
+                              articleIdOpt,
+                              qualityStoryOpt
+                            ),
+                            questionConfig(
+                              lobby.trackedDebaters,
+                              setup,
+                              qualityStoryOpt,
+                              qualityQuestionOpt
+                            ),
+                            answersConfig(lobby, setup, qualityQuestionOpt.value)
+                          )
+                        }
+
+                    }
+                  }
+              }
             }
         }
       }
-    }
+      .build
 
 }

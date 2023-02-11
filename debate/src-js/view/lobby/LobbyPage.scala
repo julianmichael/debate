@@ -88,7 +88,7 @@ object LobbyPage {
                   "Leaderboard" -> TabNav.tab(LeaderboardPanel(lobby)),
                   "Admin" ->
                     TabNav.tab(
-                      AdminPanel(
+                      AdminPanel.make(
                         lobby = lobby,
                         qualityService = qualityService,
                         userName = userName.value,
