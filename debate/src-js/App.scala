@@ -89,8 +89,7 @@ object App {
                         case None =>
                           view
                             .lobby
-                            .LobbyPage
-                            .make(
+                            .LobbyPage(
                               qualityService = qualityService,
                               lobby = lobby.value,
                               sendToMainChannel = sendToMainChannel,
@@ -99,8 +98,7 @@ object App {
                         case Some(cs: ConnectionSpec) =>
                           view
                             .debate
-                            .DebatePage
-                            .make(
+                            .DebatePage(
                               profiles = lobby.value.trackedDebaters,
                               connectionSpec = cs,
                               disconnect = connectionSpecOpt.setState(None)

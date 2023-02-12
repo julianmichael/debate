@@ -325,6 +325,9 @@ object DebatePage {
 
   case class Props(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback)
 
+  def apply(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback) =
+    Component(Props(profiles, connectionSpec, disconnect))
+
   val Component =
     ScalaComponent
       .builder[Props]("Debate Page")
@@ -384,7 +387,4 @@ object DebatePage {
       )
       .build
 
-  def make(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback) = Component(
-    Props(profiles, connectionSpec, disconnect)
-  )
 }

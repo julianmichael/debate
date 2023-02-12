@@ -23,6 +23,14 @@ object AdminPanel {
     userName: String
   )
 
+  def apply(
+    qualityService: QuALITYService[AsyncCallback],
+    lobby: Lobby,
+    sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
+    connect: ConnectionSpec => Callback,
+    userName: String
+  ) = Component(Props(qualityService, lobby, sendToMainChannel, connect, userName))
+
   val Component =
     ScalaComponent
       .builder[Props]("Admin Panel")
@@ -61,12 +69,4 @@ object AdminPanel {
         )
       }
       .build
-
-  def make(
-    qualityService: QuALITYService[AsyncCallback],
-    lobby: Lobby,
-    sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
-    connect: ConnectionSpec => Callback,
-    userName: String
-  ) = Component(Props(qualityService, lobby, sendToMainChannel, connect, userName))
 }

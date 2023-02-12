@@ -24,6 +24,13 @@ object LobbyPage {
     connect: ConnectionSpec => Callback
   )
 
+  def apply(
+    qualityService: QuALITYService[AsyncCallback],
+    lobby: Lobby,
+    sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
+    connect: ConnectionSpec => Callback
+  ) = Component(Props(qualityService, lobby, sendToMainChannel, connect))
+
   val Component =
     ScalaComponent
       .builder[Props]("Lobby Page")
@@ -88,7 +95,7 @@ object LobbyPage {
                   "Leaderboard" -> TabNav.tab(LeaderboardPanel(lobby)),
                   "Admin" ->
                     TabNav.tab(
-                      AdminPanel.make(
+                      AdminPanel(
                         lobby = lobby,
                         qualityService = qualityService,
                         userName = userName.value,
@@ -104,11 +111,4 @@ object LobbyPage {
       }
       .componentDidMount(_ => Callback(dom.window.document.title = Utils.makePageTitle("Lobby")))
       .build
-
-  def make(
-    qualityService: QuALITYService[AsyncCallback],
-    lobby: Lobby,
-    sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
-    connect: ConnectionSpec => Callback
-  ) = Component(Props(qualityService, lobby, sendToMainChannel, connect))
 }
