@@ -38,16 +38,21 @@ object App {
     s"${Utils.wsProtocol}//${dom.document.location.host}/main-ws?name=$userName"
 
   val httpProtocol = dom.document.location.protocol
-  val qualityApiUrl: String =
-    s"$httpProtocol//${dom.document.location.host}/$qualityServiceApiEndpoint"
   type DelayedFuture[A] = () => Future[A]
   val toAsyncCallback = λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
+
+  val qualityApiUrl: String =
+    s"$httpProtocol//${dom.document.location.host}/$qualityServiceApiEndpoint"
   val qualityService = quality.QuALITYService(
     HttpUtil
       .makeHttpPostClient[quality.QuALITYService.Request](qualityApiUrl)
       .andThenK(toAsyncCallback)
   )
 
+  val ajaxApiUrl: String = s"$httpProtocol//${dom.document.location.host}/$ajaxServiceApiEndpoint"
+  val ajaxService = AjaxService(
+    HttpUtil.makeHttpPostClient[AjaxService.Request](ajaxApiUrl).andThenK(toAsyncCallback)
+  )
   val DebatersFetch = new CacheCallContent[Unit, Set[String]]
 
   // Shortcuts for styles and view elements
@@ -110,7 +115,7 @@ object App {
                 case None =>
                   DebatersFetch.make(
                     request = (),
-                    sendRequest = _ => OrWrapped.pure(Set("Julian Michael", "David Rein"))
+                    sendRequest = _ => OrWrapped.wrapped(ajaxService.getDebaters)
                   ) { profilesFetch =>
                     <.div(c"container")(
                       profilesFetch match {

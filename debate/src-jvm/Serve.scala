@@ -209,6 +209,20 @@ object Serve
           }
         }
       )
+      val ajaxService = HttpUtil.makeHttpPostServer(
+        new DotKleisli[IO, AjaxService.Request] {
+          import AjaxService.Request
+          def apply(req: Request): IO[req.Out] = {
+            val res =
+              req match {
+                case Request.GetDebaters =>
+                  trackedDebatersRef.get
+              }
+            // not sure why it isn't inferring the type...
+            res.asInstanceOf[IO[req.Out]]
+          }
+        }
+      )
 
       // We need to configure CORS for the AJAX APIs if we're using a separate
       // endpoint for static file serving.
@@ -226,6 +240,7 @@ object Serve
       HttpsRedirect(
         Router(
           s"/$qualityServiceApiEndpoint" -> CORS(qualityService, corsConfig),
+          s"/$ajaxServiceApiEndpoint"    -> CORS(ajaxService, corsConfig),
           "/" ->
             service(
               jsPathO,

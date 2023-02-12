@@ -74,6 +74,7 @@ package object debate extends PackagePlatformExtensions {
     case class State(state: DebateState) extends DebateStateUpdateRequest
   }
 
+  val ajaxServiceApiEndpoint    = "api"
   val qualityServiceApiEndpoint = "quality"
 
   @JsonCodec
