@@ -502,6 +502,12 @@ object Styles extends jjm.ui.View.Styles {
     overflowAnchor.none
   )
 
+  val bottomOfDivButton = style(
+    addClassNames("btn", "btn-block"),
+    borderTopLeftRadius.`0`,
+    borderTopRightRadius.`0`
+  )
+
   val comparativeLikertRow = style(
     row,
     addClassNames("flex-wrap", "align-items-center"),

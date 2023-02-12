@@ -14,6 +14,8 @@ import jjm.ui.Rgba
 
 import debate.util.Local
 import debate.view.lobby.TabNav
+import jjm.DotMap
+import jjm.DotPair
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -166,99 +168,112 @@ object DebatePanel {
           debate.value.offlineJudgingResults.contains(userName))
 
     Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
-      val leftPanelTabs =
-        Vector(
-          Option(
-            "Story" ->
-              TabNav.tab(
-                StoryPanel(
-                  setup.sourceMaterial.contents,
-                  getHighlights(role, setup.numDebaters, rounds, curMessageSpans.value),
-                  span => curMessageSpans.modState(_ + span)
-                )
-              )
-          ).filter(_ => role.canSeeStory),
-          Option(
-            "Feedback Survey" ->
-              TabNav.tab(
-                FeedbackSurvey(
-                  role,
-                  debate.value.feedback.get(userName).map(_.answers),
-                  submit =
-                    response =>
-                      debate
-                        .zoomStateL(Debate.feedback.composeLens(Optics.at(userName)))
-                        .setState(Some(response))
-                )
-              )
-          ).filter(_ => timeForFeedback)
-        ).flatten
-
-      <.div(S.debatePanel, S.spaceySubcontainer)(
-        if (leftPanelTabs.nonEmpty) {
-          Option(<.div(S.debateSubpanel)(TabNav(s"$roomName-story/feedback")(leftPanelTabs: _*)))
-        } else
-          None,
-        LocalQuotingMessage.make(curMessageSpans, s"debate-message-$roomName") { currentMessage =>
-          val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
-
-          <.div(S.debateSubpanel)(
-            <.div(S.speechesSubpanel)(
-              ^.id := "speeches",
-              visibleRounds(role, debate.value)
-                .zipWithIndex
-                .flatMap { case (round, roundIndex) =>
-                  Option(
-                    DebateRoundView.makeRoundHtml(
-                      source = setup.sourceMaterial.contents,
-                      role = role,
-                      debateStartTime = debate.value.startTime,
-                      numDebaters = setup.answers.size,
-                      round
-                    )(^.key := s"round-$roundIndex")
-                  )
-                }
-                .toVdomArray,
-              DebateRoundView
-                .makeSpeechHtml(
-                  setup.sourceMaterial.contents,
-                  role,
-                  DebateSpeech(userName, -1L, currentMessageSpeechSegments),
-                  debate.value.startTime,
-                  role,
-                  getInProgressSpeechStyle(role)
-                )
-                .when(currentMessage.value.size > 0 && isUsersTurn)
-            ),
-            turnDisplay(role.asDebateRoleOpt, currentTransitions.map(_.currentTurns)),
-            currentTransitions
-              .toOption
-              .whenDefined { transitions =>
-                <.div(S.col)(
-                  <.div(S.col)(
-                    role
-                      .asDebateRoleOpt
-                      .flatMap(transitions.giveSpeech.get)
-                      .whenDefined { case turnDotPair =>
-                        SpeechInput.speechInput(debate, userName, role, turnDotPair, currentMessage)
-                      },
-                    role
-                      .asDebateRoleOpt
-                      .flatMap(transitions.undo.get)
-                      .whenDefined { case (speech, debateAfterUndo) =>
-                        <.button(
-                          "Undo",
-                          ^.onClick -->
-                            (debate.setState(debateAfterUndo) >>
-                              currentMessage.setState(SpeechSegments.getString(speech)))
-                        )
-                      }
-                  )
-                )
-              }
+      val uploadedResponse = debate.value.feedback.get(userName)
+      val uploadedAnswers  = uploadedResponse.map(_.answers)
+      val workingAnswers: DotMap[Option, Feedback.Key] = uploadedAnswers
+        .map { answers =>
+          DotMap(
+            answers.iterator.toList.map(pair => DotPair[Option](pair.fst)(Option(pair.snd))): _*
           )
         }
-      )
+        .getOrElse(Feedback.initAnswers(role))
+      Local[DotMap[Option, Feedback.Key]].make(workingAnswers) { surveyAnswers =>
+        val leftPanelTabs =
+          Vector(
+            Option(
+              "Story" ->
+                TabNav.tab(
+                  StoryPanel(
+                    setup.sourceMaterial.contents,
+                    getHighlights(role, setup.numDebaters, rounds, curMessageSpans.value),
+                    span => curMessageSpans.modState(_ + span)
+                  )
+                )
+            ).filter(_ => role.canSeeStory),
+            Option(
+              "Feedback Survey" ->
+                TabNav.tab(
+                  FeedbackSurvey(
+                    role,
+                    uploadedResponse,
+                    surveyAnswers,
+                    submit =
+                      response =>
+                        debate
+                          .zoomStateL(Debate.feedback.composeLens(Optics.at(userName)))
+                          .setState(Some(response))
+                  )
+                )
+            ).filter(_ => timeForFeedback)
+          ).flatten
+
+        <.div(S.debatePanel, S.spaceySubcontainer)(
+          if (leftPanelTabs.nonEmpty) {
+            Option(<.div(S.debateSubpanel)(TabNav(s"$roomName-story/feedback")(leftPanelTabs: _*)))
+          } else
+            None,
+          LocalQuotingMessage.make(curMessageSpans, s"debate-message-$roomName") { currentMessage =>
+            val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
+
+            <.div(S.debateSubpanel)(
+              <.div(S.speechesSubpanel)(
+                ^.id := "speeches",
+                visibleRounds(role, debate.value)
+                  .zipWithIndex
+                  .flatMap { case (round, roundIndex) =>
+                    Option(
+                      DebateRoundView.makeRoundHtml(
+                        source = setup.sourceMaterial.contents,
+                        role = role,
+                        debateStartTime = debate.value.startTime,
+                        numDebaters = setup.answers.size,
+                        round
+                      )(^.key := s"round-$roundIndex")
+                    )
+                  }
+                  .toVdomArray,
+                DebateRoundView
+                  .makeSpeechHtml(
+                    setup.sourceMaterial.contents,
+                    role,
+                    DebateSpeech(userName, -1L, currentMessageSpeechSegments),
+                    debate.value.startTime,
+                    role,
+                    getInProgressSpeechStyle(role)
+                  )
+                  .when(currentMessage.value.size > 0 && isUsersTurn)
+              ),
+              turnDisplay(role.asDebateRoleOpt, currentTransitions.map(_.currentTurns)),
+              currentTransitions
+                .toOption
+                .whenDefined { transitions =>
+                  <.div(S.col)(
+                    <.div(S.col)(
+                      role
+                        .asDebateRoleOpt
+                        .flatMap(transitions.giveSpeech.get)
+                        .whenDefined { case turnDotPair =>
+                          SpeechInput
+                            .speechInput(debate, userName, role, turnDotPair, currentMessage)
+                        },
+                      role
+                        .asDebateRoleOpt
+                        .flatMap(transitions.undo.get)
+                        .whenDefined { case (speech, debateAfterUndo) =>
+                          <.button(
+                            "Undo",
+                            ^.onClick -->
+                              (debate.setState(debateAfterUndo) >>
+                                currentMessage.setState(SpeechSegments.getString(speech)))
+                          )
+                        }
+                    )
+                  )
+                }
+            )
+          }
+        )
+      }
     }
   }
 }

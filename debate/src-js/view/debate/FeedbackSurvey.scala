@@ -7,7 +7,6 @@ import cats.implicits._
 import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
-import debate.util.Local
 import jjm.DotMap
 import jjm.DotPair
 import japgolly.scalajs.react.feature.ReactFragment
@@ -142,49 +141,47 @@ object FeedbackSurvey {
 
   def apply(
     role: Role,
-    uploadedAnswers: Option[DotMap[Id, Key]],
+    uploadedResponseOpt: Option[SurveyResponse],
+    surveyAnswers: StateSnapshot[DotMap[Option, Key]],
     submit: SurveyResponse => Callback
   ) = {
-    val workingAnswers: DotMap[Option, Key] = uploadedAnswers
-      .map { answers =>
-        DotMap(answers.iterator.toList.map(pair => DotPair[Option](pair.fst)(Option(pair.snd))): _*)
-      }
-      .getOrElse(Feedback.initAnswers(role))
-    <.div(S.feedbackSurveySubpanel)(
-      Local[DotMap[Option, Key]].make(workingAnswers) { surveyAnswers =>
-        val responseOpt = {
-          val answersOpt = surveyAnswers
-            .value
-            .iterator
-            .toVector
-            .traverse { pair =>
-              pair.fst match {
-                case Key.ComparativeLikert(_) =>
-                  pair
-                    .snd
-                    .filter(_.asInstanceOf[ComparativeJudgment].isValid)
-                    .map(DotPair[Id](pair.fst)(_))
-                case Key.Likert(_) =>
-                  pair.snd.filter(_.asInstanceOf[Int] > -1).map(DotPair[Id](pair.fst)(_))
-                case Key.FreeText(_) =>
-                  Option(pair.snd.getOrElse("").asInstanceOf[pair.fst.Out])
-                    .map(DotPair[Id](pair.fst)(_))
-              }
-            }
-            .map(pairs => DotMap[Id, Key](pairs: _*))
 
-          val respOpt = answersOpt.flatMap(answers =>
-            role match {
-              case Debater(_) =>
-                Some(SurveyResponse.Debater(answers))
-              case Judge =>
-                Some(SurveyResponse.Judge(answers))
-              case _ =>
-                None
-            }
-          )
-          respOpt
+    val responseOpt: Option[SurveyResponse] = {
+      val answersOpt = surveyAnswers
+        .value
+        .iterator
+        .toVector
+        .traverse { pair =>
+          pair.fst match {
+            case Key.ComparativeLikert(_) =>
+              pair
+                .snd
+                .filter(_.asInstanceOf[ComparativeJudgment].isValid)
+                .map(DotPair[Id](pair.fst)(_))
+            case Key.Likert(_) =>
+              pair.snd.filter(_.asInstanceOf[Int] > -1).map(DotPair[Id](pair.fst)(_))
+            case Key.FreeText(_) =>
+              Option(pair.snd.getOrElse("").asInstanceOf[pair.fst.Out])
+                .map(DotPair[Id](pair.fst)(_))
+          }
         }
+        .map(pairs => DotMap[Id, Key](pairs: _*))
+
+      val respOpt = answersOpt.flatMap(answers =>
+        role match {
+          case Debater(_) =>
+            Some(SurveyResponse.Debater(answers))
+          case Judge =>
+            Some(SurveyResponse.Judge(answers))
+          case _ =>
+            None
+        }
+      )
+      respOpt
+    }
+
+    ReactFragment(
+      <.div(S.feedbackSurveySubpanel)(
         ReactFragment(
           Feedback
             .survey
@@ -205,14 +202,34 @@ object FeedbackSurvey {
                   )
                 }
             }
-            .toVdomArray,
-          <.button(c"btn btn-primary btn-block")(
-            "Submit",
-            ^.disabled := responseOpt.isEmpty,
-            responseOpt.whenDefined(resp => ^.onClick --> submit(resp))
-          )
+            .toVdomArray
         )
-      }
+      ),
+      <.button(
+        S.bottomOfDivButton,
+        if (responseOpt.exists(r => uploadedResponseOpt.exists(_ == r))) {
+          c"btn-success"
+        } else
+          c"btn-primary"
+      )(
+        responseOpt match {
+          case None =>
+            "Fill out all numerical answers to submit"
+          case Some(response) =>
+            uploadedResponseOpt match {
+              case Some(uploadedResponse) =>
+                if (uploadedResponse == response) {
+                  "Submitted"
+                } else {
+                  "Update"
+                }
+              case None =>
+                "Submit"
+            }
+        },
+        ^.disabled := responseOpt == uploadedResponseOpt,
+        responseOpt.whenDefined(resp => ^.onClick --> submit(resp))
+      )
     )
   }
 }
