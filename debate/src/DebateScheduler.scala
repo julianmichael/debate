@@ -1,11 +1,15 @@
 package debate
 
+import cats.data.Ior
 import cats.implicits._
 import jjm.metrics.Numbers
 import jjm.Duad
 import jjm.implicits._
 
 object DebateScheduler {
+  // TODO is this a good value?
+  val defaultJudgeScaleDownFactor = 0.3
+
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
 
   class DebateAssignment private (
@@ -118,7 +122,12 @@ object DebateScheduler {
   def judgeCost(assignments: Vector[DebateAssignment]): Double =
     Numbers(assignments.map(_.judge).counts.values.toVector).stats.stdev
 
-  def storiesReadCost(history: Vector[Debate], newAssignments: Vector[DebateAssignment]): Double = {
+  def storiesReadCost(
+    history: Vector[Debate],
+    newAssignments: Vector[DebateAssignment],
+    storyName: String
+  ): Double = {
+    // map of debater to set of stories read
     val debaterStoriesRead: Map[String, Set[String]] = history.foldMap { debate =>
       DebateAssignment
         .ofDebate(debate)
@@ -130,21 +139,40 @@ object DebateScheduler {
         }
     }
 
-    val countsInNewAssignment: Map[String, Int] = newAssignments.foldMap { assignment =>
+    // map of debater to set of stories read in new assignments
+    // (each value should be a singleton set)
+    val mapFromNewAssignments: Map[String, Set[String]] = newAssignments.foldMap { assignment =>
       (assignment.dishonestDebaters + assignment.honestDebater)
         .view
-        .map(debater => debater -> 1)
+        .map(debater => debater -> Set(storyName))
         .toMap
     }
 
-    val storiesReadCounts: Map[String, Int] =
-      debaterStoriesRead.view.mapValues(_.size).toMap ++ countsInNewAssignment
+    // combine the sets if a debater is in both
+    val combined: Map[String, Set[String]] =
+      debaterStoriesRead
+        .merge(mapFromNewAssignments)
+        .view
+        .mapValues(ior =>
+          ior match {
+            case Ior.Left(set) =>
+              set
+            case Ior.Right(set) =>
+              set
+            case Ior.Both(set1, set2) =>
+              set1 ++ set2
+          }
+        )
+        .toMap
+
+    val storiesReadCounts: Map[String, Int] = combined.view.mapValues(_.size).toMap
     Numbers(storiesReadCounts.values.toVector).stats.stdev
   }
 
   def judgingPerStoryCost(
     history: Vector[Debate],
-    newAssignments: Vector[DebateAssignment]
+    newAssignments: Vector[DebateAssignment],
+    storyName: String
   ): Double = {
     // TODO someday refactor
     val judgingInHistory: Map[String, Map[String, Int]] = history.foldMap { debate =>
@@ -154,11 +182,8 @@ object DebateScheduler {
           Map(debate.setup.sourceMaterial.title -> Map(assignment.judge -> 1))
         }
     }
-    var randomKey = scala.util.Random.nextString(10)
-    while (newAssignments.map(_.judge).contains(randomKey))
-      randomKey = scala.util.Random.nextString(10)
     val judgingInNewAssignments: Map[String, Map[String, Int]] = Map(
-      randomKey -> newAssignments.map(_.judge).counts
+      storyName -> newAssignments.map(_.judge).counts
     )
     val storyToPersonToJudgeCount: Map[String, Map[String, Int]] =
       judgingInHistory ++ judgingInNewAssignments
@@ -224,14 +249,19 @@ object DebateScheduler {
   def getBadnessScore(
     newAssignments: Vector[DebateAssignment],
     history: Vector[Debate],
-    judgeScaleDownFactor: Double = 0.3 // TODO is this a good value?
+    judgeScaleDownFactor: Double,
+    storyName: String
   ): Double = {
     val assignments = history.flatMap(DebateAssignment.ofDebate) ++ newAssignments
     val costParts = List(
-      debaterCost(assignments),
-      storiesReadCost(history = history, newAssignments = newAssignments),
+      debaterCost(assignments), // doesn't depend on the story name
+      storiesReadCost(history = history, newAssignments = newAssignments, storyName = storyName),
       judgeCost(assignments) * judgeScaleDownFactor,
-      judgingPerStoryCost(history = history, newAssignments = newAssignments),
+      judgingPerStoryCost(
+        history = history,
+        newAssignments = newAssignments,
+        storyName = storyName
+      ),
       fractionsHonestWhenDebatingCost(assignments),
       judgedPerDebaterCost(assignments),
       debatedOtherDebatersCost(assignments)
@@ -282,7 +312,7 @@ object DebateScheduler {
     allPossibleQuestionAssignments.toVector.combinations(numQuestions).toVector
   }
 
-  def sample(probabilities: Vector[Double], rng: scala.util.Random = scala.util.Random): Int = {
+  def sample(probabilities: Vector[Double], rng: scala.util.Random): Int = {
     val randomDouble = rng.nextDouble()
     var sum          = 0.0
     for (i <- probabilities.indices) {
@@ -308,7 +338,8 @@ object DebateScheduler {
   }
 
   /**
-     * Produces a list of assignments for a new story.
+     * Produces a list of assignments for a story. The story name can correspond to either a
+     * new story or a story that has already been scheduled.
      * 
      * Requirements:
      * - In the returned assignments, the debaters and judges are disjoint.
@@ -327,6 +358,9 @@ object DebateScheduler {
      * @param history all existing debates, including unfinished ones
      * @param numQuestions the number of questions that can be debated for the new story
      * @param debaters the people who can be scheduled to judge or debate, with constraints on their load
+     * @param rng the random number generator to use
+     * @param storyName the name of the story to schedule for
+     * @param judgeScaleDownFactor the factor by which to scale down the judge cost
      * @return a list of assignments of the debaters to their roles for the new story obeying the above requirements
      */
   def getScheduleForNewStory(
@@ -336,6 +370,10 @@ object DebateScheduler {
       String,
       DebaterLoadConstraint
     ] // TODO someday ensure nonempty? so we can't return None?
+    ,
+    rng: scala.util.Random = scala.util.Random,
+    storyName: String,
+    judgeScaleDownFactor: Double = defaultJudgeScaleDownFactor
   ): Vector[DebateAssignment] = {
     // each vector in here is of length numQuestions
     val allAssignmentsThatMeetConstraints: Vector[Vector[DebateAssignment]] =
@@ -344,7 +382,12 @@ object DebateScheduler {
       }
     val correspondingCosts = zScores(
       allAssignmentsThatMeetConstraints.map { newAssignments =>
-        getBadnessScore(newAssignments = newAssignments, history = history) * -1
+        getBadnessScore(
+          newAssignments = newAssignments,
+          history = history,
+          storyName = storyName,
+          judgeScaleDownFactor = judgeScaleDownFactor
+        ) * -1
       }
     )
     val expCosts  = correspondingCosts.map(math.exp)
@@ -352,7 +395,7 @@ object DebateScheduler {
     val probabilities = expCosts.map { expCost =>
       expCost / sumOfExps
     }
-    val index = sample(probabilities)
+    val index = sample(probabilities, rng = rng)
     return allAssignmentsThatMeetConstraints(index)
   }
 }

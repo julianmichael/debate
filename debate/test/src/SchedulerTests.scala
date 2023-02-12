@@ -8,6 +8,14 @@ class SchedulerTests extends CatsEffectSuite {
   val debater2 = "debater2"
   val debater3 = "debater3"
 
+  // TODO someday-maybe make this a method on a history type :)
+  def makeRandomStoryName(history: Vector[Debate]): String = {
+    var randomNewStoryName = "test story"
+    while (history.map(_.setup.sourceMaterial.title).contains(randomNewStoryName))
+      randomNewStoryName = "test story " + scala.util.Random.nextInt(100)
+    randomNewStoryName
+  }
+
   test("with no constraints, assignment works") {
     val debaters = Map(
       debater1 -> DebaterLoadConstraint(None, None),
@@ -18,7 +26,8 @@ class SchedulerTests extends CatsEffectSuite {
     val assignments = getScheduleForNewStory(
       history = Vector.empty,
       numQuestions = numQuestions,
-      debaters = debaters
+      debaters = debaters,
+      storyName = makeRandomStoryName(history = Vector.empty)
     )
     assert {
       assignments.size == numQuestions;
@@ -50,7 +59,6 @@ class SchedulerTests extends CatsEffectSuite {
       roles = roles,
       startTime = 0
     )
-
   }
 
   def testDebateOfAssignment(assignment: DebateAssignment) = Debate(
@@ -73,7 +81,8 @@ class SchedulerTests extends CatsEffectSuite {
           debater1 -> DebaterLoadConstraint(None, None),
           debater2 -> DebaterLoadConstraint(None, None),
           debater3 -> DebaterLoadConstraint(None, None)
-        )
+        ),
+        storyName = makeRandomStoryName(history = history)
       )
       assert {
         newAssignment.size == 1
@@ -104,13 +113,19 @@ class SchedulerTests extends CatsEffectSuite {
           debater1 -> DebaterLoadConstraint(None, None),
           debater2 -> DebaterLoadConstraint(None, None),
           debater3 -> DebaterLoadConstraint(None, None)
-        )
+        ),
+        storyName = makeRandomStoryName(history = history)
       )
       assert {
         newAssignment.size == 1
       }
       history = history :+ testDebateOfAssignment(newAssignment.head)
-      val thisCost = getBadnessScore(history = history, newAssignments = newAssignment)
+      val thisCost = getBadnessScore(
+        history = history,
+        newAssignments = newAssignment,
+        storyName = makeRandomStoryName(history = history),
+        judgeScaleDownFactor = defaultJudgeScaleDownFactor
+      )
       costs = costs :+ thisCost
     }
     println("for full cost measurement: " + costs)
