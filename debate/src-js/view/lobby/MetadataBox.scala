@@ -477,10 +477,12 @@ object MetadataBox {
         }
 
       val timeAgoStr =
-        if (roomMetadata.result.isEmpty) {
-          "Last speech " + daysAgoStr
-        } else {
+        if (roomMetadata.result.nonEmpty) {
           daysAgoStr.capitalize
+        } else if (roomMetadata.status == RoomStatus.WaitingToBegin) {
+          "Created " + daysAgoStr
+        } else {
+          "Last speech " + daysAgoStr
         }
 
       <.div(c"card-text text-muted")(<.small(timeAgoStr))
