@@ -89,8 +89,7 @@ class Local[A] private (name: String) {
 object Local {
   var instances = new collection.mutable.HashMap[String, Local[_]]
 
-  def apply[A](implicit ct: ClassTag[A]): Local[A] = {
-    val name = ct.runtimeClass.getName()
+  def getInstance[A](name: String) =
     instances.get(name) match {
       case None =>
         val instance = new Local[A](name)
@@ -99,18 +98,12 @@ object Local {
       case Some(instance) =>
         instance.asInstanceOf[Local[A]]
     }
-  }
+
+  def apply[A](implicit ct: ClassTag[A]): Local[A] = getInstance(ct.runtimeClass.getName())
 
   def named[A](name: String)(implicit ct: ClassTag[A]): Local[A] = {
     val fullName = s"$name: " + ct.runtimeClass.getName()
-    instances.get(fullName) match {
-      case None =>
-        val instance = new Local[A](fullName)
-        instances.put(fullName, instance)
-        instance
-      case Some(instance) =>
-        instance.asInstanceOf[Local[A]]
-    }
+    getInstance(fullName)
   }
 
 }
