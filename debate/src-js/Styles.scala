@@ -502,8 +502,16 @@ object Styles extends jjm.ui.View.Styles {
     overflowAnchor.none
   )
 
-  val comparativeLikertLabel = style(addClassNames("mr-2"), width(5 rem))
-  val minMaxLikertLabel      = style(width(5 rem))
+  val comparativeLikertRow = style(
+    row,
+    addClassNames("flex-wrap", "align-items-center"),
+    gap(1 rem)
+  )
+  val comparativeLikertLabel  = style(minWidth(5 rem))
+  val minMaxLikertLabel       = style(addClassNames("small mx-1"), width(6 rem))
+  val minMaxLikertLabelBigger = style(addClassNames("small mx-1"), width(7 rem))
+
+  val numberedLikertButton = style(col, grow, addClassNames("small"), maxWidth(4 rem))
 
   val speechesSubpanel = style(
     flexGrow(1),

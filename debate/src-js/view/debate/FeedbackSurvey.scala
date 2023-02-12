@@ -24,11 +24,22 @@ object FeedbackSurvey {
 
   import Feedback._
 
-  def likertScale(numOptions: Int, minLabel: String, maxLabel: String, answer: StateSnapshot[Int]) =
-    <.div(S.row, c"align-items-center")(
-      <.div(c"small text-right", S.minMaxLikertLabel)(minLabel),
+  def likertScale(
+    numOptions: Int,
+    minLabel: String,
+    maxLabel: String,
+    answer: StateSnapshot[Int],
+    bigger: Boolean = false
+  ) = {
+    val minMaxLikertLabelStyle =
+      if (bigger)
+        S.minMaxLikertLabelBigger
+      else
+        S.minMaxLikertLabel
+    <.div(S.row, c"align-items-center justify-content-center")(
+      <.div(c"text-right", minMaxLikertLabelStyle)(minLabel),
       (0 until numOptions).toVdomArray(i =>
-        <.div(S.col, S.grow, c"small")(
+        <.div(S.numberedLikertButton)(
           <.div(c"mx-auto p-1 text-center")(i + 1),
           <.input(c"p-1")(^.key := s"$i")(
             ^.`type`  := "radio",
@@ -37,8 +48,9 @@ object FeedbackSurvey {
           )
         )
       ),
-      <.div(c"small", S.minMaxLikertLabel)(maxLabel)
+      <.div(minMaxLikertLabelStyle)(maxLabel)
     )
+  }
 
   def renderQuestion[Answer](
     role: Role,
@@ -68,7 +80,7 @@ object FeedbackSurvey {
                     _ => Some(j)
                   )
               <.div(
-                <.div(S.row, c"align-items-center mb-2")(
+                <.div(S.comparativeLikertRow, c"mb-2")(
                   <.div(S.comparativeLikertLabel)(
                     role match {
                       case Debater(_) =>
@@ -88,7 +100,7 @@ object FeedbackSurvey {
                     )
                   )
                 ),
-                <.div(S.row, c"align-items-center")(
+                <.div(S.comparativeLikertRow)(
                   <.div(S.comparativeLikertLabel)(
                     role match {
                       case Debater(_) =>
@@ -114,7 +126,7 @@ object FeedbackSurvey {
                 answerOpt
                   //   .asInstanceOf[StateSnapshot[Option[Int]]]
                   .zoomState[Int](_.getOrElse(-1))(j => _ => Some(j))
-              likertScale(numOptions, minLabel, maxLabel, judgment)
+              likertScale(numOptions, minLabel, maxLabel, judgment, bigger = true)
             case Question.FreeText(_, _, _) =>
               V.LiveTextArea
                 .String(
