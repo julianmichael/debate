@@ -157,6 +157,7 @@ object Serve
           }
         }
       trackedDebatersRef <- Ref[IO].of(trackedDebaters)
+      presenceRef        <- Ref[IO].of(Map.empty[String, Int])
       pushUpdateRef      <- Ref[IO].of(IO.unit)
       officialDebates <- DebateStateManager
         .init(initializeDebate(qualityDataset), officialRoomsDir(saveDir), pushUpdateRef)
@@ -168,17 +169,26 @@ object Serve
       leaderboard <- officialDebates.getLeaderboard
       allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
       mainChannel <- Topic[IO, Lobby](
-        Lobby(allDebaters, trackedDebaters, officialRooms, practiceRooms, leaderboard)
+        Lobby(
+          allDebaters,
+          trackedDebaters,
+          Set.empty[String],
+          officialRooms,
+          practiceRooms,
+          leaderboard
+        )
       )
       pushUpdate = {
         for {
           debaters      <- trackedDebatersRef.get
+          presence      <- presenceRef.get
           officialRooms <- officialDebates.getRoomMetadata
           practiceRooms <- practiceDebates.getRoomMetadata
           leaderboard   <- officialDebates.getLeaderboard
           allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
-          _ <- mainChannel
-            .publish1(Lobby(allDebaters, debaters, officialRooms, practiceRooms, leaderboard))
+          _ <- mainChannel.publish1(
+            Lobby(allDebaters, debaters, presence.keySet, officialRooms, practiceRooms, leaderboard)
+          )
         } yield ()
       }
       _ <- pushUpdateRef.set(pushUpdate)
@@ -223,6 +233,7 @@ object Serve
               saveDir,
               mainChannel,
               trackedDebatersRef,
+              presenceRef,
               officialDebates,
               practiceDebates,
               pushUpdate,
@@ -245,6 +256,7 @@ object Serve
     saveDir: NIOPath,              // where to save the debates as JSON
     mainChannel: Topic[IO, Lobby], // channel for updates to
     trackedDebaters: Ref[IO, Set[String]],
+    presence: Ref[IO, Map[String, Int]],
     officialDebates: DebateStateManager,
     practiceDebates: DebateStateManager,
     pushUpdate: IO[Unit],
@@ -269,16 +281,28 @@ object Serve
         _        <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
       } yield ()
 
-    val createLobbyWebsocket =
+    def createLobbyWebsocket(profile: String) =
       for {
         debaters      <- trackedDebaters.get
         officialRooms <- officialDebates.getRoomMetadata
         practiceRooms <- practiceDebates.getRoomMetadata
         leaderboard   <- officialDebates.getLeaderboard
         allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
+        _           <- presence.update(_ |+| Map(profile -> 1))
+        _           <- pushUpdate
+        curPresence <- presence.get
         outStream = Stream
           .emit[IO, Option[Lobby]](
-            Some(Lobby(allDebaters, debaters, officialRooms, practiceRooms, leaderboard))
+            Some(
+              Lobby(
+                allDebaters,
+                debaters,
+                curPresence.keySet,
+                officialRooms,
+                practiceRooms,
+                leaderboard
+              )
+            )
           ) // send the current set of debaters and rooms on connect
           .merge(Stream.awakeEvery[IO](30.seconds).map(_ => None)) // send a heartbeat every 30s
           .merge(mainChannel.subscribe(100).map(Some(_))) // and subscribe to the main channel
@@ -306,7 +330,7 @@ object Serve
                     else
                       practiceDebates.createDebate(roomName, setupSpec)
                 },
-          onClose = IO.unit
+          onClose = presence.update(p => (p |+| Map(profile -> -1)).filter(_._2 > 0)) >> pushUpdate
         )
       } yield res
 
@@ -340,8 +364,8 @@ object Serve
         StaticFile.fromString(jsDepsPath.toString, blocker, Some(req)).getOrElseF(NotFound())
 
       // connect to the lobby to see open rooms / who's in them, etc.
-      case GET -> Root / "main-ws" =>
-        createLobbyWebsocket
+      case GET -> Root / "main-ws" :? NameParam(profile) =>
+        createLobbyWebsocket(profile)
 
       // Connect via websocket to the messaging channel for the given debate.
       // The participant is added to the debate state and then removed when the websocket closes.

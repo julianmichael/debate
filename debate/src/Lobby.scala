@@ -31,6 +31,7 @@ object DebaterStoryStats {
 case class Lobby(
   allDebaters: Set[String],
   trackedDebaters: Set[String],
+  presentDebaters: Set[String],
   officialRooms: Set[RoomMetadata],
   practiceRooms: Set[RoomMetadata],
   leaderboard: Leaderboard
@@ -39,5 +40,5 @@ case class Lobby(
     .constructStoryRecord(officialRooms)
 }
 object Lobby {
-  def empty = Lobby(Set(), Set(), Set(), Set(), Leaderboard(Map()))
+  def empty = Lobby(Set(), Set(), Set(), Set(), Set(), Leaderboard(Map()))
 }
