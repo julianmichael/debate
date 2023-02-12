@@ -248,18 +248,53 @@ object MetadataBox {
             TagMod.empty
       }
 
+    val myRoles = roomMetadata.roleAssignments.filter(_._2 == userName).keySet.toVector.sorted
+
     val turnSpan = {
       val speakers = roomMetadata.currentSpeakers
-      val speakerElements = Utils.delimitedTags[Vector, DebateRole](
-        speakers.toVector,
-        speaker => <.span(getRoleStyle(speaker))(speaker.toString)
-      )
-      <.span(S.bold)(speakerElements.toVdomArray, <.span(c"text-muted")("'s turn"))
+      val (speakerElements, lastIsPlural) =
+        if (
+          myRoles.existsAs { case Debater(_) =>
+            true
+          }
+        )
+          Utils.delimitedTags[Vector, DebateRole](
+            speakers.toVector,
+            speaker => <.span(getRoleStyle(speaker))(speaker.toString)
+          ) -> false
+        else { // you don't have privileges to see which debater's turn it is
+          val roleSets =
+            speakers
+              .map {
+                case Debater(_) =>
+                  "Debaters"
+                case Judge =>
+                  "Judge"
+              }
+              .toVector
+              .sorted
+          def getStyle(roleSet: String) =
+            roleSet match {
+              case "Debaters" =>
+                S.bold: TagMod
+              case "Judge" =>
+                getRoleStyle(Judge)
+            }
+          Utils.delimitedTags[Vector, String](
+            roleSets,
+            roleSet => <.span(getStyle(roleSet))(roleSet)
+          ) -> (roleSets.lastOption == Some("Debaters"))
+        }
+      val optionalS =
+        if (lastIsPlural)
+          ""
+        else
+          "s"
+      <.span(S.bold)(speakerElements.toVdomArray, <.span(c"text-muted")(s"'$optionalS turn"))
         .when(speakerElements.nonEmpty)
     }
 
-    val userRoleDisplay = {
-      val myRoles = roomMetadata.roleAssignments.filter(_._2 == userName).keySet.toVector.sorted
+    val userRoleDisplay =
       if (myRoles.isEmpty)
         None
       else
@@ -296,7 +331,6 @@ object MetadataBox {
               )
           }
         }
-    }
 
     val boxTitle = ReactFragment(
       <.h5(c"card-title")(roomMetadata.name),
