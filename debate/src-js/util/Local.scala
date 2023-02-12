@@ -106,7 +106,7 @@ object Local {
     instances.get(fullName) match {
       case None =>
         val instance = new Local[A](fullName)
-        instances.put(name, instance)
+        instances.put(fullName, instance)
         instance
       case Some(instance) =>
         instance.asInstanceOf[Local[A]]
