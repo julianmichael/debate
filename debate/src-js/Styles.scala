@@ -234,7 +234,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val metadataListContainer = style(
     display.grid,
-    gridTemplateColumns := "repeat(auto-fill,minmax(18rem, 1fr))"
+    gridTemplateColumns := "repeat(auto-fill,minmax(16rem, 1fr))"
   )
 
   val judgmentBarLabel = style(fontSize(0.5 rem), width(3.5 rem))
