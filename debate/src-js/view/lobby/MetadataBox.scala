@@ -62,6 +62,7 @@ object MetadataBox {
 
   def apply(
     storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
+    presentDebaters: Set[String],
     roomMetadata: RoomMetadata,
     isOfficial: Boolean,
     userName: String,
@@ -76,8 +77,34 @@ object MetadataBox {
     val debatesUserMustJudgeFirst = stats.debatesUserMustJudgeFirst(roomMetadata.name)
 
     val canEnterRoom = userName.nonEmpty && debatesUserMustJudgeFirst.isEmpty
-    // &&
-    // !roomMetadata.currentParticipants.contains(userName)
+
+    val assignedLiveParticipants   = roomMetadata.roleAssignments.values.toSet
+    val participantsPresentInLobby = assignedLiveParticipants.intersect(presentDebaters)
+    val lobbyPresenceIndicator = Option(
+      <.div(
+        S.lobbyPresenceIndicator,
+        if (participantsPresentInLobby.size == assignedLiveParticipants.size)
+          c"text-primary"
+        else
+          c"text-muted"
+      )(
+        s"${participantsPresentInLobby.size}/${assignedLiveParticipants.size} present",
+        (0 until assignedLiveParticipants.size).toVdomArray { i =>
+          if (i >= participantsPresentInLobby.size) {
+            <.i(S.lobbyPresenceCircle, c"bi bi-circle")
+          } else
+            <.i(S.lobbyPresenceCircle, c"bi bi-circle-fill")
+        }
+      )
+    ).filter(_ =>
+      assignedLiveParticipants.size > 0 &&
+        (roomMetadata.status match {
+          case RoomStatus.WaitingToBegin | RoomStatus.InProgress =>
+            true
+          case _ =>
+            false
+        })
+    )
 
     case class ResultDescription(
       label: VdomNode,
@@ -436,21 +463,21 @@ object MetadataBox {
       )
     }
 
-    val presentParticipants = {
+    // val presentParticipants = {
 
-      val participants =
-        if (anonymize.value) {
-          roomMetadata
-            .currentParticipants
-            .view
-            .flatMap(name => roomMetadata.roleAssignments.find(_._2 == name).map(_._1))
-            .map(_.toString)
-            .toList
-            .sorted
-        } else
-          roomMetadata.currentParticipants.toList.sorted
-      <.div("Present: ", Utils.delimitedSpans(participants).toVdomArray).when(participants.nonEmpty)
-    }
+    //   val participants =
+    //     if (anonymize.value) {
+    //       roomMetadata
+    //         .currentParticipants
+    //         .view
+    //         .flatMap(name => roomMetadata.roleAssignments.find(_._2 == name).map(_._1))
+    //         .map(_.toString)
+    //         .toList
+    //         .sorted
+    //     } else
+    //       roomMetadata.currentParticipants.toList.sorted
+    //   <.div("In debate: ", Utils.delimitedSpans(participants).toVdomArray).when(participants.nonEmpty)
+    // }
 
     val deleteRoomButton =
       <.button(c"btn btn-sm btn-outline-danger mt-1")(
@@ -529,12 +556,13 @@ object MetadataBox {
         S.simpleUnselectable
 
     <.div(c"card", selectableStyle, bgStyle)(
+      lobbyPresenceIndicator,
       <.div(c"card-body")(
         boxTitle,
         <.div(c"card-text", c"mb-2".when(isAdmin))(
           storyTitle,
           roleAssignments.when(!anonymize.value),
-          presentParticipants,
+          // presentParticipants,
           resultDescriptionOpt.map(_.offlineResults),
           resultDescriptionOpt.map(_.feedbackNotice)
         ),

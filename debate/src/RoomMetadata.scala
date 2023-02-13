@@ -98,12 +98,18 @@ case class RoomMetadata(
 
 }
 object RoomMetadata {
-  def getOrder(userName: String): Order[RoomMetadata] = Order.by { room =>
-    val myRoles  = room.roleAssignments.filter(_._2 == userName).keySet
-    val isMyTurn = myRoles.intersect(room.currentSpeakers).nonEmpty
-    (!isMyTurn, room.currentParticipants.size, -room.latestUpdateTime)
+  def getOrder(userName: String, presentDebaters: Set[String]): Order[RoomMetadata] = Order.by {
+    room =>
+      val assignedLiveParticipants  = room.roleAssignments.values.toSet
+      val numParticipantsNotInLobby = (assignedLiveParticipants -- presentDebaters).size
+      val numParticipantsNotInRoom  = (assignedLiveParticipants -- room.currentParticipants).size
+      val myRoles                   = room.roleAssignments.filter(_._2 == userName).keySet
+      val isMyTurn                  = myRoles.intersect(room.currentSpeakers).nonEmpty
+      (!isMyTurn, numParticipantsNotInLobby, -numParticipantsNotInRoom, -room.latestUpdateTime)
   }
-  def getOrdering(userName: String) = catsKernelOrderingForOrder(getOrder(userName))
+  def getOrdering(userName: String, presentDebaters: Set[String]) = catsKernelOrderingForOrder(
+    getOrder(userName, presentDebaters)
+  )
 
   def constructStoryRecord(
     rooms: Set[RoomMetadata]

@@ -23,6 +23,7 @@ object DebatesPanel {
     headings: List[RoomHeading],
     rooms: Set[RoomMetadata],
     storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
+    presentDebaters: Set[String],
     connect: ConnectionSpec => Callback,
     sendToMainChannel: MainChannelRequest => Callback
   ) =
@@ -71,13 +72,14 @@ object DebatesPanel {
                   <.div(S.metadataListContainer, S.spaceySubcontainer) {
                     def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
                       .toVector
-                      .sorted(RoomMetadata.getOrdering(userName))
+                      .sorted(RoomMetadata.getOrdering(userName, presentDebaters))
                       .toVdomArray { case rm: RoomMetadata =>
-                        Local[Boolean]
-                          .make(heading == RoomHeading.EligibleForOfflineJudging) { hideResults =>
+                        Local[Boolean].make(heading == RoomHeading.EligibleForOfflineJudging) {
+                          hideResults =>
                             Local[Boolean].make(true) { anonymize =>
                               MetadataBox(
                                 storyRecord = storyRecord,
+                                presentDebaters = presentDebaters,
                                 roomMetadata = rm,
                                 isOfficial = isOfficial,
                                 userName = userName,
@@ -88,7 +90,7 @@ object DebatesPanel {
                                 enterRoom = connect
                               )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
                             }
-                          }
+                        }
                       }
 
                     val (matchingRooms, nonMatchingRooms) =
@@ -184,6 +186,7 @@ object DebatesPanel {
           headings = headings,
           rooms = rooms,
           storyRecord = lobby.storyRecord,
+          presentDebaters = lobby.presentDebaters,
           connect = connect,
           sendToMainChannel = sendToMainChannel
         )

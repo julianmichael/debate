@@ -237,6 +237,10 @@ object Styles extends jjm.ui.View.Styles {
     gridTemplateColumns := "repeat(auto-fill,minmax(16rem, 1fr))"
   )
 
+  val lobbyPresenceIndicator = style(fontSize(7 px), position.absolute, top(.5 rem), right(.5 rem))
+
+  val lobbyPresenceCircle = style(addClassNames("pl-1"))
+
   val judgmentBarLabel = style(fontSize(0.5 rem), width(3.5 rem))
   val judgmentBar = style(
     row,
