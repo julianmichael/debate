@@ -1,6 +1,5 @@
 package debate
 
-import cats.data.Ior
 import cats.implicits._
 import jjm.metrics.Numbers
 import jjm.Duad
@@ -149,21 +148,8 @@ object DebateScheduler {
     }
 
     // combine the sets if a debater is in both
-    val combined: Map[String, Set[String]] =
-      debaterStoriesRead
-        .merge(mapFromNewAssignments)
-        .view
-        .mapValues(ior =>
-          ior match {
-            case Ior.Left(set) =>
-              set
-            case Ior.Right(set) =>
-              set
-            case Ior.Both(set1, set2) =>
-              set1 ++ set2
-          }
-        )
-        .toMap
+    // |+| is the syntax for the Monoid#combine function, here from Monoid[Map[String, Set[String]]
+    val combined: Map[String, Set[String]] = debaterStoriesRead |+| mapFromNewAssignments
 
     val storiesReadCounts: Map[String, Int] = combined.view.mapValues(_.size).toMap
     Numbers(storiesReadCounts.values.toVector).stats.stdev

@@ -73,7 +73,7 @@ class SchedulerTests extends CatsEffectSuite {
     var costs         = Vector.empty[Double]
     var history       = Vector.empty[Debate]
     var nTimesDebated = Vector.empty[Map[String, Int]]
-    for (_ <- 1 to 25) {
+    for (_ <- 1 to 100) {
       val newAssignment = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
