@@ -88,7 +88,7 @@ object MetadataBox {
         else
           c"text-muted"
       )(
-        s"${participantsPresentInLobby.size}/${assignedLiveParticipants.size} present",
+        s"${participantsPresentInLobby.size}/${assignedLiveParticipants.size} online",
         (0 until assignedLiveParticipants.size).toVdomArray { i =>
           if (i >= participantsPresentInLobby.size) {
             <.i(S.lobbyPresenceCircle, c"bi bi-circle")
