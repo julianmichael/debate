@@ -731,7 +731,7 @@ object DebateCreationPanel {
                         ),
                         <.div(S.inputLabel)("Debater:"),
                         ProfileOptSelect.mod(select = S.customSelect)(
-                          choices = lobby.trackedDebaters,
+                          choices = lobby.profiles.keySet,
                           choice = setup.zoomStateL(
                             DebateSetupSpec.roles.composeLens(Optics.at(Debater(index): DebateRole))
                           )
@@ -878,7 +878,7 @@ object DebateCreationPanel {
                               qualityStoryOpt
                             ),
                             questionConfig(
-                              lobby.trackedDebaters,
+                              lobby.profiles.keySet,
                               setup,
                               qualityStoryOpt,
                               qualityQuestionOpt

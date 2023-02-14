@@ -29,8 +29,8 @@ object DebaterStoryStats {
 @Lenses
 @JsonCodec
 case class Lobby(
+  profiles: Map[String, Profile],
   allDebaters: Set[String],
-  trackedDebaters: Set[String],
   presentDebaters: Set[String],
   officialRooms: Set[RoomMetadata],
   practiceRooms: Set[RoomMetadata],
@@ -40,5 +40,5 @@ case class Lobby(
     .constructStoryRecord(officialRooms)
 }
 object Lobby {
-  def empty = Lobby(Set(), Set(), Set(), Set(), Set(), Leaderboard(Map()))
+  def empty = Lobby(Map(), Set(), Set(), Set(), Set(), Leaderboard(Map()))
 }

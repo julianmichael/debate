@@ -250,6 +250,8 @@ object Styles extends jjm.ui.View.Styles {
     borderRadius(0.5 rem)
   )
 
+  val attentionBackground = style(backgroundColor(rgba(255, 255, 0, 0.25)))
+
   val profileListContainer = style(
     display.grid,
     gridTemplateColumns := "repeat(auto-fill,minmax(20rem, 1fr))"

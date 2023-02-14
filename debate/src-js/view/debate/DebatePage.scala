@@ -323,15 +323,9 @@ object DebatePage {
     )
   }
 
-  case class Props(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback)
-
   def apply(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback) =
-    Component(Props(profiles, connectionSpec, disconnect))
-
-  val Component =
-    ScalaComponent
-      .builder[Props]("Debate Page")
-      .render_P { case Props(profiles, connectionSpec, disconnect) =>
+    Mounting
+      .make(Callback(dom.window.document.title = Utils.makePageTitle(connectionSpec.roomName))) {
         val isOfficial = connectionSpec.isOfficial
         val roomName   = connectionSpec.roomName
         val userName   = connectionSpec.participantName
@@ -382,9 +376,5 @@ object DebatePage {
             )
         }
       }
-      .componentDidMount($ =>
-        Callback(dom.window.document.title = Utils.makePageTitle($.props.connectionSpec.roomName))
-      )
-      .build
 
 }

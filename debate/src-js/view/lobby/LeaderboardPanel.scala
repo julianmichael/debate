@@ -188,7 +188,7 @@ object LeaderboardPanel {
   def apply(lobby: Lobby) = {
     def makeTab(category: LeaderboardCategory) = TabNav.tab(
       <.div(c"card-body", S.spaceySubcontainer)(
-        makeSingle(lobby.trackedDebaters, lobby.leaderboard, category)
+        makeSingle(lobby.profiles.keySet, lobby.leaderboard, category)
       )
     )
     TabNav("leaderboard-tab", 0)(

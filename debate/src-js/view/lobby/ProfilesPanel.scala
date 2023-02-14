@@ -98,12 +98,32 @@ object ProfilesPanel {
     <.div(c"card")(
       <.div(c"card-body")(
         <.h4(c"card-title")(name),
+        lobby
+          .profiles
+          .get(name)
+          .map { profile =>
+            ReactFragment(
+              <.h5("Slack Email"),
+              Local[String].make(profile.slackEmail.getOrElse("")) { newSlackEmailStr =>
+                Utils.textInputWithEnterButton(
+                  field = newSlackEmailStr,
+                  placeholderOpt = Some("None (no Slack notifications)"),
+                  buttonContent = "Set",
+                  isEnabled = newSlackEmailStr.value != profile.slackEmail.getOrElse(""),
+                  enter = sendToMainChannel(
+                    RegisterDebater(Profile(name, Some(newSlackEmailStr.value).filter(_.nonEmpty)))
+                  ),
+                  inputMod = S.attentionBackground.when(profile.slackEmail.isEmpty)
+                )(^.marginBottom := "1rem")
+              }
+            )
+          },
         <.h5(s"Stories"),
         showStories("Read", storiesRead),
         showStories("Assigned to Read", storiesAssignedToRead),
         showStories("Judged", storiesJudged),
         showStories("Assigned to Judge", storiesAssignedToJudge),
-        if (lobby.trackedDebaters.contains(name)) {
+        if (lobby.profiles.contains(name)) {
           <.button(c"mt-2 btn btn-sm btn-outline-danger", S.simpleSelectable)(
             <.i(c"bi bi-x"),
             " Deactivate",
@@ -114,7 +134,7 @@ object ProfilesPanel {
             <.button(c"mt-2 btn btn-sm btn-outline-secondary", S.simpleSelectable)(
               <.i(c"bi bi-arrow-up"),
               " Reactivate",
-              ^.onClick --> sendToMainChannel(RegisterDebater(name))
+              ^.onClick --> sendToMainChannel(RegisterDebater(Profile(name, None)))
             )
           )
         }
@@ -143,15 +163,16 @@ object ProfilesPanel {
           field = newProfileStr,
           placeholderOpt = None,
           buttonContent = <.i(c"bi bi-plus"),
-          isEnabled =
-            newProfileStr.value.nonEmpty && !lobby.trackedDebaters.contains(newProfileStr.value),
+          isEnabled = newProfileStr.value.nonEmpty && !lobby.profiles.contains(newProfileStr.value),
           enter =
-            sendToMainChannel(RegisterDebater(newProfileStr.value)) >> newProfileStr.setState("")
+            sendToMainChannel(RegisterDebater(Profile(newProfileStr.value, None))) >>
+              newProfileStr.setState("")
         )(^.marginBottom := "1rem"),
         <.h3("Active Profiles"),
         <.div(S.profileListContainer, S.spaceySubcontainer)(
           lobby
-            .trackedDebaters
+            .profiles
+            .keySet
             .toVector
             .sorted(catsKernelOrderingForOrder(profileOrder))
             .toVdomArray { name =>
@@ -165,7 +186,7 @@ object ProfilesPanel {
         <.div(<.hr()),
         <.h3("Inactive Profiles"),
         <.div(S.profileListContainer, S.spaceySubcontainer)(
-          (lobby.allDebaters -- lobby.trackedDebaters)
+          (lobby.allDebaters -- lobby.profiles.keySet)
             .toVector
             .sorted(catsKernelOrderingForOrder(profileOrder))
             .toVdomArray { name =>

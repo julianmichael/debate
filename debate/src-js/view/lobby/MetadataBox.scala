@@ -270,7 +270,7 @@ object MetadataBox {
           val myRoles  = roomMetadata.roleAssignments.filter(_._2 == userName).keySet
           val isMyTurn = myRoles.intersect(roomMetadata.currentSpeakers).nonEmpty
           if (isMyTurn) {
-            ^.backgroundColor := Rgba(255, 255, 0, 0.25).toColorStyleString
+            TagMod(S.attentionBackground)
           } else
             TagMod.empty
       }

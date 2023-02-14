@@ -19,6 +19,8 @@ import monocle.std.{all => StdOptics}
 import org.http4s.server.websocket._
 
 import jjm.io.FileUtil
+import org.http4s.client.Client
+import org.http4s
 
 /** The server state for a debate room.
   *
@@ -38,10 +40,15 @@ object DebateRoom {
 
 case class DebateStateManager(
   initializeDebate: DebateSetupSpec => IO[DebateSetup],
+  profilesRef: Ref[IO, Map[String, Profile]],
   rooms: Ref[IO, Map[String, DebateRoom]],
   saveDir: NIOPath,
-  pushUpdateRef: Ref[IO, IO[Unit]]
+  pushUpdateRef: Ref[IO, IO[Unit]],
+  httpClient: Client[IO],
+  slackAuthTokenOpt: Option[String]
 )(implicit c: Concurrent[IO]) {
+
+  // val blockingEC = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(5))
 
   private def roomMembersL(roomName: String) = Optics
     .at[Map[String, DebateRoom], String, Option[DebateRoom]](roomName)
@@ -148,6 +155,49 @@ case class DebateStateManager(
       _ <- pushUpdate
     } yield ()
 
+  def getSlackIdForEmail(slackAuthToken: String, email: String) = {
+    import http4s._
+    import io.circe.Json
+    import http4s.circe._
+    httpClient
+      .expect[Json](
+        Request[IO](
+          method = http4s.Method.GET,
+          uri = http4s
+            .Uri
+            .fromString("https://slack.com/api/users.lookupByEmail")
+            .toOption
+            .get
+            .withQueryParam("email", email),
+          headers = Headers.of(Header("Authorization", s"Bearer $slackAuthToken"))
+        )
+      )
+      .map { responseJson =>
+        responseJson.asObject.get("user").get.asObject.get("id").get.as[String].toOption.get
+      }
+  }
+
+  def sendSlackMessage(slackAuthToken: String, recipientId: String, message: String) = {
+    import http4s._
+    import io.circe.Json
+    import http4s.circe._
+    httpClient
+      .expect[Json](
+        Request[IO](
+          method = http4s.Method.POST,
+          uri = http4s
+            .Uri
+            .fromString("https://slack.com/api/chat.postMessage")
+            .toOption
+            .get
+            .withQueryParam("channel", recipientId)
+            .withQueryParam("text", message),
+          headers = Headers.of(Header("Authorization", s"Bearer $slackAuthToken"))
+        )
+      )
+      .void
+  }
+
   def processUpdate(roomName: String, request: DebateStateUpdateRequest) = {
     val updateState =
       request match {
@@ -158,6 +208,41 @@ case class DebateStateManager(
     for {
       _           <- updateState
       debateState <- rooms.get.map(_.apply(roomName).debate)
+      _ <- {
+        val curUsersWhoseTurnItIs = debateState
+          .debate
+          .currentTransitions
+          .toOption
+          .foldMap(_.giveSpeech.keySet.flatMap(debateState.debate.setup.roles.get))
+        val usersToNotifyThroughSlack = curUsersWhoseTurnItIs -- debateState.participants.keySet
+        slackAuthTokenOpt.traverse_ { slackAuthToken =>
+          profilesRef
+            .get
+            .flatMap { profiles =>
+              usersToNotifyThroughSlack
+                .toVector
+                .flatMap(profiles.get)
+                .traverse_ { profile =>
+                  profile
+                    .slackEmail
+                    .traverse_ { email =>
+                      val notify = getSlackIdForEmail(slackAuthToken, email).flatMap { userId =>
+                        sendSlackMessage(slackAuthToken, userId, s"It's your turn in `$roomName`!")
+                      }
+                      notify.recoverWith { case e: Throwable =>
+                        IO {
+                          println(s"Slack notification failed for ${profile.name}")
+                          println(s"Email: $email")
+                          println(s"Message: ${e.getMessage()}")
+                          println(s"Stack trace: ")
+                          e.printStackTrace()
+                        }
+                      }
+                    }
+                }
+            }
+        }
+      }
       _ <-
         FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(
           debateState.debate
@@ -205,7 +290,10 @@ object DebateStateManager {
   def init(
     initializeDebate: DebateSetupSpec => IO[DebateSetup],
     saveDir: NIOPath,
-    pushUpdateRef: Ref[IO, IO[Unit]]
+    profilesRef: Ref[IO, Map[String, Profile]],
+    pushUpdateRef: Ref[IO, IO[Unit]],
+    httpClient: Client[IO],
+    slackAuthTokenOpt: Option[String]
   )(implicit c: Concurrent[IO]) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
@@ -224,6 +312,14 @@ object DebateStateManager {
         )
         .map(_.toMap)
       roomsRef <- Ref[IO].of(rooms)
-    } yield DebateStateManager(initializeDebate, roomsRef, saveDir, pushUpdateRef)
+    } yield DebateStateManager(
+      initializeDebate,
+      profilesRef,
+      roomsRef,
+      saveDir,
+      pushUpdateRef,
+      httpClient,
+      slackAuthTokenOpt
+    )
   }
 }

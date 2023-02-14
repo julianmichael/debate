@@ -9,12 +9,12 @@ import jjm.DotEncoder
 import jjm.DotKleisli
 
 trait AjaxService[F[_]] {
-  def getDebaters: F[Set[String]]
+  def getDebaters: F[Map[String, Profile]]
 }
 object AjaxService {
   def apply[F[_]](f: DotKleisli[F, Request]) =
     new AjaxService[F] {
-      def getDebaters: F[Set[String]] = f(Request.GetDebaters)
+      def getDebaters: F[Map[String, Profile]] = f(Request.GetDebaters)
     }
 
   @JsonCodec
@@ -23,7 +23,7 @@ object AjaxService {
   }
   object Request {
     case object GetDebaters extends Request {
-      type Out = Set[String]
+      type Out = Map[String, Profile]
     }
 
     implicit val ajaxServiceRequestDotEncoder =
@@ -32,7 +32,7 @@ object AjaxService {
           val res =
             req match {
               case GetDebaters =>
-                implicitly[Encoder[Set[String]]]
+                implicitly[Encoder[Map[String, Profile]]]
             }
           res.asInstanceOf[Encoder[req.Out]]
         }
@@ -43,7 +43,7 @@ object AjaxService {
           val res =
             req match {
               case GetDebaters =>
-                implicitly[Decoder[Set[String]]]
+                implicitly[Decoder[Map[String, Profile]]]
             }
           res.asInstanceOf[Decoder[req.Out]]
         }

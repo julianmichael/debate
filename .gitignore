@@ -15,3 +15,5 @@ save/
 scratch/
 node_modules/
 node_modules/
+
+/slack-token.txt

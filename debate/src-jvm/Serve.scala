@@ -34,6 +34,7 @@ import jjm.io.FileUtil
 import jjm.io.HttpUtil
 
 import debate.quality._
+import org.http4s.client.JavaNetClientBuilder
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -131,6 +132,7 @@ object Serve
   }
 
   val qualityDataPath                    = Paths.get("data")
+  def profilesSavePath(saveDir: NIOPath) = saveDir.resolve("profiles.json")
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
   def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
   def officialRoomsDir(saveDir: NIOPath) = saveDir.resolve("official")
@@ -144,50 +146,66 @@ object Serve
     * @return
     *   the full HTTP app
     */
-  def makeHttpApp(jsPathO: NIOPath, jsDepsPathO: NIOPath, saveDir: NIOPath, blocker: Blocker) =
+  def makeHttpApp(jsPathO: NIOPath, jsDepsPathO: NIOPath, saveDir: NIOPath, blocker: Blocker) = {
+    val httpClient = JavaNetClientBuilder[IO](blocker).create
+    // import org.http4s.client.blaze._
+    // BlazeClientBuilder[IO](scala.concurrent.ExecutionContext.global)
+    //   .resource
+    //   .use { httpClient =>
     for {
       qualityDataset <- QuALITYUtils.readQuALITY(qualityDataPath, blocker)
-      trackedDebaters <- FileUtil
-        .readJson[Set[String]](debatersSavePath(saveDir))
-        .recoverWith { case e: Throwable =>
-          IO {
-            println("Error reading debaters JSON. Initializing to empty JSON.")
-            println(s"--->\tError message: ${e.getMessage()}")
-            Set.empty[String] // start with empty if none already exists
-          }
+      profiles <- FileUtil
+        .readJson[Map[String, Profile]](profilesSavePath(saveDir))
+        .recoverWith { case _: Throwable =>
+          FileUtil
+            .readJson[Set[String]](debatersSavePath(saveDir))
+            .map(_.map(name => name -> Profile(name, None)).toMap)
+            .recoverWith { case e: Throwable =>
+              IO {
+                println("Error reading debaters JSON. Initializing to empty JSON.")
+                println(s"--->\tError message: ${e.getMessage()}")
+                Map.empty[String, Profile] // start with empty if none already exists
+              }
+            }
         }
-      trackedDebatersRef <- Ref[IO].of(trackedDebaters)
-      presenceRef        <- Ref[IO].of(Map.empty[String, Int])
-      pushUpdateRef      <- Ref[IO].of(IO.unit)
-      officialDebates <- DebateStateManager
-        .init(initializeDebate(qualityDataset), officialRoomsDir(saveDir), pushUpdateRef)
-      practiceDebates <- DebateStateManager
-        .init(initializeDebate(qualityDataset), practiceRoomsDir(saveDir), pushUpdateRef)
+      profilesRef       <- Ref[IO].of(profiles)
+      presenceRef       <- Ref[IO].of(Map.empty[String, Int])
+      pushUpdateRef     <- Ref[IO].of(IO.unit)
+      slackAuthTokenOpt <- FileUtil.readString(Paths.get("slack-token.txt")).attempt.map(_.toOption)
+      officialDebates <- DebateStateManager.init(
+        initializeDebate(qualityDataset),
+        officialRoomsDir(saveDir),
+        profilesRef,
+        pushUpdateRef,
+        httpClient,
+        slackAuthTokenOpt
+      )
+      practiceDebates <- DebateStateManager.init(
+        initializeDebate(qualityDataset),
+        practiceRoomsDir(saveDir),
+        profilesRef,
+        pushUpdateRef,
+        httpClient,
+        None // don't send slack notifications for practice rooms
+      )
       officialRooms <- officialDebates.getRoomMetadata
       practiceRooms <- practiceDebates.getRoomMetadata
       // channel to update all clients on the lobby state
       leaderboard <- officialDebates.getLeaderboard
       allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
       mainChannel <- Topic[IO, Lobby](
-        Lobby(
-          allDebaters,
-          trackedDebaters,
-          Set.empty[String],
-          officialRooms,
-          practiceRooms,
-          leaderboard
-        )
+        Lobby(profiles, allDebaters, Set.empty[String], officialRooms, practiceRooms, leaderboard)
       )
       pushUpdate = {
         for {
-          debaters      <- trackedDebatersRef.get
+          profiles      <- profilesRef.get
           presence      <- presenceRef.get
           officialRooms <- officialDebates.getRoomMetadata
           practiceRooms <- practiceDebates.getRoomMetadata
           leaderboard   <- officialDebates.getLeaderboard
           allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
           _ <- mainChannel.publish1(
-            Lobby(allDebaters, debaters, presence.keySet, officialRooms, practiceRooms, leaderboard)
+            Lobby(profiles, allDebaters, presence.keySet, officialRooms, practiceRooms, leaderboard)
           )
         } yield ()
       }
@@ -216,7 +234,7 @@ object Serve
             val res =
               req match {
                 case Request.GetDebaters =>
-                  trackedDebatersRef.get
+                  profilesRef.get
               }
             // not sure why it isn't inferring the type...
             res.asInstanceOf[IO[req.Out]]
@@ -224,6 +242,7 @@ object Serve
         }
       )
 
+      // TODO: can we get rid of this?
       // We need to configure CORS for the AJAX APIs if we're using a separate
       // endpoint for static file serving.
       // TODO: allow requests from our hostname instead of any
@@ -247,7 +266,7 @@ object Serve
               jsDepsPathO,
               saveDir,
               mainChannel,
-              trackedDebatersRef,
+              profilesRef,
               presenceRef,
               officialDebates,
               practiceDebates,
@@ -257,6 +276,7 @@ object Serve
         )
       ).orNotFound
     }
+  }
 
   import org.http4s.dsl.io._
 
@@ -270,7 +290,7 @@ object Serve
     jsDepsPath: NIOPath,
     saveDir: NIOPath,              // where to save the debates as JSON
     mainChannel: Topic[IO, Lobby], // channel for updates to
-    trackedDebaters: Ref[IO, Set[String]],
+    profiles: Ref[IO, Map[String, Profile]],
     presence: Ref[IO, Map[String, Int]],
     officialDebates: DebateStateManager,
     practiceDebates: DebateStateManager,
@@ -280,25 +300,26 @@ object Serve
 
     // Operations executed by the server
 
-    def registerDebater(name: String) =
+    // TODO change param to Profile so this can be used to modify profiles as well
+    def registerDebater(profile: Profile) =
       for {
-        _        <- trackedDebaters.update(_ + name)
+        _        <- profiles.update(_ + (profile.name -> profile))
         _        <- pushUpdate
-        debaters <- trackedDebaters.get
-        _        <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
+        debaters <- profiles.get
+        _        <- FileUtil.writeJson(profilesSavePath(saveDir))(debaters)
       } yield ()
 
     def removeDebater(name: String) =
       for {
-        _        <- trackedDebaters.update(_ - name)
+        _        <- profiles.update(_ - name)
         _        <- pushUpdate
-        debaters <- trackedDebaters.get
-        _        <- FileUtil.writeJson(debatersSavePath(saveDir))(debaters)
+        debaters <- profiles.get
+        _        <- FileUtil.writeJson(profilesSavePath(saveDir))(debaters)
       } yield ()
 
     def createLobbyWebsocket(profile: String) =
       for {
-        debaters      <- trackedDebaters.get
+        debaters      <- profiles.get
         officialRooms <- officialDebates.getRoomMetadata
         practiceRooms <- practiceDebates.getRoomMetadata
         leaderboard   <- officialDebates.getLeaderboard
@@ -310,8 +331,8 @@ object Serve
           .emit[IO, Option[Lobby]](
             Some(
               Lobby(
-                allDebaters,
                 debaters,
+                allDebaters,
                 curPresence.keySet,
                 officialRooms,
                 practiceRooms,
@@ -330,8 +351,8 @@ object Serve
               x.through(filterCloseFrames)
                 .map(unpickleFromWSFrame[MainChannelRequest])
                 .evalMap {
-                  case RegisterDebater(name) =>
-                    registerDebater(name)
+                  case RegisterDebater(profile) =>
+                    registerDebater(profile)
                   case RemoveDebater(name) =>
                     removeDebater(name)
                   case DeleteRoom(isOfficial, roomName) =>

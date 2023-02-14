@@ -22,6 +22,7 @@ val circeVersion         = "0.13.0"
 val declineVersion       = "1.0.0"
 val scalaJavaTimeVersion = "2.3.0"
 val scalatagsVersion     = "0.8.2"
+val http4sVersion        = "0.21.18"
 // testing
 val munitVersion           = "0.7.29"
 val munitCatsEffectVersion = "1.0.7"
@@ -143,6 +144,7 @@ object debate extends Module {
           ivy"com.monovore::decline::$declineVersion",
           ivy"com.monovore::decline-effect::$declineVersion",
           ivy"com.lihaoyi::scalatags:$scalatagsVersion",
+          ivy"org.http4s::http4s-blaze-client::$http4sVersion",
           // java dependencies
           ivy"ch.qos.logback:logback-classic:$logbackVersion",
           ivy"io.circe::circe-generic-extras::$circeVersion"

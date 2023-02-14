@@ -65,11 +65,17 @@ trait UtilsPlatformExtensions {
   private val S = Styles
   private val V = new jjm.ui.View(S)
 
-  def textInput(field: StateSnapshot[String], placeholderOpt: Option[String], enter: Callback) =
+  def textInput(
+    field: StateSnapshot[String],
+    placeholderOpt: Option[String],
+    enter: Callback,
+    inputMod: TagMod = TagMod.empty
+  ) =
     V.LiveTextField
       .String
       .modInput(input =
         TagMod(
+          inputMod,
           c"form-control",
           ^.onKeyDown ==>
             ((e: ReactKeyboardEvent) =>
@@ -86,10 +92,11 @@ trait UtilsPlatformExtensions {
     placeholderOpt: Option[String],
     buttonContent: TagMod,
     isEnabled: Boolean,
-    enter: Callback
+    enter: Callback,
+    inputMod: TagMod = TagMod.empty
   ) =
     <.div(c"input-group", ^.width.auto)(
-      textInput(field = field, placeholderOpt = placeholderOpt, enter = enter),
+      textInput(field = field, placeholderOpt = placeholderOpt, enter = enter, inputMod),
       <.div(c"input-group-append")(
         <.button(c"btn btn-primary")(
           buttonContent,

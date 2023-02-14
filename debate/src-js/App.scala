@@ -53,7 +53,7 @@ object App {
   val ajaxService = AjaxService(
     HttpUtil.makeHttpPostClient[AjaxService.Request](ajaxApiUrl).andThenK(toAsyncCallback)
   )
-  val DebatersFetch = new CacheCallContent[Unit, Set[String]]
+  val DebatersFetch = new CacheCallContent[Unit, Map[String, Profile]]
 
   // Shortcuts for styles and view elements
 
@@ -122,7 +122,7 @@ object App {
                         case DebatersFetch.Loading =>
                           <.div("Loading profiles...")
                         case DebatersFetch.Loaded(profiles) =>
-                          profileSelector(profiles, isAdmin = isAdmin, profile = profile)
+                          profileSelector(profiles.keySet, isAdmin = isAdmin, profile = profile)
                       }
                     )
                   }
@@ -168,7 +168,7 @@ object App {
                               view
                                 .debate
                                 .DebatePage(
-                                  profiles = lobby.value.trackedDebaters,
+                                  profiles = lobby.value.profiles.keySet,
                                   connectionSpec = cs,
                                   disconnect = connectionSpecOpt.setState(None)
                                 )
