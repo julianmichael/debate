@@ -77,9 +77,19 @@ object Feedback {
   }
 
   sealed trait Question[Answer] {
-    def debaterQuestion: Option[String]
-    def judgeQuestion: Option[String]
+    def questionText(role: Role): Option[String] =
+      role match {
+        case Debater(_) =>
+          debaterQuestion
+        case Judge =>
+          judgeQuestion
+        case _ =>
+          None
+      }
+    protected[Question] def debaterQuestion: Option[String]
+    protected[Question] def judgeQuestion: Option[String]
     def questionDetails: Option[String]
+    def required: Boolean
   }
   object Question {
 
@@ -90,7 +100,8 @@ object Feedback {
       questionDetails: Option[String] = None,
       numOptions: Int,
       minDescription: String,
-      maxDescription: String
+      maxDescription: String,
+      required: Boolean = true
     ) extends Question[ComparativeJudgment]
 
     @JsonCodec
@@ -100,20 +111,22 @@ object Feedback {
       questionDetails: Option[String] = None,
       numOptions: Int,
       minDescription: String,
-      maxDescription: String
+      maxDescription: String,
+      required: Boolean = true
     ) extends Question[Int]
 
     @JsonCodec
     case class FreeText(
       debaterQuestion: Option[String] = None,
       judgeQuestion: Option[String] = None,
-      questionDetails: Option[String] = None
+      questionDetails: Option[String] = None,
+      required: Boolean = true
     ) extends Question[String]
   }
 
   // TODO: question HTML? for bolding etc.
-  val survey = List(
-    DotPair[Question](Key.FreeText("reason for outcome"))(
+  val survey: List[DotPair[Question, Key]] = List(
+    DotPair[Question][Key](Key.FreeText("reason for outcome"))(
       Question.FreeText(
         debaterQuestion = Some("Why do you think you won/lost this debate?"),
         judgeQuestion = Some(
@@ -121,17 +134,20 @@ object Feedback {
         )
       )
     ),
-    DotPair[Question](Key.Likert("subjective correctness"))(
+    DotPair[Question][Key](Key.Likert("subjective correctness"))(
       Question.Likert(
         debaterQuestion = Some(
-          "Knowing the full story, how disputable do you think the question is?"
+          "Knowing the full story, do you think the original answer to the question is actually correct?"
+        ),
+        questionDetails = Some(
+          "An answer of 3 means you think it's disputable, favoring each answer equally."
         ),
         numOptions = 5,
         minDescription = "\"Correct\" answer is wrong",
         maxDescription = "\"Correct\" answer is right"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("evidence in story"))(
+    DotPair[Question][Key](Key.ComparativeLikert("evidence in story"))(
       Question.ComparativeLikert(
         debaterQuestion = Some(
           "How would you rate the quality of the evidence present in the story in favor of each side?"
@@ -141,17 +157,17 @@ object Feedback {
         maxDescription = "Clear & convincing"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("evidence use"))(
+    DotPair[Question][Key](Key.ComparativeLikert("evidence use"))(
       Question.ComparativeLikert(
         debaterQuestion = Some(
-          "How effectively did each of you use the evidence available to you?"
+          "Given the evidence available to you, how effectively did each of you use the it?"
         ),
         numOptions = 5,
         minDescription = "Not at all",
         maxDescription = "Best possible"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("evidence in debate"))(
+    DotPair[Question][Key](Key.ComparativeLikert("evidence in debate"))(
       Question.ComparativeLikert(
         judgeQuestion = Some("How compelling was each debater's evidence?"),
         numOptions = 5,
@@ -159,7 +175,7 @@ object Feedback {
         maxDescription = "Clear & effective"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("factual accuracy"))(
+    DotPair[Question][Key](Key.ComparativeLikert("factual accuracy"))(
       Question.ComparativeLikert(
         debaterQuestion = Some(
           "How accurately did each of you represent the facts of the story in your arguments?"
@@ -169,7 +185,7 @@ object Feedback {
         maxDescription = "Completely accurately"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("factual informativeness (comparative)"))(
+    DotPair[Question][Key](Key.ComparativeLikert("factual informativeness (comparative)"))(
       Question.ComparativeLikert(
         judgeQuestion = Some("How much did each debater help you understand the story?"),
         numOptions = 5,
@@ -177,7 +193,7 @@ object Feedback {
         maxDescription = "Highly informative"
       )
     ),
-    DotPair[Question](Key.Likert("factual informativeness (total)"))(
+    DotPair[Question][Key](Key.Likert("factual informativeness (total)"))(
       Question.Likert(
         judgeQuestion = Some(
           "Did you feel like the debate as a whole helped you understand the story better as it progressed?"
@@ -187,7 +203,7 @@ object Feedback {
         maxDescription = "Highly informative"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("facts versus semantics"))(
+    DotPair[Question][Key](Key.ComparativeLikert("facts versus semantics"))(
       Question.ComparativeLikert(
         debaterQuestion = Some(
           "How much did each of you focus on matters of fact versus matters of semantics?"
@@ -200,7 +216,7 @@ object Feedback {
         maxDescription = "Completely semantics"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("clarity"))(
+    DotPair[Question][Key](Key.ComparativeLikert("clarity"))(
       Question.ComparativeLikert(
         debaterQuestion = Some("How clear & understandable do you feel the argumentation was?"),
         judgeQuestion = Some("How clear & understandable do you feel the argumentation was?"),
@@ -209,7 +225,7 @@ object Feedback {
         maxDescription = "Completely clear"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("clash"))(
+    DotPair[Question][Key](Key.ComparativeLikert("clash"))(
       Question.ComparativeLikert(
         debaterQuestion = Some("How well did you clash with each other's arguments?"),
         judgeQuestion = Some("How well did the debaters clash with each other's arguments?"),
@@ -218,7 +234,7 @@ object Feedback {
         maxDescription = "Addressed all arguments"
       )
     ),
-    DotPair[Question](Key.ComparativeLikert("judge adaptation"))(
+    DotPair[Question][Key](Key.ComparativeLikert("judge adaptation"))(
       Question.ComparativeLikert(
         debaterQuestion = Some("How well did each of you respond/adapt to the judge's concerns?"),
         judgeQuestion = Some("How well did each debater respond/adapt to your concerns?"),
@@ -227,61 +243,74 @@ object Feedback {
         maxDescription = "Addressed all concerns"
       )
     ),
-    DotPair[Question](Key.FreeText("judge strategies"))(
+    DotPair[Question][Key](Key.ComparativeLikert("judge reasoning"))(
+      Question.ComparativeLikert(
+        debaterQuestion = Some(
+          "How sound was the judge's reasoning? Did they make their final judgment for the right reasons, given the debate?"
+        ),
+        judgeQuestion = Some(
+          "In retrospect, given the information you had available, how sound do you think your reasoning was behind your final judgment?"
+        ),
+        numOptions = 5,
+        minDescription = "Made critical mistakes",
+        maxDescription = "Totally sound"
+      )
+    ),
+    DotPair[Question][Key](Key.FreeText("judge strategies"))(
       Question.FreeText(
         judgeQuestion = Some(
           "Were there any specific questions or expectations that you communicated to the debaters in order to influence their behavior?"
         ),
         questionDetails = Some(
           "For example, indicating that they should respond to a specific argument, back up a particular claim with evidence, and so on. If so, please describe."
-        )
+        ),
+        required = false
       )
     ),
-    DotPair[Question](Key.FreeText("other factors"))(
-      Question.FreeText(judgeQuestion =
-        Some("Were there any other factors worth mentioning that were important to your decision?")
+    DotPair[Question][Key](Key.FreeText("other factors"))(
+      Question.FreeText(
+        judgeQuestion = Some(
+          "Were there any other factors worth mentioning that were important to your decision?"
+        ),
+        required = false
       )
     ),
-    DotPair[Question](Key.FreeText("interface"))(
+    DotPair[Question][Key](Key.FreeText("interface"))(
       Question.FreeText(
         debaterQuestion = Some(
           "Is there anything about the interface that made your job more difficult?"
         ),
         judgeQuestion = Some(
           "Is there anything about the interface that made your job more difficult?"
-        )
+        ),
+        required = false
       )
     ),
-    DotPair[Question](Key.FreeText("protocol"))(
+    DotPair[Question][Key](Key.FreeText("protocol"))(
       Question.FreeText(
         debaterQuestion = Some(
           "Is there anything about the protocol that made your job more difficult?"
         ),
         judgeQuestion = Some(
           "Is there anything about the protocol that made your job more difficult?"
-        )
+        ),
+        required = false
       )
     ),
-    DotPair[Question](Key.FreeText("other"))(
+    DotPair[Question][Key](Key.FreeText("other"))(
       Question.FreeText(
         debaterQuestion = Some("Do you have any other feedback/comments to share?"),
-        judgeQuestion = Some("Do you have any other feedback/comments to share?")
+        judgeQuestion = Some("Do you have any other feedback/comments to share?"),
+        required = false
       )
     )
   )
 
+  def questions: DotMap[Question, Key] = DotMap(survey: _*)
+
   def initAnswers(role: Role): DotMap[Option, Key] = DotMap(
     survey
-      .filter(pair =>
-        role match {
-          case Debater(_) =>
-            pair.snd.debaterQuestion.nonEmpty
-          case Judge =>
-            pair.snd.judgeQuestion.nonEmpty
-          case _ =>
-            false
-        }
-      )
+      .filter(pair => pair.snd.questionText(role).nonEmpty)
       .map { pair =>
         DotPair[Option](pair.fst: Key)(None)
       }: _*

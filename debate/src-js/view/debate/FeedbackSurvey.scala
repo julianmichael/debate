@@ -2,6 +2,7 @@ package debate
 package view.debate
 import cats.Id
 
+import cats.data.NonEmptyChain
 import cats.implicits._
 
 import japgolly.scalajs.react.vdom.html_<^._
@@ -15,6 +16,7 @@ import debate.Utils.ClassSetInterpolator
 
 import scalacss.ScalaCssReact._
 import japgolly.scalajs.react.Callback
+import cats.data.Validated
 
 object FeedbackSurvey {
 
@@ -39,11 +41,12 @@ object FeedbackSurvey {
       <.div(c"text-right", minMaxLikertLabelStyle)(minLabel),
       (0 until numOptions).toVdomArray(i =>
         <.div(S.numberedLikertButton)(
+          ^.key := s"likert-$i",
           <.div(c"mx-auto p-1 text-center")(i + 1),
           <.input(c"p-1")(^.key := s"$i")(
             ^.`type`  := "radio",
             ^.checked := answer.value == i,
-            ^.onClick --> answer.setState(i)
+            ^.onChange --> answer.setState(i)
           )
         )
       ),
@@ -56,25 +59,24 @@ object FeedbackSurvey {
     answerOpt: StateSnapshot[Option[Answer]],
     question: Question[Answer]
   ) = {
-    val questionTextOpt =
-      role match {
-        case Debater(_) =>
-          question.debaterQuestion
-        case Judge =>
-          question.judgeQuestion
-        case _ =>
-          None
-      }
-    questionTextOpt.map(questionText =>
-      <.div(c"card")(
+    val questionSpanOpt = question
+      .questionText(role)
+      .map(q =>
+        if (!question.required)
+          <.span(<.span(c"text-muted")("(Optional) "), q)
+        else
+          <.span(q)
+      )
+    val needsToBeDone = question.required && answerOpt.value.isEmpty
+    questionSpanOpt.map(questionSpan =>
+      <.div(c"card", S.attentionBackground.when(needsToBeDone))(
         <.div(c"card-body")(
-          <.p(c"card-text")(questionText),
+          <.p(c"card-text")(questionSpan),
           question.questionDetails.whenDefined(details => <.p(c"card-text small")(details)),
           question match {
-            case Question.ComparativeLikert(_, _, _, numOptions, minLabel, maxLabel) =>
+            case Question.ComparativeLikert(_, _, _, numOptions, minLabel, maxLabel, _) =>
               val judgment =
                 answerOpt
-                  //   .asInstanceOf[StateSnapshot[Option[ComparativeJudgment]]]
                   .zoomState[ComparativeJudgment](_.getOrElse(ComparativeJudgment(-1, -1)))(j =>
                     _ => Some(j)
                   )
@@ -120,18 +122,14 @@ object FeedbackSurvey {
                   )
                 )
               )
-            case Question.Likert(_, _, _, numOptions, minLabel, maxLabel) =>
-              val judgment =
-                answerOpt
-                  //   .asInstanceOf[StateSnapshot[Option[Int]]]
-                  .zoomState[Int](_.getOrElse(-1))(j => _ => Some(j))
+            case Question.Likert(_, _, _, numOptions, minLabel, maxLabel, _) =>
+              val judgment = answerOpt.zoomState[Int](_.getOrElse(-1))(j => _ => Some(j))
               likertScale(numOptions, minLabel, maxLabel, judgment, bigger = true)
-            case Question.FreeText(_, _, _) =>
+            case Question.FreeText(_, _, _, _) =>
               V.LiveTextArea
                 .String(
                   answerOpt
-                    //   .asInstanceOf[StateSnapshot[Option[String]]]
-                    .zoomState[String](_.getOrElse(""))(str => _ => Some(str))
+                    .zoomState[String](_.getOrElse(""))(str => _ => Option(str).filter(_.nonEmpty))
                 )
           }
         )
@@ -146,39 +144,49 @@ object FeedbackSurvey {
     submit: SurveyResponse => Callback
   ) = {
 
-    val responseOpt: Option[SurveyResponse] = {
-      val answersOpt = surveyAnswers
+    val responseEither: Either[Either[String, NonEmptyChain[Feedback.Key]], SurveyResponse] = {
+      val answersVal = surveyAnswers
         .value
         .iterator
         .toVector
         .traverse { pair =>
-          pair.fst match {
-            case Key.ComparativeLikert(_) =>
-              pair
-                .snd
-                .filter(_.asInstanceOf[ComparativeJudgment].isValid)
-                .map(DotPair[Id](pair.fst)(_))
-            case Key.Likert(_) =>
-              pair.snd.filter(_.asInstanceOf[Int] > -1).map(DotPair[Id](pair.fst)(_))
-            case Key.FreeText(_) =>
-              Option(pair.snd.getOrElse("").asInstanceOf[pair.fst.Out])
-                .map(DotPair[Id](pair.fst)(_))
+          val answerOpt =
+            pair.fst match {
+              case Key.ComparativeLikert(_) =>
+                pair
+                  .snd
+                  .filter(_.asInstanceOf[ComparativeJudgment].isValid)
+                  .map(DotPair[Id](pair.fst)(_))
+              case Key.Likert(_) =>
+                pair.snd.filter(_.asInstanceOf[Int] > -1).map(DotPair[Id](pair.fst)(_))
+              case Key.FreeText(_) =>
+                pair.snd.map(DotPair[Id](pair.fst)(_))
+            }
+
+          if (answerOpt.nonEmpty)
+            Validated.Valid(answerOpt)
+          else {
+            if (Feedback.questions.get(pair.fst).exists(_.required)) {
+              Validated.Invalid(NonEmptyChain(pair.fst))
+            } else
+              Validated.Valid(None)
           }
         }
+        .map(_.flatten)
         .map(pairs => DotMap[Id, Key](pairs: _*))
 
-      val respOpt = answersOpt.flatMap(answers =>
+      val respEither =
         role match {
           case Debater(_) =>
-            Some(SurveyResponse.Debater(answers))
+            answersVal.map(SurveyResponse.Debater(_)).toEither.leftMap(Right(_))
           case Judge =>
-            Some(SurveyResponse.Judge(answers))
+            answersVal.map(SurveyResponse.Judge(_)).toEither.leftMap(Right(_))
           case _ =>
-            None
+            Left(Left("Must be a debater or a judge to submit feedback"))
         }
-      )
-      respOpt
+      respEither
     }
+    val responseOpt = responseEither.toOption
 
     ReactFragment(
       <.div(S.feedbackSurveySubpanel)(
@@ -190,10 +198,8 @@ object FeedbackSurvey {
               val question = keyedQuestion.snd
               surveyAnswers
                 .zoomStateOption[Option[key.Out]](_.get(key))(v => map => map.put(key)(v))
-                // .zoomStateO[key.Out](DotMap.dotMapIndex[Option, key.type, key.Out].index(key))
                 .map { answerOpt =>
                   <.div(^.key := key.key)(
-                    // TODO get rid of the cast..
                     renderQuestion[key.Out](
                       role,
                       answerOpt,
@@ -212,10 +218,12 @@ object FeedbackSurvey {
         } else
           c"btn-primary"
       )(
-        responseOpt match {
-          case None =>
-            "Fill out all numerical answers to submit"
-          case Some(response) =>
+        responseEither match {
+          case Left(Left(msg)) =>
+            msg
+          case Left(Right(_)) =>
+            "Answer all required questions to submit"
+          case Right(response) =>
             uploadedResponseOpt match {
               case Some(uploadedResponse) =>
                 if (uploadedResponse == response) {
