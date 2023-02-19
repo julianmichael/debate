@@ -7,6 +7,7 @@ import cats.Reducible
 import cats.UnorderedFoldable
 import cats.implicits._
 import cats.kernel.CommutativeMonoid
+import cats.data.NonEmptySet
 
 import io.circe.generic.JsonCodec
 import monocle.Lens
@@ -79,8 +80,9 @@ package object debate extends PackagePlatformExtensions {
 
   @JsonCodec
   sealed trait MainChannelRequest
-  case class RegisterDebater(profile: Profile)  extends MainChannelRequest
-  case class RemoveDebater(debaterName: String) extends MainChannelRequest
+  case class Poke(roomName: String, pokees: NonEmptySet[String]) extends MainChannelRequest
+  case class RegisterDebater(profile: Profile)                   extends MainChannelRequest
+  case class RemoveDebater(debaterName: String)                  extends MainChannelRequest
   case class CreateRoom(isOfficial: Boolean, roomName: String, setupSpec: DebateSetupSpec)
       extends MainChannelRequest
   case class DeleteRoom(isOfficial: Boolean, roomName: String) extends MainChannelRequest

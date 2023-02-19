@@ -323,7 +323,12 @@ object DebatePage {
     )
   }
 
-  def apply(profiles: Set[String], connectionSpec: ConnectionSpec, disconnect: Callback) =
+  def apply(
+    profiles: Set[String],
+    connectionSpec: ConnectionSpec,
+    disconnect: Callback,
+    sendToMainChannel: MainChannelRequest => Callback
+  ) =
     Mounting
       .make(Callback(dom.window.document.title = Utils.makePageTitle(connectionSpec.roomName))) {
         val isOfficial = connectionSpec.isOfficial
@@ -370,7 +375,13 @@ object DebatePage {
                     role = role,
                     debateState = debateState
                   ),
-                  DebatePanel(roomName, userName, role, debateState.zoomStateL(DebateState.debate))
+                  DebatePanel(
+                    roomName,
+                    userName,
+                    role,
+                    debateState.zoomStateL(DebateState.debate),
+                    sendToMainChannel
+                  )
                 )
               }
             )

@@ -1,5 +1,6 @@
 package debate
 
+import cats.implicits._
 import io.circe.Json
 
 import org.http4s.client.Client
@@ -40,5 +41,25 @@ case class SlackClient(httpClient: Client[IO], token: String) {
         )
       )
       .void
+
+  def sendMessage(profiles: Map[String, Profile], debater: String, msg: String) = {
+
+    val notify = profiles
+      .get(debater)
+      .flatMap(_.slackEmail)
+      .traverse(lookupByEmail)
+      .flatMap(_.traverse_(id => postMessage(id, msg)))
+
+    notify.recoverWith { case e: Throwable =>
+      IO {
+        println(s"Slack notification failed for $debater")
+        // println(s"Email: $email")
+        println(s"Message: ${e.getMessage()}")
+        println(s"Stack trace: ")
+        e.printStackTrace()
+      }
+    }
+
+  }
 
 }

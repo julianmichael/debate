@@ -168,16 +168,20 @@ object Serve
               }
             }
         }
-      profilesRef       <- Ref[IO].of(profiles)
-      presenceRef       <- Ref[IO].of(Map.empty[String, Int])
-      pushUpdateRef     <- Ref[IO].of(IO.unit)
-      slackAuthTokenOpt <- FileUtil.readString(Paths.get("slack-token.txt")).attempt.map(_.toOption)
+      profilesRef   <- Ref[IO].of(profiles)
+      presenceRef   <- Ref[IO].of(Map.empty[String, Int])
+      pushUpdateRef <- Ref[IO].of(IO.unit)
+      slackClientOpt <- FileUtil
+        .readString(Paths.get("slack-token.txt"))
+        .attempt
+        .map(_.toOption)
+        .map(_.map(token => SlackClient(httpClient, token)))
       officialDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
         officialRoomsDir(saveDir),
         profilesRef,
         pushUpdateRef,
-        slackAuthTokenOpt.map(token => SlackClient(httpClient, token))
+        slackClientOpt
       )
       practiceDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
@@ -269,6 +273,7 @@ object Serve
               officialDebates,
               practiceDebates,
               pushUpdate,
+              slackClientOpt,
               blocker
             )
         )
@@ -293,6 +298,7 @@ object Serve
     officialDebates: DebateStateManager,
     practiceDebates: DebateStateManager,
     pushUpdate: IO[Unit],
+    slackClientOpt: Option[SlackClient],
     blocker: Blocker
   ) = {
 
@@ -349,6 +355,23 @@ object Serve
               x.through(filterCloseFrames)
                 .map(unpickleFromWSFrame[MainChannelRequest])
                 .evalMap {
+                  case Poke(roomName, pokees) =>
+                    profiles
+                      .get
+                      .flatMap { profs =>
+                        slackClientOpt.traverse_(slack =>
+                          pokees
+                            .toSortedSet
+                            .toVector
+                            .traverse_(pokee =>
+                              slack.sendMessage(
+                                profs,
+                                pokee,
+                                s"You've been poked in room `$roomName`!"
+                              )
+                            )
+                        )
+                      }
                   case RegisterDebater(profile) =>
                     registerDebater(profile)
                   case RemoveDebater(name) =>

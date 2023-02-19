@@ -135,31 +135,6 @@ case class DebateStateManager(
       _ <- pushUpdate
     } yield ()
 
-  def sendMessage(
-    slack: SlackClient,
-    profiles: Map[String, Profile],
-    debater: String,
-    msg: String
-  ) = {
-
-    val notify = profiles
-      .get(debater)
-      .flatMap(_.slackEmail)
-      .traverse(slack.lookupByEmail)
-      .flatMap(_.traverse_(id => slack.postMessage(id, msg)))
-
-    notify.recoverWith { case e: Throwable =>
-      IO {
-        println(s"Slack notification failed for $debater")
-        // println(s"Email: $email")
-        println(s"Message: ${e.getMessage()}")
-        println(s"Stack trace: ")
-        e.printStackTrace()
-      }
-    }
-
-  }
-
   def createDebate(roomName: String, setupSpec: DebateSetupSpec) =
     for {
       setup <- initializeDebate(setupSpec)
@@ -204,8 +179,7 @@ case class DebateStateManager(
             debatersNewToStory
               .toVector
               .traverse { debater =>
-                sendMessage(
-                  slack,
+                slack.sendMessage(
                   profiles,
                   debater,
                   s"You've been assigned to read the story \"${setup.sourceMaterial.title}\". Check your debates."
@@ -223,8 +197,7 @@ case class DebateStateManager(
                         .roles
                         .get(role)
                         .traverse(debater =>
-                          sendMessage(
-                            slack,
+                          slack.sendMessage(
                             profiles,
                             debater,
                             s"It's your turn in the new room `$roomName`!"
@@ -260,7 +233,7 @@ case class DebateStateManager(
               usersToNotifyThroughSlack
                 .toVector
                 .traverse_ { debater =>
-                  sendMessage(slack, profiles, debater, s"It's your turn in `$roomName`!")
+                  slack.sendMessage(profiles, debater, s"It's your turn in `$roomName`!")
                 }
 
             }

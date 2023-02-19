@@ -170,7 +170,8 @@ object App {
                                 .DebatePage(
                                   profiles = lobby.value.profiles.keySet,
                                   connectionSpec = cs,
-                                  disconnect = connectionSpecOpt.setState(None)
+                                  disconnect = connectionSpecOpt.setState(None),
+                                  sendToMainChannel = sendToMainChannel
                                 )
                           }
                         }
