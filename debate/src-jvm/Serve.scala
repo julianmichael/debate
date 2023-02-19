@@ -177,15 +177,13 @@ object Serve
         officialRoomsDir(saveDir),
         profilesRef,
         pushUpdateRef,
-        httpClient,
-        slackAuthTokenOpt
+        slackAuthTokenOpt.map(token => SlackClient(httpClient, token))
       )
       practiceDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
         practiceRoomsDir(saveDir),
         profilesRef,
         pushUpdateRef,
-        httpClient,
         None // don't send slack notifications for practice rooms
       )
       officialRooms <- officialDebates.getRoomMetadata

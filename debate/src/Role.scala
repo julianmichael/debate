@@ -55,7 +55,15 @@ case object TimedOfflineJudge extends Role {
   override def toString = "Offline Judge (Timed)"
 }
 @JsonCodec
-sealed trait DebateRole extends Role
+sealed trait DebateRole extends Role {
+  def isDebater: Boolean =
+    this match {
+      case Debater(_) =>
+        true
+      case _ =>
+        false
+    }
+}
 @JsonCodec
 case class Debater(answerIndex: Int) extends DebateRole {
   override def toString = s"Debater ${answerLetter(answerIndex)}"

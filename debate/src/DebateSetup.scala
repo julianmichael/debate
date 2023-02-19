@@ -2,6 +2,7 @@ package debate
 
 import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
+import monocle.macros.GenPrism
 
 @JsonCodec
 sealed trait SourceMaterial {
@@ -13,7 +14,10 @@ case class CustomSourceMaterial(title: String, contents: Vector[String]) extends
 @JsonCodec
 case class QuALITYSourceMaterial(articleId: String, title: String, contents: Vector[String])
     extends SourceMaterial
-object SourceMaterial
+object SourceMaterial {
+  def quality = GenPrism[SourceMaterial, QuALITYSourceMaterial]
+  def custom  = GenPrism[SourceMaterial, CustomSourceMaterial]
+}
 
 /** Info needed to set up a debate; what's set by the facilitator.
   *
