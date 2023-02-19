@@ -135,6 +135,31 @@ case class DebateStateManager(
       _ <- pushUpdate
     } yield ()
 
+  def sendMessage(
+    slack: SlackClient,
+    profiles: Map[String, Profile],
+    debater: String,
+    msg: String
+  ) = {
+
+    val notify = profiles
+      .get(debater)
+      .flatMap(_.slackEmail)
+      .traverse(slack.lookupByEmail)
+      .flatMap(_.traverse_(id => slack.postMessage(id, msg)))
+
+    notify.recoverWith { case e: Throwable =>
+      IO {
+        println(s"Slack notification failed for $debater")
+        // println(s"Email: $email")
+        println(s"Message: ${e.getMessage()}")
+        println(s"Stack trace: ")
+        e.printStackTrace()
+      }
+    }
+
+  }
+
   def createDebate(roomName: String, setupSpec: DebateSetupSpec) =
     for {
       setup <- initializeDebate(setupSpec)
@@ -179,19 +204,34 @@ case class DebateStateManager(
             debatersNewToStory
               .toVector
               .traverse { debater =>
-                profiles
-                  .get(debater)
-                  .flatMap(_.slackEmail)
-                  .traverse(slack.lookupByEmail)
-                  .flatMap(
-                    _.traverse(id =>
-                      slack.postMessage(
-                        id,
-                        s"You've been assigned to read the story \"${setup.sourceMaterial.title}\". Check your debates."
-                      )
+                sendMessage(
+                  slack,
+                  profiles,
+                  debater,
+                  s"You've been assigned to read the story \"${setup.sourceMaterial.title}\". Check your debates."
+                )
+              } >>
+              debate
+                .currentTransitions
+                .toOption
+                .traverse(
+                  _.currentSpeakers
+                    .toVector
+                    .traverse(role =>
+                      debate
+                        .setup
+                        .roles
+                        .get(role)
+                        .traverse(debater =>
+                          sendMessage(
+                            slack,
+                            profiles,
+                            debater,
+                            s"It's your turn in the new room `$roomName`!"
+                          )
+                        )
                     )
-                  )
-              }
+                )
           }
       }
     } yield ()
@@ -219,27 +259,10 @@ case class DebateStateManager(
             .flatMap { profiles =>
               usersToNotifyThroughSlack
                 .toVector
-                .flatMap(profiles.get)
-                .traverse_ { profile =>
-                  profile
-                    .slackEmail
-                    .traverse_ { email =>
-                      val notify = slack
-                        .lookupByEmail(email)
-                        .flatMap { userId =>
-                          slack.postMessage(userId, s"It's your turn in `$roomName`!")
-                        }
-                      notify.recoverWith { case e: Throwable =>
-                        IO {
-                          println(s"Slack notification failed for ${profile.name}")
-                          println(s"Email: $email")
-                          println(s"Message: ${e.getMessage()}")
-                          println(s"Stack trace: ")
-                          e.printStackTrace()
-                        }
-                      }
-                    }
+                .traverse_ { debater =>
+                  sendMessage(slack, profiles, debater, s"It's your turn in `$roomName`!")
                 }
+
             }
         }
       }
