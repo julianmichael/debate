@@ -171,8 +171,8 @@ object SpeechInput {
                     ),
                     <.input(S.probSlider(index))(
                       ^.`type` := "range",
-                      ^.min    := 0,
-                      ^.max    := 1,
+                      ^.min    := 0.01,
+                      ^.max    := 0.99,
                       ^.step   := 0.01,
                       ^.value  := prob,
                       ^.onChange ==> ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))

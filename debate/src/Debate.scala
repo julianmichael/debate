@@ -227,6 +227,26 @@ case class Debate(
       }
     }
   }
+
+  def clean = this.copy(rounds =
+    rounds.map {
+      case JudgeFeedback(dist, feedback, endDebate) =>
+        val newDist =
+          dist
+            .zipWithIndex
+            .foldLeft(dist) { case (d, (prob, idx)) =>
+              if (prob < 0.01)
+                Utils.adjustProbability(d, idx, 0.01)
+              else if (prob > 0.99)
+                Utils.adjustProbability(d, idx, 0.99)
+              else
+                d
+            }
+        JudgeFeedback(newDist, feedback, endDebate)
+      case x =>
+        x
+    }
+  )
 }
 object Debate {
 

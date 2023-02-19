@@ -53,7 +53,6 @@ case class DebateState(debate: Debate, participants: Map[String, Role]) {
 
   def canSwitchToRole(userName: String, role: Role) =
     debate.setup.canAssumeRole(userName, role) && !participants.get(userName).exists(_ == role)
-
 }
 object DebateState {
   def init(debate: Debate) = DebateState(debate, Map())

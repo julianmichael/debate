@@ -326,10 +326,18 @@ object DebateStateManager {
         .traverse(path =>
           FileUtil
             .readJson[Debate](path)
+            .map(_.clean) // do anything we need to clean debates (e.g., fixing probabilities)
             .flatMap(debate => DebateRoom.create(DebateState(debate, Map())))
             .map { room =>
               val roomName = path.getFileName.toString.dropRight(".json".length)
               roomName -> room
+            }
+            .onError { case _: Throwable =>
+              IO(System.err.println(s"Failed to read debate at path: $path"))
+            }
+            .flatTap { case (roomName, room) =>
+              // write cleaned debates upon startup
+              FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(room.debate.debate)
             }
         )
         .map(_.toMap)
