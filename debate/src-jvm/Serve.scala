@@ -175,7 +175,7 @@ object Serve
         .readString(Paths.get("slack-token.txt"))
         .attempt
         .map(_.toOption)
-        .map(_.map(token => SlackClient(httpClient, token)))
+        .map(_.map(token => Slack.Service.fullHttpClient(httpClient, token)))
       officialDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
         officialRoomsDir(saveDir),
@@ -298,7 +298,7 @@ object Serve
     officialDebates: DebateStateManager,
     practiceDebates: DebateStateManager,
     pushUpdate: IO[Unit],
-    slackClientOpt: Option[SlackClient],
+    slackClientOpt: Option[Slack.Service[IO]],
     blocker: Blocker
   ) = {
 

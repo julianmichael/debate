@@ -42,7 +42,7 @@ case class DebateStateManager(
   rooms: Ref[IO, Map[String, DebateRoom]],
   saveDir: NIOPath,
   pushUpdateRef: Ref[IO, IO[Unit]],
-  slackClientOpt: Option[SlackClient]
+  slackClientOpt: Option[Slack.Service[IO]]
 )(implicit c: Concurrent[IO]) {
 
   // val blockingEC = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(5))
@@ -288,7 +288,7 @@ object DebateStateManager {
     saveDir: NIOPath,
     profilesRef: Ref[IO, Map[String, Profile]],
     pushUpdateRef: Ref[IO, IO[Unit]],
-    slackClientOpt: Option[SlackClient]
+    slackClientOpt: Option[Slack.Service[IO]]
   )(implicit c: Concurrent[IO]) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {

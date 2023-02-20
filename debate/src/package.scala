@@ -17,6 +17,8 @@ import jjm.ling.ESpan
 
 package object debate extends PackagePlatformExtensions {
 
+  type Constant[C, A] = C
+
   val timeBeforeWhichToIgnoreMissingFeedback = 1672531200000L
 
   val appDivId = "app"
@@ -97,9 +99,11 @@ package object debate extends PackagePlatformExtensions {
 
   def span2text(span: ESpan): String = s"<<${span.begin}-${span.endExclusive}>>"
 
-  implicit class RichBoolean(a: Boolean) {
-    def -->(b: => Boolean) = !a || b
-  }
+  def itemMatchesKeywordQuery(itemTerms: Set[String], queryKeywords: Set[String]) = queryKeywords
+    .forall { qk =>
+      val k = qk.toLowerCase
+      itemTerms.exists(_.toLowerCase.contains(k))
+    }
 
   private val orEvalMonoid: CommutativeMonoid[Eval[Boolean]] =
     new CommutativeMonoid[Eval[Boolean]] {
@@ -112,6 +116,10 @@ package object debate extends PackagePlatformExtensions {
       }
     }
 
+  implicit class RichBoolean(a: Boolean) {
+    def -->(b: => Boolean) = !a || b
+  }
+
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {
     def existsAs(p: PartialFunction[A, Boolean]): Boolean =
       fa.unorderedFoldMap(a => Eval.later(p.lift(a).getOrElse(false)))(orEvalMonoid).value
@@ -122,10 +130,4 @@ package object debate extends PackagePlatformExtensions {
     def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] =
       fa.reduceLeftTo(Monad[G].pure)((ga, a) => Monad[G].flatMap(ga)(g(_, a)))
   }
-
-  def itemMatchesKeywordQuery(itemTerms: Set[String], queryKeywords: Set[String]) = queryKeywords
-    .forall { qk =>
-      val k = qk.toLowerCase
-      itemTerms.exists(_.toLowerCase.contains(k))
-    }
 }
