@@ -123,6 +123,8 @@ package object debate extends PackagePlatformExtensions {
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {
     def existsAs(p: PartialFunction[A, Boolean]): Boolean =
       fa.unorderedFoldMap(a => Eval.later(p.lift(a).getOrElse(false)))(orEvalMonoid).value
+
+    def counts_ : Map[A, Int] = fa.unorderedFoldMap(a => Map(a -> 1))
   }
 
   implicit class RichReducible[F[_]: Reducible, A](fa: F[A]) {
