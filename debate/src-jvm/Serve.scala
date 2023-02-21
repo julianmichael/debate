@@ -162,9 +162,9 @@ object Serve
             .map(_.map(name => name -> Profile(name, None)).toMap)
             .recoverWith { case e: Throwable =>
               IO {
-                println("Error reading debaters JSON. Initializing to empty JSON.")
+                println("Error reading debaters JSON. Initializing to JSON with a dummy profile.")
                 println(s"--->\tError message: ${e.getMessage()}")
-                Map.empty[String, Profile] // start with empty if none already exists
+                List(Profile("John Doe", None)).view.map(p => p.name -> p).toMap
               }
             }
         }
