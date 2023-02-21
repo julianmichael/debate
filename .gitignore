@@ -13,6 +13,8 @@ out
 .bsp/
 save/
 scratch/
+
+.venv/
 node_modules/
 node_modules/
 
