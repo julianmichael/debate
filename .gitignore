@@ -4,6 +4,7 @@ out
 .ammonite
 .bloop
 .metals
+.DS_Store
 
 *.~undo-tree~
 .#*
@@ -14,3 +15,7 @@ save/
 scratch/
 
 .venv/
+node_modules/
+node_modules/
+
+/slack-token.txt

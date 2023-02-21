@@ -1,152 +1,114 @@
 package debate
 
-import io.circe.generic.JsonCodec
-
-import jjm.metrics._
 import cats._
 import cats.implicits._
 
-case class DebateStats(wins: Accuracy.Stats, rewards: Numbers[Double])
+import io.circe.generic.JsonCodec
+
+import jjm.metrics._
+
+@JsonCodec
+case class DebateStats(wins: Proportion.Stats, rewards: Numbers[Double])
 
 object DebateStats {
 
-  implicit val debateStatsMonoid: Monoid[DebateStats] =
-    cats.derived.semiauto.monoid[DebateStats]
+  implicit val debateStatsMonoid: Monoid[DebateStats] = cats.derived.semiauto.monoid[DebateStats]
 
-  def combineAssignedUsers(
-      debateResult: DebateResult
-  )(
-      x: (DebateRole, String)
-  ): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
-    String,
-    DebateStats
-  ]] = {
-    val (debaterKey, inner) =
-      x match {
-        case (debate.Debater(index), name) =>
-          val correct = if (debateResult.finalJudgement(index) > 0.5) { 1 }
-          else { 0 }
-          val incorrect = 1 - correct
-          val reward = math.log(debateResult.finalJudgement(index))
-          val debaterKey = if (index == debateResult.correctAnswerIndex) {
-            LeaderboardCategories.HonestDebater
-          } else {
-            LeaderboardCategories.DishonestDebater
-          }
-          (
-            debaterKey,
-            Map(
-              name -> DebateStats(
-                Accuracy.Stats(correct, incorrect),
-                Numbers(reward)
-              )
-            )
-          )
-        case (Judge, name) =>
-          val correct =
-            if (
-              debateResult.finalJudgement(debateResult.correctAnswerIndex) > 0.5
-            ) { 1 }
-            else { 0 }
-          val incorrect = 1 - correct
-          (
-            LeaderboardCategories.Judge,
-            Map(
-              name -> DebateStats(
-                Accuracy.Stats(correct, incorrect),
-                Numbers(debateResult.judgeReward)
-              )
-            )
+  def getUserStats(
+    result: JudgingResult,
+    role: DebateRole,
+    name: String
+  ): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
+    def bool2int(b: Boolean) =
+      if (b)
+        1
+      else
+        0
+    val leaderboardCategory =
+      role match {
+        case Debater(index) =>
+          if (index == result.correctAnswerIndex) {
+            LeaderboardCategory.HonestDebater
+          } else
+            LeaderboardCategory.DishonestDebater
+        case Judge =>
+          LeaderboardCategory.Judge
+      }
+    val userStats =
+      role match {
+        case Debater(index) =>
+          val correct = result.finalJudgement(index) > 0.5
+          val reward  = math.log(result.finalJudgement(index))
+          DebateStats(Proportion.Stats(bool2int(correct), bool2int(!correct)), Numbers(reward))
+        case Judge =>
+          val correct = result.finalJudgement(result.correctAnswerIndex) > 0.5
+          DebateStats(
+            Proportion.Stats(bool2int(correct), bool2int(!correct)),
+            Numbers(result.judgeReward)
           )
       }
-
-    Chosen(Map(debaterKey -> Chosen(inner)))
+    Chosen(Map(leaderboardCategory -> Chosen(Map(name -> userStats))))
   }
 
-  def foldOverDebate(
-      d: Debate
-  ): Chosen[LeaderboardCategories.LeaderboardCategory, Chosen[
-    String,
-    DebateStats
-  ]] = {
-    d.result match {
-      case None => Chosen(Map.empty)
+  def fromDebate(d: Debate): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] =
+    d.result.flatMap(_.judgingInfo) match {
+      case None =>
+        Chosen(Map.empty)
       case Some(result) =>
-        d.setup.roles.toList.foldMap(
-          combineAssignedUsers(
-            result
-          )
-        )
+        d.setup
+          .roles
+          .toList
+          .foldMap { case (role, user) =>
+            getUserStats(result, role, user)
+          }
     }
-  }
-
-  def foldOverDebates(finishedDebates: List[Debate]): Chosen[
-    LeaderboardCategories.LeaderboardCategory,
-    Chosen[String, DebateStats]
-  ] = {
-    finishedDebates.foldMap(foldOverDebate)
-  }
 }
 
-object LeaderboardCategories {
-  @JsonCodec
-  sealed trait LeaderboardCategory
+@JsonCodec
+sealed trait LeaderboardCategory extends Product with Serializable {
+  import LeaderboardCategory._
+  override def toString =
+    this match {
+      case Judge =>
+        "Judge"
+      case HonestDebater =>
+        "Honest Debater"
+      case DishonestDebater =>
+        "Dishonest Debater"
+    }
 
-  case object Judge extends LeaderboardCategory
-  case object HonestDebater extends LeaderboardCategory
+  def shortString =
+    this match {
+      case Judge =>
+        "Judge"
+      case HonestDebater =>
+        "Honest"
+      case DishonestDebater =>
+        "Dishonest"
+    }
+}
+object LeaderboardCategory {
+  case object Judge            extends LeaderboardCategory
+  case object HonestDebater    extends LeaderboardCategory
   case object DishonestDebater extends LeaderboardCategory
+
+  def all = Vector(Judge, HonestDebater, DishonestDebater)
+
+  def fromString(x: String): Option[LeaderboardCategory] = all.find(_.toString == x)
 
   import io.circe._
 
-  implicit val keyEncoder: KeyEncoder[LeaderboardCategory] =
-    KeyEncoder.instance(_.toString)
-  implicit val keyDecoder: KeyDecoder[LeaderboardCategory] =
-    KeyDecoder.instance {
-      case "Judge"            => Some(Judge)
-      case "HonestDebater"    => Some(HonestDebater)
-      case "DishonestDebater" => Some(DishonestDebater)
-      case _                  => None
-    }
+  implicit val keyEncoder: KeyEncoder[LeaderboardCategory] = KeyEncoder.instance(_.toString)
+  implicit val keyDecoder: KeyDecoder[LeaderboardCategory] = KeyDecoder.instance(fromString)
 }
 
 @JsonCodec
-case class SerializableDebateStats(
-    wins: Int,
-    losses: Int,
-    averageReward: Double
-)
-
-object SerializableDebateStats {
-  def ofDebateStats(d: DebateStats): SerializableDebateStats =
-    SerializableDebateStats(
-      wins = d.wins.correct,
-      losses = d.wins.incorrect,
-      averageReward = d.rewards.stats.mean
-    )
-
-  import io.circe.generic.semiauto._
+case class Leaderboard(data: Map[LeaderboardCategory, Map[String, DebateStats]]) {
+  def allDebaters = data.unorderedFoldMap(_.keySet)
 }
-
-@JsonCodec
-case class Leaderboard(
-    data: Map[
-      LeaderboardCategories.LeaderboardCategory,
-      Map[String, SerializableDebateStats]
-    ]
-)
 
 object Leaderboard {
-
-  def ofDebateStates(d: List[Debate]) = {
-    Leaderboard(
-      DebateStats
-        .foldOverDebates(d)
-        .data
-        .mapValues(
-          _.data.mapValues(SerializableDebateStats.ofDebateStats).toMap
-        )
-        .toMap
-    )
-  }
-
+  def fromDebates[F[_]: Foldable](debates: F[Debate]) = Leaderboard(
+    debates.foldMap(DebateStats.fromDebate).data.view.mapValues(_.data).toMap
+  )
 }

@@ -1,12 +1,12 @@
-package debate.util
+package debate
+package util
 
-import jjm.ling.ISpan
-
-import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
-
+import japgolly.scalajs.react.vdom.html_<^._
 import monocle.Lens
 import monocle.Prism
+
+import jjm.ling.ISpan
 
 /** HOC for span selection modified from the original jjm.ui.SpanSelection just
   * to add spans to a span state controlled by the caller.
@@ -14,20 +14,31 @@ import monocle.Prism
 object SpanSelection2 {
 
   sealed trait Status
-  case object NoSpan extends Status
+  case object NoSpan                               extends Status
   case class Selecting(anchor: Int, endpoint: Int) extends Status
   object Selecting {
-    val anchor = Lens[Selecting, Int](_.anchor)(a => s => s.copy(anchor = a))
-    val endpoint =
-      Lens[Selecting, Int](_.endpoint)(e => s => s.copy(endpoint = e))
+    val anchor   = Lens[Selecting, Int](_.anchor)(a => s => s.copy(anchor = a))
+    val endpoint = Lens[Selecting, Int](_.endpoint)(e => s => s.copy(endpoint = e))
   }
   object Status {
-    val noSpan = Prism[Status, NoSpan.type](s =>
-      s match { case NoSpan => Some(NoSpan); case _ => None }
-    )(identity)
-    val selecting = Prism[Status, Selecting](s =>
-      s match { case s @ Selecting(_, _) => Some(s); case _ => None }
-    )(identity)
+    val noSpan =
+      Prism[Status, NoSpan.type](s =>
+        s match {
+          case NoSpan =>
+            Some(NoSpan);
+          case _ =>
+            None
+        }
+      )(identity)
+    val selecting =
+      Prism[Status, Selecting](s =>
+        s match {
+          case s @ Selecting(_, _) =>
+            Some(s);
+          case _ =>
+            None
+        }
+      )(identity)
   }
 
   // case class State(
@@ -36,28 +47,32 @@ object SpanSelection2 {
   // )
 
   case class Context(
-      // setSpan: Map[Index, List[ISpan]] => Callback,
-      hover: Int => Callback,
-      touch: Int => Callback,
-      cancel: Callback
+    // setSpan: Map[Index, List[ISpan]] => Callback,
+    hover: Int => Callback,
+    touch: Int => Callback,
+    cancel: Callback
   )
 
   case class Props(
-      // spans: Map[Index, List[ISpan]],
-      isEnabled: Boolean,
-      // enableSpanOverlap: Boolean = true,
-      addSpan: ISpan => Callback,
-      // update: State => Callback,
-      render: (Status, Context) => VdomElement
+    // spans: Map[Index, List[ISpan]],
+    isEnabled: Boolean,
+    // enableSpanOverlap: Boolean = true,
+    addSpan: ISpan => Callback,
+    // update: State => Callback,
+    render: (Status, Context) => VdomElement
   )
 
   class Backend(scope: BackendScope[Props, Status]) {
 
-    def hover(state: Status)(endpoint: Int) = state match {
-        case Selecting(_, `endpoint`) => Callback.empty
-        case NoSpan                   => Callback.empty
-        case Selecting(anchor, _)     => scope.setState(Selecting(anchor, endpoint))
-    }
+    def hover(state: Status)(endpoint: Int) =
+      state match {
+        case Selecting(_, `endpoint`) =>
+          Callback.empty
+        case NoSpan =>
+          Callback.empty
+        case Selecting(anchor, _) =>
+          scope.setState(Selecting(anchor, endpoint))
+      }
 
     def touch(props: Props, state: Status)(wordIndex: Int): Callback =
       state match {
@@ -71,26 +86,18 @@ object SpanSelection2 {
 
     def cancel = scope.setState(NoSpan)
 
-    def render(props: Props, state: Status) =
-      props.render(
-        state,
-        Context(
-          hover(state),
-          touch(props, state),
-          cancel
-        )
-      )
+    def render(props: Props, state: Status) = props
+      .render(state, Context(hover(state), touch(props, state), cancel))
   }
 
-  val Component = ScalaComponent
-    .builder[Props]("Span Selection 2")
-    .initialState(NoSpan: Status)
-    .renderBackend[Backend]
-    .build
+  val Component =
+    ScalaComponent
+      .builder[Props]("Span Selection 2")
+      .initialState(NoSpan: Status)
+      .renderBackend[Backend]
+      .build
 
   def make(isEnabled: Boolean, addSpan: ISpan => Callback)(
-      render: (Status, Context) => VdomElement
-  ) = {
-    Component(Props(isEnabled, addSpan, render))
-  }
+    render: (Status, Context) => VdomElement
+  ) = Component(Props(isEnabled, addSpan, render))
 }

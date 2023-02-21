@@ -3,27 +3,50 @@ Web interface for information-asymmetric debates.
 
 ## Usage
 
-Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
+### Requirements
+* Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
+* Install [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
 
-You can run the server in one of two ways:
-* For development, run with e.g. `mill -i debate.dev.serve --port 8080 --save save`.
-* For production, run with e.g. `mill -i debate.prod.serve --port 8080 --save save`.
+### Running
 
-This will host your server by HTTP on port 8080 and save all of the relevant server state under
-`save/`.
+For development, you must run 3 commands in separate terminals in the root directory of the project:
+- To start incremental compilation of the frontend:
+  ```
+  mill --no-server -j 0 -w debate.js.publicDev
+  ```
+  The `-w` flag means that it will watch for changes and recompile automatically.
+
+- To start incremental compilation of the backend and run the backend server on port 8080:
+  ```
+  mill --no-server -j 0 debate.jvm [args]
+  ```
+  Note: watching with `-w` here doesn't actually restart on compile if it succeeds, since the server
+  just stays running. So you need to manually restart anytime the JVM code or relevant shared code
+  changes.
+
+- To start the Vite server with live reloading:
+  ```
+  npm run dev
+  ```
+
+For production, you can start the backend with the same command as above, but without the `-w` flag.
+The frontend is built with `mill debate.js.publicProd` and then served with any static file server.
+
+All of the relevant server state under is saved under `save/` by default.
 To run HTTPS, there is also an `--ssl` flag which has the server look for a `keystore.jks` and
 `password` under `debate/resources`, but I normally run behind a proxy which takes care of this.
 The difference between development and production is that production mode uses fully-optimized JS
 compilation, which takes longer but produces a much smaller and faster-running JS file.
 
-To run all unit tests, do `mill __.test`.
+To run all unit tests, use `mill __.test`.
 
 ## Contents
 
 * `build.sc`, `build-scripts/`: Build files.
-* `debate/{src,src-js,src-jvm}`: Source code (cross-platform, JS only, and JVM only, respectively).
+* `{shared,js,jvm}`: Source code and resources for all platforms.
 * `print_story.py`, `requirements.txt`: A quick script for printing the text of QuALITY stories from
   their HTML.
+* `package.json`: JavaScript dependencies.
 
 ## Development
 
@@ -76,4 +99,4 @@ smithjessk observed that using `mill -j 0` sped up his builds a lot. (~33% for `
 
 ## In case a default profile isn't set up
 
-You can add profiles with the **~secret admin controls~** which you can access by using the developer tools to change the `Styles-adminOnly` and disable `display: none`. You can find the element if you just select the profile dropdown and then scan the elements that come after it
+You can add profiles with the **~secret admin controls~** which you can access by using the developer tools to change the `Styles-adminOnly` and disable `display: none`. You can find the element if you just select the profile dropdown and then scan the elements that come after it.

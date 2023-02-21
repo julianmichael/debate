@@ -1,52 +1,59 @@
 package debate
 
-import annotation.unused
+import scala.concurrent.Future
 
-import org.scalajs.dom
+import cats.implicits._
+import cats.~>
 
-import org.scalajs.jquery.jQuery
-
+import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
-
+import org.scalajs.dom
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
-import scala.util.Try
+import jjm.io.HttpUtil
+import jjm.ui.Mounting
 
-import cats.~>
-import cats.implicits._
-
+import org.scalajs.jquery.jQuery
+// import debate.facades.jQuery
 import debate.util._
+import japgolly.scalajs.react.extra.StateSnapshot
+
+import Utils.ClassSetInterpolator
+import jjm.ui.CacheCallContent
 import jjm.OrWrapped
+
+@JsonCodec
+case class ConnectionSpec(isOfficial: Boolean, roomName: String, participantName: String)
 
 /** The main webapp. */
 object App {
-  val DebateWebSocket =
-    WebSocketConnection2.forJsonString[DebateState, DebateState]
-  val SyncedDebate = SyncedState
-    .forJsonString[DebateStateUpdateRequest, DebateState, DebateState](
-      getRequestFromState = DebateStateUpdateRequest.State(_),
-      getStateUpdateFromResponse = responseState => _ => responseState
-    )
 
-  val MainWebSocket =
-    WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
 
-  val mainWebsocketUri: String = {
-    s"${Helpers.wsProtocol()}//${dom.document.location.host}/main-ws"
-  }
+  val MainWebSocket = WebSocketConnection2.forJsonString[MainChannelRequest, Option[Lobby]]
+
+  def mainWebsocketUri(userName: String): String =
+    s"${Utils.wsProtocol}//${dom.document.location.host}/main-ws?name=$userName"
 
   val httpProtocol = dom.document.location.protocol
+  type DelayedFuture[A] = () => Future[A]
+  val toAsyncCallback = λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
 
-  def wrap[F[_]] = λ[F ~> OrWrapped[F, *]] { f =>
-    OrWrapped.wrapped(f)
-  }
+  val qualityApiUrl: String =
+    s"$httpProtocol//${dom.document.location.host}/$qualityServiceApiEndpoint"
+  val qualityService = quality.QuALITYService(
+    HttpUtil
+      .makeHttpPostClient[quality.QuALITYService.Request](qualityApiUrl)
+      .andThenK(toAsyncCallback)
+  )
 
-  import jjm.ui.LocalState
-
-  val defaultRoomName: String =
-    jQuery("#defaultRoomName").attr("value").toOption.getOrElse("")
+  val ajaxApiUrl: String = s"$httpProtocol//${dom.document.location.host}/$ajaxServiceApiEndpoint"
+  val ajaxService = AjaxService(
+    HttpUtil.makeHttpPostClient[AjaxService.Request](ajaxApiUrl).andThenK(toAsyncCallback)
+  )
+  val DebatersFetch = new CacheCallContent[Unit, Map[String, Profile]]
 
   // Shortcuts for styles and view elements
 
@@ -55,83 +62,136 @@ object App {
 
   // instantiate the HOCs we need
 
-  val LocalString = new LocalState[String]
-  val LocalDouble = new LocalState[Double]
-  val LocalStringOpt = new LocalState[Option[String]]
-  val LocalConnectionSpecOpt = new LocalState[Option[ConnectionSpec]]
-  val LocalLobby = new LocalState[Lobby]
-
-  val StringOptField = V.LiveTextField[Option[String]](
-    x => Some(Option(x).filter(_.nonEmpty)),
-    _.getOrElse("")
-  )
+  val StringOptField = V
+    .LiveTextField[Option[String]](x => Some(Option(x).filter(_.nonEmpty)), _.getOrElse(""))
   val IntOptField = V.LiveTextField[Option[Int]](
-    x => if (x.isEmpty) Option(None) else Try(x.toInt).toOption.map(Option(_)),
+    x =>
+      if (x.isEmpty)
+        Option(None)
+      else
+        scala.util.Try(x.toInt).toOption.map(Option(_)),
     _.foldMap(_.toString)
   )
 
-  val facilitatorPanel = new FacilitatorPanel(S, V)
+  val noProfileString = "(select profile)"
 
-  class Backend(@unused scope: BackendScope[Unit, Unit]) {
-
-    /** Main render method. */
-    def render(@unused props: Unit, @unused state: Unit) = {
-      <.div(S.app)(
-        LocalLobby.make(Lobby.init) { lobby =>
-          MainWebSocket.make(
-            mainWebsocketUri,
-            onOpen = _ => Callback(println("Main socket opened.")),
-            onMessage = (_, msg: Option[Lobby]) => msg.foldMap(lobby.setState(_))
-          ) {
-            case MainWebSocket.Disconnected(_, reason) =>
-              <.div(S.loading)(
-                """You've been disconnected. This is probably either because of a bug or
-                    because the server is restarting. Please refresh the page.
-                    Sorry about that.
-                """ + reason
-              )
-            case MainWebSocket.Connecting =>
-              <.div(S.loading)("Connecting to metadata server...")
-            case MainWebSocket.Connected(sendToMainChannel) =>
-              LocalConnectionSpecOpt.make(None) { connectionSpecOpt =>
-                connectionSpecOpt.value match {
-                  case None =>
-                    DisconnectedLobbyPage.make(
-                      lobby = lobby,
-                      sendToMainChannel = sendToMainChannel,
-                      connectionSpecOpt = connectionSpecOpt
-                    )
-                  case Some(cs: ConnectionSpec) =>
-                    ConnectedLobbyPage.make(
-                      lobby = lobby,
-                      connectionSpec = cs,
-                      disconnect = connectionSpecOpt.setState(None),
-                    )
-                }
-              }
-          }
-        }
-      )
-    }
+  def setChoice(userName: StateSnapshot[Option[String]])(name: String) = {
+    val adjustedName =
+      if (name == noProfileString)
+        None
+      else
+        Some(name)
+    userName.setState(adjustedName)
   }
 
-  val Component = ScalaComponent
-    .builder[Unit]("Full UI")
-    .initialState(())
-    .renderBackend[Backend]
-    .build
+  def curChoice(profiles: Set[String], profile: Option[String]) = profile
+    .filter(profiles.contains)
+    .getOrElse(noProfileString)
+
+  def profileSelector(
+    profiles: Set[String],
+    isAdmin: StateSnapshot[Boolean],
+    profile: StateSnapshot[Option[String]]
+  ) =
+    <.div(c"form-group row")(
+      <.label(c"col-sm-2 col-form-label")("Profile:", ^.onClick --> isAdmin.modState(!_)),
+      V.Select
+        .String
+        .modFull(TagMod(c"col-sm-10", S.customSelect))(
+          choices = noProfileString +: profiles.toList.sorted,
+          curChoice = curChoice(profiles, profile.value),
+          setChoice = setChoice(profile)
+        )
+    )
+
+  val Component =
+    ScalaComponent
+      .builder[Unit]("Full UI")
+      .render { _ =>
+        <.div(S.app)(
+          Local[Boolean].syncedWithSessionStorage(key = "is-admin", defaultValue = false) { isAdmin =>
+            Local[Option[String]].syncedWithLocalStorage("profile", None) { profile =>
+              profile.value match {
+                case None =>
+                  DebatersFetch.make(
+                    request = (),
+                    sendRequest = _ => OrWrapped.wrapped(ajaxService.getDebaters)
+                  ) { profilesFetch =>
+                    <.div(c"container")(
+                      profilesFetch match {
+                        case DebatersFetch.Loading =>
+                          <.div("Loading profiles...")
+                        case DebatersFetch.Loaded(profiles) =>
+                          profileSelector(profiles.keySet, isAdmin = isAdmin, profile = profile)
+                      }
+                    )
+                  }
+                case Some(userName) =>
+                  Local[Lobby].make(Lobby.empty) { lobby =>
+                    MainWebSocket.make(
+                      mainWebsocketUri(userName),
+                      onOpen = _ => Callback.empty,
+                      onMessage = (_, msg: Option[Lobby]) => msg.foldMap(lobby.setState(_))
+                    ) {
+                      case MainWebSocket.Disconnected(reconnect, reason) =>
+                        Mounting.make(
+                          AsyncCallback.unit.delayMs(5000).completeWith(_ => reconnect)
+                        )(
+                          <.div(S.loading)(
+                            """You've been disconnected. Will attempt to reconnect every 5 seconds.
+                     If you don't reconnect after a few seconds,
+                     Please refresh the page. """ + reason
+                          )
+                        )
+                      case MainWebSocket.Connecting =>
+                        <.div(S.loading)("Connecting to metadata server...")
+                      case MainWebSocket.Connected(sendToMainChannel) =>
+                        Local[Option[ConnectionSpec]].syncedWithSessionStorage(
+                          key = "connection-details",
+                          defaultValue = None
+                        ) { connectionSpecOpt =>
+                          connectionSpecOpt.value match {
+                            case None =>
+                              view
+                                .lobby
+                                .LobbyPage(
+                                  qualityService = qualityService,
+                                  lobby = lobby.value,
+                                  sendToMainChannel = sendToMainChannel,
+                                  connect =
+                                    (cs: ConnectionSpec) => connectionSpecOpt.setState(Some(cs)),
+                                  isAdmin = isAdmin,
+                                  logout = profile.setState(None),
+                                  userName = userName
+                                )
+                            case Some(cs: ConnectionSpec) =>
+                              view
+                                .debate
+                                .DebatePage(
+                                  profiles = lobby.value.profiles.keySet,
+                                  connectionSpec = cs,
+                                  disconnect = connectionSpecOpt.setState(None),
+                                  sendToMainChannel = sendToMainChannel
+                                )
+                          }
+                        }
+                    }
+                  }
+              }
+            }
+          }
+        )
+      }
+      .build
 
   def setupUI(): Unit = {
     Styles.addToDocument()
-    Component().renderIntoDOM(
-      org.scalajs.dom.document.getElementById("contents")
-    )
+    Component().renderIntoDOM(org.scalajs.dom.document.getElementById(appDivId))
   }
 
+  // @JSExportTopLevel("main")
   final def main(args: Array[String]): Unit = jQuery { () =>
-    dom.experimental.Notification.requestPermission(result =>
-      dom.console.log(result)
-    )
+    dom.experimental.Notification.requestPermission(_ => ())
     setupUI()
   }
 }

@@ -1,10 +1,9 @@
 package debate
 
-import org.http4s.websocket.WebSocketFrame
+import cats.effect.IO
 
 import fs2.Pipe
-
-import cats.effect.IO
+import org.http4s.websocket.WebSocketFrame
 
 trait PackagePlatformExtensions {
 
@@ -14,8 +13,10 @@ trait PackagePlatformExtensions {
   // websocket convenience functions
   val filterCloseFrames: Pipe[IO, WebSocketFrame, WebSocketFrame] =
     _.filter {
-      case WebSocketFrame.Close(_) => false
-      case _                       => true
+      case WebSocketFrame.Close(_) =>
+        false
+      case _ =>
+        true
     }
 
   import io.circe.syntax._
@@ -23,15 +24,15 @@ trait PackagePlatformExtensions {
   import _root_.io.circe.Encoder
   import _root_.io.circe.Decoder
 
-  def pickleToWSFrame[A: Encoder](message: A): WebSocketFrame = {
-    WebSocketFrame.Text(message.asJson.noSpaces)
-  }
+  def pickleToWSFrame[A: Encoder](message: A): WebSocketFrame = WebSocketFrame
+    .Text(message.asJson.noSpaces)
   // TODO: handle parsing errors
   def unpickleFromWSFrame[A: Decoder](frame: WebSocketFrame): A = {
-    val res = for {
-      str <- IO.fromEither(frame.data.decodeUtf8)
-      res <- IO.fromEither(circeDecode[A](str))
-    } yield res
+    val res =
+      for {
+        str <- IO.fromEither(frame.data.decodeUtf8)
+        res <- IO.fromEither(circeDecode[A](str))
+      } yield res
     res.unsafeRunSync()
   }
 }
