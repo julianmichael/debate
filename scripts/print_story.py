@@ -3,7 +3,7 @@ import json
 import re
 
 file = sys.argv[1]
-title = sys.argv[2]
+title = sys.argv[2]  # assumes story titles are unique
 
 story_data = []
 with open(file) as f:
@@ -17,13 +17,13 @@ if not story_data:
 
 
 spacing_tags = [
-        '<h1>', '<h2>',
-        '</h1>', '</h2>', '</p>', '<p>',
-        '<i>', '</i>', '<html>', '</html>',
-        '<p class="ph3">'
+    '<h1>', '<h2>',
+    '</h1>', '</h2>', '</p>', '<p>',
+    '<i>', '</i>', '<html>', '</html>',
+    '<p class="ph3">'
 ]
 
-#print(story)
+# print(story)
 story = story_data[0]['article']
 prev_story_iter = None
 story = re.sub(r'[\n ]+<i>[\n ]+(.*?)[\n ]+</i>[\n ]+', ' *\\1* ', story)
@@ -41,6 +41,8 @@ while prev_story_iter != story:
     story = story.replace('\n\n', '<keepbr\>')
     story = story.replace('\n', ' ')
     story = story.replace('<keepbr\>', '\n\n')
+
+print(story)
 for set in story_data:
     for q_json in set['questions']:
         if q_json['difficult'] > 0:
