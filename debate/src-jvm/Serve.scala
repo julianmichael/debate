@@ -21,6 +21,7 @@ import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
 import org.http4s._
+import org.http4s.client.JavaNetClientBuilder
 import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
@@ -34,7 +35,9 @@ import jjm.io.FileUtil
 import jjm.io.HttpUtil
 
 import debate.quality._
-import org.http4s.client.JavaNetClientBuilder
+import debate.singleturn.SingleTurnDebateUtils
+import cats.data.Validated.Valid
+import cats.data.Validated.Invalid
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -131,7 +134,7 @@ object Serve
     }
   }
 
-  val qualityDataPath                    = Paths.get("data")
+  val dataPath                           = Paths.get("data")
   def profilesSavePath(saveDir: NIOPath) = saveDir.resolve("profiles.json")
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
   def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
@@ -153,7 +156,23 @@ object Serve
     //   .resource
     //   .use { httpClient =>
     for {
-      qualityDataset <- QuALITYUtils.readQuALITY(qualityDataPath, blocker)
+      singleTurnDebateDataset <- SingleTurnDebateUtils.readSingleTurnDebate(dataPath, blocker)
+      // _ <- IO {
+      //   singleTurnDebateDataset.values.take(10).foreach(println)
+      // }
+      qualityDataset <- QuALITYUtils.readQuALITY(dataPath, blocker)
+      _ <-
+        Utils.identifyQualityMatches(qualityDataset, singleTurnDebateDataset) match {
+          case Valid(a) =>
+            IO.pure(a)
+          case Invalid(errs) =>
+            IO {
+              errs.toList.foreach(System.err.println)
+              throw new RuntimeException(
+                s"${errs.size} Errors in matching the single-turn debate and QuALITY data"
+              )
+            }
+        }
       profiles <- FileUtil
         .readJson[Map[String, Profile]](profilesSavePath(saveDir))
         .recoverWith { case _: Throwable =>

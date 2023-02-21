@@ -28,8 +28,9 @@ val munitVersion           = "0.7.29"
 val munitCatsEffectVersion = "1.0.7"
 
 // jvm deps
-val logbackVersion = "1.2.3"
-val osLibVersion   = "0.8.0"
+val scalaCSVVersion = "1.3.10"
+val logbackVersion  = "1.2.3"
+val osLibVersion    = "0.8.0"
 
 // scalajs deps
 val scalajsDomVersion               = "1.1.0"
@@ -145,6 +146,7 @@ object debate extends Module {
           ivy"com.monovore::decline-effect::$declineVersion",
           ivy"com.lihaoyi::scalatags:$scalatagsVersion",
           ivy"org.http4s::http4s-blaze-client::$http4sVersion",
+          ivy"com.github.tototoshi::scala-csv::$scalaCSVVersion",
           // java dependencies
           ivy"ch.qos.logback:logback-classic:$logbackVersion",
           ivy"io.circe::circe-generic-extras::$circeVersion"
