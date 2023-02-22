@@ -143,32 +143,24 @@ object DebateRoundView {
       .whenDefined(roundTime =>
         debateStartTime.whenDefined(startTime => timestampHTML(startTime, roundTime))
       )
-      .when(
-        role match {
-          case Facilitator | Debater(_) =>
-            false
-          case _ =>
-            true
-        }
-      ),
+      .when(role.seesRoundTimestamp),
     round match {
       case SimultaneousSpeeches(speeches) =>
         if (speeches.size < numDebaters) {
-          Option(role)
-            .collect { case Debater(index) =>
-              speeches
-                .get(index)
-                .map { speech =>
-                  val speechStyle = TagMod(
-                    S.answerOutline(index),
-                    S.pendingBg,
-                    S.debateWidthOffset(index)
-                  )
-                  makeSpeechHtml(source, Debater(index), speech, debateStartTime, role, speechStyle)
-                }
-            }
-            .flatten
+          speeches
             .toVector
+            .filter { case (index, _) =>
+              // can see your own, or everyone's if you're the facilitator
+              role == Debater(index) || role == Facilitator
+            }
+            .map { case (index, speech) =>
+              val speechStyle = TagMod(
+                S.answerOutline(index),
+                S.pendingBg,
+                S.debateWidthOffset(index)
+              )
+              makeSpeechHtml(source, Debater(index), speech, debateStartTime, role, speechStyle)
+            }
             .zipWithIndex
             .toVdomArray { case (el, i) =>
               el(^.key := s"text-$i")
@@ -182,15 +174,7 @@ object DebateRoundView {
         }
       case SequentialSpeeches(speeches) =>
         val speechesToShow =
-          if (
-            speeches.size < numDebaters &&
-            (role match {
-              case Facilitator | Debater(_) =>
-                false
-              case _ =>
-                true
-            })
-          ) {
+          if (speeches.size < numDebaters && !role.canSeeIntermediateArguments) {
             Map[Int, DebateSpeech]()
           } else
             speeches
@@ -212,6 +196,7 @@ object DebateRoundView {
       case JudgeFeedback(probabilities, speech, endsDebate) =>
         val speechStyle = TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
         Vector(
+          // TODO: prevent judge from extracting info via quotes
           Option(makeSpeechHtml(source, Judge, speech, debateStartTime, role, speechStyle)),
           Option(
             <.div(
@@ -239,6 +224,7 @@ object DebateRoundView {
           }
       case NegotiateEnd(votes) =>
         if (votes.size < numDebaters) {
+          // TODO show these to the facilitator as well
           Option(role)
             .collect { case Debater(index) =>
               votes
@@ -258,11 +244,7 @@ object DebateRoundView {
               el(^.key := s"text-$i")
             }
         } else {
-          if (
-            Option(role).existsAs { case Debater(_) | Facilitator =>
-              true
-            }
-          ) {
+          if (role.canSeeVotes) {
             if (votes.values.forall(identity)) {
               <.div("All debaters voted to ", <.strong("end"), " the debate.")
             } else if (votes.values.forall(!_)) {

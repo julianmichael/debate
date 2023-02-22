@@ -192,16 +192,20 @@ case class DebateStateManager(
                   _.currentSpeakers
                     .toVector
                     .traverse(role =>
-                      debate
-                        .setup
-                        .roles
-                        .get(role)
-                        .traverse(debater =>
-                          slack.sendMessage(
-                            profiles,
-                            debater,
-                            s"It's your turn in the new room `$roomName`!"
-                          )
+                      role
+                        .asLiveDebateRoleOpt
+                        .traverse(liveRole =>
+                          debate
+                            .setup
+                            .roles
+                            .get(liveRole)
+                            .traverse(debater =>
+                              slack.sendMessage(
+                                profiles,
+                                debater,
+                                s"It's your turn in the new room `$roomName`!"
+                              )
+                            )
                         )
                     )
                 )
@@ -224,7 +228,12 @@ case class DebateStateManager(
           .debate
           .currentTransitions
           .toOption
-          .foldMap(_.giveSpeech.keySet.flatMap(debateState.debate.setup.roles.get))
+          .foldMap(
+            _.giveSpeech
+              .keySet
+              .flatMap(_.asLiveDebateRoleOpt)
+              .flatMap(debateState.debate.setup.roles.get)
+          )
         val usersToNotifyThroughSlack = curUsersWhoseTurnItIs -- debateState.participants.keySet
         slackClientOpt.traverse_ { slack =>
           profilesRef

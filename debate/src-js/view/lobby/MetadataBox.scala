@@ -190,7 +190,8 @@ object MetadataBox {
               if (offlineJudgingResults.nonEmpty) {
                 val avgJudgment =
                   offlineJudgingResults
-                    .map(_._2.judgment)
+                    .flatMap(_._2.result)
+                    .map(_.judgment)
                     .view
                     .transpose
                     .map(v => v.sum / v.size)
@@ -205,9 +206,10 @@ object MetadataBox {
         val offlineResults = Option {
           val judgmentElements = offlineJudgingResults
             .toVector
+            .flatMap(p => p._2.result.map(p._1 -> _))
             .sortBy(_._2.timestamp)
-            .map { case (judge, judgment) =>
-              val pctCorrect         = judgment.judgment(result.correctAnswerIndex) * 100.0
+            .map { case (judge, offlineResult) =>
+              val pctCorrect         = offlineResult.judgment(result.correctAnswerIndex) * 100.0
               val pctCorrectString   = f"$pctCorrect%.0f%%"
               val pctIncorrect       = 100.0 - pctCorrect
               val pctIncorrectString = f"$pctIncorrect%.0f%%"

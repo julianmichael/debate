@@ -42,7 +42,10 @@ case class DebateState(debate: Debate, participants: Map[String, Role]) {
       .lastOption
       .getOrElse(debate.setup.creationTime),
     peopleWhoHaveSpoken = debate.rounds.foldMap(_.allSpeeches.values.view.map(_.speaker).toSet),
-    currentSpeakers = debate.currentTransitions.toOption.foldMap(_.currentSpeakers),
+    currentSpeakers = debate
+      .currentTransitions
+      .toOption
+      .foldMap(_.currentSpeakers.flatMap(_.asLiveDebateRoleOpt)),
     currentParticipants = participants.keySet
   )
 

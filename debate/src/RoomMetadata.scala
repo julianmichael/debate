@@ -41,7 +41,7 @@ object RoomStatus {
   case object InProgress     extends RoomStatus
   case class Complete(
     result: DebateResult,
-    offlineJudgingResults: Map[String, OfflineJudgingResult],
+    offlineJudgingResults: Map[String, OfflineJudgingInfo],
     feedbackProviders: Set[String]
   ) extends RoomStatus
 
