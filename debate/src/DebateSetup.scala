@@ -40,7 +40,7 @@ case class DebateSetup(
   question: String,
   answers: Vector[String],
   correctAnswerIndex: Int,
-  roles: Map[DebateRole, String],
+  roles: Map[LiveDebateRole, String],
   offlineJudges: Map[String, Unit], // TODO offline judging role type
   creationTime: Long
 ) {
@@ -53,13 +53,13 @@ case class DebateSetup(
   def userIsAssigned(userName: String) = assignedRoles(userName).nonEmpty
   def roleIsAssigned(role: Role) =
     role match {
-      case role: DebateRole =>
+      case role: LiveDebateRole =>
         roles.contains(role)
       case _ =>
         false
     }
   def canAssumeRole(userName: String, role: Role) =
-    role.asDebateRoleOpt.flatMap(roles.get) == Some(userName) ||
+    role.asLiveDebateRoleOpt.flatMap(roles.get) == Some(userName) ||
       (!roleIsAssigned(role) && !userIsAssigned(userName))
 }
 object DebateSetup {}

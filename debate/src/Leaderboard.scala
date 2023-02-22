@@ -16,7 +16,7 @@ object DebateStats {
 
   def getUserStats(
     result: JudgingResult,
-    role: DebateRole,
+    role: LiveDebateRole,
     name: String
   ): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
     def bool2int(b: Boolean) =

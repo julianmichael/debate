@@ -14,7 +14,7 @@ import io.circe.generic.JsonCodec
   */
 @JsonCodec
 sealed trait Role extends Product with Serializable {
-  def asDebateRoleOpt: Option[DebateRole] =
+  def asLiveDebateRoleOpt: Option[LiveDebateRole] =
     this match {
       case d @ Debater(i) =>
         Some(d)
@@ -51,9 +51,6 @@ case object Facilitator extends Role {
 case object Peeper extends Role {
   override def toString = "Peeper"
 }
-case object TimedOfflineJudge extends Role {
-  override def toString = "Offline Judge (Timed)"
-}
 @JsonCodec
 sealed trait DebateRole extends Role {
   def isDebater: Boolean =
@@ -64,14 +61,19 @@ sealed trait DebateRole extends Role {
         false
     }
 }
+case object TimedOfflineJudge extends DebateRole {
+  override def toString = "Offline Judge (Timed)"
+}
 @JsonCodec
-case class Debater(answerIndex: Int) extends DebateRole {
+sealed trait LiveDebateRole extends DebateRole
+@JsonCodec
+case class Debater(answerIndex: Int) extends LiveDebateRole {
   override def toString = s"Debater ${answerLetter(answerIndex)}"
 }
-case object Judge extends DebateRole {
+case object Judge extends LiveDebateRole {
   override def toString = "Judge"
 }
-object DebateRole {
+object LiveDebateRole {
   object DebaterIndex {
     def unapply(x: String) =
       if (x.length == 1 && x.charAt(0).isLetter) {
@@ -80,7 +82,7 @@ object DebateRole {
         None
   }
 
-  def fromString(x: String): Option[DebateRole] =
+  def fromString(x: String): Option[LiveDebateRole] =
     x match {
       case "Judge" =>
         Some(Judge)
@@ -90,9 +92,9 @@ object DebateRole {
         None
     }
 
-  implicit val debateRoleKeyEncoder = KeyEncoder.instance[DebateRole](_.toString)
-  implicit val debateRoleKeyDecoder = KeyDecoder.instance[DebateRole](fromString)
-  implicit val debateRoleOrder = Order.by[DebateRole, Int] {
+  implicit val liveDebateRoleKeyEncoder = KeyEncoder.instance[LiveDebateRole](_.toString)
+  implicit val liveDebateRoleKeyDecoder = KeyDecoder.instance[LiveDebateRole](fromString)
+  implicit val liveDebateRoleOrder = Order.by[LiveDebateRole, Int] {
     case Judge =>
       -1
     case Debater(i) =>
@@ -111,7 +113,7 @@ object Role {
       case "Peeper" =>
         Some(Peeper)
       case x =>
-        DebateRole.fromString(x)
+        LiveDebateRole.fromString(x)
     }
   implicit val roleKeyEncoder = KeyEncoder.instance[Role](_.toString)
   implicit val roleKeyDecoder = KeyDecoder.instance[Role](fromString)

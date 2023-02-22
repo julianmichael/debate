@@ -22,7 +22,7 @@ object MetadataBox {
   val S = Styles
   val V = new jjm.ui.View(S)
 
-  def getRoleStyle(role: DebateRole): TagMod =
+  def getRoleStyle(role: LiveDebateRole): TagMod =
     role match {
       case Judge =>
         S.judgeAssignment
@@ -40,7 +40,7 @@ object MetadataBox {
         S.incorrect
     }
 
-  def getLeaderboardCategoryForRole(role: DebateRole, correctAnswerIndex: Int) =
+  def getLeaderboardCategoryForRole(role: LiveDebateRole, correctAnswerIndex: Int) =
     role match {
       case Judge =>
         LeaderboardCategory.Judge
@@ -285,7 +285,7 @@ object MetadataBox {
             true
           }
         )
-          Utils.delimitedTags[Vector, DebateRole](
+          Utils.delimitedTags[Vector, LiveDebateRole](
             speakers.toVector,
             speaker => <.span(getRoleStyle(speaker))(speaker.toString)
           ) -> false
@@ -331,7 +331,7 @@ object MetadataBox {
               <.span(S.bold)(
                 <.span(c"text-muted")("You were "),
                 Utils
-                  .delimitedTags[Vector, DebateRole](
+                  .delimitedTags[Vector, LiveDebateRole](
                     myRoles,
                     { role =>
                       val category = getLeaderboardCategoryForRole(role, result.correctAnswerIndex)
@@ -345,7 +345,7 @@ object MetadataBox {
               <.span(S.bold)(
                 <.span(c"text-muted")("You are "),
                 Utils
-                  .delimitedTags[Vector, DebateRole](
+                  .delimitedTags[Vector, LiveDebateRole](
                     myRoles,
                     {
                       case Judge =>

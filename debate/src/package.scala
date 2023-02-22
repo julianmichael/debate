@@ -57,6 +57,15 @@ package object debate extends PackagePlatformExtensions {
     def timestamp: Long
   }
   object OfflineJudgingResult {
+    case class Timed2(
+      val judgment: Vector[Double],
+      val explanation: String,
+      val timeStartedMillis: Long,
+      val timeFinishedMillis: Long
+    ) extends OfflineJudgingResult {
+      def timestamp             = timeFinishedMillis
+      def timeTakenMillis: Long = timeFinishedMillis - timeStartedMillis
+    }
     case class Timed(
       val judgment: Vector[Double],
       val explanation: String,

@@ -605,7 +605,7 @@ object DebateCreationPanel {
           ProfileOptSelect.mod(select = S.customSelect)(
             choices = profiles,
             choice = setup
-              .zoomStateL(DebateSetupSpec.roles.composeLens(Optics.at(Judge: DebateRole)))
+              .zoomStateL(DebateSetupSpec.roles.composeLens(Optics.at(Judge: LiveDebateRole)))
           )
         )
       )
@@ -733,7 +733,9 @@ object DebateCreationPanel {
                         ProfileOptSelect.mod(select = S.customSelect)(
                           choices = lobby.profiles.keySet,
                           choice = setup.zoomStateL(
-                            DebateSetupSpec.roles.composeLens(Optics.at(Debater(index): DebateRole))
+                            DebateSetupSpec
+                              .roles
+                              .composeLens(Optics.at(Debater(index): LiveDebateRole))
                           )
                         )
                       ),

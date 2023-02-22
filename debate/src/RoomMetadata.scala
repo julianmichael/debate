@@ -54,12 +54,12 @@ case class RoomMetadata(
   name: String,
   sourceMaterialId: SourceMaterialId,
   storyTitle: String,
-  roleAssignments: Map[DebateRole, String],
+  roleAssignments: Map[LiveDebateRole, String],
   creationTime: Long,
   status: RoomStatus,
   latestUpdateTime: Long,
   peopleWhoHaveSpoken: Set[String], // people who have taken turns
-  currentSpeakers: Set[DebateRole],
+  currentSpeakers: Set[LiveDebateRole],
   currentParticipants: Set[String]
 ) {
   def result = RoomStatus.complete.getOption(status).map(_.result)

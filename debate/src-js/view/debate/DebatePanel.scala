@@ -52,9 +52,9 @@ object DebatePanel {
   /** Show whose turn it is. */
   def turnDisplay(
     roomName: String,
-    assignments: Map[DebateRole, String],
-    roleOpt: Option[DebateRole],
-    currentTurns: Either[DebateResult, Map[DebateRole, DebateTurnType]],
+    assignments: Map[LiveDebateRole, String],
+    roleOpt: Option[LiveDebateRole],
+    currentTurns: Either[DebateResult, Map[LiveDebateRole, DebateTurnType]],
     sendToMainChannel: MainChannelRequest => Callback
   ) = <.div(
     // NOTE: this assumes exactly one unique turn type will be present on the right side of the Either.
@@ -200,7 +200,7 @@ object DebatePanel {
     val currentTransitions = debate.value.currentTransitions
     val userTurn =
       for {
-        debateRole  <- role.asDebateRoleOpt
+        debateRole  <- role.asLiveDebateRoleOpt
         transitions <- currentTransitions.toOption
         turn        <- transitions.giveSpeech.get(debateRole)
       } yield turn
@@ -290,7 +290,7 @@ object DebatePanel {
               turnDisplay(
                 roomName,
                 debate.value.setup.roles,
-                role.asDebateRoleOpt,
+                role.asLiveDebateRoleOpt,
                 currentTransitions.map(_.currentTurns),
                 sendToMainChannel
               ),
@@ -300,14 +300,14 @@ object DebatePanel {
                   <.div(S.col)(
                     <.div(S.col)(
                       role
-                        .asDebateRoleOpt
+                        .asLiveDebateRoleOpt
                         .flatMap(transitions.giveSpeech.get)
                         .whenDefined { case turnDotPair =>
                           SpeechInput
                             .speechInput(debate, userName, role, turnDotPair, currentMessage)
                         },
                       role
-                        .asDebateRoleOpt
+                        .asLiveDebateRoleOpt
                         .flatMap(transitions.undo.get)
                         .whenDefined { case (speech, debateAfterUndo) =>
                           <.button(

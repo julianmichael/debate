@@ -82,7 +82,7 @@ object DebatePage {
     curDebate
       .participants
       .get(userName)
-      .flatMap(_.asDebateRoleOpt)
+      .flatMap(_.asLiveDebateRoleOpt)
       .fold(Callback.empty) { role =>
         def getRoles(debate: DebateState) = debate
           .debate
@@ -190,7 +190,7 @@ object DebatePage {
     debateState: StateSnapshot[DebateState],
     profiles: Set[String],
     userRole: Role,
-    role: DebateRole
+    role: LiveDebateRole
   ) =
     debateState.value.debate.setup.roles.get(role) match {
       case Some(name) =>

@@ -32,7 +32,7 @@ case class DebateSetupSpec(
   sourceMaterial: SourceMaterialSpec,
   question: String,
   answers: Vector[String],
-  roles: Map[DebateRole, String],
+  roles: Map[LiveDebateRole, String],
   correctAnswerIndex: Int
 ) {
   require(correctAnswerIndex >= 0 && correctAnswerIndex < answers.size)
