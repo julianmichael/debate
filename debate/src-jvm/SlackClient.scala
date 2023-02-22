@@ -1,5 +1,6 @@
 package debate
 
+import cats.ApplicativeError
 import cats.effect.Sync
 import cats.implicits._
 
@@ -9,6 +10,7 @@ import org.http4s._
 import org.http4s.client.Client
 
 import jjm.DotKleisli
+import scala.util.Try
 
 object Slack {
   @JsonCodec
@@ -101,7 +103,7 @@ object Slack {
     import org.http4s.circe._
     import org.http4s.implicits._
 
-    def httpRequests[F[_]](token: String) = {
+    def httpRequestFactory[F[_]](token: String) = {
       val headers = Headers.of(Header("Authorization", s"Bearer $token"))
       new Service[Constant[HttpRequest[F], *]] {
         def lookupByEmail(email: String) = HttpRequest[F](
@@ -119,9 +121,23 @@ object Slack {
       }
     }
 
+    // since we're not directly using DotEncoder/DotDecoder
+    def extractFromResponseJson[F[_]: ApplicativeError[*[_], Throwable]] =
+      new Service[Lambda[A => Json => F[A]]] {
+        def lookupByEmail(email: String) =
+          responseJson =>
+            ApplicativeError[F, Throwable].fromTry(
+              Try(
+                responseJson.asObject.get("user").get.asObject.get("id").get.as[String].toOption.get
+              )
+            )
+        def postMessage(channel: String, text: String) =
+          _ => ApplicativeError[F, Throwable].pure(())
+      }
+
     def fullHttpClient[F[_]: Sync](client: Client[F], token: String) = {
       def log(msg: String) = Sync[F].delay(println(s"[[[SLACK]]] $msg"))
-      val getHttpReq       = httpRequests[F](token)
+      val getHttpReq       = httpRequestFactory[F](token)
       Slack
         .Service
         .fromDotKleisli(
@@ -132,27 +148,8 @@ object Slack {
                 client
                   .expect[Json](httpRequest)
                   .flatMap { responseJson =>
-                    log(s"Response: ${responseJson.noSpaces}").flatMap(_ =>
-                      Sync[F].delay {
-                        val res =
-                          req match {
-                            case _: Request.LookupByEmail =>
-                              responseJson
-                                .asObject
-                                .get("user")
-                                .get
-                                .asObject
-                                .get("id")
-                                .get
-                                .as[String]
-                                .toOption
-                                .get
-                            case _: Request.PostMessage =>
-                              ()
-                          }
-                        res.asInstanceOf[req.Out]
-                      }
-                    )
+                    log(s"Response: ${responseJson.noSpaces}")
+                      .flatMap(_ => extractFromResponseJson[F].apply(req)(responseJson))
                   }
             }
 
