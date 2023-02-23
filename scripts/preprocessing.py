@@ -45,8 +45,6 @@ if not quality_story_data:  # is this necessary?
 
 with open(args.debate_file, "r", encoding='utf-8', errors="surrogateescape") as debate_file:
     debate_story_data = list(csv.DictReader(debate_file, delimiter=","))
-#     for row in debate_story_data:
-#         detect(row['question_text'])  # .decode("iso-8859-1").encode("utf-8")
 debate_file.close()
 debate_story_ids = set([d['passage_id'] for d in debate_story_data])
 
@@ -121,10 +119,6 @@ def char_replacement_distance(x, y):
     return edit_diff + length_diff
 
 
-# used_qs = [story for story in final_story_data for question in story['questions']
-#            if question['untimed_accuracy'] >= untimed_accuracy and question['timed_accuracy'] <= timed_accuracy]
-
-
 def print_questions_with_no_quality_match_for_char_distance(dist: int):
     num_questions_no_quality_match = 0
     print("\nThe following questions in the debate data have no match in QuALITY:")
@@ -133,17 +127,15 @@ def print_questions_with_no_quality_match_for_char_distance(dist: int):
         debate_questions = list(
             set([debate_story['question_text'] for debate_story in debate_story_data if debate_story['passage_id'] == story['article_id']]))
         for dquestion in debate_questions:
-            # dquestion = dquestion.replace("’", "'")
-            # dquestion = dquestion.strip()
             quality_official_questions = []
             for q in story['questions']:
-                # q['question'] = q['question'].replace("’", "'")
+                q['question'] = q['question'].replace("’", "'")
                 # q['question'] = q['question'].strip()
                 quality_official_questions = quality_official_questions + \
                     [q['question']]
             any_q_missing = False
 
-            if min(char_replacement_distance(dquestion, q) for q in quality_official_questions) > dist:
+            if min(char_replacement_distance(dquestion, q) for q in quality_official_questions) == dist:
                 if dquestion not in quality_official_questions:
                     any_q_missing = True
                     num_questions_no_quality_match += 1
@@ -156,5 +148,5 @@ def print_questions_with_no_quality_match_for_char_distance(dist: int):
         f"Number of questions with no match in QuALITY for dist {dist}: {num_questions_no_quality_match}")
 
 
-for i in range(0, 180, 60):
+for i in range(0, 10, 1):
     print_questions_with_no_quality_match_for_char_distance(i)

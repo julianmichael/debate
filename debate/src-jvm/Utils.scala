@@ -27,7 +27,7 @@ trait UtilsPlatformExtensions {
               story
                 .questions
                 .find { case (_, question) =>
-                  question.question == singleTurnQ.questionText
+                  question.question.replaceAll("’", "'") == singleTurnQ.questionText
                 }
                 .map(_._1)
                 .toValidNec(s"Can't find question: ${singleTurnQ.questionText}")
