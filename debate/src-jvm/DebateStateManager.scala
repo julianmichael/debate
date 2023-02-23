@@ -187,25 +187,22 @@ case class DebateStateManager(
               } >>
               debate
                 .currentTransitions
-                .toOption
-                .traverse(
-                  _.currentSpeakers
-                    .toVector
-                    .traverse(role =>
-                      role
-                        .asLiveDebateRoleOpt
-                        .traverse(liveRole =>
-                          debate
-                            .setup
-                            .roles
-                            .get(liveRole)
-                            .traverse(debater =>
-                              slack.sendMessage(
-                                profiles,
-                                debater,
-                                s"It's your turn in the new room `$roomName`!"
-                              )
-                            )
+                .currentSpeakers
+                .toVector
+                .traverse(role =>
+                  role
+                    .asLiveDebateRoleOpt
+                    .traverse(liveRole =>
+                      debate
+                        .setup
+                        .roles
+                        .get(liveRole)
+                        .traverse(debater =>
+                          slack.sendMessage(
+                            profiles,
+                            debater,
+                            s"It's your turn in the new room `$roomName`!"
+                          )
                         )
                     )
                 )
@@ -227,13 +224,10 @@ case class DebateStateManager(
         val curUsersWhoseTurnItIs = debateState
           .debate
           .currentTransitions
-          .toOption
-          .foldMap(
-            _.giveSpeech
-              .keySet
-              .flatMap(_.asLiveDebateRoleOpt)
-              .flatMap(debateState.debate.setup.roles.get)
-          )
+          .giveSpeech
+          .keySet
+          .flatMap(_.asLiveDebateRoleOpt)
+          .flatMap(debateState.debate.setup.roles.get)
         val usersToNotifyThroughSlack = curUsersWhoseTurnItIs -- debateState.participants.keySet
         slackClientOpt.traverse_ { slack =>
           profilesRef

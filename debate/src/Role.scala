@@ -5,6 +5,7 @@ import cats.kernel.Order
 import io.circe.KeyDecoder
 import io.circe.KeyEncoder
 import io.circe.generic.JsonCodec
+import monocle.macros.GenPrism
 
 /** The role someone plays in a debate.
   *   - Facilitators set things up.
@@ -101,6 +102,9 @@ object LiveDebateRole {
   }
 }
 object Role {
+  def debateRole     = GenPrism[Role, DebateRole]
+  def liveDebateRole = GenPrism[Role, LiveDebateRole]
+
   def fromString(x: String): Option[Role] =
     x match {
       case "Observer" =>

@@ -56,106 +56,94 @@ object DebatePanel {
     roomName: String,
     assignments: Map[LiveDebateRole, String],
     role: Role,
-    currentTurns: Either[DebateResult, Map[LiveDebateRole, DebateTurnType]],
-    currentOfflineJudgingInfo: Option[OfflineJudgingInfo],
+    currentTurns: Map[DebateRole, DebateTurnType],
     sendToMainChannel: MainChannelRequest => Callback
-  ) = <.div(
+  ) = <.div {
     // NOTE: this assumes exactly one unique turn type will be present on the right side of the Either.
     // We expect this to be true but it isn't guaranteed in the types or anything.
     // I think this is the only part of the code that relies on that assumption;
     // in theory violating it could be useful at some point if the turntaking functionality becomes
     // more complex.
-    currentTurns match {
-      case Left(result) =>
-        currentOfflineJudgingInfo match {
-          case Some(OfflineJudgingInfo(_, None)) =>
-            <.span("YOU are judging this debate offline.")
-          case Some(OfflineJudgingInfo(_, Some(_))) | None =>
-            // TODO put this in the round view instead so it appears before offline judging
-            <.span(
-              s"The debate is over! ",
-              s"The correct answer was ${answerLetter(result.correctAnswerIndex)}. ",
-              result
-                .judgingInfo
-                .map(judgingResult =>
-                  <.span(s"The judge has earned a reward of ${judgingResult.judgeReward}.")
-                )
-            )
-        }
-      case Right(turns) =>
-        val turn = turns.values.head
-        <.span(
-          turn match {
-            case DebateTurnType.SimultaneousSpeechesTurn(remainingDebaters, _, _) =>
-              role match {
-                case Debater(index) =>
-                  if (remainingDebaters.contains(index)) {
-                    <.span("It is YOUR TURN. All debaters are constructing simultaneous speeches.")
-                  } else {
-                    <.span("Your speech has been received. Waiting for other debaters.")
-                  }
-                case _ =>
-                  <.span("All debaters are constructing simultaneous speeches.")
+
+    val turn = currentTurns.values.head
+    <.span(
+      turn match {
+        case DebateTurnType.SimultaneousSpeechesTurn(remainingDebaters, _, _) =>
+          role match {
+            case Debater(index) =>
+              if (remainingDebaters.contains(index)) {
+                <.span("It is YOUR TURN. All debaters are constructing simultaneous speeches.")
+              } else {
+                <.span("Your speech has been received. Waiting for other debaters.")
               }
-            case DebateTurnType.DebaterSpeechTurn(index, _, _) =>
-              role match {
-                case Debater(`index`) =>
-                  <.span("It is YOUR TURN to make a speech.")
-                case _ =>
-                  <.span(s"Debaters are writing their speeches.")
+            case _ =>
+              <.span("All debaters are constructing simultaneous speeches.")
+          }
+        case DebateTurnType.DebaterSpeechTurn(index, _, _) =>
+          role match {
+            case Debater(`index`) =>
+              <.span("It is YOUR TURN to make a speech.")
+            case _ =>
+              <.span(s"Debaters are writing their speeches.")
+          }
+        case DebateTurnType.JudgeFeedbackTurn(_, _, _) =>
+          role match {
+            case Judge =>
+              <.span("It is YOUR TURN as judge to give feedback.")
+            case _ =>
+              <.span(s"It is the Judge's turn to give feedback.")
+          }
+        case DebateTurnType.NegotiateEndTurn(remainingDebaters) =>
+          role match {
+            case Debater(index) =>
+              if (remainingDebaters.contains(index)) {
+                <.span("It is YOUR TURN. Debaters are voting on whether to end the debate.")
+              } else {
+                <.span("Your vote has been received. Waiting for other debaters.")
               }
-            case DebateTurnType.JudgeFeedbackTurn(_, _, _) =>
-              role match {
-                case Judge =>
-                  <.span("It is YOUR TURN as judge to give feedback.")
-                case _ =>
-                  <.span(s"It is the Judge's turn to give feedback.")
-              }
-            case DebateTurnType.NegotiateEndTurn(remainingDebaters) =>
-              role match {
-                case Debater(index) =>
-                  if (remainingDebaters.contains(index)) {
-                    <.span("It is YOUR TURN. Debaters are voting on whether to end the debate.")
-                  } else {
-                    <.span("Your vote has been received. Waiting for other debaters.")
-                  }
-                case _ =>
-                  <.span("Debaters are voting on whether to end the debate.")
-              }
-          },
-          " ",
-          NonEmptySet
-            .fromSet(
-              SortedSet(
-                (turns.keySet -- role.asLiveDebateRoleOpt).flatMap(assignments.get).toSeq: _*
-              )
-            )
-            .map { peopleWaitedOn =>
-              Local[Boolean].make(false) { justPoked =>
-                <.a(
-                  ^.href := "#",
-                  (
-                    ^.onClick --> {
-                      sendToMainChannel(Poke(roomName, peopleWaitedOn)) >>
-                        justPoked.setState(
-                          true,
-                          AsyncCallback
-                            .unit
-                            .delayMs(5000)
-                            .completeWith(_ => justPoked.setState(false))
-                        )
-                    }
-                  ).when(!justPoked.value),
-                  if (justPoked.value)
-                    "Poked."
-                  else
-                    "Click to poke them."
-                )
-              }
-            }
+            case _ =>
+              <.span("Debaters are voting on whether to end the debate.")
+          }
+        case DebateTurnType.OfflineJudgingTurn =>
+          role match {
+            case TimedOfflineJudge =>
+              <.span("YOU are judging this debate offline.")
+            case _ =>
+              <.span(s"The debate is over.")
+          }
+      },
+      " ",
+      NonEmptySet
+        .fromSet(
+          SortedSet(
+            (
+              currentTurns.keySet.flatMap(Role.liveDebateRole.getOption) --
+                Role.liveDebateRole.getOption(role)
+            ).flatMap(assignments.get).toSeq: _*
+          )
         )
-    }
-  )
+        .map { peopleWaitedOn =>
+          Local[Boolean].make(false) { justPoked =>
+            <.a(
+              ^.href := "#",
+              (
+                ^.onClick --> {
+                  sendToMainChannel(Poke(roomName, peopleWaitedOn)) >>
+                    justPoked.setState(
+                      true,
+                      AsyncCallback.unit.delayMs(5000).completeWith(_ => justPoked.setState(false))
+                    )
+                }
+              ).when(!justPoked.value),
+              if (justPoked.value)
+                "Poked."
+              else
+                "Click to poke them."
+            )
+          }
+        }
+    )
+  }
 
   def visibleRounds(role: Role, debate: Debate) = debate
     .rounds
@@ -211,12 +199,12 @@ object DebatePanel {
     import debate.value.{setup, rounds}
 
     val currentTransitions = debate.value.currentTransitions
-    val userTurn =
-      for {
-        debateRole  <- role.asLiveDebateRoleOpt
-        transitions <- currentTransitions.toOption
-        turn        <- transitions.giveSpeech.get(debateRole)
-      } yield turn
+    val userTurn = Role.debateRole.getOption(role).flatMap(currentTransitions.giveSpeech.get)
+    // for {
+    //   debateRole  <- role.asLiveDebateRoleOpt
+    //   transitions <- currentTransitions.toOption
+    //   turn        <- transitions.giveSpeech.get(debateRole)
+    // } yield turn
     val isUsersTurn = userTurn.nonEmpty
 
     val timeForFeedback =
@@ -313,6 +301,26 @@ object DebatePanel {
                         )
                       }
                       .toVdomArray,
+
+                    // currentTurns match {
+                    //   case Left(result) =>
+                    //     currentOfflineJudgingInfo match {
+                    //       case Some(OfflineJudgingInfo(_, None)) =>
+                    //         <.span("YOU are judging this debate offline.")
+                    //       case Some(OfflineJudgingInfo(_, Some(_))) | None =>
+                    //         // TODO put this in the round view instead so it appears before offline judging
+                    //         <.span(
+                    //           s"The debate is over! ",
+                    //           s"The correct answer was ${answerLetter(result.correctAnswerIndex)}. ",
+                    //           result
+                    //             .judgingInfo
+                    //             .map(judgingResult =>
+                    //               <.span(s"The judge has earned a reward of ${judgingResult.judgeReward}.")
+                    //             )
+                    //         )
+                    //     }
+                    //   case Right(turns) =>
+
                     debate
                       .value
                       .offlineJudgingResults
@@ -357,36 +365,27 @@ object DebatePanel {
                     roomName,
                     debate.value.setup.roles,
                     role,
-                    currentTransitions.map(_.currentTurns),
-                    debate.value.offlineJudgingResults.get(userName),
+                    currentTransitions.currentTurns,
                     sendToMainChannel
                   ),
-                  currentTransitions
-                    .toOption
-                    .whenDefined { transitions =>
-                      <.div(S.col)(
-                        <.div(S.col)(
-                          role
-                            .asLiveDebateRoleOpt
-                            .flatMap(transitions.giveSpeech.get)
-                            .whenDefined { case turnDotPair =>
-                              SpeechInput
-                                .speechInput(debate, userName, role, turnDotPair, currentMessage)
-                            },
-                          role
-                            .asLiveDebateRoleOpt
-                            .flatMap(transitions.undo.get)
-                            .whenDefined { case (speech, debateAfterUndo) =>
-                              <.button(
-                                "Undo",
-                                ^.onClick -->
-                                  (debate.setState(debateAfterUndo) >>
-                                    currentMessage.setState(SpeechSegments.getString(speech)))
-                              )
-                            }
-                        )
-                      )
-                    },
+                  <.div(S.col)(
+                    <.div(S.col)(
+                      userTurn.whenDefined { case turnDotPair =>
+                        SpeechInput.speechInput(debate, userName, role, turnDotPair, currentMessage)
+                      },
+                      role
+                        .asLiveDebateRoleOpt
+                        .flatMap(currentTransitions.undo.get)
+                        .whenDefined { case (speech, debateAfterUndo) =>
+                          <.button(
+                            "Undo",
+                            ^.onClick -->
+                              (debate.setState(debateAfterUndo) >>
+                                currentMessage.setState(SpeechSegments.getString(speech)))
+                          )
+                        }
+                    )
+                  ),
                   debate
                     .value
                     .offlineJudgingResults

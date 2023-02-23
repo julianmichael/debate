@@ -84,11 +84,8 @@ object DebatePage {
       .get(userName)
       .flatMap(_.asLiveDebateRoleOpt)
       .fold(Callback.empty) { role =>
-        def getRoles(debate: DebateState) = debate
-          .debate
-          .currentTransitions
-          .foldMap(_.currentSpeakers)
-        val newRoles = getRoles(curDebate) -- prevDebate.foldMap(getRoles)
+        def getRoles(debate: DebateState) = debate.debate.currentTransitions.currentSpeakers
+        val newRoles                      = getRoles(curDebate) -- prevDebate.foldMap(getRoles)
         if (newRoles.contains(role)) {
           Callback {
             val n = new dom.experimental.Notification(s"It's your turn as $role in $roomName!")

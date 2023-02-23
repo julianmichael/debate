@@ -46,6 +46,8 @@ sealed trait DebateRoundType {
         s"j${clStr(charLimit)}$reportBeliefsStr"
       case NegotiateEndRound =>
         "end?"
+      case OfflineJudgingRound =>
+        "oj"
     }
   }
 
@@ -60,6 +62,8 @@ sealed trait DebateRoundType {
         DebateTurnType.JudgeFeedbackTurn(reportBeliefs, charLimit, mustEndDebate = isLastTurn)
       case NegotiateEndRound =>
         DebateTurnType.NegotiateEndTurn((0 until numDebaters).toSet)
+      case OfflineJudgingRound =>
+        DebateTurnType.OfflineJudgingTurn
     }
   }
 
@@ -144,4 +148,11 @@ object DebateRoundType {
     def canEndDebate = true
   }
   val negotiateEnd = GenPrism[DebateRoundType, NegotiateEndRound.type]
+
+  case object OfflineJudgingRound extends DebateRoundType {
+    def charLimitOpt = None
+    def hasJudge     = true
+    def canEndDebate = false
+  }
+  val offlineJudgingRound = GenPrism[DebateRoundType, OfflineJudgingRound.type]
 }

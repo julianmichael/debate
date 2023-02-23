@@ -18,14 +18,15 @@ import monocle.macros.Lenses
 case class DebateState(debate: Debate, participants: Map[String, Role]) {
 
   def status: RoomStatus = debate
-    .currentTransitions
-    .fold(
-      result => RoomStatus.Complete(result, debate.offlineJudgingResults, debate.feedback.keySet),
-      _ =>
-        if (debate.rounds.isEmpty)
-          RoomStatus.WaitingToBegin
-        else
-          RoomStatus.InProgress
+    .result
+    .map(result =>
+      RoomStatus.Complete(result, debate.offlineJudgingResults, debate.feedback.keySet)
+    )
+    .getOrElse(
+      if (debate.rounds.isEmpty)
+        RoomStatus.WaitingToBegin
+      else
+        RoomStatus.InProgress
     )
 
   def metadata(roomName: String): RoomMetadata = RoomMetadata(
@@ -42,10 +43,7 @@ case class DebateState(debate: Debate, participants: Map[String, Role]) {
       .lastOption
       .getOrElse(debate.setup.creationTime),
     peopleWhoHaveSpoken = debate.rounds.foldMap(_.allSpeeches.values.view.map(_.speaker).toSet),
-    currentSpeakers = debate
-      .currentTransitions
-      .toOption
-      .foldMap(_.currentSpeakers.flatMap(_.asLiveDebateRoleOpt)),
+    currentSpeakers = debate.currentTransitions.currentSpeakers.flatMap(_.asLiveDebateRoleOpt),
     currentParticipants = participants.keySet
   )
 

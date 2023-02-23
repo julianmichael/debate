@@ -34,7 +34,6 @@ case class Debate(
     */
   def startTime: Option[Long] = rounds.headOption.flatMap(_.timestamp(setup.numDebaters))
 
-  def result: Option[DebateResult]           = currentTransitions.left.toOption
   def isOver: Boolean                        = result.nonEmpty
   def finalJudgement: Option[Vector[Double]] = result.flatMap(_.judgingInfo.map(_.finalJudgement))
 
@@ -45,8 +44,13 @@ case class Debate(
       0
   }
 
+  def result: Option[DebateResult]            = stateInfo._1
+  def currentTransitions: DebateTransitionSet = stateInfo._2
+
+  // TODO: go turn-by-turn to make sure we capture when the debate ends.
+  // this should really be a fold over the rounds.
   /** Whose turn(s) it is, what they can do, and how to compute the results. */
-  def currentTransitions: Either[DebateResult, DebateTransitionSet] = {
+  def stateInfo: (Option[DebateResult], DebateTransitionSet) = {
 
     // turn sequence is always nonempty
     val numDebaters   = setup.answers.size
@@ -137,19 +141,18 @@ case class Debate(
 
             (Debater(voterIndex): DebateRole) -> (Vector() -> newDebate)
           }
-        case OfflineJudgment(_, _) =>
+        case OfflineJudgment(_, _, _, _) =>
           Map.empty[DebateRole, (Vector[SpeechSegment], Debate)]
       }
       .getOrElse(Map.empty[DebateRole, (Vector[SpeechSegment], Debate)])
 
     // TODO: validate that the debate follows the specified structure?
     if (rounds.isEmpty)
-      Right(
+      None ->
         DebateTransitionSet(
           Map(),
           newRoundSpeeches(roundSequence.head, isLastTurn = roundSequence.tail.isEmpty)
         )
-      )
     else {
       // should always be nonempty since the last round should have a round type
       val lastRoundType #:: futureRoundTypes = roundSequence.drop(rounds.size - 1)
@@ -158,7 +161,7 @@ case class Debate(
         case DebateTurnTypeResult.Next =>
           futureRoundTypes match {
             case LazyList() => // time's up
-              Left(
+              Some(
                 DebateResult(
                   correctAnswerIndex = setup.correctAnswerIndex,
                   endedBy = DebateEndReason.TimeUp,
@@ -183,17 +186,21 @@ case class Debate(
                         None
                     }
                 )
-              )
+                // TODO XXX offline judging turn type
+              ) ->
+                DebateTransitionSet(
+                  undo = Map(),
+                  giveSpeech = newRoundSpeeches(DebateRoundType.OfflineJudgingRound, false)
+                )
             case nextRoundType #:: followingRoundTypes =>
-              Right(
+              None ->
                 DebateTransitionSet(
                   lastRoundUndos,
                   newRoundSpeeches(nextRoundType, isLastTurn = followingRoundTypes.isEmpty)
                 )
-              )
           }
         case DebateTurnTypeResult.Turn(turn) =>
-          Right(DebateTransitionSet(lastRoundUndos, curRoundSpeeches(turn)))
+          None -> DebateTransitionSet(lastRoundUndos, curRoundSpeeches(turn))
         case DebateTurnTypeResult.EndByJudge(finalJudgement) =>
           // TODO: change the End argument to itself contain all/most of the info we need
           // so it is constructed where more appropriate (ie in the turn transition)
@@ -201,7 +208,7 @@ case class Debate(
             .rules
             .scoringFunction
             .eval(numContinues, finalJudgement, setup.correctAnswerIndex)
-          Left(
+          Some(
             DebateResult(
               correctAnswerIndex = setup.correctAnswerIndex,
               endedBy = DebateEndReason.JudgeDecided,
@@ -214,15 +221,23 @@ case class Debate(
                 )
               )
             )
-          )
+          ) ->
+            DebateTransitionSet(
+              undo = Map(),
+              giveSpeech = newRoundSpeeches(DebateRoundType.OfflineJudgingRound, false)
+            )
         case DebateTurnTypeResult.EndByAgreement =>
-          Left(
+          Some(
             DebateResult(
               correctAnswerIndex = setup.correctAnswerIndex,
               endedBy = DebateEndReason.MutualAgreement,
               judgingInfo = None
             )
-          )
+          ) ->
+            DebateTransitionSet(
+              undo = Map(),
+              giveSpeech = newRoundSpeeches(DebateRoundType.OfflineJudgingRound, false)
+            )
         case DebateTurnTypeResult.Mismatch =>
           System.err.println(lastRoundType)
           System.err.println(lastRound)
@@ -328,11 +343,20 @@ object NegotiateEnd
 @Lenses
 @JsonCodec
 case class OfflineJudgment(
-  distribution: Vector[Double], // probability distribution
-  explanation: DebateSpeech
+  judge: String,
+  startTimeMillis: Long,
+  numContinues: Int,
+  result: Option[OfflineJudgingResult]
 ) extends DebateRound {
-  def isComplete(numDebaters: Int) = true
-  def allSpeeches                  = Map(TimedOfflineJudge -> explanation)
+  def isComplete(numDebaters: Int) = result.nonEmpty
+  def allSpeeches = result
+    .map { case OfflineJudgingResult(_, explanation, timestamp) =>
+      Map(
+        (TimedOfflineJudge: Role) ->
+          DebateSpeech(judge, timestamp, Vector(SpeechSegment.Text(explanation)))
+      )
+    }
+    .getOrElse(Map.empty[Role, DebateSpeech])
 }
 object OfflineJudgment
 
@@ -341,6 +365,7 @@ object DebateRound {
   val sequentialSpeeches   = GenPrism[DebateRound, SequentialSpeeches]
   val judgeFeedback        = GenPrism[DebateRound, JudgeFeedback]
   val negotiateEnd         = GenPrism[DebateRound, NegotiateEnd]
+  val offlineJudgment      = GenPrism[DebateRound, OfflineJudgment]
 }
 
 /** Specifies who gets to speak next and what kind of input they should provide.
@@ -359,17 +384,6 @@ sealed trait DebateTurnType {
   def curRoundSpeeches(role: AllowedRole): Input => Round => Round
 }
 object DebateTurnType {
-  def fromDebateTurnType(tt: DebateTurnType) =
-    tt match {
-      case DebateTurnType.DebaterSpeechTurn(debater, charLimit, quoteLimit) =>
-        DebaterSpeechTurn(debater, charLimit, quoteLimit)
-      case DebateTurnType.JudgeFeedbackTurn(reportBeliefs, charLimit, mustEndDebate) =>
-        JudgeFeedbackTurn(reportBeliefs, charLimit, mustEndDebate)
-      case DebateTurnType.NegotiateEndTurn(remainingDebaters) =>
-        NegotiateEndTurn(remainingDebaters)
-      case DebateTurnType.SimultaneousSpeechesTurn(remainingDebaters, charLimit, quoteLimit) =>
-        SimultaneousSpeechesTurn(remainingDebaters, charLimit, quoteLimit)
-    }
 
   case class SimultaneousSpeechesTurn(
     remainingDebaters: Set[Int],
@@ -451,5 +465,20 @@ object DebateTurnType {
     def curRoundSpeeches(role: AllowedRole): Boolean => Round => Round = { case votesForEnd =>
       NegotiateEnd.votes.modify(_ + (role.answerIndex -> votesForEnd))
     }
+  }
+
+  case object OfflineJudgingTurn extends DebateTurnType {
+    type AllowedRole = TimedOfflineJudge.type
+    type Round       = OfflineJudgment
+    type Input       = OfflineJudgment
+    def charLimitOpt = None
+    def currentRoles = Set(TimedOfflineJudge)
+    def quoteLimit   = None
+    def roundPrism   = DebateRound.offlineJudgment
+
+    def newRoundTransition(role: AllowedRole) = identity[OfflineJudgment]
+
+    def curRoundSpeeches(role: AllowedRole): OfflineJudgment => OfflineJudgment => OfflineJudgment =
+      input => _ => input // replace the round with the current input
   }
 }
