@@ -270,6 +270,56 @@ object DebateRoundView {
             }
           }
         }
+      case OfflineJudgments(judgments) =>
+        // TODO: display info about num continues and time taken to judge
+        // TODO: display info about people currently judging? (maybe facilitator only)
+        val speechStyle = TagMod(S.offlineJudgeBg)
+        TagMod(
+          judgments
+            .toVector
+            .sortBy(_._2.result.isEmpty)
+            .flatMap { case (judge, OfflineJudgment(_, _, resultOpt)) =>
+              Vector(
+                // TODO: prevent judge from extracting info via quotes
+                resultOpt.map(result =>
+                  makeSpeechHtml(
+                    Vector(),
+                    TimedOfflineJudge,
+                    DebateSpeech(
+                      judge,
+                      result.timestamp,
+                      Vector(SpeechSegment.Text(result.explanation))
+                    ),
+                    debateStartTime,
+                    role,
+                    speechStyle
+                  )
+                ),
+                resultOpt
+                  .filter(_.distribution.size > 1)
+                  .map(result =>
+                    <.div(
+                      ^.display       := "flex",
+                      ^.flexDirection := "row",
+                      result
+                        .distribution
+                        .zipWithIndex
+                        .toVdomArray { case (prob, index) =>
+                          val pct = f"${prob * 100.0}%.0f%%"
+                          <.div(
+                            ^.key := s"prob-$index",
+                            S.answerBg(index),
+                            ^.width      := pct,
+                            ^.color      := "white",
+                            ^.fontWeight := "bold",
+                            ^.flexGrow   := "1"
+                          )(pct)
+                        }
+                    )
+                  )
+              ).flatten
+            }: _*
+        )
     }
   )
 }

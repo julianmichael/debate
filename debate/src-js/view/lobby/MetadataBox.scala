@@ -191,7 +191,7 @@ object MetadataBox {
                 val avgJudgment =
                   offlineJudgingResults
                     .flatMap(_._2.result)
-                    .map(_.judgment)
+                    .map(_.distribution)
                     .view
                     .transpose
                     .map(v => v.sum / v.size)
@@ -209,7 +209,7 @@ object MetadataBox {
             .flatMap(p => p._2.result.map(p._1 -> _))
             .sortBy(_._2.timestamp)
             .map { case (judge, offlineResult) =>
-              val pctCorrect         = offlineResult.judgment(result.correctAnswerIndex) * 100.0
+              val pctCorrect         = offlineResult.distribution(result.correctAnswerIndex) * 100.0
               val pctCorrectString   = f"$pctCorrect%.0f%%"
               val pctIncorrect       = 100.0 - pctCorrect
               val pctIncorrectString = f"$pctIncorrect%.0f%%"

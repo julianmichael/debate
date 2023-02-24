@@ -10,6 +10,7 @@ import org.scalajs.dom.ext.KeyCode
 import scalacss.ScalaCssReact._
 import jjm.DotPair
 import debate.util.Local
+import debate.OfflineJudgingResult
 
 object SpeechInput {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -51,7 +52,7 @@ object SpeechInput {
 
     val canSubmit = !speechIsTooLong && !quotesAreTooLong && !totalQuoteLimitExceeded
 
-    def speechInputPanel(submit: Boolean => Callback, cmdEnterToSubmit: Boolean) =
+    def speechInputPanel(submit: Callback, cmdEnterToSubmit: Boolean) =
       <.div(S.speechInputPanel)(
         V.LiveTextArea
           .String
@@ -65,7 +66,7 @@ object SpeechInput {
                     if (
                       cmdEnterToSubmit && e.keyCode == KeyCode.Enter && (e.metaKey || e.ctrlKey)
                     ) {
-                      submit(false)
+                      submit
                     } else
                       Callback.empty
                   submitCB
@@ -113,7 +114,7 @@ object SpeechInput {
           currentMessage.setState("")
       )
       <.div(S.col)(
-        speechInputPanel(_ => submit, true),
+        speechInputPanel(submit, true),
         <.button("Submit", ^.disabled := !canSubmit, (^.onClick --> submit).when(canSubmit))
       )
     }
@@ -179,7 +180,7 @@ object SpeechInput {
                     )
                   )
                 },
-                speechInputPanel(submit, false),
+                speechInputPanel(submit(false), false),
                 <.div(S.row)(
                   <.button(S.grow)(
                     "End debate & collect reward",
@@ -233,6 +234,130 @@ object SpeechInput {
         )
       )
 
+    def offlineJudgingInput(
+      turnType: DebateTurnType.OfflineJudgingTurn,
+      giveSpeech: ((String, OfflineJudgment)) => Debate
+    ) = {
+      turnType.existingJudgments.get(userName) match {
+        case None =>
+          // shouldn't ever happen actually?
+          <.div("Waiting for you to start judging.")
+        case Some(OfflineJudgment(_, _, Some(_))) =>
+          // Also shouldn't happen?
+          <.div("You've judged this debate.")
+        case Some(OfflineJudgment(startTimeMillis, numContinues, None)) =>
+
+      val numTurns =
+        debate
+          .value
+          .rounds
+          .collect { case JudgeFeedback(_, _, _) =>
+            1
+          }
+          .sum
+      Local[Vector[Double]].make(Vector.fill(setup.answers.size)(1.0 / setup.answers.size)) {
+        probs =>
+          def submit =
+            if (speechIsTooLong)
+              Callback.empty
+            else
+              CallbackTo(System.currentTimeMillis()).flatMap(time =>
+                debate.setState(
+                  giveSpeech(
+                    userName -> OfflineJudgment(
+                      startTimeMillis = startTimeMillis, 
+                      numContinues = numContinues, 
+                      result = Some(
+                        OfflineJudgingResult(
+                        distribution = probs.value,
+                        explanation = SpeechSegments.getString(currentMessageSpeechSegments),
+                        timestamp = time
+                      )
+                      )
+                  )
+                ))
+              ) >> currentMessage.setState("")
+
+          def continue = debate.setState(
+            giveSpeech(
+            userName -> OfflineJudgment(
+                startTimeMillis = startTimeMillis, 
+                numContinues = numContinues + 1,
+                result = None 
+            )
+          )
+          )
+
+          Local[Boolean].make(false) { consideringContinue =>
+            val answerIndices = setup.answers.indices
+            val currentScores = answerIndices.map(setup.rules.scoringFunction.eval(numContinues, probs.value, _))
+            val hypotheticalScores = answerIndices.map(setup.rules.scoringFunction.eval(numContinues + 1, probs.value, _))
+            val reqdDeltas = ScoringFunction.deltasForNextTurnToBeWorthwhile(
+              setup.rules.scoringFunction, probs.value, numContinues
+            )
+            val scores = if (consideringContinue.value) hypotheticalScores else currentScores
+            val range = math.max(scores.max, 0) - math.min(scores.min, 0)
+
+            <.div(S.row)(
+              <.div(S.grow)(
+                ProbabilitySliders(probs) { case ProbabilitySliders.Context(index, prob, setProb) =>
+                  <.div(S.row)(
+                    <.span(S.answerProbLabel(index))(
+                      f"${prob * 100.0}%.0f%% ${answerLetter(index)}. "
+                    ),
+                    <.input(S.probSlider(index))(
+                      ^.`type` := "range",
+                      ^.min    := 0.01,
+                      ^.max    := 0.99,
+                      ^.step   := 0.01,
+                      ^.value  := prob,
+                      ^.onChange ==> ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
+                    )
+                  )
+                },
+                speechInputPanel(submit, false),
+                <.div(S.row)(
+                  <.button(S.grow)(
+                    "Submit judgment & collect reward",
+                    ^.disabled := speechIsTooLong,
+                    ^.onClick --> submit
+                  ),
+                  <.button(S.grow)(
+                      f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
+                      ^.disabled := speechIsTooLong,
+                      ^.onMouseMove --> consideringContinue.setState(true),
+                      ^.onMouseLeave --> consideringContinue.setState(false),
+                      ^.onClick --> continue
+                    )
+                    .when(numContinues < numTurns)
+                )
+              ),
+
+              <.div(S.row)(
+                scores.zipWithIndex.toVdomArray { case (score, index) =>
+                  val relScore = math.abs(score) / range
+                  val justify = if (score >= scores.max) "flex-start" else "flex-end"
+                  val (scoreTopMarg, scoreBotMarg) = if (score > 0) ("initial", "auto") else ("auto", "initial")
+                  val deltaPerc = reqdDeltas(index).map(d => f"+${d * 100}%.0f%%").getOrElse("")
+                  <.div(S.col, ^.alignItems := "center")(
+                    <.div(^.fontStyle := "italic", if (consideringContinue.value) deltaPerc else "\u00A0"), // unicode non-breaking space (&nbsp;)
+                    <.div(S.grow, S.col, ^.justifyContent := justify)(
+                      <.div(S.col, S.answerBg(index), ^.alignItems := "center",
+                        ^.height := f"${relScore * 100}%.2f%%", ^.margin := "0", ^.minWidth:="6em")(
+                        <.div(S.answerBg(index), ^.textAlign:="center", ^.marginTop := scoreTopMarg,
+                          ^.marginBottom := scoreBotMarg, ^.color := "white", ^.minWidth:="4em", f"$$$score%.2f")
+                      ),
+                    ),
+                    <.div(^.fontWeight:="bold", ^.marginTop := "2em", answerLetter(index))
+                  )
+                }
+              )
+            )
+          }
+      }
+      }
+    }
+
     turn.fst match {
       case turnType @ DebateTurnType.SimultaneousSpeechesTurn(_, _, _) =>
         debaterSpeechInput(turn.get(turnType).get)
@@ -242,6 +367,8 @@ object SpeechInput {
         judgeSpeechInput(turnType, turn.get(turnType).get)
       case turnType @ DebateTurnType.NegotiateEndTurn(_) =>
         negotiateEndInput(turn.get(turnType).get)
+      case turnType @ DebateTurnType.OfflineJudgingTurn(_) =>
+        offlineJudgingInput(turnType, turn.get(turnType).get)
     }
   }
 }

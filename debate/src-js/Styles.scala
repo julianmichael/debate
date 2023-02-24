@@ -292,6 +292,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val pendingBg = style(backgroundColor.coral)
 
+  val offlineJudgeBg  = style(backgroundColor(c"#eee"), color.black)
   val judgeFeedbackBg = style(backgroundColor(judgeColor), color.white)
   val answerBg = styleF.int(0 to 4)(i => styleS(backgroundColor(answerColors(i)), color.white))
 

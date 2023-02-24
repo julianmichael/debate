@@ -63,7 +63,7 @@ sealed trait DebateRoundType {
       case NegotiateEndRound =>
         DebateTurnType.NegotiateEndTurn((0 until numDebaters).toSet)
       case OfflineJudgingRound =>
-        DebateTurnType.OfflineJudgingTurn
+        DebateTurnType.OfflineJudgingTurn(Map())
     }
   }
 

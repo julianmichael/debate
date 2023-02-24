@@ -55,6 +55,7 @@ object DebatePanel {
   def turnDisplay(
     roomName: String,
     assignments: Map[LiveDebateRole, String],
+    userName: String,
     role: Role,
     currentTurns: Map[DebateRole, DebateTurnType],
     sendToMainChannel: MainChannelRequest => Callback
@@ -104,10 +105,18 @@ object DebatePanel {
             case _ =>
               <.span("Debaters are voting on whether to end the debate.")
           }
-        case DebateTurnType.OfflineJudgingTurn =>
+        case DebateTurnType.OfflineJudgingTurn(offlineJudgments) =>
           role match {
             case TimedOfflineJudge =>
-              <.span("YOU are judging this debate offline.")
+              offlineJudgments.get(userName) match {
+                case None =>
+                  <.span("YOU are preparing to judge this debate offline.")
+                case Some(OfflineJudgment(_, _, None)) =>
+                  <.span("YOU are judging this debate offline.")
+                case Some(OfflineJudgment(_, _, Some(_))) =>
+                  // TODO: maybe say something about the result / reward?
+                  <.span("You judged this debate offline.")
+              }
             case _ =>
               <.span(s"The debate is over.")
           }
@@ -364,6 +373,7 @@ object DebatePanel {
                   turnDisplay(
                     roomName,
                     debate.value.setup.roles,
+                    userName,
                     role,
                     currentTransitions.currentTurns,
                     sendToMainChannel

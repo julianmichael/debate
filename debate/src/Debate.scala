@@ -47,6 +47,17 @@ case class Debate(
   def result: Option[DebateResult]            = stateInfo._1
   def currentTransitions: DebateTransitionSet = stateInfo._2
 
+  // XXX
+  // Map(
+  //   (TimedOfflineJudgef: DebateRole) -> ()
+
+  // )
+  // // TODO:
+  // // judge: String,
+  // // startTimeMillis: Long,
+  // // numContinues: Int,
+  // // result: Option[OfflineJudgingResult]
+
   // TODO: go turn-by-turn to make sure we capture when the debate ends.
   // this should really be a fold over the rounds.
   /** Whose turn(s) it is, what they can do, and how to compute the results. */
@@ -141,7 +152,7 @@ case class Debate(
 
             (Debater(voterIndex): DebateRole) -> (Vector() -> newDebate)
           }
-        case OfflineJudgment(_, _, _, _) =>
+        case OfflineJudgments(_) =>
           Map.empty[DebateRole, (Vector[SpeechSegment], Debate)]
       }
       .getOrElse(Map.empty[DebateRole, (Vector[SpeechSegment], Debate)])
@@ -343,29 +354,38 @@ object NegotiateEnd
 @Lenses
 @JsonCodec
 case class OfflineJudgment(
-  judge: String,
   startTimeMillis: Long,
   numContinues: Int,
   result: Option[OfflineJudgingResult]
-) extends DebateRound {
-  def isComplete(numDebaters: Int) = result.nonEmpty
-  def allSpeeches = result
-    .map { case OfflineJudgingResult(_, explanation, timestamp) =>
-      Map(
-        (TimedOfflineJudge: Role) ->
-          DebateSpeech(judge, timestamp, Vector(SpeechSegment.Text(explanation)))
-      )
-    }
-    .getOrElse(Map.empty[Role, DebateSpeech])
-}
+)
 object OfflineJudgment
+
+@Lenses
+@JsonCodec
+case class OfflineJudgments(judgments: Map[String, OfflineJudgment]) extends DebateRound {
+  def isComplete(numDebaters: Int) = judgments.values.forall(_.result.nonEmpty)
+  def allSpeeches =
+    judgments
+      .toVector
+      .view
+      .flatMap { case (judge, judgment) =>
+        judgment
+          .result
+          .map { case OfflineJudgingResult(_, explanation, timestamp) =>
+            (TimedOfflineJudge: Role) ->
+              DebateSpeech(judge, timestamp, Vector(SpeechSegment.Text(explanation)))
+          }
+      }
+      .toMap
+}
+object OfflineJudgments
 
 object DebateRound {
   val simultaneousSpeeches = GenPrism[DebateRound, SimultaneousSpeeches]
   val sequentialSpeeches   = GenPrism[DebateRound, SequentialSpeeches]
   val judgeFeedback        = GenPrism[DebateRound, JudgeFeedback]
   val negotiateEnd         = GenPrism[DebateRound, NegotiateEnd]
-  val offlineJudgment      = GenPrism[DebateRound, OfflineJudgment]
+  val offlineJudgments     = GenPrism[DebateRound, OfflineJudgments]
 }
 
 /** Specifies who gets to speak next and what kind of input they should provide.
@@ -467,18 +487,21 @@ object DebateTurnType {
     }
   }
 
-  case object OfflineJudgingTurn extends DebateTurnType {
+  case class OfflineJudgingTurn(existingJudgments: Map[String, OfflineJudgment])
+      extends DebateTurnType {
     type AllowedRole = TimedOfflineJudge.type
-    type Round       = OfflineJudgment
-    type Input       = OfflineJudgment
+    type Round       = OfflineJudgments
+    type Input       = (String, OfflineJudgment)
     def charLimitOpt = None
     def currentRoles = Set(TimedOfflineJudge)
     def quoteLimit   = None
-    def roundPrism   = DebateRound.offlineJudgment
+    def roundPrism   = DebateRound.offlineJudgments
 
-    def newRoundTransition(role: AllowedRole) = identity[OfflineJudgment]
+    def newRoundTransition(role: AllowedRole) = judgmentPair => OfflineJudgments(Map(judgmentPair))
 
-    def curRoundSpeeches(role: AllowedRole): OfflineJudgment => OfflineJudgment => OfflineJudgment =
-      input => _ => input // replace the round with the current input
+    def curRoundSpeeches(
+      role: AllowedRole
+    ): ((String, OfflineJudgment)) => OfflineJudgments => OfflineJudgments =
+      input => OfflineJudgments.judgments.modify(_ + input)
   }
 }

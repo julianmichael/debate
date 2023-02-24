@@ -64,7 +64,11 @@ package object debate extends PackagePlatformExtensions {
   }
 
   @JsonCodec
-  case class OfflineJudgingResult(judgment: Vector[Double], explanation: String, timestamp: Long)
+  case class OfflineJudgingResult(
+    distribution: Vector[Double],
+    explanation: String,
+    timestamp: Long
+  )
 
   @JsonCodec
   sealed trait DebateStateUpdateRequest
