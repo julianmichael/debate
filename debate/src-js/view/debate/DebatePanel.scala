@@ -23,7 +23,7 @@ import cats.data.NonEmptySet
 import scala.collection.immutable.SortedSet
 import japgolly.scalajs.react.AsyncCallback
 
-import Utils.ClassSetInterpolator
+// import Utils.ClassSetInterpolator
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -221,200 +221,150 @@ object DebatePanel {
         (setup.roles.values.toVector.contains(userName) ||
           debate.value.offlineJudgingResults.contains(userName))
 
-    val canSeeOfflineJudgingResults =
-      role != TimedOfflineJudge ||
-        debate.value.offlineJudgingResults.get(userName).exists(_.result.nonEmpty)
+    val canSeeDebate =
+      !(role == TimedOfflineJudge && debate.value.offlineJudgingResults.get(userName).isEmpty)
 
-    if (role == TimedOfflineJudge && debate.value.offlineJudgingResults.get(userName).isEmpty) {
-      <.div(
-        <.p("This debate has been completed, and you're eligible to judge it offline."),
-        <.button(c"btn btn-block btn-submit")(
-          "Begin Judging",
-          ^.onClick -->
-            debate
-              .zoomStateL(Debate.offlineJudgingResults.composeLens(Optics.at(userName)))
-              .setState(
-                Some(
-                  OfflineJudgingInfo(OfflineJudgingMetadata.Timed(System.currentTimeMillis()), None)
+    Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
+      val uploadedResponse = debate.value.feedback.get(userName)
+      val uploadedAnswers  = uploadedResponse.map(_.answers)
+      val workingAnswers: DotMap[Option, Feedback.Key] = uploadedAnswers
+        .map { answers =>
+          DotMap(
+            answers.iterator.toList.map(pair => DotPair[Option](pair.fst)(Option(pair.snd))): _*
+          )
+        }
+        .getOrElse(Feedback.initAnswers(role))
+      Local[DotMap[Option, Feedback.Key]].make(workingAnswers) { surveyAnswers =>
+        val leftPanelTabs =
+          Vector(
+            Option(
+              "Story" ->
+                TabNav.tab(
+                  StoryPanel(
+                    setup.sourceMaterial.contents,
+                    getHighlights(role, setup.numDebaters, rounds, curMessageSpans.value),
+                    span => curMessageSpans.modState(_ + span)
+                  )
                 )
-              )
-        )
-      )
-    } else
-      Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
-        val uploadedResponse = debate.value.feedback.get(userName)
-        val uploadedAnswers  = uploadedResponse.map(_.answers)
-        val workingAnswers: DotMap[Option, Feedback.Key] = uploadedAnswers
-          .map { answers =>
-            DotMap(
-              answers.iterator.toList.map(pair => DotPair[Option](pair.fst)(Option(pair.snd))): _*
-            )
-          }
-          .getOrElse(Feedback.initAnswers(role))
-        Local[DotMap[Option, Feedback.Key]].make(workingAnswers) { surveyAnswers =>
-          val leftPanelTabs =
-            Vector(
-              Option(
-                "Story" ->
-                  TabNav.tab(
-                    StoryPanel(
-                      setup.sourceMaterial.contents,
-                      getHighlights(role, setup.numDebaters, rounds, curMessageSpans.value),
-                      span => curMessageSpans.modState(_ + span)
-                    )
-                  )
-              ).filter(_ => role.canSeeStory),
-              Option(
-                "Feedback Survey" ->
-                  TabNav.tab(
-                    FeedbackSurvey(
-                      role,
-                      uploadedResponse,
-                      surveyAnswers,
-                      submit =
-                        response =>
-                          debate
-                            .zoomStateL(Debate.feedback.composeLens(Optics.at(userName)))
-                            .setState(Some(response))
-                    )
-                  )
-              ).filter(_ => timeForFeedback)
-            ).flatten
-
-          <.div(S.debatePanel, S.spaceySubcontainer)(
-            if (leftPanelTabs.nonEmpty) {
-              Option(
-                <.div(S.debateSubpanel)(TabNav(s"$roomName-story/feedback")(leftPanelTabs: _*))
-              )
-            } else
-              None,
-            LocalQuotingMessage.make(curMessageSpans, s"debate-message-$roomName") {
-              currentMessage =>
-                val currentMessageSpeechSegments = SpeechSegments
-                  .getFromString(currentMessage.value)
-
-                <.div(S.debateSubpanel)(
-                  <.div(S.speechesSubpanel)(
-                    ^.id := "speeches",
-                    visibleRounds(role, debate.value)
-                      .zipWithIndex
-                      .flatMap { case (round, roundIndex) =>
-                        Option(
-                          DebateRoundView.makeRoundHtml(
-                            source = setup.sourceMaterial.contents,
-                            role = role,
-                            debateStartTime = debate.value.startTime,
-                            numDebaters = setup.answers.size,
-                            round
-                          )(^.key := s"round-$roundIndex")
-                        )
-                      }
-                      .toVdomArray,
-
-                    // currentTurns match {
-                    //   case Left(result) =>
-                    //     currentOfflineJudgingInfo match {
-                    //       case Some(OfflineJudgingInfo(_, None)) =>
-                    //         <.span("YOU are judging this debate offline.")
-                    //       case Some(OfflineJudgingInfo(_, Some(_))) | None =>
-                    //         // TODO put this in the round view instead so it appears before offline judging
-                    //         <.span(
-                    //           s"The debate is over! ",
-                    //           s"The correct answer was ${answerLetter(result.correctAnswerIndex)}. ",
-                    //           result
-                    //             .judgingInfo
-                    //             .map(judgingResult =>
-                    //               <.span(s"The judge has earned a reward of ${judgingResult.judgeReward}.")
-                    //             )
-                    //         )
-                    //     }
-                    //   case Right(turns) =>
-
-                    debate
-                      .value
-                      .offlineJudgingResults
-                      .toVector
-                      .flatMap { case (name, info) =>
-                        info.result.map((name, info.metadata, _))
-                      }
-                      .toVdomArray { case (name, metadata, result) =>
-                        val judgeRole =
-                          metadata match {
-                            case OfflineJudgingMetadata.Timed(_) =>
-                              TimedOfflineJudge
-                            case _ =>
-                              ???
-                          }
-                        DebateRoundView.makeSpeechHtml(
-                          Vector(),
-                          judgeRole,
-                          DebateSpeech(
-                            name,
-                            result.timestamp,
-                            Vector(SpeechSegment.Text(result.explanation))
-                          ),
-                          debate.value.startTime,
-                          role,
-                          TagMod.empty // TODO style for offline judges
-                        )
-                      }
-                      .when(canSeeOfflineJudgingResults),
-                    DebateRoundView
-                      .makeSpeechHtml(
-                        setup.sourceMaterial.contents,
-                        role,
-                        DebateSpeech(userName, -1L, currentMessageSpeechSegments),
-                        debate.value.startTime,
-                        role,
-                        getInProgressSpeechStyle(role)
-                      )
-                      .when(currentMessage.value.size > 0 && isUsersTurn)
-                  ),
-                  turnDisplay(
-                    roomName,
-                    debate.value.setup.roles,
-                    userName,
+            ).filter(_ => role.canSeeStory),
+            Option(
+              "Feedback Survey" ->
+                TabNav.tab(
+                  FeedbackSurvey(
                     role,
-                    currentTransitions.currentTurns,
-                    sendToMainChannel
-                  ),
-                  <.div(S.col)(
-                    <.div(S.col)(
-                      userTurn.whenDefined { case turnDotPair =>
-                        SpeechInput.speechInput(debate, userName, role, turnDotPair, currentMessage)
-                      },
-                      role
-                        .asLiveDebateRoleOpt
-                        .flatMap(currentTransitions.undo.get)
-                        .whenDefined { case (speech, debateAfterUndo) =>
-                          <.button(
-                            "Undo",
-                            ^.onClick -->
-                              (debate.setState(debateAfterUndo) >>
-                                currentMessage.setState(SpeechSegments.getString(speech)))
-                          )
-                        }
-                    )
-                  ),
+                    uploadedResponse,
+                    surveyAnswers,
+                    submit =
+                      response =>
+                        debate
+                          .zoomStateL(Debate.feedback.composeLens(Optics.at(userName)))
+                          .setState(Some(response))
+                  )
+                )
+            ).filter(_ => timeForFeedback)
+          ).flatten
+
+        <.div(S.debatePanel, S.spaceySubcontainer)(
+          if (leftPanelTabs.nonEmpty) {
+            Option(<.div(S.debateSubpanel)(TabNav(s"$roomName-story/feedback")(leftPanelTabs: _*)))
+          } else
+            None,
+          LocalQuotingMessage.make(curMessageSpans, s"debate-message-$roomName") { currentMessage =>
+            val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
+
+            <.div(S.debateSubpanel)(
+              <.div(S.speechesSubpanel)(
+                  ^.id := "speeches",
+                  visibleRounds(role, debate.value)
+                    .zipWithIndex
+                    .flatMap { case (round, roundIndex) =>
+                      Option(
+                        DebateRoundView.makeRoundHtml(
+                          source = setup.sourceMaterial.contents,
+                          userName = userName,
+                          role = role,
+                          debateStartTime = debate.value.startTime,
+                          numDebaters = setup.answers.size,
+                          round
+                        )(^.key := s"round-$roundIndex")
+                      )
+                    }
+                    .toVdomArray,
                   debate
                     .value
-                    .offlineJudgingResults
-                    .get(userName)
-                    .filter(_ =>
-                      role == TimedOfflineJudge
-                    ) // NOTE: seems redundant, should always be true?
-                    .collect { case OfflineJudgingInfo(_, None) =>
-                      <.div(S.col)(
-                        <.div(S.col)(
-                          // TODO
-                          SpeechInput.speechInput(debate, userName, role, ???, currentMessage)
-                        )
+                    .result
+                    .map { result =>
+                      // TODO XXX put this in the round view instead so it appears before offline judging
+                      <.span(
+                        s"The debate is over! ",
+                        s"The correct answer was ${answerLetter(result.correctAnswerIndex)}. ",
+                        result
+                          .judgingInfo
+                          .map(judgingResult =>
+                            <.span(
+                              s"The judge has earned a reward of ${judgingResult.judgeReward}."
+                            )
+                          )
+                      )
+                    },
+                  DebateRoundView
+                    .makeSpeechHtml(
+                      setup.sourceMaterial.contents,
+                      role,
+                      DebateSpeech(userName, -1L, currentMessageSpeechSegments),
+                      debate.value.startTime,
+                      role,
+                      getInProgressSpeechStyle(role)
+                    )
+                    .when(currentMessage.value.size > 0 && isUsersTurn)
+                )
+                .when(canSeeDebate),
+              turnDisplay(
+                roomName,
+                debate.value.setup.roles,
+                userName,
+                role,
+                currentTransitions.currentTurns,
+                sendToMainChannel
+              ),
+              <.div(S.col)(
+                <.div(S.col)(
+                  userTurn.whenDefined { case turnDotPair =>
+                    SpeechInput.speechInput(debate, userName, role, turnDotPair, currentMessage)
+                  },
+                  role
+                    .asLiveDebateRoleOpt
+                    .flatMap(currentTransitions.undo.get)
+                    .whenDefined { case (speech, debateAfterUndo) =>
+                      <.button(
+                        "Undo",
+                        ^.onClick -->
+                          (debate.setState(debateAfterUndo) >>
+                            currentMessage.setState(SpeechSegments.getString(speech)))
                       )
                     }
                 )
-            }
-          )
-        }
+              )
+              // XXX delete
+              // debate
+              //   .value
+              //   .offlineJudgingResults
+              //   .get(userName)
+              //   .filter(_ =>
+              //     role == TimedOfflineJudge
+              //   ) // NOTE: seems redundant, should always be true?
+              //   .collect { case OfflineJudgingInfo(_, None) =>
+              //     <.div(S.col)(
+              //       <.div(S.col)(
+              //         // TODO
+              //         SpeechInput.speechInput(debate, userName, role, ???, currentMessage)
+              //       )
+              //     )
+              //   }
+            )
+          }
+        )
       }
+    }
   }
 }

@@ -46,6 +46,15 @@ case class Debate(
 
   def result: Option[DebateResult]            = stateInfo._1
   def currentTransitions: DebateTransitionSet = stateInfo._2
+  // TODO rename this back to normal
+  def realOfflineJudgingResults = currentTransitions
+    .giveSpeech
+    .get(TimedOfflineJudge)
+    .map(_.fst)
+    .collect { case DebateTurnType.OfflineJudgingTurn(judgments) =>
+      judgments
+    }
+    .getOrElse(Map[String, OfflineJudgment]())
 
   // XXX
   // Map(
@@ -350,15 +359,6 @@ case class NegotiateEnd(votes: Map[Int, Boolean]) extends DebateRound {
   def allSpeeches                  = Map()
 }
 object NegotiateEnd
-
-@Lenses
-@JsonCodec
-case class OfflineJudgment(
-  startTimeMillis: Long,
-  numContinues: Int,
-  result: Option[OfflineJudgingResult]
-)
-object OfflineJudgment
 
 @Lenses
 @JsonCodec

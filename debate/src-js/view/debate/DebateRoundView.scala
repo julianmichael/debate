@@ -133,6 +133,7 @@ object DebateRoundView {
 
   def makeRoundHtml(
     source: Vector[String],
+    userName: String,
     role: Role,
     debateStartTime: Option[Long],
     numDebaters: Int,
@@ -271,6 +272,8 @@ object DebateRoundView {
           }
         }
       case OfflineJudgments(judgments) =>
+        val canSeeOfflineJudgingResults =
+          role != TimedOfflineJudge || judgments.get(userName).exists(_.result.nonEmpty)
         // TODO: display info about num continues and time taken to judge
         // TODO: display info about people currently judging? (maybe facilitator only)
         val speechStyle = TagMod(S.offlineJudgeBg)
@@ -278,6 +281,9 @@ object DebateRoundView {
           judgments
             .toVector
             .sortBy(_._2.result.isEmpty)
+            .filter { case (judge, _) =>
+              judge == userName || canSeeOfflineJudgingResults
+            }
             .flatMap { case (judge, OfflineJudgment(_, _, resultOpt)) =>
               Vector(
                 // TODO: prevent judge from extracting info via quotes

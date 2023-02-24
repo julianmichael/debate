@@ -51,24 +51,25 @@ package object debate extends PackagePlatformExtensions {
   object DebateResult
 
   @JsonCodec
-  case class OfflineJudgingInfo(
-    metadata: OfflineJudgingMetadata,
-    result: Option[OfflineJudgingResult]
-  )
-
-  @JsonCodec
-  sealed trait OfflineJudgingMetadata
-  object OfflineJudgingMetadata {
-    case class Timed(timeStartedMillis: Long)                      extends OfflineJudgingMetadata
-    case class Stepped(timeStartedMillis: Long, numContinues: Int) extends OfflineJudgingMetadata
+  sealed trait OfflineJudgingInfo {
+    def judgment: Vector[Double]
+    def explanation: String
+    def timestamp: Long
   }
-
-  @JsonCodec
-  case class OfflineJudgingResult(
-    distribution: Vector[Double],
-    explanation: String,
-    timestamp: Long
-  )
+  object OfflineJudgingInfo {
+    case class Timed(
+      val judgment: Vector[Double],
+      val explanation: String,
+      val timestamp: Long,
+      timeTakenMillis: Long
+    ) extends OfflineJudgingInfo
+    case class Stepped(
+      val judgment: Vector[Double],
+      val explanation: String,
+      val timestamp: Long,
+      numContinues: Int
+    ) // extends OfflineJudgingInfo
+  }
 
   @JsonCodec
   sealed trait DebateStateUpdateRequest

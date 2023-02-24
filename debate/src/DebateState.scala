@@ -20,7 +20,7 @@ case class DebateState(debate: Debate, participants: Map[String, Role]) {
   def status: RoomStatus = debate
     .result
     .map(result =>
-      RoomStatus.Complete(result, debate.offlineJudgingResults, debate.feedback.keySet)
+      RoomStatus.Complete(result, debate.realOfflineJudgingResults, debate.feedback.keySet)
     )
     .getOrElse(
       if (debate.rounds.isEmpty)
