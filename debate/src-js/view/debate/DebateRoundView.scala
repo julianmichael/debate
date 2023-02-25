@@ -273,7 +273,7 @@ object DebateRoundView {
         }
       case OfflineJudgments(judgments) =>
         val canSeeOfflineJudgingResults =
-          role != TimedOfflineJudge || judgments.get(userName).exists(_.result.nonEmpty)
+          role != OfflineJudge || judgments.get(userName).exists(_.result.nonEmpty)
         // TODO: display info about num continues and time taken to judge
         // TODO: display info about people currently judging? (maybe facilitator only)
         val speechStyle = TagMod(S.offlineJudgeBg)
@@ -290,7 +290,7 @@ object DebateRoundView {
                 resultOpt.map(result =>
                   makeSpeechHtml(
                     Vector(),
-                    TimedOfflineJudge,
+                    OfflineJudge,
                     DebateSpeech(
                       judge,
                       result.timestamp,

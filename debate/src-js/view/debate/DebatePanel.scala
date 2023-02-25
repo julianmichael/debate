@@ -47,7 +47,7 @@ object DebatePanel {
         Rgba(0, 100, 0, 0.4)
       case Facilitator =>
         Rgba(285, 293, 200, 0.5)
-      case Observer | TimedOfflineJudge | Peeper =>
+      case Observer | OfflineJudge | Peeper =>
         Rgba(0, 0, 0, 0.6)
     }
 
@@ -107,7 +107,7 @@ object DebatePanel {
           }
         case DebateTurnType.OfflineJudgingTurn(offlineJudgments) =>
           role match {
-            case TimedOfflineJudge =>
+            case OfflineJudge =>
               offlineJudgments.get(userName) match {
                 case None =>
                   <.span("You are preparing to judge this debate offline.")
@@ -193,7 +193,7 @@ object DebatePanel {
         TagMod(S.judgeOutline)
       case Facilitator =>
         TagMod(S.facilitatorOutline)
-      case Observer | TimedOfflineJudge | Peeper =>
+      case Observer | OfflineJudge | Peeper =>
         TagMod(S.observerOutline)
     }
 
@@ -222,7 +222,7 @@ object DebatePanel {
           debate.value.realOfflineJudgingResults.contains(userName))
 
     val canSeeDebate =
-      !(role == TimedOfflineJudge && debate.value.realOfflineJudgingResults.get(userName).isEmpty)
+      !(role == OfflineJudge && debate.value.realOfflineJudgingResults.get(userName).isEmpty)
 
     Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
       val uploadedResponse = debate.value.feedback.get(userName)

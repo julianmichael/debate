@@ -61,7 +61,7 @@ sealed trait DebateRole extends Role {
         false
     }
 }
-case object TimedOfflineJudge extends DebateRole {
+case object OfflineJudge extends DebateRole {
   override def toString = "Offline Judge (Timed)"
 }
 @JsonCodec
@@ -111,8 +111,8 @@ object Role {
         Some(Observer)
       case "Facilitator" =>
         Some(Facilitator)
-      case "Offline Judge (Timed)" =>
-        Some(TimedOfflineJudge)
+      case "Offline Judge" =>
+        Some(OfflineJudge)
       case "Peeper" =>
         Some(Peeper)
       case x =>

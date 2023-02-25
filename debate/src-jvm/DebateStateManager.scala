@@ -107,7 +107,7 @@ case class DebateStateManager(
               val role =
                 heading match {
                   case RoomHeading.EligibleForOfflineJudging =>
-                    TimedOfflineJudge
+                    OfflineJudge
                   case RoomHeading.MustJudgeBeforeDebating =>
                     Peeper // no peeping! Judge your stuff first!
                   case _ =>
@@ -117,6 +117,13 @@ case class DebateStateManager(
                       .roles
                       .find(_._2 == participantName)
                       .map(_._1)
+                      .orElse(
+                        debateState
+                          .debate
+                          .realOfflineJudgingResults
+                          .get(participantName)
+                          .as(OfflineJudge)
+                      )
                       .getOrElse(Observer)
                 }
               debateState.addParticipant(participantName, role)

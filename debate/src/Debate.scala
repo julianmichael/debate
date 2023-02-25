@@ -49,7 +49,7 @@ case class Debate(
   // TODO rename this back to normal
   def realOfflineJudgingResults = currentTransitions
     .giveSpeech
-    .get(TimedOfflineJudge)
+    .get(OfflineJudge)
     .map(_.fst)
     .collect { case DebateTurnType.OfflineJudgingTurn(judgments) =>
       judgments
@@ -58,7 +58,7 @@ case class Debate(
 
   // XXX
   // Map(
-  //   (TimedOfflineJudgef: DebateRole) -> ()
+  //   (OfflineJudgef: DebateRole) -> ()
 
   // )
   // // TODO:
@@ -613,7 +613,7 @@ case class OfflineJudgments(judgments: Map[String, OfflineJudgment]) extends Deb
         judgment
           .result
           .map { case OfflineJudgingResult(_, explanation, timestamp) =>
-            (TimedOfflineJudge: Role) ->
+            (OfflineJudge: Role) ->
               DebateSpeech(judge, timestamp, Vector(SpeechSegment.Text(explanation)))
           }
       }
@@ -730,11 +730,11 @@ object DebateTurnType {
 
   case class OfflineJudgingTurn(existingJudgments: Map[String, OfflineJudgment])
       extends DebateTurnType {
-    type AllowedRole = TimedOfflineJudge.type
+    type AllowedRole = OfflineJudge.type
     type Round       = OfflineJudgments
     type Input       = (String, OfflineJudgment)
     def charLimitOpt = None
-    def currentRoles = Set(TimedOfflineJudge)
+    def currentRoles = Set(OfflineJudge)
     def quoteLimit   = None
     def roundPrism   = DebateRound.offlineJudgments
 
