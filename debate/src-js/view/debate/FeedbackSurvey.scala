@@ -80,7 +80,7 @@ object FeedbackSurvey {
           <.p(c"card-text")(questionSpan),
           question.questionDetails.whenDefined(details => <.p(c"card-text small")(details)),
           question match {
-            case Question.ComparativeLikert(_, _, _, _, numOptions, minLabel, maxLabel, _) =>
+            case Question.ComparativeLikert(_, _, numOptions, minLabel, maxLabel, _) =>
               val judgment =
                 answerOpt
                   .zoomState[ComparativeJudgment](_.getOrElse(ComparativeJudgment(-1, -1)))(j =>
@@ -128,16 +128,16 @@ object FeedbackSurvey {
                   )
                 )
               )
-            case Question.Likert(_, _, _, _, numOptions, minLabel, maxLabel, _) =>
+            case Question.Likert(_, _, numOptions, minLabel, maxLabel, _) =>
               val judgment = answerOpt.zoomState[Int](_.getOrElse(-1))(j => _ => Some(j))
               likertScale(numOptions, minLabel, maxLabel, judgment, bigger = true)
-            case Question.FreeText(_, _, _, _, _) =>
+            case Question.FreeText(_, _, _) =>
               V.LiveTextArea
                 .String(
                   answerOpt
                     .zoomState[String](_.getOrElse(""))(str => _ => Option(str).filter(_.nonEmpty))
                 )
-            case Question.RoleSelect(_, _, _, _, _) =>
+            case Question.RoleSelect(_, _, _) =>
               <.div(
                 assignedRoles
                   .filter(_ != role)

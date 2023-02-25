@@ -81,30 +81,33 @@ object Feedback {
   }
 
   sealed trait Question[Answer] {
-    def questionText(role: Role): Option[String] =
-      role match {
-        case Debater(_) =>
-          debaterQuestion
-        case Judge =>
-          judgeQuestion
-        case OfflineJudge =>
-          offlineJudgeQuestion
-        case _ =>
-          None
-      }
-    protected[Question] def debaterQuestion: Option[String]
-    protected[Question] def judgeQuestion: Option[String]
-    protected[Question] def offlineJudgeQuestion: Option[String]
+    def questionText(role: Role) = questionTextUnsafe.lift(role)
+    def questionTextUnsafe: PartialFunction[Role, String]
+    // def questionText(role: Role): Option[String] =
+    //   role match {
+    //     case Debater(_) =>
+    //       debaterQuestion
+    //     case Judge =>
+    //       judgeQuestion
+    //     case OfflineJudge =>
+    //       offlineJudgeQuestion
+    //     case _ =>
+    //       None
+    //   }
+    // protected[Question] def debaterQuestion: Option[String]
+    // protected[Question] def judgeQuestion: Option[String]
+    // protected[Question] def offlineJudgeQuestion: Option[String]
     def questionDetails: Option[String]
     def required: Boolean
   }
   object Question {
 
-    @JsonCodec
+    // @JsonCodec
     case class ComparativeLikert(
-      debaterQuestion: Option[String] = None,
-      judgeQuestion: Option[String] = None,
-      offlineJudgeQuestion: Option[String] = None,
+      questionTextUnsafe: PartialFunction[Role, String],
+      // debaterQuestion: Option[String] = None,
+      // judgeQuestion: Option[String] = None,
+      // offlineJudgeQuestion: Option[String] = None,
       questionDetails: Option[String] = None,
       numOptions: Int,
       minDescription: String,
@@ -112,11 +115,12 @@ object Feedback {
       required: Boolean = true
     ) extends Question[ComparativeJudgment]
 
-    @JsonCodec
+    // @JsonCodec
     case class Likert(
-      debaterQuestion: Option[String] = None,
-      judgeQuestion: Option[String] = None,
-      offlineJudgeQuestion: Option[String] = None,
+      questionTextUnsafe: PartialFunction[Role, String],
+      // debaterQuestion: Option[String] = None,
+      // judgeQuestion: Option[String] = None,
+      // offlineJudgeQuestion: Option[String] = None,
       questionDetails: Option[String] = None,
       numOptions: Int,
       minDescription: String,
@@ -124,20 +128,22 @@ object Feedback {
       required: Boolean = true
     ) extends Question[Int]
 
-    @JsonCodec
+    // @JsonCodec
     case class FreeText(
-      debaterQuestion: Option[String] = None,
-      judgeQuestion: Option[String] = None,
-      offlineJudgeQuestion: Option[String] = None,
+      questionTextUnsafe: PartialFunction[Role, String],
+      // debaterQuestion: Option[String] = None,
+      // judgeQuestion: Option[String] = None,
+      // offlineJudgeQuestion: Option[String] = None,
       questionDetails: Option[String] = None,
       required: Boolean = true
     ) extends Question[String]
 
-    @JsonCodec
+    // @JsonCodec
     case class RoleSelect(
-      debaterQuestion: Option[String] = None,
-      judgeQuestion: Option[String] = None,
-      offlineJudgeQuestion: Option[String] = None,
+      questionTextUnsafe: PartialFunction[Role, String],
+      // debaterQuestion: Option[String] = None,
+      // judgeQuestion: Option[String] = None,
+      // offlineJudgeQuestion: Option[String] = None,
       questionDetails: Option[String] = None,
       required: Boolean = true
     ) extends Question[Map[LiveDebateRole, String]]
@@ -146,21 +152,18 @@ object Feedback {
   // TODO: question HTML? for bolding etc.
   val survey: List[DotPair[Question, Key]] = List(
     DotPair[Question][Key](Key.FreeText("reason for outcome"))(
-      Question.FreeText(
-        debaterQuestion = Some("Why do you think you won/lost this debate?"),
-        judgeQuestion = Some(
+      Question.FreeText {
+        case Debater(_) =>
+          "Why do you think you won/lost this debate?"
+        case Judge | OfflineJudge =>
           "How would you explain why you got the right/wrong answer in this debate?"
-        ),
-        offlineJudgeQuestion = Some(
-          "How would you explain why you got the right/wrong answer in this debate?"
-        )
-      )
+      }
     ),
     DotPair[Question][Key](Key.Likert("subjective correctness"))(
       Question.Likert(
-        debaterQuestion = Some(
+        { case Debater(_) =>
           "Knowing the full story, do you think the original answer to the question is actually correct?"
-        ),
+        },
         questionDetails = Some(
           "An answer of 3 means you think it's disputable, favoring each answer equally."
         ),
@@ -171,9 +174,9 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("evidence in story"))(
       Question.ComparativeLikert(
-        debaterQuestion = Some(
+        { case Debater(_) =>
           "How would you rate the quality of the evidence present in the story in favor of each side?"
-        ),
+        },
         numOptions = 5,
         minDescription = "Nothing to latch onto",
         maxDescription = "Clear & convincing"
@@ -181,9 +184,9 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("evidence use"))(
       Question.ComparativeLikert(
-        debaterQuestion = Some(
-          "Given the evidence available to you, how effectively did each of you use it?"
-        ),
+        { case Debater(_) =>
+          "Given the evidence available in the story, how effectively did each of you use it?"
+        },
         numOptions = 5,
         minDescription = "Not at all",
         maxDescription = "Best possible"
@@ -191,8 +194,9 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("evidence in debate"))(
       Question.ComparativeLikert(
-        judgeQuestion = Some("How compelling was each debater's evidence?"),
-        offlineJudgeQuestion = Some("How compelling was each debater's evidence?"),
+        { case Judge | OfflineJudge =>
+          "How compelling was each debater's evidence?"
+        },
         numOptions = 5,
         minDescription = "Poor / irrelevant",
         maxDescription = "Clear & effective"
@@ -200,9 +204,9 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("factual accuracy"))(
       Question.ComparativeLikert(
-        debaterQuestion = Some(
+        { case Debater(_) =>
           "How accurately did each of you represent the facts of the story in your arguments?"
-        ),
+        },
         numOptions = 5,
         minDescription = "Completely inaccurately",
         maxDescription = "Completely accurately"
@@ -210,8 +214,9 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("factual informativeness (comparative)"))(
       Question.ComparativeLikert(
-        judgeQuestion = Some("How much did each debater help you understand the story?"),
-        offlineJudgeQuestion = Some("How much did each debater help you understand the story?"),
+        { case Judge | OfflineJudge =>
+          "How much did each debater help you understand the story?"
+        },
         numOptions = 5,
         minDescription = "Not at all",
         maxDescription = "Highly informative"
@@ -219,12 +224,12 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.Likert("factual informativeness (total)"))(
       Question.Likert(
-        judgeQuestion = Some(
-          "Did you feel like the debate as a whole helped you understand the story better as it progressed?"
-        ),
-        offlineJudgeQuestion = Some(
-          "Did you feel like the debate as a whole helped you understand the story?"
-        ),
+        {
+          case Judge =>
+            "Did you feel like the debate as a whole helped you understand the story better as it progressed?"
+          case OfflineJudge =>
+            "Did you feel like the debate as a whole helped you understand the story?"
+        },
         numOptions = 5,
         minDescription = "Not at all",
         maxDescription = "Highly informative"
@@ -232,15 +237,12 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("facts versus semantics"))(
       Question.ComparativeLikert(
-        debaterQuestion = Some(
-          "How much did each of you focus on matters of fact versus matters of semantics?"
-        ),
-        judgeQuestion = Some(
-          "How much did each debater focus on matters of fact versus matters of semantics?"
-        ),
-        offlineJudgeQuestion = Some(
-          "How much did each debater focus on matters of fact versus matters of semantics?"
-        ),
+        {
+          case Debater(_) =>
+            "How much did each of you focus on matters of fact versus matters of semantics?"
+          case Judge | OfflineJudge =>
+            "How much did each debater focus on matters of fact versus matters of semantics?"
+        },
         numOptions = 5,
         minDescription = "Completely facts",
         maxDescription = "Completely semantics"
@@ -248,11 +250,9 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("clarity"))(
       Question.ComparativeLikert(
-        debaterQuestion = Some("How clear & understandable do you feel the argumentation was?"),
-        judgeQuestion = Some("How clear & understandable do you feel the argumentation was?"),
-        offlineJudgeQuestion = Some(
+        { case _ =>
           "How clear & understandable do you feel the argumentation was?"
-        ),
+        },
         numOptions = 5,
         minDescription = "Completely muddled",
         maxDescription = "Completely clear"
@@ -260,18 +260,28 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("clash"))(
       Question.ComparativeLikert(
-        debaterQuestion = Some("How well did you clash with each other's arguments?"),
-        judgeQuestion = Some("How well did the debaters clash with each other's arguments?"),
-        offlineJudgeQuestion = Some("How well did the debaters clash with each other's arguments?"),
+        {
+          case Debater(_) =>
+            "How well did you clash with each other's arguments?"
+          case Judge | OfflineJudge =>
+            "How well did the debaters clash with each other's arguments?"
+        },
         numOptions = 5,
         minDescription = "No clash",
         maxDescription = "Addressed all arguments"
       )
     ),
     DotPair[Question][Key](Key.ComparativeLikert("judge adaptation"))(
+      // TODO filter out for debates with no judge
       Question.ComparativeLikert(
-        debaterQuestion = Some("How well did each of you respond/adapt to the judge's concerns?"),
-        judgeQuestion = Some("How well did each debater respond/adapt to your concerns?"),
+        {
+          case Debater(_) =>
+            "How well did each of you respond/adapt to the judge's concerns?"
+          case Judge =>
+            "How well did each debater respond/adapt to your concerns?"
+          case OfflineJudge =>
+            "How well did each debater respond/adapt to the judge's concerns?"
+        },
         numOptions = 5,
         minDescription = "Not at all",
         maxDescription = "Addressed all concerns"
@@ -279,15 +289,12 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.ComparativeLikert("judge reasoning"))(
       Question.ComparativeLikert(
-        debaterQuestion = Some(
-          "How sound was the judge's reasoning? Did they make their final judgment for the right reasons, given the debate?"
-        ),
-        judgeQuestion = Some(
-          "In retrospect, given the information you had available, how sound do you think your reasoning was behind your final judgment?"
-        ),
-        offlineJudgeQuestion = Some(
-          "In retrospect, given the information you had available, how sound do you think your reasoning was behind your final judgment?"
-        ),
+        {
+          case Debater(_) =>
+            "How sound was the judge's reasoning? Did they make their final judgment for the right reasons, given the debate?"
+          case Judge | OfflineJudge =>
+            "In retrospect, given the information you had available, how sound do you think your reasoning was behind your final judgment?"
+        },
         numOptions = 5,
         minDescription = "Made critical mistakes",
         maxDescription = "Totally sound"
@@ -295,9 +302,9 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.FreeText("judge strategies"))(
       Question.FreeText(
-        judgeQuestion = Some(
+        { case Judge =>
           "Were there any specific questions or expectations that you communicated to the debaters in order to influence their behavior?"
-        ),
+        },
         questionDetails = Some(
           "For example, indicating that they should respond to a specific argument, back up a particular claim with evidence, and so on. If so, please describe."
         ),
@@ -306,56 +313,44 @@ object Feedback {
     ),
     DotPair[Question][Key](Key.FreeText("other factors"))(
       Question.FreeText(
-        judgeQuestion = Some(
+        { case Judge | OfflineJudge =>
           "Were there any other factors worth mentioning that were important to your decision?"
-        ),
-        offlineJudgeQuestion = Some(
-          "Were there any other factors worth mentioning that were important to your decision?"
-        ),
+        },
         required = false
       )
     ),
     DotPair[Question][Key](Key.FreeText("interface"))(
       Question.FreeText(
-        debaterQuestion = Some(
+        { case _ =>
           "Is there anything about the interface that made your job more difficult?"
-        ),
-        judgeQuestion = Some(
-          "Is there anything about the interface that made your job more difficult?"
-        ),
-        offlineJudgeQuestion = Some(
-          "Is there anything about the interface that made your job more difficult?"
-        ),
+        },
         required = false
       )
     ),
     DotPair[Question][Key](Key.FreeText("protocol"))(
       Question.FreeText(
-        debaterQuestion = Some(
+        { case _ =>
           "Is there anything about the protocol that made your job more difficult?"
-        ),
-        judgeQuestion = Some(
-          "Is there anything about the protocol that made your job more difficult?"
-        ),
-        offlineJudgeQuestion = Some(
-          "Is there anything about the protocol that made your job more difficult?"
-        ),
+        },
         required = false
       )
     ),
     DotPair[Question][Key](Key.RoleSelect("identity guesses"))(
       Question.RoleSelect(
-        debaterQuestion = Some("Do you know or can you guess who else was in this debate?"),
-        judgeQuestion = Some("Do you know or can you guess who else was in this debate?"),
-        offlineJudgeQuestion = Some("Do you know or can you guess who was in this debate?"),
+        {
+          case Debater(_) | Judge =>
+            "Do you know or can you guess who else was in this debate?"
+          case OfflineJudge =>
+            "Do you know or can you guess who was in this debate?"
+        },
         required = false
       )
     ),
     DotPair[Question][Key](Key.FreeText("other"))(
       Question.FreeText(
-        debaterQuestion = Some("Do you have any other feedback/comments to share?"),
-        judgeQuestion = Some("Do you have any other feedback/comments to share?"),
-        offlineJudgeQuestion = Some("Do you have any other feedback/comments to share?"),
+        { case _ =>
+          "Do you have any other feedback/comments to share?"
+        },
         required = false
       )
     )
