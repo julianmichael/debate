@@ -284,7 +284,7 @@ object DebateRoundView {
             .filter { case (judge, _) =>
               judge == userName || canSeeOfflineJudgingResults
             }
-            .flatMap { case (judge, OfflineJudgment(_, _, resultOpt)) =>
+            .flatMap { case (judge, OfflineJudgment(_, _, _, resultOpt)) =>
               Vector(
                 // TODO: prevent judge from extracting info via quotes
                 resultOpt.map(result =>

@@ -110,12 +110,12 @@ object DebatePanel {
             case TimedOfflineJudge =>
               offlineJudgments.get(userName) match {
                 case None =>
-                  <.span("YOU are preparing to judge this debate offline.")
-                case Some(OfflineJudgment(_, _, None)) =>
-                  <.span("YOU are judging this debate offline.")
-                case Some(OfflineJudgment(_, _, Some(_))) =>
+                  <.span("You are preparing to judge this debate offline.")
+                case Some(OfflineJudgment(mode, _, _, None)) =>
+                  <.span(s"You are judging this debate offline ($mode).")
+                case Some(OfflineJudgment(mode, _, _, Some(_))) =>
                   // TODO: maybe say something about the result / reward?
-                  <.span("You judged this debate offline.")
+                  <.span(s"You judged this debate offline ($mode).")
               }
             case _ =>
               <.span(s"The debate is over.")
