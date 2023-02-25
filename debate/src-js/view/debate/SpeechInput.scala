@@ -286,7 +286,7 @@ object SpeechInput {
 
       turnType.existingJudgments.get(userName) match {
         case None =>
-          <.div(S.row)(
+          <.div(S.spaceyContainer)(
             startJudgingButton(OfflineJudgingMode.Timed),
             startJudgingButton(OfflineJudgingMode.Stepped)
           )

@@ -219,10 +219,10 @@ object DebatePanel {
     val timeForFeedback =
       debate.value.isOver &&
         (setup.roles.values.toVector.contains(userName) ||
-          debate.value.offlineJudgingResults.contains(userName))
+          debate.value.realOfflineJudgingResults.contains(userName))
 
     val canSeeDebate =
-      !(role == TimedOfflineJudge && debate.value.offlineJudgingResults.get(userName).isEmpty)
+      !(role == TimedOfflineJudge && debate.value.realOfflineJudgingResults.get(userName).isEmpty)
 
     Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
       val uploadedResponse = debate.value.feedback.get(userName)
@@ -345,22 +345,6 @@ object DebatePanel {
                     }
                 )
               )
-              // XXX delete
-              // debate
-              //   .value
-              //   .offlineJudgingResults
-              //   .get(userName)
-              //   .filter(_ =>
-              //     role == TimedOfflineJudge
-              //   ) // NOTE: seems redundant, should always be true?
-              //   .collect { case OfflineJudgingInfo(_, None) =>
-              //     <.div(S.col)(
-              //       <.div(S.col)(
-              //         // TODO
-              //         SpeechInput.speechInput(debate, userName, role, ???, currentMessage)
-              //       )
-              //     )
-              //   }
             )
           }
         )
