@@ -105,6 +105,110 @@ object SpeechInput {
     //   (^.onClick --> submitNewSpeech).when(canSubmit)
     // ),
 
+    def judgingInputPanel(
+      probs: StateSnapshot[Vector[Double]],
+      numContinues: Int,
+      submit: Callback,
+      continueOpt: Option[Callback]
+    ) =
+      Local[Boolean].make(false) { consideringContinue =>
+        val answerIndices = setup.answers.indices
+        val currentScores = answerIndices
+          .map(setup.rules.scoringFunction.eval(numContinues, probs.value, _))
+        val hypotheticalScores = answerIndices
+          .map(setup.rules.scoringFunction.eval(numContinues + 1, probs.value, _))
+        val reqdDeltas = ScoringFunction
+          .deltasForNextTurnToBeWorthwhile(setup.rules.scoringFunction, probs.value, numContinues)
+        val scores =
+          if (consideringContinue.value)
+            hypotheticalScores
+          else
+            currentScores
+        val range = math.max(scores.max, 0) - math.min(scores.min, 0)
+
+        <.div(S.row)(
+          <.div(S.grow)(
+            ProbabilitySliders(probs) { case ProbabilitySliders.Context(index, prob, setProb) =>
+              <.div(S.row)(
+                <.span(S.answerProbLabel(index))(f"${prob * 100.0}%.0f%% ${answerLetter(index)}. "),
+                <.input(S.probSlider(index))(
+                  ^.`type` := "range",
+                  ^.min    := 0.01,
+                  ^.max    := 0.99,
+                  ^.step   := 0.01,
+                  ^.value  := prob,
+                  ^.onChange ==> ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
+                )
+              )
+            },
+            speechInputPanel(submit, false),
+            <.div(S.row)(
+              <.button(S.grow)(
+                "Submit judgment & collect reward",
+                ^.disabled := speechIsTooLong,
+                ^.onClick --> submit
+              ),
+              continueOpt.map { continue =>
+                <.button(S.grow)(
+                  f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
+                  ^.disabled := speechIsTooLong,
+                  ^.onMouseMove --> consideringContinue.setState(true),
+                  ^.onMouseLeave --> consideringContinue.setState(false),
+                  ^.onClick --> continue
+                )
+              }
+            )
+          ),
+          <.div(S.row)(
+            scores
+              .zipWithIndex
+              .toVdomArray { case (score, index) =>
+                val relScore = math.abs(score) / range
+                val justify =
+                  if (score >= scores.max)
+                    "flex-start"
+                  else
+                    "flex-end"
+                val (scoreTopMarg, scoreBotMarg) =
+                  if (score > 0)
+                    ("initial", "auto")
+                  else
+                    ("auto", "initial")
+                val deltaPerc = reqdDeltas(index).map(d => f"+${d * 100}%.0f%%").getOrElse("")
+                <.div(S.col, ^.alignItems := "center")(
+                  <.div(
+                    ^.fontStyle := "italic",
+                    if (consideringContinue.value)
+                      deltaPerc
+                    else
+                      "\u00A0"
+                  ), // unicode non-breaking space (&nbsp;)
+                  <.div(S.grow, S.col, ^.justifyContent := justify)(
+                    <.div(
+                      S.col,
+                      S.answerBg(index),
+                      ^.alignItems := "center",
+                      ^.height     := f"${relScore * 100}%.2f%%",
+                      ^.margin     := "0",
+                      ^.minWidth   := "6em",
+                      <.div(
+                        S.answerBg(index),
+                        ^.textAlign    := "center",
+                        ^.marginTop    := scoreTopMarg,
+                        ^.marginBottom := scoreBotMarg,
+                        ^.color        := "white",
+                        ^.minWidth     := "4em",
+                        f"$$$score%.2f"
+                      )
+                    )
+                  ),
+                  <.div(^.fontWeight := "bold", ^.marginTop := "2em", answerLetter(index))
+                )
+              }
+          )
+        )
+      }
+
     def debaterSpeechInput(
       // turnType: DebateTurnType { type Input = DebateSpeechContent },
       giveSpeech: DebateSpeech => Debate
@@ -153,105 +257,10 @@ object SpeechInput {
                 )
               ) >> currentMessage.setState("")
 
-          Local[Boolean].make(false) { consideringContinue =>
-            val answerIndices = setup.answers.indices
-            val currentScores = answerIndices
-              .map(setup.rules.scoringFunction.eval(turnNum, probs.value, _))
-            val hypotheticalScores = answerIndices
-              .map(setup.rules.scoringFunction.eval(turnNum + 1, probs.value, _))
-            val reqdDeltas = ScoringFunction
-              .deltasForNextTurnToBeWorthwhile(setup.rules.scoringFunction, probs.value, turnNum)
-            val scores =
-              if (consideringContinue.value)
-                hypotheticalScores
-              else
-                currentScores
-            val range = math.max(scores.max, 0) - math.min(scores.min, 0)
+          val finish      = submit(true)
+          val continueOpt = Option(submit(false)).filter(_ => !turnType.mustEndDebate)
 
-            <.div(S.row)(
-              <.div(S.grow)(
-                ProbabilitySliders(probs) { case ProbabilitySliders.Context(index, prob, setProb) =>
-                  <.div(S.row)(
-                    <.span(S.answerProbLabel(index))(
-                      f"${prob * 100.0}%.0f%% ${answerLetter(index)}. "
-                    ),
-                    <.input(S.probSlider(index))(
-                      ^.`type` := "range",
-                      ^.min    := 0.01,
-                      ^.max    := 0.99,
-                      ^.step   := 0.01,
-                      ^.value  := prob,
-                      ^.onChange ==> ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
-                    )
-                  )
-                },
-                speechInputPanel(submit(false), false),
-                <.div(S.row)(
-                  <.button(S.grow)(
-                    "End debate & collect reward",
-                    ^.disabled := speechIsTooLong,
-                    ^.onClick --> submit(endDebate = true)
-                  ),
-                  <.button(S.grow)(
-                      f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
-                      ^.disabled := speechIsTooLong,
-                      ^.onMouseMove --> consideringContinue.setState(true),
-                      ^.onMouseLeave --> consideringContinue.setState(false),
-                      ^.onClick --> submit(endDebate = false)
-                    )
-                    .when(!turnType.mustEndDebate)
-                )
-              ),
-              <.div(S.row)(
-                scores
-                  .zipWithIndex
-                  .toVdomArray { case (score, index) =>
-                    val relScore = math.abs(score) / range
-                    val justify =
-                      if (score >= scores.max)
-                        "flex-start"
-                      else
-                        "flex-end"
-                    val (scoreTopMarg, scoreBotMarg) =
-                      if (score > 0)
-                        ("initial", "auto")
-                      else
-                        ("auto", "initial")
-                    val deltaPerc = reqdDeltas(index).map(d => f"+${d * 100}%.0f%%").getOrElse("")
-                    <.div(S.col, ^.alignItems := "center")(
-                      // TODO add back in
-                      <.div(
-                        ^.fontStyle := "italic",
-                        if (consideringContinue.value)
-                          deltaPerc
-                        else
-                          "\u00A0"
-                      ), // unicode non-breaking space (&nbsp;)
-                      <.div(S.grow, S.col, ^.justifyContent := justify)(
-                        <.div(
-                          S.col,
-                          S.answerBg(index),
-                          ^.alignItems := "center",
-                          ^.height     := f"${relScore * 100}%.2f%%",
-                          ^.margin     := "0",
-                          ^.minWidth   := "6em",
-                          <.div(
-                            S.answerBg(index),
-                            ^.textAlign    := "center",
-                            ^.marginTop    := scoreTopMarg,
-                            ^.marginBottom := scoreBotMarg,
-                            ^.color        := "white",
-                            ^.minWidth     := "4em",
-                            f"$$$score%.2f"
-                          )
-                        )
-                      ),
-                      <.div(^.fontWeight := "bold", ^.marginTop := "2em", answerLetter(index))
-                    )
-                  }
-              )
-            )
-          }
+          judgingInputPanel(probs, turnNum, finish, continueOpt)
       }
     }
 
@@ -290,15 +299,8 @@ object SpeechInput {
             startJudgingButton(OfflineJudgingMode.Timed),
             startJudgingButton(OfflineJudgingMode.Stepped)
           )
-        case Some(OfflineJudgment(mode, _, _, Some(_))) =>
-          // NOTE: this should never happen, since we shouldn't show the offline judging SpeechInput
-          // to someone who has already finished judging.
-          <.div(
-            s"You've judged this debate offline ($mode).",
-            <.div(c"text-danger")(
-              "If this text is showing, something is wrong. Please notify the developer."
-            )
-          )
+        case Some(OfflineJudgment(_, _, _, Some(_))) =>
+          EmptyVdom
         case Some(OfflineJudgment(mode, startTimeMillis, numContinues, None)) =>
           val numTurns =
             debate
@@ -308,6 +310,7 @@ object SpeechInput {
                 1
               }
               .sum
+
           Local[Vector[Double]].make(Vector.fill(setup.answers.size)(1.0 / setup.answers.size)) {
             probs =>
               def submit =
@@ -347,111 +350,9 @@ object SpeechInput {
                 )
               )
 
-              Local[Boolean].make(false) { consideringContinue =>
-                val answerIndices = setup.answers.indices
-                val currentScores = answerIndices
-                  .map(setup.rules.scoringFunction.eval(numContinues, probs.value, _))
-                val hypotheticalScores = answerIndices
-                  .map(setup.rules.scoringFunction.eval(numContinues + 1, probs.value, _))
-                val reqdDeltas = ScoringFunction.deltasForNextTurnToBeWorthwhile(
-                  setup.rules.scoringFunction,
-                  probs.value,
-                  numContinues
-                )
-                val scores =
-                  if (consideringContinue.value)
-                    hypotheticalScores
-                  else
-                    currentScores
-                val range = math.max(scores.max, 0) - math.min(scores.min, 0)
+              val continueOpt = Option(continue).filter(_ => numContinues < numTurns)
 
-                <.div(S.row)(
-                  <.div(S.grow)(
-                    ProbabilitySliders(probs) {
-                      case ProbabilitySliders.Context(index, prob, setProb) =>
-                        <.div(S.row)(
-                          <.span(S.answerProbLabel(index))(
-                            f"${prob * 100.0}%.0f%% ${answerLetter(index)}. "
-                          ),
-                          <.input(S.probSlider(index))(
-                            ^.`type` := "range",
-                            ^.min    := 0.01,
-                            ^.max    := 0.99,
-                            ^.step   := 0.01,
-                            ^.value  := prob,
-                            ^.onChange ==>
-                              ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
-                          )
-                        )
-                    },
-                    speechInputPanel(submit, false),
-                    <.div(S.row)(
-                      <.button(S.grow)(
-                        "Submit judgment & collect reward",
-                        ^.disabled := speechIsTooLong,
-                        ^.onClick --> submit
-                      ),
-                      <.button(S.grow)(
-                          f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
-                          ^.disabled := speechIsTooLong,
-                          ^.onMouseMove --> consideringContinue.setState(true),
-                          ^.onMouseLeave --> consideringContinue.setState(false),
-                          ^.onClick --> continue
-                        )
-                        .when(numContinues < numTurns)
-                    )
-                  ),
-                  <.div(S.row)(
-                    scores
-                      .zipWithIndex
-                      .toVdomArray { case (score, index) =>
-                        val relScore = math.abs(score) / range
-                        val justify =
-                          if (score >= scores.max)
-                            "flex-start"
-                          else
-                            "flex-end"
-                        val (scoreTopMarg, scoreBotMarg) =
-                          if (score > 0)
-                            ("initial", "auto")
-                          else
-                            ("auto", "initial")
-                        val deltaPerc = reqdDeltas(index)
-                          .map(d => f"+${d * 100}%.0f%%")
-                          .getOrElse("")
-                        <.div(S.col, ^.alignItems := "center")(
-                          <.div(
-                            ^.fontStyle := "italic",
-                            if (consideringContinue.value)
-                              deltaPerc
-                            else
-                              "\u00A0"
-                          ), // unicode non-breaking space (&nbsp;)
-                          <.div(S.grow, S.col, ^.justifyContent := justify)(
-                            <.div(
-                              S.col,
-                              S.answerBg(index),
-                              ^.alignItems := "center",
-                              ^.height     := f"${relScore * 100}%.2f%%",
-                              ^.margin     := "0",
-                              ^.minWidth   := "6em",
-                              <.div(
-                                S.answerBg(index),
-                                ^.textAlign    := "center",
-                                ^.marginTop    := scoreTopMarg,
-                                ^.marginBottom := scoreBotMarg,
-                                ^.color        := "white",
-                                ^.minWidth     := "4em",
-                                f"$$$score%.2f"
-                              )
-                            )
-                          ),
-                          <.div(^.fontWeight := "bold", ^.marginTop := "2em", answerLetter(index))
-                        )
-                      }
-                  )
-                )
-              }
+              judgingInputPanel(probs, numContinues, submit, continueOpt)
           }
       }
     }

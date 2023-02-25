@@ -137,6 +137,8 @@ object DebateRoundView {
     role: Role,
     debateStartTime: Option[Long],
     numDebaters: Int,
+    numPreviousContinues: Int,
+    getRewardForJudgment: (Int, Vector[Double]) => Option[Double],
     round: DebateRound
   ) = <.div(
     round
@@ -217,7 +219,18 @@ object DebateRoundView {
                   )(pct)
                 }
             )
-          ).filter(_ => probabilities.size > 1)
+          ).filter(_ => probabilities.size > 1),
+          Option {
+            val continueOrEnd =
+              if (endsDebate)
+                "end"
+              else
+                "continue"
+            <.div(s"The judge decided to ", <.strong(continueOrEnd), " the debate.")
+          },
+          getRewardForJudgment(numPreviousContinues, probabilities).map { reward =>
+            <.div(f"Reward: $reward%.3f")
+          }
         ).flatten
           .zipWithIndex
           .toVdomArray { case (speechBox, index) =>
@@ -265,7 +278,7 @@ object DebateRoundView {
             }
           } else {
             if (votes.values.forall(identity)) {
-              <.div("All debaters have mutually agreed to end the debate.")
+              <.div("All debaters have mutually agreed to ", <.strong("end"), " the debate.")
             } else {
               <.div("Debaters did not agree to end the debate.")
             }
@@ -284,7 +297,7 @@ object DebateRoundView {
             .filter { case (judge, _) =>
               judge == userName || canSeeOfflineJudgingResults
             }
-            .flatMap { case (judge, OfflineJudgment(_, _, _, resultOpt)) =>
+            .flatMap { case (judge, OfflineJudgment(_, _, numContinues, resultOpt)) =>
               Vector(
                 // TODO: prevent judge from extracting info via quotes
                 resultOpt.map(result =>
@@ -322,7 +335,13 @@ object DebateRoundView {
                           )(pct)
                         }
                     )
-                  )
+                  ),
+                resultOpt
+                  .map(_.distribution)
+                  .flatMap(getRewardForJudgment(numContinues, _))
+                  .map { reward =>
+                    <.div(f"Reward: $reward%.3f")
+                  }
               ).flatten
             }: _*
         )

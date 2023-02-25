@@ -115,7 +115,7 @@ object DebatePanel {
                   <.span(s"You are judging this debate offline ($mode).")
                 case Some(OfflineJudgment(mode, _, _, Some(_))) =>
                   // TODO: maybe say something about the result / reward?
-                  <.span(s"You judged this debate offline ($mode).")
+                  <.span(f"The debate is over. You judged it offline ($mode).")
               }
             case _ =>
               <.span(s"The debate is over.")
@@ -156,7 +156,19 @@ object DebatePanel {
 
   def visibleRounds(role: Role, debate: Debate) = debate
     .rounds
-    .filter { round =>
+    .zip(
+      debate
+        .rounds
+        .scanLeft(0) { case (n, round) =>
+          round match {
+            case JudgeFeedback(_, _, false) =>
+              n + 1
+            case _ =>
+              n
+          }
+        }
+    )
+    .filter { case (round, _) =>
       role.canSeeIntermediateArguments || round.isComplete(debate.setup.numDebaters)
     }
 
@@ -219,10 +231,23 @@ object DebatePanel {
     val timeForFeedback =
       debate.value.isOver &&
         (setup.roles.values.toVector.contains(userName) ||
-          debate.value.realOfflineJudgingResults.contains(userName))
+          debate.value.realOfflineJudgingResults.get(userName).exists(_.result.nonEmpty))
 
     val canSeeDebate =
       !(role == OfflineJudge && debate.value.realOfflineJudgingResults.get(userName).isEmpty)
+
+    val nonDebateRoles = Set(Observer, Facilitator)
+    val canSeeResult   = debate.value.isOver && (timeForFeedback || nonDebateRoles.contains(role))
+    val getRewardForJudgment =
+      (turnNum: Int, judgment: Vector[Double]) =>
+        Option(
+          debate
+            .value
+            .setup
+            .rules
+            .scoringFunction
+            .eval(turnNum, judgment, debate.value.setup.correctAnswerIndex)
+        ).filter(_ => canSeeResult)
 
     Local[Set[ESpan]].make(Set.empty[ESpan]) { curMessageSpans =>
       val uploadedResponse = debate.value.feedback.get(userName)
@@ -277,7 +302,7 @@ object DebatePanel {
                   ^.id := "speeches",
                   visibleRounds(role, debate.value)
                     .zipWithIndex
-                    .flatMap { case (round, roundIndex) =>
+                    .flatMap { case ((round, numPreviousContinues), roundIndex) =>
                       Option(
                         DebateRoundView.makeRoundHtml(
                           source = setup.sourceMaterial.contents,
@@ -285,28 +310,13 @@ object DebatePanel {
                           role = role,
                           debateStartTime = debate.value.startTime,
                           numDebaters = setup.answers.size,
+                          numPreviousContinues = numPreviousContinues,
+                          getRewardForJudgment = getRewardForJudgment,
                           round
                         )(^.key := s"round-$roundIndex")
                       )
                     }
                     .toVdomArray,
-                  debate
-                    .value
-                    .result
-                    .map { result =>
-                      // TODO XXX put this in the round view instead so it appears before offline judging
-                      <.span(
-                        s"The debate is over! ",
-                        s"The correct answer was ${answerLetter(result.correctAnswerIndex)}. ",
-                        result
-                          .judgingInfo
-                          .map(judgingResult =>
-                            <.span(
-                              s"The judge has earned a reward of ${judgingResult.judgeReward}."
-                            )
-                          )
-                      )
-                    },
                   DebateRoundView
                     .makeSpeechHtml(
                       setup.sourceMaterial.contents,
@@ -319,6 +329,10 @@ object DebatePanel {
                     .when(currentMessage.value.size > 0 && isUsersTurn)
                 )
                 .when(canSeeDebate),
+              <.span(
+                  s"The correct answer was ${answerLetter(debate.value.setup.correctAnswerIndex)}. "
+                )
+                .when(canSeeResult),
               turnDisplay(
                 roomName,
                 debate.value.setup.roles,
