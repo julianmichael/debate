@@ -371,6 +371,7 @@ object DebatePage {
                     debateState = debateState
                   ),
                   DebatePanel(
+                    profiles,
                     roomName,
                     userName,
                     role,

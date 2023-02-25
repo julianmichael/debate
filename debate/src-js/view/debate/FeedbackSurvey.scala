@@ -18,6 +18,8 @@ import scalacss.ScalaCssReact._
 import japgolly.scalajs.react.Callback
 import cats.data.Validated
 
+import monocle.function.{all => Optics}
+
 object FeedbackSurvey {
 
   val S = Styles
@@ -54,7 +56,11 @@ object FeedbackSurvey {
     )
   }
 
+  val DebaterGuessSelect = V.OptionalSelect[String](x => x, "(no guess)")
+
   def renderQuestion[Answer](
+    profiles: Set[String],
+    assignedRoles: Set[LiveDebateRole],
     role: Role,
     answerOpt: StateSnapshot[Option[Answer]],
     question: Question[Answer]
@@ -74,7 +80,7 @@ object FeedbackSurvey {
           <.p(c"card-text")(questionSpan),
           question.questionDetails.whenDefined(details => <.p(c"card-text small")(details)),
           question match {
-            case Question.ComparativeLikert(_, _, _, numOptions, minLabel, maxLabel, _) =>
+            case Question.ComparativeLikert(_, _, _, _, numOptions, minLabel, maxLabel, _) =>
               val judgment =
                 answerOpt
                   .zoomState[ComparativeJudgment](_.getOrElse(ComparativeJudgment(-1, -1)))(j =>
@@ -86,7 +92,7 @@ object FeedbackSurvey {
                     role match {
                       case Debater(_) =>
                         "You: "
-                      case Judge =>
+                      case Judge | OfflineJudge =>
                         "Debater A: "
                       case _ =>
                         "Error" // TODO
@@ -106,7 +112,7 @@ object FeedbackSurvey {
                     role match {
                       case Debater(_) =>
                         "Opponent: "
-                      case Judge =>
+                      case Judge | OfflineJudge =>
                         "Debater B: "
                       case _ =>
                         "Error" // TODO
@@ -122,15 +128,38 @@ object FeedbackSurvey {
                   )
                 )
               )
-            case Question.Likert(_, _, _, numOptions, minLabel, maxLabel, _) =>
+            case Question.Likert(_, _, _, _, numOptions, minLabel, maxLabel, _) =>
               val judgment = answerOpt.zoomState[Int](_.getOrElse(-1))(j => _ => Some(j))
               likertScale(numOptions, minLabel, maxLabel, judgment, bigger = true)
-            case Question.FreeText(_, _, _, _) =>
+            case Question.FreeText(_, _, _, _, _) =>
               V.LiveTextArea
                 .String(
                   answerOpt
                     .zoomState[String](_.getOrElse(""))(str => _ => Option(str).filter(_.nonEmpty))
                 )
+            case Question.RoleSelect(_, _, _, _, _) =>
+              <.div(
+                assignedRoles
+                  .filter(_ != role)
+                  .toVdomArray(role =>
+                    <.div(^.key := role.toString)(
+                      <.div(S.comparativeLikertRow, c"mb-2")(
+                        <.div(S.comparativeLikertLabel)(role.toString),
+                        <.div(S.grow)(
+                          DebaterGuessSelect.apply(
+                            profiles,
+                            answerOpt
+                              .zoomState[Map[LiveDebateRole, String]](_.getOrElse(Map()))(m =>
+                                _ => Option(m).filter(_.nonEmpty)
+                              )
+                              .zoomStateL(Optics.at(role))
+                          )
+                        )
+                      )
+                    )
+                  )
+              )
+
           }
         )
       )
@@ -138,6 +167,8 @@ object FeedbackSurvey {
   }
 
   def apply(
+    profiles: Set[String],
+    assignedRoles: Set[LiveDebateRole],
     role: Role,
     uploadedResponseOpt: Option[SurveyResponse],
     surveyAnswers: StateSnapshot[DotMap[Option, Key]],
@@ -161,6 +192,8 @@ object FeedbackSurvey {
                 pair.snd.filter(_.asInstanceOf[Int] > -1).map(DotPair[Id](pair.fst)(_))
               case Key.FreeText(_) =>
                 pair.snd.map(DotPair[Id](pair.fst)(_))
+              case Key.RoleSelect(_) =>
+                pair.snd.map(DotPair[Id](pair.fst)(_))
             }
 
           if (answerOpt.nonEmpty)
@@ -181,6 +214,8 @@ object FeedbackSurvey {
             answersVal.map(SurveyResponse.Debater(_)).toEither.leftMap(Right(_))
           case Judge =>
             answersVal.map(SurveyResponse.Judge(_)).toEither.leftMap(Right(_))
+          case OfflineJudge =>
+            answersVal.map(SurveyResponse.OfflineJudge(_)).toEither.leftMap(Right(_))
           case _ =>
             Left(Left("Must be a debater or a judge to submit feedback"))
         }
@@ -201,6 +236,8 @@ object FeedbackSurvey {
                 .map { answerOpt =>
                   <.div(^.key := key.key)(
                     renderQuestion[key.Out](
+                      profiles,
+                      assignedRoles,
                       role,
                       answerOpt,
                       question.asInstanceOf[Question[key.Answer]]

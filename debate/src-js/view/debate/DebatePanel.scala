@@ -211,6 +211,7 @@ object DebatePanel {
 
   /** Show the debate. */
   def apply(
+    profiles: Set[String],
     roomName: String,
     userName: String,
     role: Role,
@@ -276,6 +277,8 @@ object DebatePanel {
               "Feedback Survey" ->
                 TabNav.tab(
                   FeedbackSurvey(
+                    profiles,
+                    debate.value.setup.roles.keySet,
                     role,
                     uploadedResponse,
                     surveyAnswers,
