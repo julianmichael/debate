@@ -41,7 +41,7 @@ case class DebateSetup(
   answers: Vector[String],
   correctAnswerIndex: Int,
   roles: Map[LiveDebateRole, String],
-  offlineJudges: Map[String, Unit], // TODO offline judging role type
+  offlineJudges: Map[String, Option[OfflineJudgingMode]],
   creationTime: Long
 ) {
   def numDebaters = answers.size

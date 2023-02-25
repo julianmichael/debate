@@ -271,43 +271,34 @@ object SpeechInput {
       turnType: DebateTurnType.OfflineJudgingTurn,
       giveSpeech: ((String, OfflineJudgment)) => Debate
     ) = {
+      def startJudgingButton(mode: OfflineJudgingMode) = <
+        .button(c"btn btn-block btn-primary")(
+          s"Judge ($mode)",
+          ^.onClick -->
+            debate.setState(
+              giveSpeech(
+                userName ->
+                  OfflineJudgment(mode, System.currentTimeMillis(), debate.value.numContinues, None)
+              )
+            )
+        )
+        .when(debate.value.setup.offlineJudges.get(userName).flatten.forall(_ == mode))
+
       turnType.existingJudgments.get(userName) match {
         case None =>
           <.div(S.row)(
-            <.button(c"btn btn-block btn-primary")(
-              "Judge (timed)",
-              ^.onClick -->
-                debate.setState(
-                  giveSpeech(
-                    userName ->
-                      OfflineJudgment(
-                        OfflineJudgingMode.Timed,
-                        System.currentTimeMillis(),
-                        debate.value.numContinues,
-                        None
-                      )
-                  )
-                )
-            ),
-            <.button(c"btn btn-block btn-primary")(
-              "Judge (stepped)",
-              ^.onClick -->
-                debate.setState(
-                  giveSpeech(
-                    userName ->
-                      OfflineJudgment(
-                        OfflineJudgingMode.Stepped,
-                        System.currentTimeMillis(),
-                        debate.value.numContinues,
-                        None
-                      )
-                  )
-                )
-            )
+            startJudgingButton(OfflineJudgingMode.Timed),
+            startJudgingButton(OfflineJudgingMode.Stepped)
           )
         case Some(OfflineJudgment(mode, _, _, Some(_))) =>
-          // shouldn't happen?
-          <.div(s"You've judged this debate offline ($mode).")
+          // NOTE: this should never happen, since we shouldn't show the offline judging SpeechInput
+          // to someone who has already finished judging.
+          <.div(
+            s"You've judged this debate offline ($mode).",
+            <.div(c"text-danger")(
+              "If this text is showing, something is wrong. Please notify the developer."
+            )
+          )
         case Some(OfflineJudgment(mode, startTimeMillis, numContinues, None)) =>
           val numTurns =
             debate
