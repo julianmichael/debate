@@ -35,7 +35,6 @@ object LobbyPage {
     userName: String
   ) =
     Mounting.make(Callback(dom.window.document.title = Utils.makePageTitle("Lobby"))) {
-      println(lobby.presentDebaters)
       <.div(S.lobbyContainer, S.spaceyContainer)(
         headerRow(userName, logout),
         // App.profileSelector(lobby.trackedDebaters, isAdmin = isAdmin, profile = profile),
