@@ -53,12 +53,13 @@ object DebateRoundView {
     role: Role,
     speech: DebateSpeech,
     startTimeOpt: Option[Long],
-    userRole: Role
+    userRole: Role,
+    userName: String
   ) =
     <.div(S.speechHeader)(
       // for now just don't bother showing names in practice debates...whatever.
       // can fix later if desired.
-      DebatePage.renderDebateParticipant(true, userRole, role, speech.speaker),
+      DebatePage.renderDebateParticipant(true, userRole, userName, role, speech.speaker),
       " ",
       startTimeOpt.whenDefined(startTime =>
         timestampHTML(startTime, speech.timestamp).when(
@@ -81,7 +82,8 @@ object DebateRoundView {
     source: Vector[String],
     speeches: Map[Int, DebateSpeech],
     startTimeOpt: Option[Long],
-    userRole: Role
+    userRole: Role,
+    userName: String
   ) =
     <.div(S.speechRow)(
       speeches
@@ -90,7 +92,7 @@ object DebateRoundView {
         .toVdomArray { case (debaterIndex, speech) =>
           <.div(S.speechBox, S.answerBg(debaterIndex))(
             ^.key := s"speech-$debaterIndex",
-            speechHeaderHTML(Debater(debaterIndex), speech, startTimeOpt, userRole),
+            speechHeaderHTML(Debater(debaterIndex), speech, startTimeOpt, userRole, userName),
             speech
               .content
               .map {
@@ -113,10 +115,11 @@ object DebateRoundView {
     speech: DebateSpeech,
     startTimeOpt: Option[Long],
     userRole: Role,
+    userName: String,
     style: TagMod
   ) =
     <.div(S.speechBox, style)(
-      speechHeaderHTML(role, speech, startTimeOpt, userRole),
+      speechHeaderHTML(role, speech, startTimeOpt, userRole, userName),
       speech
         .content
         .map {
@@ -162,14 +165,22 @@ object DebateRoundView {
                 S.pendingBg,
                 S.debateWidthOffset(index)
               )
-              makeSpeechHtml(source, Debater(index), speech, debateStartTime, role, speechStyle)
+              makeSpeechHtml(
+                source,
+                Debater(index),
+                speech,
+                debateStartTime,
+                role,
+                userName,
+                speechStyle
+              )
             }
             .zipWithIndex
             .toVdomArray { case (el, i) =>
               el(^.key := s"text-$i")
             }
         } else {
-          Vector(makeSimultaneousSpeechesHtml(source, speeches, debateStartTime, role))
+          Vector(makeSimultaneousSpeechesHtml(source, speeches, debateStartTime, role, userName))
             .zipWithIndex
             .toVdomArray { case (el, i) =>
               el(^.key := s"text-$i")
@@ -193,6 +204,7 @@ object DebateRoundView {
               speech,
               debateStartTime,
               role,
+              userName,
               speechStyle
             )(^.key := s"speech-$debaterIndex")
           }
@@ -200,7 +212,9 @@ object DebateRoundView {
         val speechStyle = TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
         Vector(
           // TODO: prevent judge from extracting info via quotes
-          Option(makeSpeechHtml(source, Judge, speech, debateStartTime, role, speechStyle)),
+          Option(
+            makeSpeechHtml(source, Judge, speech, debateStartTime, role, userName, speechStyle)
+          ),
           Option(
             <.div(
               ^.display       := "flex",
@@ -311,6 +325,7 @@ object DebateRoundView {
                     ),
                     debateStartTime,
                     role,
+                    userName,
                     speechStyle
                   )
                 ),

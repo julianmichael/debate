@@ -174,10 +174,11 @@ object DebatePage {
   def renderDebateParticipant(
     isOfficial: Boolean,
     userRole: Role,
+    userName: String,
     participantRole: Role,
     participantName: String
   ): String =
-    if (!isOfficial || userRole.canSeeDebaterNames || userRole == participantRole) {
+    if (!isOfficial || userRole.canSeeDebaterNames || userName == participantName) {
       s"$participantRole ($participantName)"
     } else
       participantRole.toString
@@ -187,6 +188,7 @@ object DebatePage {
     debateState: StateSnapshot[DebateState],
     profiles: Set[String],
     userRole: Role,
+    userName: String,
     role: LiveDebateRole
   ) =
     debateState.value.debate.setup.roles.get(role) match {
@@ -211,7 +213,7 @@ object DebatePage {
                 )
             )
           case _ =>
-            val nameDisplay = renderDebateParticipant(isOfficial, userRole, role, name)
+            val nameDisplay = renderDebateParticipant(isOfficial, userRole, userName, role, name)
             if (userRole == role) {
               <.span(S.presentParticipant)(nameDisplay)
             } else if (debateState.value.participants.get(name).isEmpty) {
@@ -278,7 +280,9 @@ object DebatePage {
             debateState.value.debate.setup.question
           ),
           " ",
-          <.div(S.judgesList)(showRoleNames(isOfficial, debateState, profiles, role, Judge)),
+          <.div(S.judgesList)(
+            showRoleNames(isOfficial, debateState, profiles, role, userName, Judge)
+          ),
           ^.onClick --> tryAssumingRole(Judge)
         ),
         debateState
@@ -311,7 +315,14 @@ object DebatePage {
               <.div(S.grow)(<.span(S.answerTitle)(s"${answerLetter(answerIndex)}. "), answer),
               " ",
               <.div(S.debatersList)(
-                showRoleNames(isOfficial, debateState, profiles, role, Debater(answerIndex))
+                showRoleNames(
+                  isOfficial,
+                  debateState,
+                  profiles,
+                  role,
+                  userName,
+                  Debater(answerIndex)
+                )
               ),
               ^.onClick --> tryAssumingRole(Debater(answerIndex))
             )

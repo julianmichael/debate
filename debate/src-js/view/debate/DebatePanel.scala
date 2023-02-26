@@ -327,6 +327,7 @@ object DebatePanel {
                       DebateSpeech(userName, -1L, currentMessageSpeechSegments),
                       debate.value.startTime,
                       role,
+                      userName,
                       getInProgressSpeechStyle(role)
                     )
                     .when(currentMessage.value.size > 0 && isUsersTurn)
