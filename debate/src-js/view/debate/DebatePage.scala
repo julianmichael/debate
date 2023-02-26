@@ -125,8 +125,9 @@ object DebatePage {
         " Exit",
         ^.onClick --> disconnect
       ),
-      <.div(<.strong("Name: "), userName),
       <.div(<.strong(s"$roomPrefix Room: "), roomName),
+      <.div(<.strong("Name: "), userName),
+      <.div(<.strong(s"Role: "), userRole.toString),
       <.div(
           <.strong(
             S.simpleSelectableText.when(canAssumeRole(Observer)),
