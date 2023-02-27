@@ -27,7 +27,19 @@ object DebatePage {
     getStateUpdateFromResponse = responseState => _ => responseState
   )
 
-  def getDebateWebsocketUri(
+  def renderDebateParticipant(
+    anonymize: Boolean,
+    userRole: Role,
+    userName: String,
+    participantRole: Role,
+    participantName: String
+  ): String =
+    if (!anonymize || userRole.canSeeDebaterNames || userName == participantName) {
+      s"$participantRole ($participantName)"
+    } else
+      participantRole.toString
+
+  private def getDebateWebsocketUri(
     isOfficial: Boolean,
     roomName: String,
     participantId: String
@@ -40,12 +52,12 @@ object DebatePage {
     s"${Utils.wsProtocol}//${dom.document.location.host}/$prefix-ws/$roomName?name=$participantId"
   }
 
-  val scrollDebateToBottom = Callback {
+  private val scrollDebateToBottom = Callback {
     val newSpeechesJQ  = jQuery("#speeches")
     val newSpeechesDiv = newSpeechesJQ(0)
     newSpeechesJQ.scrollTop(newSpeechesDiv.scrollHeight - newSpeechesDiv.clientHeight)
   }
-  def maybeScrollDebateToBottom(
+  private def maybeScrollDebateToBottom(
     userName: String,
     prevDebateOpt: Option[DebateState],
     curDebate: DebateState
@@ -73,7 +85,7 @@ object DebatePage {
       }
     }.flatten
 
-  def maybeSendTurnNotification(
+  private def maybeSendTurnNotification(
     userName: String,
     roomName: String,
     prevDebate: Option[DebateState],
@@ -96,7 +108,7 @@ object DebatePage {
       }
 
   /** Top row showing debate metadata and observers.  */
-  def headerRow(
+  private def headerRow(
     userName: String,
     userRole: Role,
     isOfficial: Boolean,
@@ -172,20 +184,8 @@ object DebatePage {
     )
   }
 
-  def renderDebateParticipant(
-    isOfficial: Boolean,
-    userRole: Role,
-    userName: String,
-    participantRole: Role,
-    participantName: String
-  ): String =
-    if (!isOfficial || userRole.canSeeDebaterNames || userName == participantName) {
-      s"$participantRole ($participantName)"
-    } else
-      participantRole.toString
-
-  def showRoleNames(
-    isOfficial: Boolean,
+  private def showRoleNames(
+    anonymize: Boolean,
     debateState: StateSnapshot[DebateState],
     profiles: Set[String],
     userRole: Role,
@@ -214,7 +214,7 @@ object DebatePage {
                 )
             )
           case _ =>
-            val nameDisplay = renderDebateParticipant(isOfficial, userRole, userName, role, name)
+            val nameDisplay = renderDebateParticipant(anonymize, userRole, userName, role, name)
             if (userRole == role) {
               <.span(S.presentParticipant)(nameDisplay)
             } else if (debateState.value.participants.get(name).isEmpty) {
@@ -237,23 +237,25 @@ object DebatePage {
           .toVdomArray
     }
 
-  def correctAnswerRadio(answerIndex: Int, correctAnswerIndex: StateSnapshot[Int]) = ReactFragment(
-    <.input(S.correctAnswerRadio)(
-      ^.`type`  := "radio",
-      ^.name    := "correctAnswerIndex",
-      ^.value   := answerIndex,
-      ^.checked := correctAnswerIndex.value == answerIndex,
-      ^.onChange --> correctAnswerIndex.setState(answerIndex),
-      ^.onClick ==> (e => Callback(e.stopPropagation()))
-    ),
-    <.span(c"mr-2", S.inputRowItem)(
-      <.span(S.correctAnswerLabel)("Correct"),
-      S.hidden.when(correctAnswerIndex.value != answerIndex)
+  private def correctAnswerRadio(answerIndex: Int, correctAnswerIndex: StateSnapshot[Int]) =
+    ReactFragment(
+      <.input(S.correctAnswerRadio)(
+        ^.`type`  := "radio",
+        ^.name    := "correctAnswerIndex",
+        ^.value   := answerIndex,
+        ^.checked := correctAnswerIndex.value == answerIndex,
+        ^.onChange --> correctAnswerIndex.setState(answerIndex),
+        ^.onClick ==> (e => Callback(e.stopPropagation()))
+      ),
+      <.span(c"mr-2", S.inputRowItem)(
+        <.span(S.correctAnswerLabel)("Correct"),
+        S.hidden.when(correctAnswerIndex.value != answerIndex)
+      )
     )
-  )
 
-  def qaAndRolesRow(
+  private def qaAndRolesRow(
     isOfficial: Boolean,
+    anonymize: Boolean,
     profiles: Set[String],
     userName: String,
     role: Role,
@@ -282,7 +284,7 @@ object DebatePage {
           ),
           " ",
           <.div(S.judgesList)(
-            showRoleNames(isOfficial, debateState, profiles, role, userName, Judge)
+            showRoleNames(anonymize, debateState, profiles, role, userName, Judge)
           ),
           ^.onClick --> tryAssumingRole(Judge)
         ),
@@ -317,7 +319,7 @@ object DebatePage {
               " ",
               <.div(S.debatersList)(
                 showRoleNames(
-                  isOfficial,
+                  anonymize,
                   debateState,
                   profiles,
                   role,
@@ -369,6 +371,12 @@ object DebatePage {
             // Might have to think through colors (or just do a redesign)
             val backgroundStyle = S.observerBg
 
+            val anonymize =
+              isOfficial &&
+                (!debateState.value.debate.isOver ||
+                  (role.asDebateRoleOpt.nonEmpty &&
+                    debateState.value.debate.feedback.get(userName).isEmpty))
+
             <.div(S.debateContainer, S.spaceyContainer)(
               headerRow(userName, role, isOfficial, roomName, debateState, disconnect = disconnect),
               if (role == Peeper) {
@@ -377,18 +385,20 @@ object DebatePage {
                 <.div(S.debateColumn, S.spaceyContainer, backgroundStyle)(
                   qaAndRolesRow(
                     isOfficial = isOfficial,
+                    anonymize = anonymize,
                     profiles = profiles,
                     userName = userName,
                     role = role,
                     debateState = debateState
                   ),
                   DebatePanel(
-                    profiles,
-                    roomName,
-                    userName,
-                    role,
-                    debateState.zoomStateL(DebateState.debate),
-                    sendToMainChannel
+                    profiles = profiles,
+                    roomName = roomName,
+                    userName = userName,
+                    role = role,
+                    debate = debateState.zoomStateL(DebateState.debate),
+                    anonymize = anonymize,
+                    sendToMainChannel = sendToMainChannel
                   )
                 )
               }

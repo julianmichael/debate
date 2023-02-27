@@ -15,6 +15,18 @@ import monocle.macros.GenPrism
   */
 @JsonCodec
 sealed trait Role extends Product with Serializable {
+  def asDebateRoleOpt: Option[DebateRole] =
+    this match {
+      case d @ Debater(_) =>
+        Some(d)
+      case Judge =>
+        Some(Judge)
+      case OfflineJudge =>
+        Some(OfflineJudge)
+      case _ =>
+        None
+    }
+
   def asLiveDebateRoleOpt: Option[LiveDebateRole] =
     this match {
       case d @ Debater(i) =>

@@ -73,7 +73,7 @@ object FeedbackSurvey {
         else
           <.span(q)
       )
-    val needsToBeDone = question.required && answerOpt.value.isEmpty
+    val needsToBeDone = question.required && !answerOpt.value.exists(question.isAnswerValid)
     questionSpanOpt.map(questionSpan =>
       <.div(c"card", S.attentionBackground.when(needsToBeDone))(
         <.div(c"card-body")(
@@ -262,7 +262,7 @@ object FeedbackSurvey {
           case Left(Left(msg)) =>
             msg
           case Left(Right(_)) =>
-            "Answer all required questions to submit"
+            s"Answer all required questions to submit"
           case Right(response) =>
             uploadedResponseOpt match {
               case Some(uploadedResponse) =>

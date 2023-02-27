@@ -216,6 +216,7 @@ object DebatePanel {
     userName: String,
     role: Role,
     debate: StateSnapshot[Debate],
+    anonymize: Boolean,
     sendToMainChannel: MainChannelRequest => Callback
   ) = {
     import debate.value.{setup, rounds}
@@ -259,7 +260,7 @@ object DebatePanel {
             answers.iterator.toList.map(pair => DotPair[Option](pair.fst)(Option(pair.snd))): _*
           )
         }
-        .getOrElse(Feedback.initAnswers(role))
+        .getOrElse(Feedback.initAnswers(setup, role))
       Local[DotMap[Option, Feedback.Key]].make(workingAnswers) { surveyAnswers =>
         val leftPanelTabs =
           Vector(
@@ -311,6 +312,7 @@ object DebatePanel {
                           source = setup.sourceMaterial.contents,
                           userName = userName,
                           role = role,
+                          anonymize = anonymize,
                           debateStartTime = debate.value.startTime,
                           numDebaters = setup.answers.size,
                           numPreviousContinues = numPreviousContinues,
@@ -328,6 +330,7 @@ object DebatePanel {
                       debate.value.startTime,
                       role,
                       userName,
+                      anonymize,
                       getInProgressSpeechStyle(role)
                     )
                     .when(currentMessage.value.size > 0 && isUsersTurn)
@@ -351,7 +354,7 @@ object DebatePanel {
                     SpeechInput.speechInput(debate, userName, role, turnDotPair, currentMessage)
                   },
                   role
-                    .asLiveDebateRoleOpt
+                    .asDebateRoleOpt
                     .flatMap(currentTransitions.undo.get)
                     .whenDefined { case (speech, debateAfterUndo) =>
                       <.button(

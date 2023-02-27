@@ -86,6 +86,7 @@ object Feedback {
     def questionDetails: Option[String]
     def required: Boolean
     def isValid: (DebateSetup, Role) => Boolean
+    def isAnswerValid(answer: Answer): Boolean
   }
   object Question {
 
@@ -97,7 +98,9 @@ object Feedback {
       maxDescription: String,
       required: Boolean = true,
       isValid: (DebateSetup, Role) => Boolean = (_, _) => true
-    ) extends Question[ComparativeJudgment]
+    ) extends Question[ComparativeJudgment] {
+      def isAnswerValid(answer: ComparativeJudgment): Boolean = answer.isValid
+    }
 
     case class Likert(
       questionTextUnsafe: PartialFunction[Role, String],
@@ -107,21 +110,27 @@ object Feedback {
       maxDescription: String,
       required: Boolean = true,
       isValid: (DebateSetup, Role) => Boolean = (_, _) => true
-    ) extends Question[Int]
+    ) extends Question[Int] {
+      def isAnswerValid(answer: Int): Boolean = answer >= 0 && answer <= numOptions
+    }
 
     case class FreeText(
       questionTextUnsafe: PartialFunction[Role, String],
       questionDetails: Option[String] = None,
       required: Boolean = true,
       isValid: (DebateSetup, Role) => Boolean = (_, _) => true
-    ) extends Question[String]
+    ) extends Question[String] {
+      def isAnswerValid(answer: String): Boolean = true
+    }
 
     case class RoleSelect(
       questionTextUnsafe: PartialFunction[Role, String],
       questionDetails: Option[String] = None,
       required: Boolean = true,
       isValid: (DebateSetup, Role) => Boolean = (_, _) => true
-    ) extends Question[Map[LiveDebateRole, String]]
+    ) extends Question[Map[LiveDebateRole, String]] {
+      def isAnswerValid(answer: Map[LiveDebateRole, String]): Boolean = true
+    }
   }
 
   // TODO: question HTML? for bolding etc.
@@ -335,9 +344,9 @@ object Feedback {
 
   def questions: DotMap[Question, Key] = DotMap(survey: _*)
 
-  def initAnswers(role: Role): DotMap[Option, Key] = DotMap(
+  def initAnswers(setup: DebateSetup, role: Role): DotMap[Option, Key] = DotMap(
     survey
-      .filter(pair => pair.snd.questionText(role).nonEmpty)
+      .filter(pair => pair.snd.questionText(role).nonEmpty && pair.snd.isValid(setup, role))
       .map { pair =>
         DotPair[Option](pair.fst: Key)(None)
       }: _*

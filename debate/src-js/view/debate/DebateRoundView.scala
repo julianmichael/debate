@@ -54,22 +54,14 @@ object DebateRoundView {
     speech: DebateSpeech,
     startTimeOpt: Option[Long],
     userRole: Role,
-    userName: String
+    userName: String,
+    anonymize: Boolean
   ) =
     <.div(S.speechHeader)(
-      // for now just don't bother showing names in practice debates...whatever.
-      // can fix later if desired.
-      DebatePage.renderDebateParticipant(true, userRole, userName, role, speech.speaker),
+      DebatePage.renderDebateParticipant(anonymize, userRole, userName, role, speech.speaker),
       " ",
       startTimeOpt.whenDefined(startTime =>
-        timestampHTML(startTime, speech.timestamp).when(
-          userRole match {
-            case Facilitator | Debater(_) =>
-              true
-            case _ =>
-              false
-          }
-        )
+        timestampHTML(startTime, speech.timestamp).when(userRole.canSeeIntermediateArguments)
       )
     )
 
@@ -83,7 +75,8 @@ object DebateRoundView {
     speeches: Map[Int, DebateSpeech],
     startTimeOpt: Option[Long],
     userRole: Role,
-    userName: String
+    userName: String,
+    anonymize: Boolean
   ) =
     <.div(S.speechRow)(
       speeches
@@ -92,7 +85,14 @@ object DebateRoundView {
         .toVdomArray { case (debaterIndex, speech) =>
           <.div(S.speechBox, S.answerBg(debaterIndex))(
             ^.key := s"speech-$debaterIndex",
-            speechHeaderHTML(Debater(debaterIndex), speech, startTimeOpt, userRole, userName),
+            speechHeaderHTML(
+              Debater(debaterIndex),
+              speech,
+              startTimeOpt,
+              userRole,
+              userName,
+              anonymize
+            ),
             speech
               .content
               .map {
@@ -116,10 +116,11 @@ object DebateRoundView {
     startTimeOpt: Option[Long],
     userRole: Role,
     userName: String,
+    anonymize: Boolean,
     style: TagMod
   ) =
     <.div(S.speechBox, style)(
-      speechHeaderHTML(role, speech, startTimeOpt, userRole, userName),
+      speechHeaderHTML(role, speech, startTimeOpt, userRole, userName, anonymize),
       speech
         .content
         .map {
@@ -138,6 +139,7 @@ object DebateRoundView {
     source: Vector[String],
     userName: String,
     role: Role,
+    anonymize: Boolean,
     debateStartTime: Option[Long],
     numDebaters: Int,
     numPreviousContinues: Int,
@@ -172,6 +174,7 @@ object DebateRoundView {
                 debateStartTime,
                 role,
                 userName,
+                anonymize,
                 speechStyle
               )
             }
@@ -180,8 +183,16 @@ object DebateRoundView {
               el(^.key := s"text-$i")
             }
         } else {
-          Vector(makeSimultaneousSpeechesHtml(source, speeches, debateStartTime, role, userName))
-            .zipWithIndex
+          Vector(
+            makeSimultaneousSpeechesHtml(
+              source,
+              speeches,
+              debateStartTime,
+              role,
+              userName,
+              anonymize
+            )
+          ).zipWithIndex
             .toVdomArray { case (el, i) =>
               el(^.key := s"text-$i")
             }
@@ -205,6 +216,7 @@ object DebateRoundView {
               debateStartTime,
               role,
               userName,
+              anonymize,
               speechStyle
             )(^.key := s"speech-$debaterIndex")
           }
@@ -213,7 +225,16 @@ object DebateRoundView {
         Vector(
           // TODO: prevent judge from extracting info via quotes
           Option(
-            makeSpeechHtml(source, Judge, speech, debateStartTime, role, userName, speechStyle)
+            makeSpeechHtml(
+              source,
+              Judge,
+              speech,
+              debateStartTime,
+              role,
+              userName,
+              anonymize,
+              speechStyle
+            )
           ),
           Option(
             <.div(
@@ -299,8 +320,9 @@ object DebateRoundView {
           }
         }
       case OfflineJudgments(judgments) =>
-        val canSeeOfflineJudgingResults =
-          role != OfflineJudge || judgments.get(userName).exists(_.result.nonEmpty)
+        val canSeeOfflineJudgingResults = !anonymize
+        // role != OfflineJudge || judgments.get(userName).exists(_.result.nonEmpty)
+
         // TODO: display info about num continues and time taken to judge
         // TODO: display info about people currently judging? (maybe facilitator only)
         val speechStyle = TagMod(S.offlineJudgeBg)
@@ -326,6 +348,7 @@ object DebateRoundView {
                     debateStartTime,
                     role,
                     userName,
+                    anonymize,
                     speechStyle
                   )
                 ),
