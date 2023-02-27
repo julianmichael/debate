@@ -80,7 +80,7 @@ object FeedbackSurvey {
           <.p(c"card-text")(questionSpan),
           question.questionDetails.whenDefined(details => <.p(c"card-text small")(details)),
           question match {
-            case Question.ComparativeLikert(_, _, numOptions, minLabel, maxLabel, _) =>
+            case Question.ComparativeLikert(_, _, numOptions, minLabel, maxLabel, _, _) =>
               val judgment =
                 answerOpt
                   .zoomState[ComparativeJudgment](_.getOrElse(ComparativeJudgment(-1, -1)))(j =>
@@ -128,16 +128,16 @@ object FeedbackSurvey {
                   )
                 )
               )
-            case Question.Likert(_, _, numOptions, minLabel, maxLabel, _) =>
+            case Question.Likert(_, _, numOptions, minLabel, maxLabel, _, _) =>
               val judgment = answerOpt.zoomState[Int](_.getOrElse(-1))(j => _ => Some(j))
               likertScale(numOptions, minLabel, maxLabel, judgment, bigger = true)
-            case Question.FreeText(_, _, _) =>
+            case Question.FreeText(_, _, _, _) =>
               V.LiveTextArea
                 .String(
                   answerOpt
                     .zoomState[String](_.getOrElse(""))(str => _ => Option(str).filter(_.nonEmpty))
                 )
-            case Question.RoleSelect(_, _, _) =>
+            case Question.RoleSelect(_, _, _, _) =>
               <.div(
                 assignedRoles
                   .filter(_ != role)
@@ -167,8 +167,8 @@ object FeedbackSurvey {
   }
 
   def apply(
+    setup: DebateSetup,
     profiles: Set[String],
-    assignedRoles: Set[LiveDebateRole],
     role: Role,
     uploadedResponseOpt: Option[SurveyResponse],
     surveyAnswers: StateSnapshot[DotMap[Option, Key]],
@@ -230,19 +230,22 @@ object FeedbackSurvey {
             .survey
             .flatMap { keyedQuestion =>
               val key: Key = keyedQuestion.fst
-              val question = keyedQuestion.snd
-              surveyAnswers
-                .zoomStateOption[Option[key.Out]](_.get(key))(v => map => map.put(key)(v))
-                .map { answerOpt =>
-                  <.div(^.key := key.key)(
-                    renderQuestion[key.Out](
-                      profiles,
-                      assignedRoles,
-                      role,
-                      answerOpt,
-                      question.asInstanceOf[Question[key.Answer]]
-                    )
-                  )
+              Option(keyedQuestion.snd)
+                .filter(_.isValid(setup, role))
+                .flatMap { question =>
+                  surveyAnswers
+                    .zoomStateOption[Option[key.Out]](_.get(key))(v => map => map.put(key)(v))
+                    .map { answerOpt =>
+                      <.div(^.key := key.key)(
+                        renderQuestion[key.Out](
+                          profiles,
+                          setup.roles.keySet,
+                          role,
+                          answerOpt,
+                          question.asInstanceOf[Question[key.Answer]]
+                        )
+                      )
+                    }
                 }
             }
             .toVdomArray

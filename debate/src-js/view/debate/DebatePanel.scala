@@ -277,8 +277,8 @@ object DebatePanel {
               "Feedback Survey" ->
                 TabNav.tab(
                   FeedbackSurvey(
+                    setup,
                     profiles,
-                    debate.value.setup.roles.keySet,
                     role,
                     uploadedResponse,
                     surveyAnswers,

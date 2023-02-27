@@ -83,69 +83,44 @@ object Feedback {
   sealed trait Question[Answer] {
     def questionText(role: Role) = questionTextUnsafe.lift(role)
     def questionTextUnsafe: PartialFunction[Role, String]
-    // def questionText(role: Role): Option[String] =
-    //   role match {
-    //     case Debater(_) =>
-    //       debaterQuestion
-    //     case Judge =>
-    //       judgeQuestion
-    //     case OfflineJudge =>
-    //       offlineJudgeQuestion
-    //     case _ =>
-    //       None
-    //   }
-    // protected[Question] def debaterQuestion: Option[String]
-    // protected[Question] def judgeQuestion: Option[String]
-    // protected[Question] def offlineJudgeQuestion: Option[String]
     def questionDetails: Option[String]
     def required: Boolean
+    def isValid: (DebateSetup, Role) => Boolean
   }
   object Question {
 
-    // @JsonCodec
     case class ComparativeLikert(
       questionTextUnsafe: PartialFunction[Role, String],
-      // debaterQuestion: Option[String] = None,
-      // judgeQuestion: Option[String] = None,
-      // offlineJudgeQuestion: Option[String] = None,
       questionDetails: Option[String] = None,
       numOptions: Int,
       minDescription: String,
       maxDescription: String,
-      required: Boolean = true
+      required: Boolean = true,
+      isValid: (DebateSetup, Role) => Boolean = (_, _) => true
     ) extends Question[ComparativeJudgment]
 
-    // @JsonCodec
     case class Likert(
       questionTextUnsafe: PartialFunction[Role, String],
-      // debaterQuestion: Option[String] = None,
-      // judgeQuestion: Option[String] = None,
-      // offlineJudgeQuestion: Option[String] = None,
       questionDetails: Option[String] = None,
       numOptions: Int,
       minDescription: String,
       maxDescription: String,
-      required: Boolean = true
+      required: Boolean = true,
+      isValid: (DebateSetup, Role) => Boolean = (_, _) => true
     ) extends Question[Int]
 
-    // @JsonCodec
     case class FreeText(
       questionTextUnsafe: PartialFunction[Role, String],
-      // debaterQuestion: Option[String] = None,
-      // judgeQuestion: Option[String] = None,
-      // offlineJudgeQuestion: Option[String] = None,
       questionDetails: Option[String] = None,
-      required: Boolean = true
+      required: Boolean = true,
+      isValid: (DebateSetup, Role) => Boolean = (_, _) => true
     ) extends Question[String]
 
-    // @JsonCodec
     case class RoleSelect(
       questionTextUnsafe: PartialFunction[Role, String],
-      // debaterQuestion: Option[String] = None,
-      // judgeQuestion: Option[String] = None,
-      // offlineJudgeQuestion: Option[String] = None,
       questionDetails: Option[String] = None,
-      required: Boolean = true
+      required: Boolean = true,
+      isValid: (DebateSetup, Role) => Boolean = (_, _) => true
     ) extends Question[Map[LiveDebateRole, String]]
   }
 
@@ -272,7 +247,6 @@ object Feedback {
       )
     ),
     DotPair[Question][Key](Key.ComparativeLikert("judge adaptation"))(
-      // TODO filter out for debates with no judge
       Question.ComparativeLikert(
         {
           case Debater(_) =>
@@ -284,9 +258,11 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "Not at all",
-        maxDescription = "Addressed all concerns"
+        maxDescription = "Addressed all concerns",
+        isValid = (setup, _) => setup.rules.hasJudge
       )
     ),
+    // TODO fix this question for offline judging, check that others makes sense too
     DotPair[Question][Key](Key.ComparativeLikert("judge reasoning"))(
       Question.ComparativeLikert(
         {
@@ -297,7 +273,8 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "Made critical mistakes",
-        maxDescription = "Totally sound"
+        maxDescription = "Totally sound",
+        isValid = (setup, role) => role.isInstanceOf[Debater] --> setup.rules.hasJudge
       )
     ),
     DotPair[Question][Key](Key.FreeText("judge strategies"))(
