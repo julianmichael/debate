@@ -113,6 +113,16 @@ object LiveDebateRole {
       i
   }
 }
+object DebateRole {
+  implicit val debateRoleOrder = Order.by[DebateRole, Int] {
+    case Judge =>
+      -2
+    case OfflineJudge =>
+      -1
+    case Debater(i) =>
+      i
+  }
+}
 object Role {
   def debateRole     = GenPrism[Role, DebateRole]
   def liveDebateRole = GenPrism[Role, LiveDebateRole]

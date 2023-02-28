@@ -32,6 +32,8 @@ object MetadataBox {
 
   def getRoleStyle(role: LeaderboardCategory): TagMod =
     role match {
+      case LeaderboardCategory.OfflineJudge =>
+        TagMod.empty
       case LeaderboardCategory.Judge =>
         TagMod.empty
       case LeaderboardCategory.HonestDebater =>
@@ -40,8 +42,10 @@ object MetadataBox {
         S.incorrect
     }
 
-  def getLeaderboardCategoryForRole(role: LiveDebateRole, correctAnswerIndex: Int) =
+  def getLeaderboardCategoryForRole(role: DebateRole, correctAnswerIndex: Int) =
     role match {
+      case OfflineJudge =>
+        LeaderboardCategory.OfflineJudge
       case Judge =>
         LeaderboardCategory.Judge
       case Debater(i) if i == correctAnswerIndex =>
@@ -277,7 +281,15 @@ object MetadataBox {
             TagMod.empty
       }
 
-    val myRoles = roomMetadata.roleAssignments.filter(_._2 == userName).keySet.toVector.sorted
+    val myRoles =
+      (
+        roomMetadata.roleAssignments.filter(_._2 == userName).keySet ++
+          RoomStatus
+            .complete
+            .getOption(roomMetadata.status)
+            .filter(_.offlineJudgingResults.get(userName).exists(_.result.nonEmpty))
+            .as(OfflineJudge)
+      ).toVector.sorted
 
     val turnSpan = {
       val speakers = roomMetadata.currentSpeakers
@@ -333,7 +345,7 @@ object MetadataBox {
               <.span(S.bold)(
                 <.span(c"text-muted")("You were "),
                 Utils
-                  .delimitedTags[Vector, LiveDebateRole](
+                  .delimitedTags[Vector, DebateRole](
                     myRoles,
                     { role =>
                       val category = getLeaderboardCategoryForRole(role, result.correctAnswerIndex)
@@ -347,9 +359,11 @@ object MetadataBox {
               <.span(S.bold)(
                 <.span(c"text-muted")("You are "),
                 Utils
-                  .delimitedTags[Vector, LiveDebateRole](
+                  .delimitedTags[Vector, DebateRole](
                     myRoles,
                     {
+                      case OfflineJudge =>
+                        <.span("an ", <.span(S.judgeAssignment, "Offline Judge"))
                       case Judge =>
                         <.span(S.judgeAssignment, "Judge")
                       case d @ Debater(i) =>

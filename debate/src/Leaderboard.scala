@@ -16,7 +16,7 @@ object DebateStats {
 
   def getUserStats(
     result: JudgingResult,
-    role: LiveDebateRole,
+    role: DebateRole,
     name: String
   ): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
     def bool2int(b: Boolean) =
@@ -33,6 +33,8 @@ object DebateStats {
             LeaderboardCategory.DishonestDebater
         case Judge =>
           LeaderboardCategory.Judge
+        case OfflineJudge =>
+          LeaderboardCategory.OfflineJudge
       }
     val userStats =
       role match {
@@ -40,7 +42,7 @@ object DebateStats {
           val correct = result.finalJudgement(index) > 0.5
           val reward  = math.log(result.finalJudgement(index))
           DebateStats(Proportion.Stats(bool2int(correct), bool2int(!correct)), Numbers(reward))
-        case Judge =>
+        case Judge | OfflineJudge =>
           val correct = result.finalJudgement(result.correctAnswerIndex) > 0.5
           DebateStats(
             Proportion.Stats(bool2int(correct), bool2int(!correct)),
@@ -60,7 +62,30 @@ object DebateStats {
           .toList
           .foldMap { case (role, user) =>
             getUserStats(result, role, user)
-          }
+          } |+|
+          d.realOfflineJudgingResults
+            .toVector
+            .foldMap { case (user, offlineJudgment) =>
+              offlineJudgment
+                .result
+                .foldMap { offlineResult =>
+                  val result = JudgingResult(
+                    d.setup.correctAnswerIndex,
+                    offlineJudgment.numContinues,
+                    offlineResult.distribution,
+                    d.setup
+                      .rules
+                      .scoringFunction
+                      .eval(
+                        offlineJudgment.numContinues,
+                        offlineResult.distribution,
+                        d.setup.correctAnswerIndex
+                      )
+                  )
+                }
+
+              getUserStats(result, OfflineJudge, user)
+            }
     }
 }
 
@@ -71,6 +96,8 @@ sealed trait LeaderboardCategory extends Product with Serializable {
     this match {
       case Judge =>
         "Judge"
+      case OfflineJudge =>
+        "Offline Judge"
       case HonestDebater =>
         "Honest Debater"
       case DishonestDebater =>
@@ -81,6 +108,8 @@ sealed trait LeaderboardCategory extends Product with Serializable {
     this match {
       case Judge =>
         "Judge"
+      case OfflineJudge =>
+        "Offline Judge"
       case HonestDebater =>
         "Honest"
       case DishonestDebater =>
@@ -89,10 +118,11 @@ sealed trait LeaderboardCategory extends Product with Serializable {
 }
 object LeaderboardCategory {
   case object Judge            extends LeaderboardCategory
+  case object OfflineJudge     extends LeaderboardCategory
   case object HonestDebater    extends LeaderboardCategory
   case object DishonestDebater extends LeaderboardCategory
 
-  def all = Vector(Judge, HonestDebater, DishonestDebater)
+  def all = Vector(Judge, OfflineJudge, HonestDebater, DishonestDebater)
 
   def fromString(x: String): Option[LeaderboardCategory] = all.find(_.toString == x)
 

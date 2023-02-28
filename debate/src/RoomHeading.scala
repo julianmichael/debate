@@ -13,6 +13,8 @@ trait RoomHeading {
         "waiting to begin"
       case MustJudgeBeforeDebating =>
         "must judge before debating"
+      case CurrentlyOfflineJudging =>
+        "you are judging offline"
       case EligibleForOfflineJudging =>
         "eligible for offline judging"
       case Complete =>
@@ -29,6 +31,8 @@ trait RoomHeading {
         "Waiting to Begin"
       case MustJudgeBeforeDebating =>
         "Must Judge the Story Before Debating"
+      case CurrentlyOfflineJudging =>
+        "You are Judging Offline"
       case EligibleForOfflineJudging =>
         "Eligible for You to Judge"
       case Complete =>
@@ -38,6 +42,7 @@ trait RoomHeading {
 object RoomHeading {
   case object AwaitingFeedback          extends RoomHeading
   case object EligibleForOfflineJudging extends RoomHeading
+  case object CurrentlyOfflineJudging   extends RoomHeading
   case object InProgress                extends RoomHeading
   case object WaitingToBegin            extends RoomHeading
   case object MustJudgeBeforeDebating   extends RoomHeading
@@ -56,7 +61,12 @@ object RoomHeading {
             } else
               AwaitingFeedback
           }
-        } else if (offlineJudging.contains(user) || stats.hasReadStory || !stats.canJudgeMore) {
+        } else if (offlineJudging.get(user).exists(_.result.isEmpty)) {
+          CurrentlyOfflineJudging
+        } else if (
+          offlineJudging.get(user).exists(_.result.nonEmpty) || stats.hasReadStory ||
+          !stats.canJudgeMore
+        ) {
           Complete
         } else
           EligibleForOfflineJudging
