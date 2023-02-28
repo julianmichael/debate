@@ -27,17 +27,20 @@ args = parser.parse_args()
 
 # LOAD DATA
 quality_story_data = {}
-# quality_files = [args.qfile + ext for ext in ['.train', '.dev', '.test']] # for all QuALITY splits, uncomment and add for loop
-quality_file = args.quality_file + '.dev'
-with open(quality_file, encoding='utf-8',) as f:
-    for line in f:
-        story = json.loads(line)
-        article_id = story['article_id']
-        if article_id in quality_story_data:
-            quality_story_data[article_id]['questions'].extend(
-                story['questions'])
-        else:
-            quality_story_data[article_id] = story
+# for all QuALITY splits, uncomment and add for loop
+quality_files = [args.quality_file +
+                 ext for ext in ['.train', '.dev', '.test']]
+# quality_file = args.quality_file + '.dev'
+for quality_file in quality_files:
+    with open(quality_file, encoding='utf-8',) as f:
+        for line in f:
+            story = json.loads(line)
+            article_id = story['article_id']
+            if article_id in quality_story_data:
+                quality_story_data[article_id]['questions'].extend(
+                    story['questions'])
+            else:
+                quality_story_data[article_id] = story
 print("# of QuALITY stories in chosen QuALITY dataset:", len(quality_story_data))
 
 if not quality_story_data:  # is this necessary?
@@ -139,14 +142,14 @@ def print_questions_with_no_quality_match_for_char_distance(dist: int):
                 if dquestion not in quality_official_questions:
                     any_q_missing = True
                     num_questions_no_quality_match += 1
-            # if any_q_missing:
-            #     print(story['article_id'])
-            #     print(f"Debate: {dquestion}")
-            #     print(*quality_official_questions, sep='\n')
+            if any_q_missing:
+                print(story['article_id'])
+                print(f"Debate: {dquestion}")
+                print(*quality_official_questions, sep='\n')
 
     print(
         f"Number of questions with no match in QuALITY for dist {dist}: {num_questions_no_quality_match}")
 
 
-for i in range(0, 10, 1):
+for i in range(0, 20, 1):
     print_questions_with_no_quality_match_for_char_distance(i)
