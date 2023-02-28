@@ -55,6 +55,7 @@ case class RoomMetadata(
   sourceMaterialId: SourceMaterialId,
   storyTitle: String,
   roleAssignments: Map[LiveDebateRole, String],
+  offlineJudgeAssignments: Map[String, Option[OfflineJudgingMode]],
   creationTime: Long,
   status: RoomStatus,
   latestUpdateTime: Long,
@@ -152,33 +153,48 @@ object RoomMetadata {
         .toVector
         .combineAll
 
-    // TODO: add assignments for offline judging
-    val offline = RoomStatus
-      .complete
-      .getOption(room.status)
-      .foldMap { case RoomStatus.Complete(_, offlineJudgingResults, feedbackProviders) =>
-        offlineJudgingResults
-          .toVector
-          .view
-          .map { case (judge, judgment) =>
-            val label =
-              if (feedbackProviders.contains(judge)) {
-                DebateProgressLabel.Complete
-              } else if (judgment.result.nonEmpty) {
-                // XXX: just until we import the old feedback results, only ask for feedback for debates created as of 2023
-                if (room.creationTime < timeBeforeWhichToIgnoreMissingFeedback) {
+    val offline =
+      RoomStatus
+        .complete
+        .getOption(room.status)
+        .foldMap { case RoomStatus.Complete(_, offlineJudgingResults, feedbackProviders) =>
+          offlineJudgingResults
+            .toVector
+            .view
+            .map { case (judge, judgment) =>
+              val label =
+                if (feedbackProviders.contains(judge)) {
                   DebateProgressLabel.Complete
-                } else
-                  DebateProgressLabel.AwaitingFeedback
-                // DebateProgressLabel.AwaitingFeedback
-              } else { // currently judging, haven't finished
-                DebateProgressLabel.Begun
-              }
-            val stats = DebaterStoryStats(offlineJudging = Map(label -> Set(room.name)))
-            judge -> Map(room.sourceMaterialId -> stats)
+                } else if (judgment.result.nonEmpty) {
+                  // XXX: just until we import the old feedback results, only ask for feedback for debates created as of 2023
+                  if (room.creationTime < timeBeforeWhichToIgnoreMissingFeedback) {
+                    DebateProgressLabel.Complete
+                  } else
+                    DebateProgressLabel.AwaitingFeedback
+                  // DebateProgressLabel.AwaitingFeedback
+                } else { // currently judging, haven't finished
+                  DebateProgressLabel.Begun
+                }
+              val stats = DebaterStoryStats(offlineJudging = Map(label -> Set(room.name)))
+              judge -> Map(room.sourceMaterialId -> stats)
+            }
+            .toMap
+        } |+|
+        (
+          room.offlineJudgeAssignments --
+            RoomStatus.complete.getOption(room.status).foldMap(_.offlineJudgingResults.keySet)
+        ).toVector
+          .view
+          .map { case (judge, _) =>
+            judge ->
+              Map(
+                room.sourceMaterialId ->
+                  DebaterStoryStats(offlineJudging =
+                    Map(DebateProgressLabel.Assigned -> Set(room.name))
+                  )
+              )
           }
           .toMap
-      }
 
     live |+| offline
   }

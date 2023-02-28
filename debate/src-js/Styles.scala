@@ -184,6 +184,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val awaitingFeedbackStatusLabel          = style(color.purple)
   val inProgressStatusLabel                = style(color.darkorange)
+  val assignedForOfflineJudgingStatusLabel = style(color.gold)
   val currentlyOfflineJudgingStatusLabel   = style(color.darkorange)
   val eligibleForOfflineJudgingStatusLabel = style(color.black)
   val waitingToBeginStatusLabel            = style(color.gold)

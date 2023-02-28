@@ -52,6 +52,8 @@ object DebatesPanel {
                   S.awaitingFeedbackStatusLabel
                 case InProgress =>
                   S.inProgressStatusLabel
+                case AssignedForOfflineJudging =>
+                  S.assignedForOfflineJudgingStatusLabel
                 case CurrentlyOfflineJudging =>
                   S.currentlyOfflineJudgingStatusLabel
                 case EligibleForOfflineJudging =>
@@ -68,7 +70,8 @@ object DebatesPanel {
 
             val hideResultsByDefault = Set[RoomHeading](
               RoomHeading.CurrentlyOfflineJudging,
-              RoomHeading.EligibleForOfflineJudging
+              RoomHeading.EligibleForOfflineJudging,
+              RoomHeading.AssignedForOfflineJudging
             ).contains(heading)
 
             if (roomsForHeading.isEmpty)

@@ -106,7 +106,8 @@ case class DebateStateManager(
             roomStateL(roomName).modify { debateState =>
               val role =
                 heading match {
-                  case RoomHeading.EligibleForOfflineJudging =>
+                  case RoomHeading.AssignedForOfflineJudging | RoomHeading
+                        .EligibleForOfflineJudging =>
                     OfflineJudge
                   case RoomHeading.MustJudgeBeforeDebating =>
                     Peeper // no peeping! Judge your stuff first!
