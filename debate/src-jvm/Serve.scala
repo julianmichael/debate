@@ -155,23 +155,8 @@ object Serve
     //   .use { httpClient =>
     for {
       singleTurnDebateDataset <- SingleTurnDebateUtils.readSingleTurnDebate(dataPath, blocker)
-      // _ <- IO {
-      //   singleTurnDebateDataset.values.take(10).foreach(println)
-      // }
-      qualityDataset <- QuALITYUtils.readQuALITY(dataPath, blocker)
+      qualityDataset          <- QuALITYUtils.readQuALITY(dataPath, blocker)
       qualityMatches = Utils.identifyQualityMatches(qualityDataset, singleTurnDebateDataset)
-      // _ <-
-      //   Utils.validateQualityMatches(qualityDataset, singleTurnDebateDataset) match {
-      //     case Valid(a) =>
-      //       IO.pure(a)
-      //     case Invalid(errs) =>
-      //       IO {
-      //         errs.toList.foreach(System.err.print)
-      //         throw new RuntimeException(
-      //           s"${errs.size} Errors in matching the single-turn debate and QuALITY data"
-      //         )
-      //       }
-      //   }
       profiles <- FileUtil
         .readJson[Map[String, Profile]](profilesSavePath(saveDir))
         .recoverWith { case _: Throwable =>
