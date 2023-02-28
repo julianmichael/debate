@@ -14,6 +14,8 @@ case class DebaterStoryStats(
   import DebateProgressLabel._
   def hasReadStory      = (debating - Assigned).nonEmpty
   def needsToJudgeStory = (allJudging - Complete - AwaitingFeedback).nonEmpty
+  def canJudgeMore =
+    allJudging.unorderedFoldMap(_.size) < DebaterStoryStats.numJudgingsAllowedPerStory
   def debatesUserMustJudgeFirst(roomName: String): Set[String] =
     if (debating.values.exists(_.contains(roomName))) {
       val judging = allJudging
@@ -24,6 +26,9 @@ case class DebaterStoryStats(
 object DebaterStoryStats {
   implicit val debaterStoryStatsCommutativeMonoid: CommutativeMonoid[DebaterStoryStats] =
     cats.derived.semiauto.commutativeMonoid
+
+  // you're only allowed to judge the same story twice
+  val numJudgingsAllowedPerStory = 2
 }
 
 @Lenses

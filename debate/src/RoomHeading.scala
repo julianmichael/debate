@@ -56,7 +56,7 @@ object RoomHeading {
             } else
               AwaitingFeedback
           }
-        } else if (offlineJudging.contains(user) || stats.hasReadStory) {
+        } else if (offlineJudging.contains(user) || stats.hasReadStory || !stats.canJudgeMore) {
           Complete
         } else
           EligibleForOfflineJudging
