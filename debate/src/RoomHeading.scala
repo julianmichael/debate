@@ -41,10 +41,10 @@ trait RoomHeading {
 }
 object RoomHeading {
   case object AwaitingFeedback          extends RoomHeading
-  case object EligibleForOfflineJudging extends RoomHeading
-  case object CurrentlyOfflineJudging   extends RoomHeading
   case object InProgress                extends RoomHeading
   case object WaitingToBegin            extends RoomHeading
+  case object CurrentlyOfflineJudging   extends RoomHeading
+  case object EligibleForOfflineJudging extends RoomHeading
   case object MustJudgeBeforeDebating   extends RoomHeading
   case object Complete                  extends RoomHeading
 

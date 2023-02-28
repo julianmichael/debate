@@ -33,12 +33,6 @@ object LeaderboardPanel {
           "Win %"
         case Reward =>
           "Avg Reward"
-        // category match {
-        //   case LeaderboardCategory.Judge =>
-        //     "Avg Reward"
-        //   case _ =>
-        //     "Avg Log Prob"
-        // }
       }
 
     def getOrdering(isAscending: Boolean): Order[RowData] = {
@@ -192,7 +186,8 @@ object LeaderboardPanel {
       )
     )
     TabNav("leaderboard-tab", 0)(
-      "Judge"             -> makeTab(LeaderboardCategory.Judge),
+      "Live Judge"        -> makeTab(LeaderboardCategory.Judge),
+      "Offline Judge"     -> makeTab(LeaderboardCategory.OfflineJudge),
       "Honest Debater"    -> makeTab(LeaderboardCategory.HonestDebater),
       "Dishonest Debater" -> makeTab(LeaderboardCategory.DishonestDebater)
     )

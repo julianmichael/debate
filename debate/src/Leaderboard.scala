@@ -52,41 +52,44 @@ object DebateStats {
     Chosen(Map(leaderboardCategory -> Chosen(Map(name -> userStats))))
   }
 
-  def fromDebate(d: Debate): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] =
-    d.result.flatMap(_.judgingInfo) match {
-      case None =>
-        Chosen(Map.empty)
-      case Some(result) =>
-        d.setup
-          .roles
-          .toList
-          .foldMap { case (role, user) =>
-            getUserStats(result, role, user)
-          } |+|
-          d.realOfflineJudgingResults
-            .toVector
-            .foldMap { case (user, offlineJudgment) =>
-              offlineJudgment
-                .result
-                .foldMap { offlineResult =>
-                  val result = JudgingResult(
-                    d.setup.correctAnswerIndex,
-                    offlineJudgment.numContinues,
-                    offlineResult.distribution,
-                    d.setup
-                      .rules
-                      .scoringFunction
-                      .eval(
-                        offlineJudgment.numContinues,
-                        offlineResult.distribution,
-                        d.setup.correctAnswerIndex
-                      )
-                  )
-                }
-
-              getUserStats(result, OfflineJudge, user)
+  def fromDebate(d: Debate): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
+    val liveJudgingStats =
+      d.result.flatMap(_.judgingInfo) match {
+        case None =>
+          Chosen(Map.empty[LeaderboardCategory, Chosen[String, DebateStats]])
+        case Some(result) =>
+          d.setup
+            .roles
+            .toList
+            .foldMap { case (role, user) =>
+              getUserStats(result, role, user)
             }
-    }
+      }
+    val offlineJudgingStats = d
+      .realOfflineJudgingResults
+      .toVector
+      .foldMap { case (user, offlineJudgment) =>
+        offlineJudgment
+          .result
+          .foldMap { offlineResult =>
+            val result = JudgingResult(
+              d.setup.correctAnswerIndex,
+              offlineJudgment.numContinues,
+              offlineResult.distribution,
+              d.setup
+                .rules
+                .scoringFunction
+                .eval(
+                  offlineJudgment.numContinues,
+                  offlineResult.distribution,
+                  d.setup.correctAnswerIndex
+                )
+            )
+            getUserStats(result, OfflineJudge, user)
+          }
+      }
+    liveJudgingStats |+| offlineJudgingStats
+  }
 }
 
 @JsonCodec
