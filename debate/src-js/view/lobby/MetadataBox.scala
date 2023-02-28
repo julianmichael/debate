@@ -389,10 +389,12 @@ object MetadataBox {
     )
 
     val storyTitle = {
-      import DebateProgressLabel.Assigned
-      val numDebated        = (stats.debating - Assigned).unorderedFoldMap(_.size)
+      import DebateProgressLabel.{Assigned, Begun}
+      val numDebated        = (stats.debating - Assigned - Begun).unorderedFoldMap(_.size)
+      val numDebating       = stats.debating.get(Begun).foldMap(_.size)
       val numDebatedPending = stats.debating.get(Assigned).foldMap(_.size)
-      val numJudged         = (stats.allJudging - Assigned).unorderedFoldMap(_.size)
+      val numJudged         = (stats.allJudging - Assigned - Begun).unorderedFoldMap(_.size)
+      val numJudging        = stats.allJudging.get(Begun).foldMap(_.size)
       val numJudgedPending  = stats.allJudging.get(Assigned).foldMap(_.size)
       def nTimes(n: Int) =
         if (n == 1)
@@ -403,17 +405,19 @@ object MetadataBox {
         <.div("Story: ", <.i(roomMetadata.storyTitle)),
         <.div(c"small text-muted")(
             <.span(
-              s"You've debated ",
+              s"Debated ",
               <.span(^.color.black)(nTimes(numDebated)),
-              <.span(s" ($numDebatedPending pending)").when(numDebatedPending > 0)
+              <.span(s", $numDebating in progress").when(numDebating > 0),
+              <.span(s", $numDebatedPending pending").when(numDebatedPending > 0)
             )
           )
           .when(numDebated + numDebatedPending > 0),
         <.div(c"small text-muted")(
             <.span(
-              s"You've judged ",
+              s"Judged ",
               <.span(^.color.black)(nTimes(numJudged)),
-              <.span(s" ($numJudgedPending pending)").when(numDebatedPending > 0)
+              <.span(s", $numJudging in progress").when(numJudging > 0),
+              <.span(s", $numJudgedPending pending").when(numJudgedPending > 0)
             )
           )
           .when(numJudged + numJudgedPending > 0),

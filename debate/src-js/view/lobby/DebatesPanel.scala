@@ -52,6 +52,8 @@ object DebatesPanel {
                   S.awaitingFeedbackStatusLabel
                 case InProgress =>
                   S.inProgressStatusLabel
+                case CurrentlyOfflineJudging =>
+                  S.currentlyOfflineJudgingStatusLabel
                 case EligibleForOfflineJudging =>
                   S.eligibleForOfflineJudgingStatusLabel
                 case WaitingToBegin =>
@@ -63,6 +65,12 @@ object DebatesPanel {
               }
             }
             val roomsForHeading = metadatasByHeading.get(heading).combineAll
+
+            val hideResultsByDefault = Set[RoomHeading](
+              RoomHeading.CurrentlyOfflineJudging,
+              RoomHeading.EligibleForOfflineJudging
+            ).contains(heading)
+
             if (roomsForHeading.isEmpty)
               None
             else
@@ -74,22 +82,21 @@ object DebatesPanel {
                       .toVector
                       .sorted(RoomMetadata.getOrdering(userName, presentDebaters))
                       .toVdomArray { case rm: RoomMetadata =>
-                        Local[Boolean].make(heading == RoomHeading.EligibleForOfflineJudging) {
-                          hideResults =>
-                            Local[Boolean].make(true) { anonymize =>
-                              MetadataBox(
-                                storyRecord = storyRecord,
-                                presentDebaters = presentDebaters,
-                                roomMetadata = rm,
-                                isOfficial = isOfficial,
-                                userName = userName,
-                                isAdmin = isAdmin,
-                                hideResults = hideResults,
-                                anonymize = anonymize,
-                                sendToMainChannel = sendToMainChannel,
-                                enterRoom = connect
-                              )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
-                            }
+                        Local[Boolean].make(hideResultsByDefault) { hideResults =>
+                          Local[Boolean].make(true) { anonymize =>
+                            MetadataBox(
+                              storyRecord = storyRecord,
+                              presentDebaters = presentDebaters,
+                              roomMetadata = rm,
+                              isOfficial = isOfficial,
+                              userName = userName,
+                              isAdmin = isAdmin,
+                              hideResults = hideResults,
+                              anonymize = anonymize,
+                              sendToMainChannel = sendToMainChannel,
+                              enterRoom = connect
+                            )(^.key := rm.name, (^.opacity := "0.25").when(!matches))
+                          }
                         }
                       }
 
