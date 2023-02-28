@@ -35,9 +35,7 @@ import jjm.io.FileUtil
 import jjm.io.HttpUtil
 
 import debate.quality._
-// import debate.singleturn.SingleTurnDebateUtils
-// import cats.data.Validated.Valid
-// import cats.data.Validated.Invalid
+import debate.singleturn.SingleTurnDebateUtils
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -156,20 +154,9 @@ object Serve
     //   .resource
     //   .use { httpClient =>
     for {
-      // singleTurnDebateDataset <- SingleTurnDebateUtils.readSingleTurnDebate(dataPath, blocker)
-      qualityDataset <- QuALITYUtils.readQuALITY(dataPath, blocker)
-      // _ <-
-      //   Utils.identifyQualityMatches(qualityDataset, singleTurnDebateDataset) match {
-      //     case Valid(a) =>
-      //       IO.pure(a)
-      //     case Invalid(errs) =>
-      //       IO {
-      //         errs.toList.foreach(System.err.println)
-      //         throw new RuntimeException(
-      //           s"${errs.size} Errors in matching the single-turn debate and QuALITY data"
-      //         )
-      //       }
-      //   }
+      singleTurnDebateDataset <- SingleTurnDebateUtils.readSingleTurnDebate(dataPath, blocker)
+      qualityDataset          <- QuALITYUtils.readQuALITY(dataPath, blocker)
+      qualityMatches = Utils.identifyQualityMatches(qualityDataset, singleTurnDebateDataset)
       profiles <- FileUtil
         .readJson[Map[String, Profile]](profilesSavePath(saveDir))
         .recoverWith { case _: Throwable =>
