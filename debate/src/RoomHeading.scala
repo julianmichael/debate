@@ -3,6 +3,14 @@ package debate
 trait RoomHeading {
   import RoomHeading._
 
+  def showCompleteDebatesLast: Boolean =
+    this match {
+      case AssignedForOfflineJudging | CurrentlyOfflineJudging | EligibleForOfflineJudging =>
+        false
+      case _ =>
+        true
+    }
+
   override def toString =
     this match {
       case AwaitingFeedback =>

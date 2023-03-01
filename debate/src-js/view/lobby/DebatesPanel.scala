@@ -83,7 +83,14 @@ object DebatesPanel {
                   <.div(S.metadataListContainer, S.spaceySubcontainer) {
                     def showRooms(rooms: Set[RoomMetadata], matches: Boolean) = rooms
                       .toVector
-                      .sorted(RoomMetadata.getOrdering(userName, presentDebaters, storyRecord))
+                      .sorted(
+                        RoomMetadata.getOrdering(
+                          userName,
+                          presentDebaters,
+                          storyRecord,
+                          heading.showCompleteDebatesLast
+                        )
+                      )
                       .toVdomArray { case rm: RoomMetadata =>
                         Local[Boolean].make(hideResultsByDefault) { hideResults =>
                           Local[Boolean].make(true) { anonymize =>

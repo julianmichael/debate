@@ -100,11 +100,11 @@ case class RoomMetadata(
 }
 object RoomMetadata {
 
-  def getOrder(
+  def getOrderKey(
     userName: String,
     presentDebaters: Set[String],
     storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]]
-  ): Order[RoomMetadata] = Order.by { room =>
+  )(room: RoomMetadata) = {
     // TODO refactor so this isn't duplicated inside MetadataBox
     val stats = storyRecord.get(userName).flatMap(_.get(room.sourceMaterialId)).combineAll
     val debatesUserMustJudgeFirst = stats.debatesUserMustJudgeFirst(room.name)
@@ -122,19 +122,42 @@ object RoomMetadata {
     val numParticipantsNotInRoom  = (assignedLiveParticipants -- room.currentParticipants).size
     val myRoles                   = room.roleAssignments.filter(_._2 == userName).keySet
     val isMyTurn                  = myRoles.intersect(room.currentSpeakers).nonEmpty
-    (
-      !isMyTurn,
-      !canEnterRoom,
-      numParticipantsNotInLobby,
-      -numParticipantsNotInRoom,
-      -room.latestUpdateTime
-    )
+
+    if (room.result.isEmpty) {
+      Left(
+        (
+          !isMyTurn,
+          !canEnterRoom,
+          numParticipantsNotInLobby,
+          -numParticipantsNotInRoom,
+          -room.latestUpdateTime
+        )
+      )
+    } else
+      Right(-room.latestUpdateTime)
   }
+
+  def getOrder(
+    userName: String,
+    presentDebaters: Set[String],
+    storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
+    showCompleteDebatesLast: Boolean
+  ): Order[RoomMetadata] =
+    if (showCompleteDebatesLast)
+      Order.by(getOrderKey(userName, presentDebaters, storyRecord))
+    else
+      Order.by { room =>
+        getOrderKey(userName, presentDebaters, storyRecord)(room).swap
+      }
+
   def getOrdering(
     userName: String,
     presentDebaters: Set[String],
-    storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]]
-  ) = catsKernelOrderingForOrder(getOrder(userName, presentDebaters, storyRecord))
+    storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
+    showCompleteDebatesLast: Boolean
+  ) = catsKernelOrderingForOrder(
+    getOrder(userName, presentDebaters, storyRecord, showCompleteDebatesLast)
+  )
 
   def constructStoryRecord(
     rooms: Set[RoomMetadata]
