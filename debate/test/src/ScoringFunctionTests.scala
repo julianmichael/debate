@@ -14,7 +14,6 @@ class ScoringFunctionTests extends CatsEffectSuite {
   val probs   = Vector(0.4, 0.6)
 
   test("Deltas to make next turn worthwhile indeed make it worthwhile") {
-    println("testing")
     // TODO expand with property testing (scalacheck)
     val currentEV = scoringFunction.expectedValue(probs, turnNum)
     ScoringFunction
