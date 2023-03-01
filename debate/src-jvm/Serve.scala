@@ -126,7 +126,7 @@ object Serve
         setupSpec.answers.filter(_.nonEmpty),
         setupSpec.correctAnswerIndex,
         setupSpec.roles,
-        Map(), // TODO: offline judge assignments
+        setupSpec.offlineJudges,
         System.currentTimeMillis()
       )
     }

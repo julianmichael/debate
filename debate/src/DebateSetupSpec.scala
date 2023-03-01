@@ -33,6 +33,7 @@ case class DebateSetupSpec(
   question: String,
   answers: Vector[String],
   roles: Map[LiveDebateRole, String],
+  offlineJudges: Map[String, Option[OfflineJudgingMode]],
   correctAnswerIndex: Int
 ) {
   require(correctAnswerIndex >= 0 && correctAnswerIndex < answers.size)
@@ -48,6 +49,7 @@ object DebateSetupSpec {
     question = "Question?",
     answers = Vector("Answer 1", "Answer 2"),
     roles = Map(),
+    offlineJudges = Map(),
     correctAnswerIndex = 0
   )
 }

@@ -780,6 +780,25 @@ object DebateCreationPanel {
     }
   }
 
+  def offlineJudgesConfig(lobby: Lobby, setup: StateSnapshot[DebateSetupSpec]) =
+    <.div(S.mainLabeledInputRow)(
+      <.div(S.inputRowLabel)("Offline Judges"),
+      <.div(S.inputRowContents) {
+        val offlineJudges =
+          setup
+            .zoomStateL(DebateSetupSpec.offlineJudges)
+            .zoomState[Set[String]](_.keySet)(newKeys =>
+              _ => newKeys.map(_ -> Some(OfflineJudgingMode.Timed)).toMap
+            )
+        SetConfig
+          .String
+          .nice(lobby.profiles.keySet, items = offlineJudges, minItems = 0) {
+            case SetConfig.Context(judge) =>
+              <.div(c"p-2", S.row)(<.span(judge))
+          }
+      }
+    )
+
   /** Config panel for facilitator to set the rules of the debate. */
   def make(
     lobby: Lobby,
@@ -885,10 +904,10 @@ object DebateCreationPanel {
                               qualityStoryOpt,
                               qualityQuestionOpt
                             ),
-                            answersConfig(lobby, setup, qualityQuestionOpt.value)
+                            answersConfig(lobby, setup, qualityQuestionOpt.value),
+                            offlineJudgesConfig(lobby, setup)
                           )
                         }
-
                     }
                   }
               }

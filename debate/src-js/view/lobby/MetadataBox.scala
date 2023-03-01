@@ -479,6 +479,24 @@ object MetadataBox {
                 )
                 .toVdomArray
             )
+          ),
+        Option(roomMetadata.offlineJudgeAssignments)
+          .filter(_.nonEmpty)
+          .map(roles =>
+            <.div(
+              "Offline judges: ",
+              Utils
+                .delimitedTags[Vector, (String, Option[OfflineJudgingMode])](
+                  roles.toVector,
+                  getTag = { case (name, _) =>
+                    <.span(
+                      // S.debaterAssignment(role.answerIndex),
+                      ^.fontWeight.bold.when(roomMetadata.currentParticipants.contains(name))
+                    )(name)
+                  }
+                )
+                .toVdomArray
+            )
           )
       )
     }
