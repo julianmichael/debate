@@ -200,34 +200,56 @@ object DebatesPanel {
       Complete
     )
 
-    def makeTab(isOfficial: Boolean, headings: List[RoomHeading], rooms: Set[RoomMetadata]) = TabNav
-      .tab(
-        debatesTab(
-          isAdmin = isAdmin,
-          userName = userName,
-          isOfficial = isOfficial,
-          headings = headings,
-          rooms = rooms,
-          storyRecord = lobby.storyRecord,
-          presentDebaters = lobby.presentDebaters,
-          connect = connect,
-          sendToMainChannel = sendToMainChannel
-        )
+    def makeTab(isOfficial: Boolean, headings: List[RoomHeading], rooms: Set[RoomMetadata]) =
+      debatesTab(
+        isAdmin = isAdmin,
+        userName = userName,
+        isOfficial = isOfficial,
+        headings = headings,
+        rooms = rooms,
+        storyRecord = lobby.storyRecord,
+        presentDebaters = lobby.presentDebaters,
+        connect = connect,
+        sendToMainChannel = sendToMainChannel
       )
+
+    // TODO: eliminate redundancy between this and notification counts in LobbyPage
+
+    val numDebatesMyTurn =
+      lobby
+        .officialRooms
+        .filter(_.roleAssignments.values.toSet.contains(userName))
+        .filter { room =>
+          val myRoles = room.roleAssignments.filter(_._2 == userName).keySet
+          myRoles.intersect(room.currentSpeakers).nonEmpty
+        }
+        .size
+
+    val numDebatesReadyToJudge =
+      lobby
+        .officialRooms
+        .filter(_.offlineJudgeAssignments.contains(userName))
+        .flatMap(r => RoomStatus.complete.getOption(r.status))
+        .filter(_.offlineJudgingResults.get(userName).forall(_.result.isEmpty))
+        .size
 
     TabNav("debate-tab", initialTabIndex = 0)(
       "My Live Debates" ->
-        makeTab(isOfficial = true, headings = liveDebateHeadings, rooms = myDebates),
+        TabNav.tabWithNotifications(numDebatesMyTurn)(
+          makeTab(isOfficial = true, headings = liveDebateHeadings, rooms = myDebates)
+        ),
       "My Offline Judging" ->
-        makeTab(
-          isOfficial = true,
-          headings = offlineJudgingHeadings,
-          rooms = debatesForOfflineJudging
+        TabNav.tabWithNotifications(numDebatesReadyToJudge)(
+          makeTab(
+            isOfficial = true,
+            headings = offlineJudgingHeadings,
+            rooms = debatesForOfflineJudging
+          )
         ),
       "All Official Debates" ->
-        makeTab(isOfficial = true, headings = allHeadings, rooms = lobby.officialRooms),
+        TabNav.tab(makeTab(isOfficial = true, headings = allHeadings, rooms = lobby.officialRooms)),
       "Practice Debates" ->
-        makeTab(isOfficial = false, headings = allHeadings, rooms = lobby.practiceRooms)
+        TabNav.tab(makeTab(isOfficial = false, headings = allHeadings, rooms = lobby.practiceRooms))
     )
   }
 }

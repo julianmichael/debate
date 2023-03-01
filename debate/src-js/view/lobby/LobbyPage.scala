@@ -39,21 +39,32 @@ object LobbyPage {
         headerRow(userName, logout),
         // App.profileSelector(lobby.trackedDebaters, isAdmin = isAdmin, profile = profile),
         <.div(c"card") {
-          val myDebates = lobby
-            .officialRooms
-            .filter(_.roleAssignments.values.toSet.contains(userName))
-
           val numDebatesMyTurn =
-            myDebates
+            lobby
+              .officialRooms
+              .filter(_.roleAssignments.values.toSet.contains(userName))
               .filter { room =>
                 val myRoles = room.roleAssignments.filter(_._2 == userName).keySet
-                myRoles.intersect(room.currentSpeakers).nonEmpty
+                // XXX
+                val res = myRoles.intersect(room.currentSpeakers).nonEmpty
+                if (res) {
+                  println(room.name)
+                }
+                res
               }
+              .size
+
+          val numDebatesReadyToJudge =
+            lobby
+              .officialRooms
+              .filter(_.offlineJudgeAssignments.contains(userName))
+              .flatMap(r => RoomStatus.complete.getOption(r.status))
+              .filter(_.offlineJudgingResults.get(userName).forall(_.result.isEmpty))
               .size
 
           TabNav("main-tab", 0)(
             "Debates" ->
-              TabNav.tabWithNotifications(numDebatesMyTurn)(
+              TabNav.tabWithNotifications(numDebatesMyTurn + numDebatesReadyToJudge)(
                 DebatesPanel(
                   isAdmin = isAdmin.value,
                   lobby = lobby,

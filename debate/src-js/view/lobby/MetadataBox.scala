@@ -82,6 +82,7 @@ object MetadataBox {
 
     val mustWaitForDebateToEnd =
       roomMetadata.result.isEmpty &&
+        !roomMetadata.roleAssignments.values.toSet.contains(userName) &&
         (roomMetadata.offlineJudgeAssignments.contains(userName) ||
           (!stats.hasReadStory && stats.canJudgeMore))
 
@@ -281,7 +282,14 @@ object MetadataBox {
         case None =>
           val myRoles  = roomMetadata.roleAssignments.filter(_._2 == userName).keySet
           val isMyTurn = myRoles.intersect(roomMetadata.currentSpeakers).nonEmpty
-          if (isMyTurn) {
+          val isAssignedAndReadyToJudge =
+            roomMetadata.offlineJudgeAssignments.contains(userName) &&
+              RoomStatus
+                .complete
+                .getOption(roomMetadata.status)
+                .flatMap(_.offlineJudgingResults.get(userName))
+                .forall(_.result.isEmpty)
+          if (isMyTurn || isAssignedAndReadyToJudge) {
             TagMod(S.attentionBackground)
           } else
             TagMod.empty
