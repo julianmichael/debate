@@ -87,6 +87,8 @@ object RoomHeading {
         MustJudgeBeforeDebating
       case _ if metadata.offlineJudgeAssignments.contains(user) =>
         AssignedForOfflineJudging
+      case _ if !stats.hasReadStory && stats.canJudgeMore =>
+        EligibleForOfflineJudging
       case RoomStatus.InProgress =>
         InProgress
       case RoomStatus.WaitingToBegin =>

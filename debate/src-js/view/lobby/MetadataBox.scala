@@ -81,7 +81,9 @@ object MetadataBox {
     val debatesUserMustJudgeFirst = stats.debatesUserMustJudgeFirst(roomMetadata.name)
 
     val mustWaitForDebateToEnd =
-      roomMetadata.result.isEmpty && roomMetadata.offlineJudgeAssignments.contains(userName)
+      roomMetadata.result.isEmpty &&
+        (roomMetadata.offlineJudgeAssignments.contains(userName) ||
+          (!stats.hasReadStory && stats.canJudgeMore))
 
     val canEnterRoom =
       userName.nonEmpty && debatesUserMustJudgeFirst.isEmpty && !mustWaitForDebateToEnd
@@ -381,14 +383,16 @@ object MetadataBox {
 
     val boxTitle = ReactFragment(
       <.h5(c"card-title")(roomMetadata.name),
-      <.h6(c"card-subtitle", c"mb-2")(
-        resultDescriptionOpt match {
-          case Some(description) =>
-            description.label
-          case None =>
-            turnSpan
-        }
-      ),
+      Option(
+        <.h6(c"card-subtitle", c"mb-2")(
+          resultDescriptionOpt match {
+            case Some(description) =>
+              description.label
+            case None =>
+              turnSpan
+          }
+        )
+      ).filter(_ => canEnterRoom),
       userRoleDisplay.map(<.h6(c"card-subtitle mb-2")(_))
     )
 
