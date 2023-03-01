@@ -377,6 +377,8 @@ object Styles extends jjm.ui.View.Styles {
 
   val answerTitle = style(fontWeight.bold)
 
+  val offlineJudgesBox = style(inDebateRoleBox, backgroundColor.white)
+
   val speechRow = style(display.flex, flexDirection.row)
 
   val speechBox = style(

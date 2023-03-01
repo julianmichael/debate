@@ -37,7 +37,6 @@ object LobbyPage {
     Mounting.make(Callback(dom.window.document.title = Utils.makePageTitle("Lobby"))) {
       <.div(S.lobbyContainer, S.spaceyContainer)(
         headerRow(userName, logout),
-        // App.profileSelector(lobby.trackedDebaters, isAdmin = isAdmin, profile = profile),
         <.div(c"card") {
           val numDebatesMyTurn =
             lobby
@@ -45,12 +44,7 @@ object LobbyPage {
               .filter(_.roleAssignments.values.toSet.contains(userName))
               .filter { room =>
                 val myRoles = room.roleAssignments.filter(_._2 == userName).keySet
-                // XXX
-                val res = myRoles.intersect(room.currentSpeakers).nonEmpty
-                if (res) {
-                  println(room.name)
-                }
-                res
+                myRoles.intersect(room.currentSpeakers).nonEmpty
               }
               .size
 

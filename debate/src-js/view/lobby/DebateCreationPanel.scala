@@ -785,22 +785,26 @@ object DebateCreationPanel {
     }
   }
 
-  def offlineJudgesConfig(lobby: Lobby, setup: StateSnapshot[DebateSetupSpec]) =
+  def offlineJudgesConfig(
+    profiles: Set[String],
+    judges: StateSnapshot[Map[String, Option[OfflineJudgingMode]]]
+  ) = {
+    val offlineJudges =
+      judges.zoomState[Set[String]](_.keySet)(newKeys =>
+        _ => newKeys.map(_ -> Some(OfflineJudgingMode.Timed)).toMap
+      )
+    SetConfig
+      .String
+      .nice(profiles, items = offlineJudges, minItems = 0) { case SetConfig.Context(judge) =>
+        <.div(c"p-2", S.row)(<.span(judge))
+      }
+  }
+
+  def offlineJudgesPanel(lobby: Lobby, setup: StateSnapshot[DebateSetupSpec]) =
     <.div(S.mainLabeledInputRow)(
       <.div(S.inputRowLabel)("Offline Judges"),
       <.div(S.inputRowContents) {
-        val offlineJudges =
-          setup
-            .zoomStateL(DebateSetupSpec.offlineJudges)
-            .zoomState[Set[String]](_.keySet)(newKeys =>
-              _ => newKeys.map(_ -> Some(OfflineJudgingMode.Timed)).toMap
-            )
-        SetConfig
-          .String
-          .nice(lobby.profiles.keySet, items = offlineJudges, minItems = 0) {
-            case SetConfig.Context(judge) =>
-              <.div(c"p-2", S.row)(<.span(judge))
-          }
+        offlineJudgesConfig(lobby.profiles.keySet, setup.zoomStateL(DebateSetupSpec.offlineJudges))
       }
     )
 
@@ -910,7 +914,7 @@ object DebateCreationPanel {
                               qualityQuestionOpt
                             ),
                             answersConfig(lobby, setup, qualityQuestionOpt.value),
-                            offlineJudgesConfig(lobby, setup)
+                            offlineJudgesPanel(lobby, setup)
                           )
                         }
                     }

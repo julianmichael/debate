@@ -329,7 +329,24 @@ object DebatePage {
               ),
               ^.onClick --> tryAssumingRole(Debater(answerIndex))
             )
-          }
+          },
+        <.div(S.col, S.offlineJudgesBox)(
+            <.h5("Offline judges"),
+            debate
+              .view
+              .lobby
+              .DebateCreationPanel
+              .offlineJudgesConfig(
+                profiles,
+                debateState.zoomStateL(
+                  DebateState
+                    .debate
+                    .composeLens(Debate.setup)
+                    .composeLens(DebateSetup.offlineJudges)
+                )
+              )
+          )
+          .when(role == Facilitator)
       )
     )
   }
