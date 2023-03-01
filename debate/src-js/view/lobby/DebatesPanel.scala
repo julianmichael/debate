@@ -161,14 +161,18 @@ object DebatesPanel {
         .getOption(room.status)
         .exists(_.offlineJudgingResults.contains(userName)) ||
         // or I _can_ judge it offline.
-        Set[RoomHeading](AwaitingFeedback, EligibleForOfflineJudging, CurrentlyOfflineJudging)
-          .contains(
-            RoomHeading.infer(
-              room,
-              userName,
-              lobby.storyRecord.get(userName).flatMap(_.get(room.sourceMaterialId)).combineAll
-            )
+        Set[RoomHeading](
+          AwaitingFeedback,
+          CurrentlyOfflineJudging,
+          AssignedForOfflineJudging,
+          EligibleForOfflineJudging
+        ).contains(
+          RoomHeading.infer(
+            room,
+            userName,
+            lobby.storyRecord.get(userName).flatMap(_.get(room.sourceMaterialId)).combineAll
           )
+        )
     )
 
     val liveDebateHeadings = List(
@@ -181,6 +185,7 @@ object DebatesPanel {
     val offlineJudgingHeadings = List(
       AwaitingFeedback,
       CurrentlyOfflineJudging,
+      AssignedForOfflineJudging,
       EligibleForOfflineJudging,
       Complete
     )
@@ -190,6 +195,7 @@ object DebatesPanel {
       WaitingToBegin,
       MustJudgeBeforeDebating,
       CurrentlyOfflineJudging,
+      AssignedForOfflineJudging,
       EligibleForOfflineJudging,
       Complete
     )

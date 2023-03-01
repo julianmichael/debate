@@ -198,6 +198,11 @@ object DebateCreationPanel {
         Some(<.div("No judge may be assigned in a judgeless debate."))
       ) *>
       ensure(
+        "offline judges assigned in official judgeless debate",
+        (isOfficial && !setup.rules.hasJudge) --> setup.offlineJudges.nonEmpty,
+        Some(<.div("Offline judges must be assigned in official debates with no live judge."))
+      ) *>
+      ensure(
         "no judge in debates which can end by agreement",
         setup
           .rules
