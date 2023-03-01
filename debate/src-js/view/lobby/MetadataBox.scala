@@ -80,7 +80,11 @@ object MetadataBox {
 
     val debatesUserMustJudgeFirst = stats.debatesUserMustJudgeFirst(roomMetadata.name)
 
-    val canEnterRoom = userName.nonEmpty && debatesUserMustJudgeFirst.isEmpty
+    val mustWaitForDebateToEnd =
+      roomMetadata.result.isEmpty && roomMetadata.offlineJudgeAssignments.contains(userName)
+
+    val canEnterRoom =
+      userName.nonEmpty && debatesUserMustJudgeFirst.isEmpty && !mustWaitForDebateToEnd
 
     val assignedLiveParticipants   = roomMetadata.roleAssignments.values.toSet
     val participantsPresentInLobby = assignedLiveParticipants.intersect(presentDebaters)
@@ -437,7 +441,9 @@ object MetadataBox {
               )
               .toVdomArray
           )
-          .when(debatesUserMustJudgeFirst.nonEmpty)
+          .when(debatesUserMustJudgeFirst.nonEmpty),
+        <.div(c"small", ^.color.red)("Debate must end before you can judge.")
+          .when(mustWaitForDebateToEnd)
       )
     }
 
