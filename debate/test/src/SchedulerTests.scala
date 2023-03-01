@@ -43,9 +43,9 @@ class SchedulerTests extends CatsEffectSuite {
 
   def testDebateSetup(assignment: DebateAssignment): DebateSetup = {
     val correctAnswerIndex = 0
-    val dishonestRoles: Map[DebateRole, String] =
+    val dishonestRoles: Map[LiveDebateRole, String] =
       assignment.dishonestDebaters.map(Debater(1 + correctAnswerIndex) -> _).toMap
-    val roles: Map[DebateRole, String] =
+    val roles: Map[LiveDebateRole, String] =
       dishonestRoles +
         (Debater(correctAnswerIndex) -> assignment.honestDebater) +
         (Judge                       -> assignment.judge)
@@ -57,14 +57,14 @@ class SchedulerTests extends CatsEffectSuite {
       answers = Vector("the answer to everything, trust me", "the answer to nothing, trust me"),
       correctAnswerIndex = correctAnswerIndex,
       roles = roles,
-      startTime = 0
+      offlineJudges = Map(),
+      creationTime = 0
     )
   }
 
   def testDebateOfAssignment(assignment: DebateAssignment) = Debate(
     setup = testDebateSetup(assignment),
     rounds = Vector.empty[DebateRound],
-    offlineJudgingResults = Map(),
     feedback = Map()
   )
 
