@@ -272,8 +272,8 @@ object Feedback {
       )
     ),
     // TODO fix this question for offline judging, check that others makes sense too
-    DotPair[Question][Key](Key.ComparativeLikert("judge reasoning"))(
-      Question.ComparativeLikert(
+    DotPair[Question][Key](Key.Likert("judge reasoning"))(
+      Question.Likert(
         {
           case Debater(_) =>
             "How sound was the judge's reasoning? Did they make their final judgment for the right reasons, given the debate?"
