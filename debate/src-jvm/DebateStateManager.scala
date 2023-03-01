@@ -121,7 +121,7 @@ case class DebateStateManager(
                       .orElse(
                         debateState
                           .debate
-                          .realOfflineJudgingResults
+                          .offlineJudgingResults
                           .get(participantName)
                           .as(OfflineJudge)
                       )
@@ -168,7 +168,7 @@ case class DebateStateManager(
         )
       debatersNewToStory =
         setup.roles.filter(_._1.isDebater).values.toSet -- debatersWhoHaveReadStory
-      debate = Debate(setup, Vector(), Map(), Map())
+      debate = Debate(setup, Vector(), Map())
       room     <- DebateRoom.create(DebateState(debate = debate, participants = Map()))
       curRooms <- rooms.get
       _ <-

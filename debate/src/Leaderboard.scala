@@ -66,7 +66,7 @@ object DebateStats {
             }
       }
     val offlineJudgingStats = d
-      .realOfflineJudgingResults
+      .offlineJudgingResults
       .toVector
       .foldMap { case (user, offlineJudgment) =>
         offlineJudgment

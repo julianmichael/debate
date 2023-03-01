@@ -24,7 +24,6 @@ import jjm.implicits._
 case class Debate(
   setup: DebateSetup,
   rounds: Vector[DebateRound],
-  offlineJudgingResults: Map[String, OfflineJudgingInfo],
   feedback: Map[String, Feedback.SurveyResponse]
 ) {
   import Debate.DebateTransitionSet
@@ -47,7 +46,7 @@ case class Debate(
   def result: Option[DebateResult]            = stateInfo._1
   def currentTransitions: DebateTransitionSet = stateInfo._2
   // TODO rename this back to normal
-  def realOfflineJudgingResults = currentTransitions
+  def offlineJudgingResults = currentTransitions
     .giveSpeech
     .get(OfflineJudge)
     .map(_.fst)
@@ -468,61 +467,7 @@ case class Debate(
         x
     }
 
-    def addNewResults(rounds: Vector[DebateRound]) = {
-      val newResults = offlineJudgingResults.map { case (judge, info) =>
-        val mode =
-          info match {
-            case _: OfflineJudgingInfo.Timed =>
-              OfflineJudgingMode.Timed
-            // never made this a subtype anyway oops haha
-            // case _: OfflineJudgingInfo.Stepped =>
-            //   OfflineJudgingMode.Stepped
-          }
-        judge ->
-          OfflineJudgment(
-            mode = mode,
-            startTimeMillis = -1,
-            numContinues = numContinues,
-            result = Some(
-              OfflineJudgingResult(
-                distribution = info.judgment,
-                explanation = info.explanation,
-                timestamp = info.timestamp
-              )
-            )
-          )
-      }
-      if (newResults.isEmpty)
-        rounds
-      else {
-        val offlineJudgmentRounds = rounds
-          .zipWithIndex
-          .collect { case (OfflineJudgments(judgments), i) =>
-            judgments -> i
-          }
-        require(
-          offlineJudgmentRounds.size <= 1,
-          "Cannot have more than one round of offline judgments"
-        )
-        require(
-          offlineJudgmentRounds.forall(_._2 == rounds.size - 1),
-          "Offline judging round must be last"
-        )
-        val newOfflineJudgmentRound = OfflineJudgments(
-          offlineJudgmentRounds.headOption.map(_._1).getOrElse(Map[String, OfflineJudgment]()) ++
-            newResults
-        )
-        val newRounds =
-          if (offlineJudgmentRounds.isEmpty)
-            rounds :+ newOfflineJudgmentRound
-          else
-            rounds.updated(rounds.size - 1, newOfflineJudgmentRound)
-
-        newRounds
-      }
-    }
-
-    this.copy(rounds = clampProbs(addNewResults(rounds)))
+    this.copy(rounds = clampProbs(rounds))
   }
 }
 object Debate {
@@ -538,7 +483,7 @@ object Debate {
     def currentTurns    = giveSpeech.mapVals(_.fst)
   }
 
-  def init(setup: DebateSetup): Debate = Debate(setup, Vector(), Map(), Map())
+  def init(setup: DebateSetup): Debate = Debate(setup, Vector(), Map())
 }
 
 /** Outcome of a debate turn after some/all relevant parties have submitted

@@ -233,10 +233,10 @@ object DebatePanel {
     val timeForFeedback =
       debate.value.isOver &&
         (setup.roles.values.toVector.contains(userName) ||
-          debate.value.realOfflineJudgingResults.get(userName).exists(_.result.nonEmpty))
+          debate.value.offlineJudgingResults.get(userName).exists(_.result.nonEmpty))
 
     val canSeeDebate =
-      !(role == OfflineJudge && debate.value.realOfflineJudgingResults.get(userName).isEmpty)
+      !(role == OfflineJudge && debate.value.offlineJudgingResults.get(userName).isEmpty)
 
     val nonDebateRoles = Set(Observer, Facilitator)
     val canSeeResult   = debate.value.isOver && (timeForFeedback || nonDebateRoles.contains(role))
