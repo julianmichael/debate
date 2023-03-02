@@ -127,7 +127,7 @@ case class Schedule(
     .unorderedFoldMap(_.unorderedFoldMap(math.pow(_, exponent)))
 
   /** result is non-negative */
-  def cost: Double = {
+  lazy val cost: Double = {
     val terms = List(
       workloadImbalance,
       storiesRead,

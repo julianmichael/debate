@@ -1,7 +1,7 @@
 package debate
 package scheduler
 
-case class Assignment private (
+case class Assignment(
   val storyId: SourceMaterialId,
   val question: String,
   val honestDebater: String,
@@ -26,65 +26,34 @@ case class Assignment private (
 }
 
 object Assignment {
-  def create(
-    storyId: SourceMaterialId,
-    question: String,
-    honestDebater: String,
-    dishonestDebater: String,
-    judge: String,
-    offlineJudges: Set[String],
-    honestFirst: Boolean
-  ): Either[Exception, Assignment] = {
-    val assignment =
-      new Assignment(
-        storyId,
-        question,
-        honestDebater,
-        dishonestDebater,
-        judge,
-        offlineJudges,
-        honestFirst
-      )
-    if (assignment.allParticipants.size != offlineJudges.size + 3) {
-      return Left(new IllegalArgumentException("Debaters and judges must all be different people"))
-    } else
-      Right(assignment)
-  }
 
   /**
       * Returns the assignment of roles to users for a given debate.
       * Returns None if the debate has not been assigned all of the roles,
       * or if the debate has a number of answers that differs from 2.
       */
-  def fromDebate(debate: Debate): Option[Assignment] =
+  def fromDebateSetup(setup: DebateSetup): Option[Assignment] =
     for {
-      judge         <- debate.setup.roles.get(Judge)
-      honestDebater <- debate.setup.roles.get(Debater(debate.setup.correctAnswerIndex))
+      judge         <- setup.roles.get(Judge)
+      honestDebater <- setup.roles.get(Debater(setup.correctAnswerIndex))
       dishonestDebaters =
-        debate
-          .setup
+        setup
           .roles
           .collect {
-            case (Debater(index), name) if index != debate.setup.correctAnswerIndex =>
+            case (Debater(index), name) if index != setup.correctAnswerIndex =>
               name
           }
           .toSet
-      dishonestDebater <- dishonestDebaters.headOption.filter(_ => debate.setup.answers.size == 2)
-      offlineJudges = debate.setup.offlineJudges.keySet
-      honestFirst   = debate.setup.correctAnswerIndex == 0
-    } yield create(
-      SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
-      debate.setup.question,
+      dishonestDebater <- dishonestDebaters.headOption.filter(_ => setup.answers.size == 2)
+      offlineJudges = setup.offlineJudges.keySet
+      honestFirst   = setup.correctAnswerIndex == 0
+    } yield Assignment(
+      SourceMaterialId.fromSourceMaterial(setup.sourceMaterial),
+      setup.question,
       honestDebater,
       dishonestDebater,
       judge,
       offlineJudges,
       honestFirst
-    ) match {
-      case Right(assignment) =>
-        assignment
-      case Left(error) =>
-        // this should never happen if the error comes from dishonest debater assignment, etc. , but technically it's possible in case there are new error cases
-        throw error
-    }
+    )
 }

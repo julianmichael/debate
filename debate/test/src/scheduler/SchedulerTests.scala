@@ -9,7 +9,6 @@ class SchedulerTests extends CatsEffectSuite {
   val debater2 = "debater2"
   val debater3 = "debater3"
 
-  // TODO someday-maybe make this a method on a history type :)
   def makeRandomStoryName(history: Vector[Debate]): String = {
     var randomNewStoryName = "test story"
     while (history.map(_.setup.sourceMaterial.title).contains(randomNewStoryName))
@@ -17,21 +16,23 @@ class SchedulerTests extends CatsEffectSuite {
     randomNewStoryName
   }
 
-  test("with no constraints, assignment works") {
+  test("sampleScheduleForStory minimally works") {
     val debaters = Map(
       debater1 -> DebaterLoadConstraint(None, None),
       debater2 -> DebaterLoadConstraint(None, None),
       debater3 -> DebaterLoadConstraint(None, None)
     )
-    val questions = (1 to 5).map(i => s"Question $i").toVector
-    val schedule = getScheduleForNewStory(
-      history = Vector.empty,
-      questions = questions,
-      numDebatesPerQuestion = 1,
-      numOfflineJudgesPerDebate = 0,
-      debaters = debaters,
-      storyId = SourceMaterialId.Custom(makeRandomStoryName(history = Vector.empty))
-    )
+    val questions = (1 to 3).map(i => s"Question $i").toVector
+    val schedule =
+      sampleScheduleForStory(
+        complete = Vector(),
+        incomplete = Vector(),
+        storyId = SourceMaterialId.Custom(makeRandomStoryName(history = Vector.empty)),
+        questions = questions,
+        numDebatesPerQuestion = 2,
+        numOfflineJudgesPerDebate = 0,
+        debaters = debaters
+      )()
     assert {
       schedule.novel.size == questions.size;
       schedule
@@ -115,18 +116,20 @@ class SchedulerTests extends CatsEffectSuite {
     var costs   = Vector.empty[Double]
     var history = Vector.empty[Debate]
     for (_ <- 1 to 5) {
-      val schedule = getScheduleForNewStory(
-        history = history,
-        questions = Vector("Question"),
-        numDebatesPerQuestion = 1,
-        numOfflineJudgesPerDebate = 0,
-        debaters = Map(
-          debater1 -> DebaterLoadConstraint(None, None),
-          debater2 -> DebaterLoadConstraint(None, None),
-          debater3 -> DebaterLoadConstraint(None, None)
-        ),
-        storyId = SourceMaterialId.Custom(makeRandomStoryName(history = history))
-      )
+      val schedule =
+        sampleScheduleForStory(
+          complete = Vector(),
+          incomplete = Vector(),
+          questions = Vector("Question"),
+          numDebatesPerQuestion = 1,
+          numOfflineJudgesPerDebate = 0,
+          debaters = Map(
+            debater1 -> DebaterLoadConstraint(None, None),
+            debater2 -> DebaterLoadConstraint(None, None),
+            debater3 -> DebaterLoadConstraint(None, None)
+          ),
+          storyId = SourceMaterialId.Custom(makeRandomStoryName(history = history))
+        )()
       assert {
         schedule.novel.size == 1
       }
@@ -137,7 +140,7 @@ class SchedulerTests extends CatsEffectSuite {
     println("for full cost measurement: " + costs)
     println(
       "for full cost measurement, all assignments: \n\n" +
-        history.map(Assignment.fromDebate).map(o => o.map(_.toPrettyString))
+        history.map(_.setup).map(Assignment.fromDebateSetup).map(o => o.map(_.toPrettyString))
     )
   }
 }

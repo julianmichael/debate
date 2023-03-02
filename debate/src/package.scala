@@ -17,11 +17,14 @@ import jjm.ling.ESpan
 
 package object debate extends PackagePlatformExtensions {
 
-  type Constant[C, A] = C
+  // you're only allowed to judge the same story twice
+  val numJudgingsAllowedPerStory = 2
 
   val timeBeforeWhichToIgnoreMissingFeedback = 1672531200000L
 
   val appDivId = "app"
+
+  type Constant[C, A] = C
 
   @JsonCodec
   sealed trait DebateEndReason
