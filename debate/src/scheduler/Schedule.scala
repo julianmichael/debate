@@ -76,18 +76,16 @@ case class Schedule(
 
   // minimize imbalance of honesty/dishonesty
   def honestyImbalance = computeImbalance(assignment =>
-    Map(assignment.honestDebater -> Map("honest" -> 1.0)) |+|
-      assignment.dishonestDebaters.unorderedFoldMap(d => Map(d -> Map("dishonest" -> 1.0)))
+    Map(assignment.honestDebater      -> Map("honest" -> 1.0)) |+|
+      Map(assignment.dishonestDebater -> Map("dishonest" -> 1.0))
   )
 
   // TODO: a/b imbalance?
 
   // maximize debater spread:
   def opponentImbalance = computeImbalanceFromUniform(assignment =>
-    Map(assignment.honestDebater -> assignment.dishonestDebaters.map(_ -> 1.0).toMap) |+|
-      assignment
-        .dishonestDebaters
-        .unorderedFoldMap(d => Map(d -> Map(assignment.honestDebater -> 1.0)))
+    Map(assignment.honestDebater      -> Map(assignment.dishonestDebater -> 1.0)) |+|
+      Map(assignment.dishonestDebater -> Map(assignment.honestDebater -> 1.0))
   )
 
   // maximize judge -> debater / debater -> judge spread:

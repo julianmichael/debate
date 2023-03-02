@@ -4,11 +4,11 @@ package scheduler
 case class Assignment private (
   val storyId: SourceMaterialId,
   val honestDebater: String,
-  val dishonestDebaters: Set[String],
+  val dishonestDebater: String,
   val judge: String,
   val offlineJudges: Set[String]
 ) {
-  def debaters        = dishonestDebaters + honestDebater
+  def debaters        = Set(dishonestDebater, honestDebater)
   def judges          = offlineJudges + judge
   def allParticipants = debaters ++ judges
 
@@ -16,7 +16,7 @@ case class Assignment private (
 
   def toPrettyString: String =
     s"""Honest debater: $honestDebater
-       |Dishonest debaters: ${dishonestDebaters.mkString(", ")}
+       |Dishonest debater: $dishonestDebater
        |Judge: $judge
        |Offline judges: ${offlineJudges.mkString(", ")}""".stripMargin
 }
@@ -25,12 +25,12 @@ object Assignment {
   def create(
     storyId: SourceMaterialId,
     honestDebater: String,
-    dishonestDebaters: Set[String],
+    dishonestDebater: String,
     judge: String,
     offlineJudges: Set[String]
   ): Either[Exception, Assignment] = {
-    val assignment = new Assignment(storyId, honestDebater, dishonestDebaters, judge, offlineJudges)
-    if (assignment.allParticipants.size != dishonestDebaters.size + offlineJudges.size + 2) {
+    val assignment = new Assignment(storyId, honestDebater, dishonestDebater, judge, offlineJudges)
+    if (assignment.allParticipants.size != offlineJudges.size + 3) {
       return Left(new IllegalArgumentException("Debaters and judges must all be different people"))
     } else
       Right(assignment)
@@ -38,7 +38,8 @@ object Assignment {
 
   /**
       * Returns the assignment of roles to users for a given debate.
-      * Returns None if the debate has not been assigned roles.
+      * Returns None if the debate has not been assigned all of the roles,
+      * or if the debate has a number of answers that differs from 2.
       */
   def fromDebate(debate: Debate): Option[Assignment] =
     for {
@@ -53,11 +54,12 @@ object Assignment {
               name
           }
           .toSet
+      dishonestDebater <- dishonestDebaters.headOption.filter(_ => debate.setup.answers.size == 2)
       offlineJudges = debate.setup.offlineJudges.keySet
     } yield create(
       SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
       honestDebater,
-      dishonestDebaters,
+      dishonestDebater,
       judge,
       offlineJudges
     ) match {

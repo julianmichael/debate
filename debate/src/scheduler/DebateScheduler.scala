@@ -21,21 +21,14 @@ object DebateScheduler {
   def generateAllPossibleQuestionAssignments(
     storyId: SourceMaterialId,
     debaters: Set[String],
-    numDishonestDebatersPerQuestion: Int,
     numOfflineJudgesPerQuestion: Int
   ): Iterable[Assignment] =
     // TODO someday add some validation for the strings in the debaters map and the history
     for {
-      honestDebater <- debaters
-      judge         <- debaters - honestDebater
-      if judge != honestDebater
-      allPossibleDishonestDebaters = debaters.toSet - honestDebater - judge
-      dishonestDebaters <- allPossibleDishonestDebaters
-        .toSeq
-        .combinations(numDishonestDebatersPerQuestion)
-        .map(_.toSet)
-      allPossibleOfflineJudges = allPossibleDishonestDebaters -- dishonestDebaters
-      offlineJudges <- allPossibleOfflineJudges
+      honestDebater    <- debaters
+      dishonestDebater <- debaters - honestDebater
+      judge            <- debaters - honestDebater - dishonestDebater
+      offlineJudges <- (debaters - honestDebater - dishonestDebater - judge)
         .toSeq
         .combinations(numOfflineJudgesPerQuestion)
         .map(_.toSet)
@@ -43,7 +36,7 @@ object DebateScheduler {
         storyId = storyId,
         honestDebater = honestDebater,
         judge = judge,
-        dishonestDebaters = dishonestDebaters,
+        dishonestDebater = dishonestDebater,
         offlineJudges = offlineJudges
       )
     } yield dba match {
@@ -57,7 +50,6 @@ object DebateScheduler {
   def generateAllAssignments(
     storyId: SourceMaterialId,
     numQuestions: Int,
-    numDishonestDebatersPerQuestion: Int,
     numOfflineJudgesPerQuestion: Int,
     debaters: Set[String]
   ): Vector[Vector[Assignment]] = {
@@ -78,7 +70,6 @@ object DebateScheduler {
     val allPossibleQuestionAssignments = generateAllPossibleQuestionAssignments(
       storyId,
       debaters,
-      numDishonestDebatersPerQuestion,
       numOfflineJudgesPerQuestion
     )
     allPossibleQuestionAssignments.toVector.combinations(numQuestions).toVector
@@ -141,7 +132,6 @@ object DebateScheduler {
     history: Vector[Debate],
     storyId: SourceMaterialId,
     numQuestions: Int,
-    numDishonestDebatersPerQuestion: Int,
     numOfflineJudgesPerQuestion: Int,
     debaters: Map[String, DebaterLoadConstraint], // TODO: change to or add soft constraints
     rng: scala.util.Random = scala.util.Random
@@ -151,7 +141,6 @@ object DebateScheduler {
     val allSchedulesThatMeetConstraints = generateAllAssignments(
       storyId = storyId,
       numQuestions = numQuestions,
-      numDishonestDebatersPerQuestion = numDishonestDebatersPerQuestion,
       numOfflineJudgesPerQuestion = numOfflineJudgesPerQuestion,
       debaters = debaters.keySet
     ).filter(isAssignmentValid(_, debaters))

@@ -27,7 +27,6 @@ class SchedulerTests extends CatsEffectSuite {
     val schedule = getScheduleForNewStory(
       history = Vector.empty,
       numQuestions = numQuestions,
-      numDishonestDebatersPerQuestion = 1,
       numOfflineJudgesPerQuestion = 0,
       debaters = debaters,
       storyId = SourceMaterialId.Custom(makeRandomStoryName(history = Vector.empty))
@@ -37,9 +36,10 @@ class SchedulerTests extends CatsEffectSuite {
       schedule
         .all
         .forall { assignment =>
+          // TODO offline judges too
           assignment.honestDebater != assignment.judge &&
-          !assignment.dishonestDebaters.contains(assignment.honestDebater)
-          !assignment.dishonestDebaters.contains(assignment.judge)
+          assignment.dishonestDebater != assignment.honestDebater
+          assignment.dishonestDebater != assignment.judge
         };
     }
   }
@@ -48,8 +48,9 @@ class SchedulerTests extends CatsEffectSuite {
 
   def testDebateSetup(assignment: Assignment): DebateSetup = {
     val correctAnswerIndex = 0
-    val dishonestRoles: Map[LiveDebateRole, String] =
-      assignment.dishonestDebaters.map(Debater(1 + correctAnswerIndex) -> _).toMap
+    val dishonestRoles: Map[LiveDebateRole, String] = Map(
+      Debater(1 + correctAnswerIndex) -> assignment.dishonestDebater
+    )
     val roles: Map[LiveDebateRole, String] =
       dishonestRoles +
         (Debater(correctAnswerIndex) -> assignment.honestDebater) +
@@ -116,7 +117,6 @@ class SchedulerTests extends CatsEffectSuite {
       val schedule = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
-        numDishonestDebatersPerQuestion = 1,
         numOfflineJudgesPerQuestion = 0,
         debaters = Map(
           debater1 -> DebaterLoadConstraint(None, None),
