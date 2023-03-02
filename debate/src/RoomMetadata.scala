@@ -135,7 +135,7 @@ object RoomMetadata {
         )
       )
     } else
-      Right(-room.latestUpdateTime)
+      Right(-room.creationTime)
   }
 
   def getOrder(
