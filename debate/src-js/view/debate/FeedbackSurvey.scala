@@ -92,10 +92,8 @@ object FeedbackSurvey {
                     role match {
                       case Debater(_) =>
                         "You: "
-                      case Judge | OfflineJudge =>
-                        "Debater A: "
                       case _ =>
-                        "Error" // TODO
+                        "Debater A: "
                     }
                   ),
                   <.div(S.grow)(
@@ -112,10 +110,8 @@ object FeedbackSurvey {
                     role match {
                       case Debater(_) =>
                         "Opponent: "
-                      case Judge | OfflineJudge =>
-                        "Debater B: "
                       case _ =>
-                        "Error" // TODO
+                        "Debater B: "
                     }
                   ),
                   <.div(S.grow)(

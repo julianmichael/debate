@@ -25,8 +25,6 @@ import org.http4s.client.JavaNetClientBuilder
 import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
-import org.http4s.server.middleware.CORS
-import org.http4s.server.middleware.CORSConfig
 import org.http4s.server.websocket.WebSocketBuilder
 
 import jjm.DotKleisli
@@ -247,24 +245,10 @@ object Serve
         }
       )
 
-      // TODO: can we get rid of this?
-      // We need to configure CORS for the AJAX APIs if we're using a separate
-      // endpoint for static file serving.
-      // TODO: allow requests from our hostname instead of any
-      // (but this requires us to know our hostname)
-      // unless we set up Vite as a proxy
-      val corsConfig = CORSConfig(
-        anyOrigin = true,
-        anyMethod = false,
-        allowedMethods = Some(Set("GET", "POST")),
-        allowCredentials = true,
-        maxAge = 1.day.toSeconds
-      )
-
       HttpsRedirect(
         Router(
-          s"/$qualityServiceApiEndpoint" -> CORS(qualityService, corsConfig),
-          s"/$ajaxServiceApiEndpoint"    -> CORS(ajaxService, corsConfig),
+          s"/$qualityServiceApiEndpoint" -> qualityService,
+          s"/$ajaxServiceApiEndpoint"    -> ajaxService,
           "/" ->
             service(
               jsPathO,
@@ -307,7 +291,6 @@ object Serve
 
     // Operations executed by the server
 
-    // TODO change param to Profile so this can be used to modify profiles as well
     def registerDebater(profile: Profile) =
       for {
         _        <- profiles.update(_ + (profile.name -> profile))

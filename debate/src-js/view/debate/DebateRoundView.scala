@@ -333,7 +333,6 @@ object DebateRoundView {
             }
             .flatMap { case (judge, OfflineJudgment(_, _, numContinues, resultOpt)) =>
               Vector(
-                // TODO: prevent judge from extracting info via quotes
                 resultOpt.map(result =>
                   makeSpeechHtml(
                     Vector(),
