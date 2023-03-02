@@ -68,7 +68,8 @@ object RoomHeading {
           if (feedbackProviders.contains(user)) {
             Complete
           } else {
-            // XXX: just until we import the old feedback results, only ask for feedback for debates created as of 2023
+            // NOTE: only ask for feedback for debates created as of 2023.
+            // Not gonna bother importing the old feedback results.
             if (metadata.creationTime < timeBeforeWhichToIgnoreMissingFeedback) {
               Complete
             } else

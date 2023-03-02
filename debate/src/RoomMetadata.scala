@@ -89,7 +89,8 @@ case class RoomMetadata(
         if (feedbackProviders.contains(person))
           DebateProgressLabel.Complete
         else {
-          // XXX: just until we import the old feedback results, only ask for feedback for debates created as of 2023
+          // NOTE: only ask for feedback for debates created as of 2023
+          // not gonna bother importing the old feedback results
           if (creationTime < timeBeforeWhichToIgnoreMissingFeedback) {
             DebateProgressLabel.Complete
           } else
@@ -180,7 +181,8 @@ object RoomMetadata {
                 if (feedbackProviders.contains(debater))
                   DebateProgressLabel.Complete
                 else {
-                  // XXX: just until we import the old feedback results, only ask for feedback for debates created as of 2023
+                  // only ask for feedback for debates created as of 2023
+                  // not gonna bother importing the old feedback results
                   if (room.creationTime < timeBeforeWhichToIgnoreMissingFeedback) {
                     DebateProgressLabel.Complete
                   } else
@@ -213,7 +215,8 @@ object RoomMetadata {
                 if (feedbackProviders.contains(judge)) {
                   DebateProgressLabel.Complete
                 } else if (judgment.result.nonEmpty) {
-                  // XXX: just until we import the old feedback results, only ask for feedback for debates created as of 2023
+                  // only ask for feedback for debates created as of 2023
+                  // not gonna bother importing the old feedback results
                   if (room.creationTime < timeBeforeWhichToIgnoreMissingFeedback) {
                     DebateProgressLabel.Complete
                   } else

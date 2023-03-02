@@ -55,19 +55,6 @@ case class Debate(
     }
     .getOrElse(Map[String, OfflineJudgment]())
 
-  // XXX
-  // Map(
-  //   (OfflineJudgef: DebateRole) -> ()
-
-  // )
-  // // TODO:
-  // // judge: String,
-  // // startTimeMillis: Long,
-  // // numContinues: Int,
-  // // result: Option[OfflineJudgingResult]
-
-  // TODO: go turn-by-turn to make sure we capture when the debate ends.
-  // this should really be a fold over the rounds.
   /** Whose turn(s) it is, what they can do, and how to compute the results. */
   def stateInfo: (Option[DebateResult], DebateTransitionSet, Map[String, OfflineJudgment]) = {
 
@@ -115,7 +102,6 @@ case class Debate(
     def lastRoundUndos: Map[DebateRole, (Vector[SpeechSegment], Debate)] = rounds
       .lastOption
       .map {
-        // TODO XXX: prevent judge from undoing if debate is done
         case JudgeFeedback(_, feedback, _) =>
           Map((Judge: DebateRole) -> (feedback.content -> Debate.rounds.modify(_.init)(this)))
         case SimultaneousSpeeches(speeches) =>
@@ -249,7 +235,6 @@ case class Debate(
                                         None
                                     }
                                 )
-                                // TODO XXX offline judging turn type
                               ),
                               transitions = startOfflineJudging,
                               roundTypes = futureRoundTypes,
@@ -343,7 +328,6 @@ case class Debate(
               }
           }
       }
-
     roundAccEither match {
       case Left(err) =>
         System.err.println("Error processing debate structure:")
@@ -356,96 +340,6 @@ case class Debate(
           acc.offlineJudgments.getOrElse(Map.empty[String, OfflineJudgment])
         )
     }
-
-    // should always be nonempty since the last round should have a round type
-    // val lastRoundType #:: futureRoundTypes = roundSequence.drop(rounds.size - 1)
-    // val lastRound                          = rounds.last
-    // lastRoundType.getTurn(lastRound, numDebaters) match {
-    //   case DebateTurnTypeResult.Next =>
-    //     futureRoundTypes match {
-    //       case LazyList() => // time's up
-    //         Some(
-    //           DebateResult(
-    //             correctAnswerIndex = setup.correctAnswerIndex,
-    //             endedBy = DebateEndReason.TimeUp,
-    //             judgingInfo =
-    //               lastRound match {
-    //                 case JudgeFeedback(finalJudgement, feedback, endDebate) =>
-    //                   // judge shouldn't be allowed to say 'continue the debate' in the last turn
-    //                   require(endDebate)
-    //                   val judgeReward = setup
-    //                     .rules
-    //                     .scoringFunction
-    //                     .eval(numContinues, finalJudgement, setup.correctAnswerIndex)
-    //                   Some(
-    //                     JudgingResult(
-    //                       correctAnswerIndex = setup.correctAnswerIndex,
-    //                       numContinues = numContinues,
-    //                       finalJudgement = finalJudgement,
-    //                       judgeReward = judgeReward
-    //                     )
-    //                   )
-    //                 case _ =>
-    //                   None
-    //               }
-    //           )
-    //           // TODO XXX offline judging turn type
-    //         ) ->
-    //           DebateTransitionSet(
-    //             undo = Map(),
-    //             giveSpeech = newRoundSpeeches(DebateRoundType.OfflineJudgingRound, false)
-    //           )
-    //       case nextRoundType #:: followingRoundTypes =>
-    //         None ->
-    //           DebateTransitionSet(
-    //             lastRoundUndos,
-    //             newRoundSpeeches(nextRoundType, isLastTurn = followingRoundTypes.isEmpty)
-    //           )
-    //     }
-    //   case DebateTurnTypeResult.Turn(turn) =>
-    //     None -> DebateTransitionSet(lastRoundUndos, curRoundSpeeches(turn))
-    //   case DebateTurnTypeResult.EndByJudge(finalJudgement) =>
-    //     // TODO: change the End argument to itself contain all/most of the info we need
-    //     // so it is constructed where more appropriate (ie in the turn transition)
-    //     val judgeReward = setup
-    //       .rules
-    //       .scoringFunction
-    //       .eval(numContinues, finalJudgement, setup.correctAnswerIndex)
-    //     Some(
-    //       DebateResult(
-    //         correctAnswerIndex = setup.correctAnswerIndex,
-    //         endedBy = DebateEndReason.JudgeDecided,
-    //         judgingInfo = Some(
-    //           JudgingResult(
-    //             correctAnswerIndex = setup.correctAnswerIndex,
-    //             numContinues = numContinues,
-    //             finalJudgement = finalJudgement,
-    //             judgeReward = judgeReward
-    //           )
-    //         )
-    //       )
-    //     ) ->
-    //       DebateTransitionSet(
-    //         undo = Map(),
-    //         giveSpeech = newRoundSpeeches(DebateRoundType.OfflineJudgingRound, false)
-    //       )
-    //   case DebateTurnTypeResult.EndByAgreement =>
-    //     Some(
-    //       DebateResult(
-    //         correctAnswerIndex = setup.correctAnswerIndex,
-    //         endedBy = DebateEndReason.MutualAgreement,
-    //         judgingInfo = None
-    //       )
-    //     ) ->
-    //       DebateTransitionSet(
-    //         undo = Map(),
-    //         giveSpeech = newRoundSpeeches(DebateRoundType.OfflineJudgingRound, false)
-    //       )
-    //   case DebateTurnTypeResult.Mismatch =>
-    //     System.err.println(lastRoundType)
-    //     System.err.println(lastRound)
-    //     ??? // TODO fail gracefully
-    // }
   }
 
   def clean = {
