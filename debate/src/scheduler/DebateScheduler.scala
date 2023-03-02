@@ -56,7 +56,7 @@ object DebateScheduler {
     numQuestions: Int,
     numDishonestDebatersPerQuestion: Int,
     numOfflineJudgesPerQuestion: Int,
-    debaters: Map[String, DebaterLoadConstraint]
+    debaters: Set[String]
   ): Vector[Vector[Assignment]] = {
 
     /** TODO someday: notes from Julian
@@ -74,7 +74,7 @@ object DebateScheduler {
       */
     val allPossibleQuestionAssignments = generateAllPossibleQuestionAssignments(
       storyId,
-      debaters.keySet,
+      debaters,
       numDishonestDebatersPerQuestion,
       numOfflineJudgesPerQuestion
     )
@@ -110,6 +110,8 @@ object DebateScheduler {
      * Produces a list of assignments for a story. The story name can correspond to either a
      * new story or a story that has already been scheduled.
      * 
+     * TODO XXX: fix these requirements.
+     * 
      * Requirements:
      * - In the returned assignments, the debaters and judges are disjoint.
      * - Where DebaterLoadConstraint fields are present for a debater, they are obeyed (inclusive)
@@ -134,17 +136,12 @@ object DebateScheduler {
      */
   def getScheduleForNewStory(
     history: Vector[Debate],
+    storyId: SourceMaterialId,
     numQuestions: Int,
     numDishonestDebatersPerQuestion: Int,
     numOfflineJudgesPerQuestion: Int,
-    debaters: Map[
-      String,
-      DebaterLoadConstraint
-    ] // TODO someday ensure nonempty? so we can't return None?
-    ,
-    rng: scala.util.Random = scala.util.Random,
-    storyId: SourceMaterialId,
-    judgeScaleDownFactor: Double = defaultJudgeScaleDownFactor
+    debaters: Map[String, DebaterLoadConstraint], // TODO: change to or add soft constraints
+    rng: scala.util.Random = scala.util.Random
   ): Schedule = {
     // each vector in here is of length numQuestions
     val allSchedulesThatMeetConstraints = generateAllAssignments(
@@ -152,10 +149,8 @@ object DebateScheduler {
       numQuestions = numQuestions,
       numDishonestDebatersPerQuestion = numDishonestDebatersPerQuestion,
       numOfflineJudgesPerQuestion = numOfflineJudgesPerQuestion,
-      debaters = debaters
-    ).filter { assignment =>
-        isAssignmentValid(assignment, debaters)
-      }
+      debaters = debaters.keySet
+    ).filter(isAssignmentValid(_, debaters))
       .map { newAssignments =>
         Schedule(
           complete = history.filter(_.isOver).flatMap(Assignment.fromDebate),
@@ -166,7 +161,7 @@ object DebateScheduler {
 
     val correspondingCosts = zScores(
       allSchedulesThatMeetConstraints.map {
-        _.cost(judgeScaleDownFactor = judgeScaleDownFactor) * -1
+        _.cost * -1
       }
     )
     val expCosts  = correspondingCosts.map(math.exp)

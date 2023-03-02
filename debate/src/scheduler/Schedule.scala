@@ -11,10 +11,12 @@ case class Schedule(
   incomplete: Vector[Assignment],
   novel: Vector[Assignment]
 ) {
-  val allIncomplete = incomplete ++ novel
-  val all           = complete ++ allIncomplete
+  lazy val allIncomplete = incomplete ++ novel
+  lazy val all           = complete ++ allIncomplete
 
   import Schedule._
+
+  // TODO: construct score terms here.
 
   // TODO: these are probably not ideal.
   // instead, score will be by deviation from desired load.
@@ -93,11 +95,11 @@ case class Schedule(
   }
 
   /** result is non-negative */
-  def cost(judgeScaleDownFactor: Double): Double = {
+  def cost: Double = {
     val costParts = List(
       timesDebatedVariance, // doesn't depend on the story name
       storiesReadCost,
-      timesJudgedVariance * judgeScaleDownFactor,
+      timesJudgedVariance,
       judgingPerStory,
       fractionsHonestWhenDebating,
       judgedPerDebater,
