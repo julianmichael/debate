@@ -271,27 +271,7 @@ object DebateRoundView {
             speechBox(^.key := s"speechbox-$index")
           }
       case NegotiateEnd(votes) =>
-        if (votes.size < numDebaters) {
-          // TODO show these to the facilitator as well
-          Option(role)
-            .collect { case Debater(index) =>
-              votes
-                .get(index)
-                .map { votedToEnd =>
-                  if (votedToEnd) {
-                    <.div("You voted to ", <.strong("end"), " the debate.")
-                  } else {
-                    <.div("You voted to ", <.strong("continue"), " the debate.")
-                  }
-                }
-            }
-            .flatten
-            .toVector
-            .zipWithIndex
-            .toVdomArray { case (el, i) =>
-              el(^.key := s"text-$i")
-            }
-        } else {
+        if (votes.size == numDebaters || role == Facilitator) {
           if (role.canSeeVotes) {
             if (votes.values.forall(identity)) {
               <.div("All debaters voted to ", <.strong("end"), " the debate.")
@@ -317,6 +297,25 @@ object DebateRoundView {
               <.div("Debaters did not agree to end the debate.")
             }
           }
+        } else {
+          Option(role)
+            .collect { case Debater(index) =>
+              votes
+                .get(index)
+                .map { votedToEnd =>
+                  if (votedToEnd) {
+                    <.div("You voted to ", <.strong("end"), " the debate.")
+                  } else {
+                    <.div("You voted to ", <.strong("continue"), " the debate.")
+                  }
+                }
+            }
+            .flatten
+            .toVector
+            .zipWithIndex
+            .toVdomArray { case (el, i) =>
+              el(^.key := s"text-$i")
+            }
         }
       case OfflineJudgments(judgments) =>
         val canSeeOfflineJudgingResults = !anonymize
