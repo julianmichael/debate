@@ -5,76 +5,58 @@ Web interface for information-asymmetric debates.
 
 ### Requirements
 * Install [Mill](https://com-lihaoyi.github.io/mill/mill/Intro_to_Mill.html).
-* Install [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
 
 ### Running
 
-For development, you must run 3 commands in separate terminals in the root directory of the project:
-- To start incremental compilation of the frontend:
-  ```
-  mill --no-server -j 0 -w debate.js.publicDev
-  ```
-  The `-w` flag means that it will watch for changes and recompile automatically.
+For development, run
+```
+mill -j 0 debate.dev.serve
+```
+in the base directory of this repository. (`-j 0` will parallelize and speed up compilation.)
 
-- To start incremental compilation of the backend and run the backend server on port 8080:
-  ```
-  mill --no-server -j 0 debate.jvm [args]
-  ```
-  Note: watching with `-w` here doesn't actually restart on compile if it succeeds, since the server
-  just stays running. So you need to manually restart anytime the JVM code or relevant shared code
-  changes.
+You can also pass in flags at runtime:
+* `--port`: the port to host the server at. (default: 8080)
+* `--save`: the directory to save the server state at. (default: `save/`)
+* `--help`: print command info instead of running the server.
 
-- To start the Vite server with live reloading:
-  ```
-  npm run dev
-  ```
-
-For production, you can start the backend with the same command as above, but without the `-w` flag.
-The frontend is built with `mill debate.js.publicProd` and then served with any static file server.
-
-All of the relevant server state under is saved under `save/` by default.
 To run HTTPS, there is also an `--ssl` flag which has the server look for a `keystore.jks` and
 `password` under `debate/resources`, but I normally run behind a proxy which takes care of this.
 The difference between development and production is that production mode uses fully-optimized JS
 compilation, which takes longer but produces a much smaller and faster-running JS file.
 
-To run all unit tests, use `mill __.test`.
+To run unit tests, use `mill debate.jvm.test`. (JS tests aren't working at the moment; see #76.)
 
 ## Contents
 
-* `build.sc`, `build-scripts/`: Build files.
-* `{shared,js,jvm}`: Source code and resources for all platforms.
-* `print_story.py`, `requirements.txt`: A quick script for printing the text of QuALITY stories from
-  their HTML.
-* `package.json`: JavaScript dependencies.
+* `build.sc`: Mill build file.
+* `debate/src{,-jvm,-js}`: Scala source for all platforms.
+* `debate/test/src`: Tests.
+* `scripts/`: Some python scripts for working with QuALITY stories.
 
 ## Development
 
-Java entry points:
+JVM entry points:
 * [Serve.scala](debate/src-jvm/Serve.scala)
 
 JS entry point:
 * [App.scala](debate/src-js/App.scala)
 
+### Live Testing
+
+After starting up the server, go to the page and open the Admin tab.
+There you can add/remove debater profiles, create debates, etc.
+
+If you change the JS source only, then you can run `mill debate.js.fastestOpt` and hard refresh the
+page when it's done to load the changes. If you change the JVM or shared source as well, then
+you'll need to restart the server (i.e., interrupt and re-run `mill debate.dev.serve`).
+
 ### Suggestions for using VSCode
 
 - Install the Scala Metals extension.
-  - Why? This gives you nice stuff like type-at-point.
+  - Why? This gives you nice stuff like type-at-point, completion with types, etc.
   - Check out the button on the left-hand-side of vscode. It has a lot of useful stuff.
 - Use `bloop` as the build server.
 - Use `scalafix` somewhat-often. Check out e.g. `mill debate.jvm.fix`.
- - TODO make this run automatically
- - TODO add the todo -> github issue thing
-- For a nice loop in case metals is slow, check out `mill -w -i debate.jvm.run  --port 8080 --save save`
-
-### A Simple Loop
-
-- Start the server
-- Load the site and join a new debate as a facilitator.
-  - You can change roles between the participants and the judge.
-  - TODO can we make this easier- load an example debate?
-  - TODO should the example be shared between the debaters?
-- You can also see what observers see by clicking `Observer`
 
 ## Background
 
@@ -91,12 +73,3 @@ Relevant libraries to reference:
 * [scalajs-react](https://github.com/japgolly/scalajs-react): React facade for Scala
 * [jjm](https://github.com/julianmichael/jjm): My personal library of utilities on top of these tools
 * [munit](https://scalameta.org/munit/): Unit testing
-
-## Speeding up your build
-
-smithjessk observed that using `mill -j 0` sped up his builds a lot. (~33% for `mill debate._.compile`).
-(This might use more memory though).
-
-## In case a default profile isn't set up
-
-You can add profiles with the **~secret admin controls~** which you can access by using the developer tools to change the `Styles-adminOnly` and disable `display: none`. You can find the element if you just select the profile dropdown and then scan the elements that come after it.
