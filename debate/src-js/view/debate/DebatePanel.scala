@@ -114,7 +114,6 @@ object DebatePanel {
                 case Some(OfflineJudgment(mode, _, _, None)) =>
                   <.span(s"You are judging this debate offline ($mode).")
                 case Some(OfflineJudgment(mode, _, _, Some(_))) =>
-                  // TODO: maybe say something about the result / reward?
                   <.span(f"The debate is over. You judged it offline ($mode).")
               }
             case _ =>
@@ -324,7 +323,10 @@ object DebatePanel {
                     .toVdomArray,
                   DebateRoundView
                     .makeSpeechHtml(
-                      setup.sourceMaterial.contents,
+                      if (role.canSeeStory)
+                        setup.sourceMaterial.contents
+                      else
+                        Vector(),
                       role,
                       DebateSpeech(userName, -1L, currentMessageSpeechSegments),
                       debate.value.startTime,

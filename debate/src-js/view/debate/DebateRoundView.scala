@@ -223,10 +223,9 @@ object DebateRoundView {
       case JudgeFeedback(probabilities, speech, endsDebate) =>
         val speechStyle = TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
         Vector(
-          // TODO: prevent judge from extracting info via quotes
           Option(
             makeSpeechHtml(
-              source,
+              Vector(),
               Judge,
               speech,
               debateStartTime,

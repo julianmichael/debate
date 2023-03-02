@@ -45,7 +45,6 @@ case class Debate(
 
   def result: Option[DebateResult]            = stateInfo._1
   def currentTransitions: DebateTransitionSet = stateInfo._2
-  // TODO rename this back to normal
   def offlineJudgingResults = currentTransitions
     .giveSpeech
     .get(OfflineJudge)
@@ -189,7 +188,7 @@ case class Debate(
                       curRoundSpeeches(DebateTurnType.OfflineJudgingTurn(judgments))
                     ),
                     offlineJudgments = Some(judgments),
-                    roundTypes = nextRoundTypes, // TODO maybe empty roundTypes?
+                    roundTypes = nextRoundTypes,
                     previousRoundOpt = previousRoundOpt
                   )
                 )

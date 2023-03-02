@@ -133,7 +133,6 @@ object Feedback {
     }
   }
 
-  // TODO: question HTML? for bolding etc.
   val survey: List[DotPair[Question, Key]] = List(
     DotPair[Question][Key](Key.FreeText("reason for outcome"))(
       Question.FreeText {
@@ -271,7 +270,6 @@ object Feedback {
         isValid = (setup, _) => setup.rules.hasJudge
       )
     ),
-    // TODO fix this question for offline judging, check that others makes sense too
     DotPair[Question][Key](Key.Likert("judge reasoning"))(
       Question.Likert(
         {
