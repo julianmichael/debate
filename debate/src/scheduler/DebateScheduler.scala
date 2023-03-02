@@ -1,4 +1,5 @@
 package debate
+package scheduler
 
 import cats.implicits._
 import jjm.metrics.Numbers
@@ -11,102 +12,21 @@ object DebateScheduler {
 
   case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
 
-  class DebateAssignment private (
-    val honestDebater: String,
-    val dishonestDebaters: Set[String],
-    val judge: String
-  ) {
-
-    def isAssigned(debater: String): Boolean =
-      honestDebater == debater || dishonestDebaters.contains(debater) || judge == debater
-
-    def toPrettyString: String =
-      s"""Honest debater: $honestDebater
-         |Dishonest debaters: ${dishonestDebaters.mkString(", ")}
-         |Judge: $judge""".stripMargin
-  }
-
-  object DebateAssignment {
-    def apply(
-      honestDebater: String,
-      dishonestDebaters: Set[String],
-      judge: String
-    ): Either[Exception, DebateAssignment] = {
-      if (honestDebater == judge)
-        return Left(
-          new IllegalArgumentException("Honest debater and judge cannot be the same person")
-        )
-      else if (dishonestDebaters.contains(judge))
-        return Left(
-          new IllegalArgumentException("Dishonest debaters and judge cannot be the same person")
-        )
-      else if (dishonestDebaters.contains(honestDebater))
-        return Left(
-          new IllegalArgumentException(
-            s"Honest debater and dishonest debaters cannot be the same person (honest = $honestDebater, dishonest = ${dishonestDebaters
-                .mkString(", ")})"
-          )
-        )
-      Right(new DebateAssignment(honestDebater, dishonestDebaters, judge))
-    }
-
-    // Used in [ofDebate]
-    private def honestDebaterAssignment(d: Debate): Option[String] = d
-      .setup
-      .roles
-      .get(Debater(d.setup.correctAnswerIndex))
-
-    // Used in [ofDebate]
-    private def dishonestDebatersAssignments(d: Debate): Set[String] =
-      d.setup
-        .roles
-        .keys
-        .filter {
-          case Debater(index) =>
-            index != d.setup.correctAnswerIndex
-          case _ =>
-            false
-        }
-        .map { role =>
-          d.setup.roles(role)
-        }
-        .toSet
-
-    // Used in [ofDebate]
-    private def judgeAssignment(d: Debate): Option[String] = d.setup.roles.get(Judge)
-
-    /**
-      * Returns the assignment of roles to users for a given debate.
-      * Returns None if the debate has not been assigned roles.
-      */
-    def ofDebate(debate: Debate): Option[DebateAssignment] =
-      for {
-        honestDebater <- honestDebaterAssignment(debate)
-        dishonestDebaters = dishonestDebatersAssignments(debate)
-        judge <- judgeAssignment(debate)
-        debateAssignmentOrError = DebateAssignment(honestDebater, dishonestDebaters, judge)
-      } yield debateAssignmentOrError match {
-        case Right(assignment) =>
-          assignment
-        case Left(error) =>
-          // this should never happen if the error comes from dishonest debater assignment, etc. , but technically it's possible in case there are new error cases
-          throw error
-      }
-  }
-
   def isAssignmentValid(
-    assignments: Vector[DebateAssignment],
-    debaters: Map[String, DebaterLoadConstraint]
-  ): Boolean = debaters.forall { case (debater, constraint) =>
+    assignments: Vector[Assignment],
+    constraints: Map[String, DebaterLoadConstraint]
+  ): Boolean = constraints.forall { case (debater, constraint) =>
     val nParticipating = assignments.count(_.isAssigned(debater))
     constraint.min.forall(_ <= nParticipating) && constraint.max.forall(_ >= nParticipating)
   }
 
-  def getNTimesDebated(assignments: Vector[DebateAssignment]): Map[String, Int] =
+  def getNTimesDebated(assignments: Vector[Assignment]): Map[String, Int] =
     assignments
+      .view
       .flatMap { assignment =>
         assignment.dishonestDebaters + assignment.honestDebater
       }
+      .toVector
       .counts
 
   /** 
@@ -115,21 +35,21 @@ object DebateScheduler {
    * this cost is the standard deviation of the number of times each debater has debated. (either as the honest or dishonest debater)
    * 
    */
-  def debaterCost(assignments: Vector[DebateAssignment]): Double =
+  def debaterCost(assignments: Vector[Assignment]): Double =
     Numbers(getNTimesDebated(assignments).values.toVector).stats.stdev
 
-  def judgeCost(assignments: Vector[DebateAssignment]): Double =
+  def judgeCost(assignments: Vector[Assignment]): Double =
     Numbers(assignments.map(_.judge).counts.values.toVector).stats.stdev
 
   def storiesReadCost(
     history: Vector[Debate],
-    newAssignments: Vector[DebateAssignment],
+    newAssignments: Vector[Assignment],
     storyName: String
   ): Double = {
     // map of debater to set of stories read
     val debaterStoriesRead: Map[String, Set[String]] = history.foldMap { debate =>
-      DebateAssignment
-        .ofDebate(debate)
+      Assignment
+        .fromDebate(debate)
         .foldMap { assignment =>
           (assignment.dishonestDebaters + assignment.honestDebater)
             .view
@@ -157,13 +77,13 @@ object DebateScheduler {
 
   def judgingPerStoryCost(
     history: Vector[Debate],
-    newAssignments: Vector[DebateAssignment],
+    newAssignments: Vector[Assignment],
     storyName: String
   ): Double = {
     // TODO someday refactor
     val judgingInHistory: Map[String, Map[String, Int]] = history.foldMap { debate =>
-      DebateAssignment
-        .ofDebate(debate)
+      Assignment
+        .fromDebate(debate)
         .foldMap { assignment =>
           Map(debate.setup.sourceMaterial.title -> Map(assignment.judge -> 1))
         }
@@ -181,7 +101,7 @@ object DebateScheduler {
       .sum
   }
 
-  def debatedOtherDebatersCost(assignments: Vector[DebateAssignment]): Double = {
+  def debatedOtherDebatersCost(assignments: Vector[Assignment]): Double = {
     val adversarialPairs: Map[Duad[String], Int] =
       assignments
         .foldMap { assignment =>
@@ -194,7 +114,7 @@ object DebateScheduler {
     Numbers(adversarialPairs.values.toVector).stats.stdev
   }
 
-  def judgedPerDebaterCost(assignments: Vector[DebateAssignment]): Double = {
+  def judgedPerDebaterCost(assignments: Vector[Assignment]): Double = {
     val judgeToDebaters: Map[String, Set[String]] =
       assignments
         .map { assignment =>
@@ -215,7 +135,7 @@ object DebateScheduler {
     Numbers(judgedPerDebater.values.toVector).stats.stdev
   }
 
-  def fractionsHonestWhenDebatingCost(assignments: Vector[DebateAssignment]): Double = {
+  def fractionsHonestWhenDebatingCost(assignments: Vector[Assignment]): Double = {
     val timesHonest: Map[String, Int]    = assignments.map(_.honestDebater).counts
     val timesDishonest: Map[String, Int] = assignments.flatMap(_.dishonestDebaters).counts
     val debaters                         = timesHonest.keySet ++ timesDishonest.keySet
@@ -233,12 +153,12 @@ object DebateScheduler {
 
   /** result is non-negative */
   def getBadnessScore(
-    newAssignments: Vector[DebateAssignment],
+    newAssignments: Vector[Assignment],
     history: Vector[Debate],
     judgeScaleDownFactor: Double,
     storyName: String
   ): Double = {
-    val assignments = history.flatMap(DebateAssignment.ofDebate) ++ newAssignments
+    val assignments = history.flatMap(Assignment.fromDebate) ++ newAssignments
     val costParts = List(
       debaterCost(assignments), // doesn't depend on the story name
       storiesReadCost(history = history, newAssignments = newAssignments, storyName = storyName),
@@ -255,18 +175,31 @@ object DebateScheduler {
     costParts.sum
   }
 
-  def generateAllPossibleQuestionAssignments(debaters: Set[String]): Iterable[DebateAssignment] =
+  def generateAllPossibleQuestionAssignments(
+    debaters: Set[String],
+    numDishonestDebatersPerQuestion: Int,
+    numOfflineJudgesPerQuestion: Int
+  ): Iterable[Assignment] =
     // TODO someday add some validation for the strings in the debaters map and the history
     for {
       honestDebater <- debaters
       judge         <- debaters - honestDebater
       if judge != honestDebater
-      allDishonestDebaters = debaters.toSet - honestDebater - judge
-      dishonestDebaters <- allDishonestDebaters.toSeq.combinations(debaters.size - 2).map(_.toSet)
-      dba = DebateAssignment(
+      allPossibleDishonestDebaters = debaters.toSet - honestDebater - judge
+      dishonestDebaters <- allPossibleDishonestDebaters
+        .toSeq
+        .combinations(numDishonestDebatersPerQuestion)
+        .map(_.toSet)
+      allPossibleOfflineJudges = allPossibleDishonestDebaters -- dishonestDebaters
+      offlineJudges <- allPossibleOfflineJudges
+        .toSeq
+        .combinations(numOfflineJudgesPerQuestion)
+        .map(_.toSet)
+      dba = Assignment.create(
         honestDebater = honestDebater,
         judge = judge,
-        dishonestDebaters = dishonestDebaters
+        dishonestDebaters = dishonestDebaters,
+        offlineJudges = offlineJudges
       )
     } yield dba match {
       case Right(value) =>
@@ -278,8 +211,10 @@ object DebateScheduler {
 
   def generateAllAssignments(
     numQuestions: Int,
+    numDishonestDebatersPerQuestion: Int,
+    numOfflineJudgesPerQuestion: Int,
     debaters: Map[String, DebaterLoadConstraint]
-  ): Vector[Vector[DebateAssignment]] = {
+  ): Vector[Vector[Assignment]] = {
 
     /** TODO someday: notes from Julian
       * [combinations] seems fine for now, as repeating assignments in a single
@@ -294,7 +229,11 @@ object DebateScheduler {
       * 2. we're scheduling more debates than there are possible assignments
       * (if we want to use for longer-term scheduling)
       */
-    val allPossibleQuestionAssignments = generateAllPossibleQuestionAssignments(debaters.keySet)
+    val allPossibleQuestionAssignments = generateAllPossibleQuestionAssignments(
+      debaters.keySet,
+      numDishonestDebatersPerQuestion,
+      numOfflineJudgesPerQuestion
+    )
     allPossibleQuestionAssignments.toVector.combinations(numQuestions).toVector
   }
 
@@ -352,6 +291,8 @@ object DebateScheduler {
   def getScheduleForNewStory(
     history: Vector[Debate],
     numQuestions: Int,
+    numDishonestDebatersPerQuestion: Int,
+    numOfflineJudgesPerQuestion: Int,
     debaters: Map[
       String,
       DebaterLoadConstraint
@@ -360,12 +301,16 @@ object DebateScheduler {
     rng: scala.util.Random = scala.util.Random,
     storyName: String,
     judgeScaleDownFactor: Double = defaultJudgeScaleDownFactor
-  ): Vector[DebateAssignment] = {
+  ): Vector[Assignment] = {
     // each vector in here is of length numQuestions
-    val allAssignmentsThatMeetConstraints: Vector[Vector[DebateAssignment]] =
-      generateAllAssignments(numQuestions = numQuestions, debaters = debaters).filter {
-        assignment => isAssignmentValid(assignment, debaters)
-      }
+    val allAssignmentsThatMeetConstraints: Vector[Vector[Assignment]] = generateAllAssignments(
+      numQuestions = numQuestions,
+      numDishonestDebatersPerQuestion = numDishonestDebatersPerQuestion,
+      numOfflineJudgesPerQuestion = numOfflineJudgesPerQuestion,
+      debaters = debaters
+    ).filter { assignment =>
+      isAssignmentValid(assignment, debaters)
+    }
     val correspondingCosts = zScores(
       allAssignmentsThatMeetConstraints.map { newAssignments =>
         getBadnessScore(

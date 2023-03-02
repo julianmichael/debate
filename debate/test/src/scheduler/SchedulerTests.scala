@@ -1,4 +1,5 @@
 package debate
+package scheduler
 
 import munit.CatsEffectSuite
 import DebateScheduler._
@@ -26,6 +27,8 @@ class SchedulerTests extends CatsEffectSuite {
     val assignments = getScheduleForNewStory(
       history = Vector.empty,
       numQuestions = numQuestions,
+      numDishonestDebatersPerQuestion = 1,
+      numOfflineJudgesPerQuestion = 0,
       debaters = debaters,
       storyName = makeRandomStoryName(history = Vector.empty)
     )
@@ -41,7 +44,7 @@ class SchedulerTests extends CatsEffectSuite {
 
   val testSourceMaterial = CustomSourceMaterial(title = "test", contents = Vector.empty[String])
 
-  def testDebateSetup(assignment: DebateAssignment): DebateSetup = {
+  def testDebateSetup(assignment: Assignment): DebateSetup = {
     val correctAnswerIndex = 0
     val dishonestRoles: Map[LiveDebateRole, String] =
       assignment.dishonestDebaters.map(Debater(1 + correctAnswerIndex) -> _).toMap
@@ -62,7 +65,7 @@ class SchedulerTests extends CatsEffectSuite {
     )
   }
 
-  def testDebateOfAssignment(assignment: DebateAssignment) = Debate(
+  def testDebateOfAssignment(assignment: Assignment) = Debate(
     setup = testDebateSetup(assignment),
     rounds = Vector.empty[DebateRound],
     feedback = Map()
@@ -77,6 +80,8 @@ class SchedulerTests extends CatsEffectSuite {
       val newAssignment = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
+        numDishonestDebatersPerQuestion = 1,
+        numOfflineJudgesPerQuestion = 0,
         debaters = Map(
           debater1 -> DebaterLoadConstraint(None, None),
           debater2 -> DebaterLoadConstraint(None, None),
@@ -88,8 +93,8 @@ class SchedulerTests extends CatsEffectSuite {
         newAssignment.size == 1
       }
       history = history :+ testDebateOfAssignment(newAssignment.head)
-      val thisCost = debaterCost(history.map(DebateAssignment.ofDebate).flatten)
-      val thisN    = getNTimesDebated(history.map(DebateAssignment.ofDebate).flatten)
+      val thisCost = debaterCost(history.map(Assignment.fromDebate).flatten)
+      val thisN    = getNTimesDebated(history.map(Assignment.fromDebate).flatten)
       costs = costs :+ thisCost
       nTimesDebated = nTimesDebated :+ thisN
     }
@@ -109,6 +114,8 @@ class SchedulerTests extends CatsEffectSuite {
       val newAssignment = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
+        numDishonestDebatersPerQuestion = 1,
+        numOfflineJudgesPerQuestion = 0,
         debaters = Map(
           debater1 -> DebaterLoadConstraint(None, None),
           debater2 -> DebaterLoadConstraint(None, None),
@@ -131,7 +138,7 @@ class SchedulerTests extends CatsEffectSuite {
     println("for full cost measurement: " + costs)
     println(
       "for full cost measurement, all assignments: \n\n" +
-        history.map(DebateAssignment.ofDebate).map(o => o.map(_.toPrettyString))
+        history.map(Assignment.fromDebate).map(o => o.map(_.toPrettyString))
     )
   }
 }
