@@ -286,7 +286,14 @@ case class DebateStateManager(
   def getLeaderboard = rooms
     .get
     .map { roomMap =>
-      Leaderboard.fromDebates(roomMap.values.toList.map(_.debate.debate))
+      Leaderboard.fromDebates(
+        roomMap
+          .values
+          .toList
+          .map(_.debate.debate)
+          // filter out debates from pre-2023
+          .filter(_.setup.creationTime > timeBeforeWhichToIgnoreMissingFeedback)
+      )
     }
 
 }
