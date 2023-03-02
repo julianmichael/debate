@@ -24,21 +24,23 @@ class SchedulerTests extends CatsEffectSuite {
       debater3 -> DebaterLoadConstraint(None, None)
     )
     val numQuestions = 5
-    val assignments = getScheduleForNewStory(
+    val schedule = getScheduleForNewStory(
       history = Vector.empty,
       numQuestions = numQuestions,
       numDishonestDebatersPerQuestion = 1,
       numOfflineJudgesPerQuestion = 0,
       debaters = debaters,
-      storyName = makeRandomStoryName(history = Vector.empty)
+      storyId = SourceMaterialId.Custom(makeRandomStoryName(history = Vector.empty))
     )
     assert {
-      assignments.size == numQuestions;
-      assignments.forall { assignment =>
-        assignment.honestDebater != assignment.judge &&
-        !assignment.dishonestDebaters.contains(assignment.honestDebater)
-        !assignment.dishonestDebaters.contains(assignment.judge)
-      };
+      schedule.novel.size == numQuestions;
+      schedule
+        .all
+        .forall { assignment =>
+          assignment.honestDebater != assignment.judge &&
+          !assignment.dishonestDebaters.contains(assignment.honestDebater)
+          !assignment.dishonestDebaters.contains(assignment.judge)
+        };
     }
   }
 
@@ -77,7 +79,7 @@ class SchedulerTests extends CatsEffectSuite {
     var history       = Vector.empty[Debate]
     var nTimesDebated = Vector.empty[Map[String, Int]]
     for (_ <- 1 to 100) {
-      val newAssignment = getScheduleForNewStory(
+      val schedule = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
         numDishonestDebatersPerQuestion = 1,
@@ -87,14 +89,14 @@ class SchedulerTests extends CatsEffectSuite {
           debater2 -> DebaterLoadConstraint(None, None),
           debater3 -> DebaterLoadConstraint(None, None)
         ),
-        storyName = makeRandomStoryName(history = history)
+        storyId = SourceMaterialId.Custom(makeRandomStoryName(history = history))
       )
       assert {
-        newAssignment.size == 1
+        schedule.novel.size == 1
       }
-      history = history :+ testDebateOfAssignment(newAssignment.head)
-      val thisCost = debaterCost(history.map(Assignment.fromDebate).flatten)
-      val thisN    = getNTimesDebated(history.map(Assignment.fromDebate).flatten)
+      history = history :+ testDebateOfAssignment(schedule.novel.head)
+      val thisCost = schedule.timesDebatedVariance // (history.map(Assignment.fromDebate).flatten)
+      val thisN    = Schedule.numTimesDebating(history.map(Assignment.fromDebate).flatten)
       costs = costs :+ thisCost
       nTimesDebated = nTimesDebated :+ thisN
     }
@@ -111,7 +113,7 @@ class SchedulerTests extends CatsEffectSuite {
     var costs   = Vector.empty[Double]
     var history = Vector.empty[Debate]
     for (_ <- 1 to 5) {
-      val newAssignment = getScheduleForNewStory(
+      val schedule = getScheduleForNewStory(
         history = history,
         numQuestions = 1,
         numDishonestDebatersPerQuestion = 1,
@@ -121,18 +123,13 @@ class SchedulerTests extends CatsEffectSuite {
           debater2 -> DebaterLoadConstraint(None, None),
           debater3 -> DebaterLoadConstraint(None, None)
         ),
-        storyName = makeRandomStoryName(history = history)
+        storyId = SourceMaterialId.Custom(makeRandomStoryName(history = history))
       )
       assert {
-        newAssignment.size == 1
+        schedule.novel.size == 1
       }
-      history = history :+ testDebateOfAssignment(newAssignment.head)
-      val thisCost = getBadnessScore(
-        history = history,
-        newAssignments = newAssignment,
-        storyName = makeRandomStoryName(history = history),
-        judgeScaleDownFactor = defaultJudgeScaleDownFactor
-      )
+      history = history :+ testDebateOfAssignment(schedule.novel.head)
+      val thisCost = schedule.cost(judgeScaleDownFactor = defaultJudgeScaleDownFactor)
       costs = costs :+ thisCost
     }
     println("for full cost measurement: " + costs)

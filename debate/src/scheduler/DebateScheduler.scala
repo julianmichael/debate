@@ -1,11 +1,6 @@
 package debate
 package scheduler
 
-import cats.implicits._
-import jjm.metrics.Numbers
-import jjm.Duad
-import jjm.implicits._
-
 object DebateScheduler {
   // TODO is this a good value?
   val defaultJudgeScaleDownFactor = 0.3
@@ -20,162 +15,8 @@ object DebateScheduler {
     constraint.min.forall(_ <= nParticipating) && constraint.max.forall(_ >= nParticipating)
   }
 
-  def getNTimesDebated(assignments: Vector[Assignment]): Map[String, Int] =
-    assignments
-      .view
-      .flatMap { assignment =>
-        assignment.dishonestDebaters + assignment.honestDebater
-      }
-      .toVector
-      .counts
-
-  /** 
-   * [assignments] is built from history and the new potential assignment.
-   * 
-   * this cost is the standard deviation of the number of times each debater has debated. (either as the honest or dishonest debater)
-   * 
-   */
-  def debaterCost(assignments: Vector[Assignment]): Double =
-    Numbers(getNTimesDebated(assignments).values.toVector).stats.stdev
-
-  def judgeCost(assignments: Vector[Assignment]): Double =
-    Numbers(assignments.map(_.judge).counts.values.toVector).stats.stdev
-
-  def storiesReadCost(
-    history: Vector[Debate],
-    newAssignments: Vector[Assignment],
-    storyName: String
-  ): Double = {
-    // map of debater to set of stories read
-    val debaterStoriesRead: Map[String, Set[String]] = history.foldMap { debate =>
-      Assignment
-        .fromDebate(debate)
-        .foldMap { assignment =>
-          (assignment.dishonestDebaters + assignment.honestDebater)
-            .view
-            .map(debater => debater -> Set(debate.setup.sourceMaterial.title))
-            .toMap
-        }
-    }
-
-    // map of debater to set of stories read in new assignments
-    // (each value should be a singleton set)
-    val mapFromNewAssignments: Map[String, Set[String]] = newAssignments.foldMap { assignment =>
-      (assignment.dishonestDebaters + assignment.honestDebater)
-        .view
-        .map(debater => debater -> Set(storyName))
-        .toMap
-    }
-
-    // combine the sets if a debater is in both
-    // |+| is the syntax for the Monoid#combine function, here from Monoid[Map[String, Set[String]]
-    val combined: Map[String, Set[String]] = debaterStoriesRead |+| mapFromNewAssignments
-
-    val storiesReadCounts: Map[String, Int] = combined.view.mapValues(_.size).toMap
-    Numbers(storiesReadCounts.values.toVector).stats.stdev
-  }
-
-  def judgingPerStoryCost(
-    history: Vector[Debate],
-    newAssignments: Vector[Assignment],
-    storyName: String
-  ): Double = {
-    // TODO someday refactor
-    val judgingInHistory: Map[String, Map[String, Int]] = history.foldMap { debate =>
-      Assignment
-        .fromDebate(debate)
-        .foldMap { assignment =>
-          Map(debate.setup.sourceMaterial.title -> Map(assignment.judge -> 1))
-        }
-    }
-    val judgingInNewAssignments: Map[String, Map[String, Int]] = Map(
-      storyName -> newAssignments.map(_.judge).counts
-    )
-    val storyToPersonToJudgeCount: Map[String, Map[String, Int]] =
-      judgingInHistory ++ judgingInNewAssignments
-    storyToPersonToJudgeCount
-      .values
-      .map { personToJudgeCount =>
-        Numbers(personToJudgeCount.values.toVector).stats.stdev
-      }
-      .sum
-  }
-
-  def debatedOtherDebatersCost(assignments: Vector[Assignment]): Double = {
-    val adversarialPairs: Map[Duad[String], Int] =
-      assignments
-        .foldMap { assignment =>
-          val allDuads: Set[Duad[String]] = assignment
-            .dishonestDebaters
-            .map(assignment.honestDebater <-> _)
-          allDuads.map(_ -> 1)
-        }
-        .toMap
-    Numbers(adversarialPairs.values.toVector).stats.stdev
-  }
-
-  def judgedPerDebaterCost(assignments: Vector[Assignment]): Double = {
-    val judgeToDebaters: Map[String, Set[String]] =
-      assignments
-        .map { assignment =>
-          assignment.judge -> (Set(assignment.honestDebater) ++ assignment.dishonestDebaters)
-        }
-        .toMap
-    // keys are tuples of (judge, debater)
-    val judgedPerDebater: Map[(String, String), Int] = judgeToDebaters
-      .toSeq
-      .foldMap { case (judge, debaters) =>
-        debaters
-          .toSeq
-          .foldMap { debater =>
-            Map((judge, debater) -> 1)
-          }
-      }
-
-    Numbers(judgedPerDebater.values.toVector).stats.stdev
-  }
-
-  def fractionsHonestWhenDebatingCost(assignments: Vector[Assignment]): Double = {
-    val timesHonest: Map[String, Int]    = assignments.map(_.honestDebater).counts
-    val timesDishonest: Map[String, Int] = assignments.flatMap(_.dishonestDebaters).counts
-    val debaters                         = timesHonest.keySet ++ timesDishonest.keySet
-    val fractionsHonest =
-      debaters
-        .view
-        .map { debater =>
-          val nHonest    = timesHonest.getOrElse(debater, 0)
-          val nDishonest = timesDishonest.getOrElse(debater, 0)
-          debater -> (nHonest.toDouble / (nHonest + nDishonest))
-        }
-        .toMap
-    Numbers(fractionsHonest.values.toVector).stats.stdev
-  }
-
-  /** result is non-negative */
-  def getBadnessScore(
-    newAssignments: Vector[Assignment],
-    history: Vector[Debate],
-    judgeScaleDownFactor: Double,
-    storyName: String
-  ): Double = {
-    val assignments = history.flatMap(Assignment.fromDebate) ++ newAssignments
-    val costParts = List(
-      debaterCost(assignments), // doesn't depend on the story name
-      storiesReadCost(history = history, newAssignments = newAssignments, storyName = storyName),
-      judgeCost(assignments) * judgeScaleDownFactor,
-      judgingPerStoryCost(
-        history = history,
-        newAssignments = newAssignments,
-        storyName = storyName
-      ),
-      fractionsHonestWhenDebatingCost(assignments),
-      judgedPerDebaterCost(assignments),
-      debatedOtherDebatersCost(assignments)
-    )
-    costParts.sum
-  }
-
   def generateAllPossibleQuestionAssignments(
+    storyId: SourceMaterialId,
     debaters: Set[String],
     numDishonestDebatersPerQuestion: Int,
     numOfflineJudgesPerQuestion: Int
@@ -196,6 +37,7 @@ object DebateScheduler {
         .combinations(numOfflineJudgesPerQuestion)
         .map(_.toSet)
       dba = Assignment.create(
+        storyId = storyId,
         honestDebater = honestDebater,
         judge = judge,
         dishonestDebaters = dishonestDebaters,
@@ -210,6 +52,7 @@ object DebateScheduler {
     }
 
   def generateAllAssignments(
+    storyId: SourceMaterialId,
     numQuestions: Int,
     numDishonestDebatersPerQuestion: Int,
     numOfflineJudgesPerQuestion: Int,
@@ -230,6 +73,7 @@ object DebateScheduler {
       * (if we want to use for longer-term scheduling)
       */
     val allPossibleQuestionAssignments = generateAllPossibleQuestionAssignments(
+      storyId,
       debaters.keySet,
       numDishonestDebatersPerQuestion,
       numOfflineJudgesPerQuestion
@@ -299,26 +143,30 @@ object DebateScheduler {
     ] // TODO someday ensure nonempty? so we can't return None?
     ,
     rng: scala.util.Random = scala.util.Random,
-    storyName: String,
+    storyId: SourceMaterialId,
     judgeScaleDownFactor: Double = defaultJudgeScaleDownFactor
-  ): Vector[Assignment] = {
+  ): Schedule = {
     // each vector in here is of length numQuestions
-    val allAssignmentsThatMeetConstraints: Vector[Vector[Assignment]] = generateAllAssignments(
+    val allSchedulesThatMeetConstraints = generateAllAssignments(
+      storyId = storyId,
       numQuestions = numQuestions,
       numDishonestDebatersPerQuestion = numDishonestDebatersPerQuestion,
       numOfflineJudgesPerQuestion = numOfflineJudgesPerQuestion,
       debaters = debaters
     ).filter { assignment =>
-      isAssignmentValid(assignment, debaters)
-    }
+        isAssignmentValid(assignment, debaters)
+      }
+      .map { newAssignments =>
+        Schedule(
+          complete = history.filter(_.isOver).flatMap(Assignment.fromDebate),
+          incomplete = history.filterNot(_.isOver).flatMap(Assignment.fromDebate),
+          novel = newAssignments
+        )
+      }
+
     val correspondingCosts = zScores(
-      allAssignmentsThatMeetConstraints.map { newAssignments =>
-        getBadnessScore(
-          newAssignments = newAssignments,
-          history = history,
-          storyName = storyName,
-          judgeScaleDownFactor = judgeScaleDownFactor
-        ) * -1
+      allSchedulesThatMeetConstraints.map {
+        _.cost(judgeScaleDownFactor = judgeScaleDownFactor) * -1
       }
     )
     val expCosts  = correspondingCosts.map(math.exp)
@@ -327,6 +175,6 @@ object DebateScheduler {
       expCost / sumOfExps
     }
     val index = sample(probabilities, rng = rng)
-    return allAssignmentsThatMeetConstraints(index)
+    return allSchedulesThatMeetConstraints(index)
   }
 }

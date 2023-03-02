@@ -2,12 +2,15 @@ package debate
 package scheduler
 
 case class Assignment private (
+  val storyId: SourceMaterialId,
   val honestDebater: String,
   val dishonestDebaters: Set[String],
   val judge: String,
   val offlineJudges: Set[String]
 ) {
-  def allParticipants = dishonestDebaters ++ offlineJudges + honestDebater + judge
+  def debaters        = dishonestDebaters + honestDebater
+  def judges          = offlineJudges + judge
+  def allParticipants = debaters ++ judges
 
   def isAssigned(debater: String): Boolean = allParticipants.contains(debater)
 
@@ -20,12 +23,13 @@ case class Assignment private (
 
 object Assignment {
   def create(
+    storyId: SourceMaterialId,
     honestDebater: String,
     dishonestDebaters: Set[String],
     judge: String,
     offlineJudges: Set[String]
   ): Either[Exception, Assignment] = {
-    val assignment = new Assignment(honestDebater, dishonestDebaters, judge, offlineJudges)
+    val assignment = new Assignment(storyId, honestDebater, dishonestDebaters, judge, offlineJudges)
     if (assignment.allParticipants.size != dishonestDebaters.size + offlineJudges.size + 2) {
       return Left(new IllegalArgumentException("Debaters and judges must all be different people"))
     } else
@@ -50,7 +54,13 @@ object Assignment {
           }
           .toSet
       offlineJudges = debate.setup.offlineJudges.keySet
-    } yield create(honestDebater, dishonestDebaters, judge, offlineJudges) match {
+    } yield create(
+      SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
+      honestDebater,
+      dishonestDebaters,
+      judge,
+      offlineJudges
+    ) match {
       case Right(assignment) =>
         assignment
       case Left(error) =>
