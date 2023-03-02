@@ -22,22 +22,24 @@ object DebateScheduler {
     storyId: SourceMaterialId,
     debaters: Set[String],
     numOfflineJudgesPerQuestion: Int
-  ): Iterable[Assignment] =
+  ): Vector[Assignment] =
     // TODO someday add some validation for the strings in the debaters map and the history
     for {
-      honestDebater    <- debaters
+      honestDebater    <- debaters.toVector
       dishonestDebater <- debaters - honestDebater
       judge            <- debaters - honestDebater - dishonestDebater
       offlineJudges <- (debaters - honestDebater - dishonestDebater - judge)
         .toSeq
         .combinations(numOfflineJudgesPerQuestion)
         .map(_.toSet)
+      honestFirst <- List(true, false)
       dba = Assignment.create(
         storyId = storyId,
         honestDebater = honestDebater,
         judge = judge,
         dishonestDebater = dishonestDebater,
-        offlineJudges = offlineJudges
+        offlineJudges = offlineJudges,
+        honestFirst = honestFirst
       )
     } yield dba match {
       case Right(value) =>

@@ -36,7 +36,7 @@ case class Schedule(
   }
 
   // Map[person, Map[factor -> load]]
-  def computeImbalance(computeLoad: Assignment => Map[String, Map[String, Double]]) = {
+  def computeImbalance[A](computeLoad: Assignment => Map[String, Map[A, Double]]) = {
     val loadPerDebater    = all.foldMap(computeLoad)
     val balancePerDebater = loadPerDebater.mapVals(SparseDistribution(_))
     val totalBalance      = SparseDistribution(loadPerDebater.unorderedFold)
@@ -80,7 +80,10 @@ case class Schedule(
       Map(assignment.dishonestDebater -> Map("dishonest" -> 1.0))
   )
 
-  // TODO: a/b imbalance?
+  def orderImbalance = computeImbalance(assignment =>
+    Map(assignment.honestDebater      -> Map(assignment.honestFirst -> 1.0)) |+|
+      Map(assignment.dishonestDebater -> Map(!assignment.honestFirst -> 1.0))
+  )
 
   // maximize debater spread:
   def opponentImbalance = computeImbalanceFromUniform(assignment =>
@@ -130,6 +133,7 @@ case class Schedule(
       storiesRead,
       roleImbalance,
       honestyImbalance,
+      orderImbalance,
       opponentImbalance,
       judgeDebaterLoadImbalance,
       offlineJudgeDebaterLoadImbalance,

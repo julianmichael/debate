@@ -6,7 +6,8 @@ case class Assignment private (
   val honestDebater: String,
   val dishonestDebater: String,
   val judge: String,
-  val offlineJudges: Set[String]
+  val offlineJudges: Set[String],
+  val honestFirst: Boolean
 ) {
   def debaters        = Set(dishonestDebater, honestDebater)
   def judges          = offlineJudges + judge
@@ -27,9 +28,11 @@ object Assignment {
     honestDebater: String,
     dishonestDebater: String,
     judge: String,
-    offlineJudges: Set[String]
+    offlineJudges: Set[String],
+    honestFirst: Boolean
   ): Either[Exception, Assignment] = {
-    val assignment = new Assignment(storyId, honestDebater, dishonestDebater, judge, offlineJudges)
+    val assignment =
+      new Assignment(storyId, honestDebater, dishonestDebater, judge, offlineJudges, honestFirst)
     if (assignment.allParticipants.size != offlineJudges.size + 3) {
       return Left(new IllegalArgumentException("Debaters and judges must all be different people"))
     } else
@@ -56,12 +59,14 @@ object Assignment {
           .toSet
       dishonestDebater <- dishonestDebaters.headOption.filter(_ => debate.setup.answers.size == 2)
       offlineJudges = debate.setup.offlineJudges.keySet
+      honestFirst   = debate.setup.correctAnswerIndex == 0
     } yield create(
       SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
       honestDebater,
       dishonestDebater,
       judge,
-      offlineJudges
+      offlineJudges,
+      honestFirst
     ) match {
       case Right(assignment) =>
         assignment
