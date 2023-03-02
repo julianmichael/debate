@@ -23,16 +23,17 @@ class SchedulerTests extends CatsEffectSuite {
       debater2 -> DebaterLoadConstraint(None, None),
       debater3 -> DebaterLoadConstraint(None, None)
     )
-    val numQuestions = 5
+    val questions = (1 to 5).map(i => s"Question $i").toVector
     val schedule = getScheduleForNewStory(
       history = Vector.empty,
-      numQuestions = numQuestions,
-      numOfflineJudgesPerQuestion = 0,
+      questions = questions,
+      numDebatesPerQuestion = 1,
+      numOfflineJudgesPerDebate = 0,
       debaters = debaters,
       storyId = SourceMaterialId.Custom(makeRandomStoryName(history = Vector.empty))
     )
     assert {
-      schedule.novel.size == numQuestions;
+      schedule.novel.size == questions.size;
       schedule
         .all
         .forall { assignment =>
@@ -116,8 +117,9 @@ class SchedulerTests extends CatsEffectSuite {
     for (_ <- 1 to 5) {
       val schedule = getScheduleForNewStory(
         history = history,
-        numQuestions = 1,
-        numOfflineJudgesPerQuestion = 0,
+        questions = Vector("Question"),
+        numDebatesPerQuestion = 1,
+        numOfflineJudgesPerDebate = 0,
         debaters = Map(
           debater1 -> DebaterLoadConstraint(None, None),
           debater2 -> DebaterLoadConstraint(None, None),

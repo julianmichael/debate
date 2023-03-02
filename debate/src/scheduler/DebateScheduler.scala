@@ -3,6 +3,7 @@ package scheduler
 
 import debate.util.SparseDistribution
 import jjm.implicits._
+import cats.implicits._
 
 object DebateScheduler {
   // TODO is this a good value?
@@ -20,6 +21,7 @@ object DebateScheduler {
 
   def generateAllPossibleQuestionAssignments(
     storyId: SourceMaterialId,
+    question: String,
     debaters: Set[String],
     numOfflineJudgesPerQuestion: Int
   ): Vector[Assignment] =
@@ -35,6 +37,7 @@ object DebateScheduler {
       honestFirst <- List(true, false)
       dba = Assignment.create(
         storyId = storyId,
+        question = question,
         honestDebater = honestDebater,
         judge = judge,
         dishonestDebater = dishonestDebater,
@@ -51,11 +54,11 @@ object DebateScheduler {
 
   def generateAllAssignments(
     storyId: SourceMaterialId,
-    numQuestions: Int,
-    numOfflineJudgesPerQuestion: Int,
+    questions: Vector[String],
+    numDebatesPerQuestion: Int,
+    numOfflineJudgesPerDebate: Int,
     debaters: Set[String]
-  ): Vector[Vector[Assignment]] = {
-
+  ): Vector[Vector[Assignment]] =
     /** TODO someday: notes from Julian
       * [combinations] seems fine for now, as repeating assignments in a single
       * round of scheduling seems very unlikely to be something we want, but
@@ -69,13 +72,16 @@ object DebateScheduler {
       * 2. we're scheduling more debates than there are possible assignments
       * (if we want to use for longer-term scheduling)
       */
-    val allPossibleQuestionAssignments = generateAllPossibleQuestionAssignments(
-      storyId,
-      debaters,
-      numOfflineJudgesPerQuestion
-    )
-    allPossibleQuestionAssignments.toVector.combinations(numQuestions).toVector
-  }
+    questions
+      .traverse(question =>
+        generateAllPossibleQuestionAssignments(
+          storyId,
+          question,
+          debaters,
+          numOfflineJudgesPerDebate
+        ).toVector.combinations(numDebatesPerQuestion).toVector
+      )
+      .map(_.flatten)
 
   def sample(probabilities: Vector[Double], rng: scala.util.Random): Int = {
     val randomDouble = rng.nextDouble()
@@ -133,8 +139,9 @@ object DebateScheduler {
   def getScheduleForNewStory(
     history: Vector[Debate],
     storyId: SourceMaterialId,
-    numQuestions: Int,
-    numOfflineJudgesPerQuestion: Int,
+    questions: Vector[String],
+    numDebatesPerQuestion: Int,
+    numOfflineJudgesPerDebate: Int,
     debaters: Map[String, DebaterLoadConstraint], // TODO: change to or add soft constraints
     rng: scala.util.Random = scala.util.Random
   ): Schedule = {
@@ -142,8 +149,9 @@ object DebateScheduler {
     // each vector in here is of length numQuestions
     val allSchedulesThatMeetConstraints = generateAllAssignments(
       storyId = storyId,
-      numQuestions = numQuestions,
-      numOfflineJudgesPerQuestion = numOfflineJudgesPerQuestion,
+      questions = questions,
+      numDebatesPerQuestion = numDebatesPerQuestion,
+      numOfflineJudgesPerDebate = numOfflineJudgesPerDebate,
       debaters = debaters.keySet
     ).filter(isAssignmentValid(_, debaters))
       .map { newAssignments =>

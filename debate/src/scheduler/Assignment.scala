@@ -3,6 +3,7 @@ package scheduler
 
 case class Assignment private (
   val storyId: SourceMaterialId,
+  val question: String,
   val honestDebater: String,
   val dishonestDebater: String,
   val judge: String,
@@ -16,7 +17,9 @@ case class Assignment private (
   def isAssigned(debater: String): Boolean = allParticipants.contains(debater)
 
   def toPrettyString: String =
-    s"""Honest debater: $honestDebater
+    s"""Story ID: $storyId
+       |Question: $question
+       |Honest debater: $honestDebater
        |Dishonest debater: $dishonestDebater
        |Judge: $judge
        |Offline judges: ${offlineJudges.mkString(", ")}""".stripMargin
@@ -25,6 +28,7 @@ case class Assignment private (
 object Assignment {
   def create(
     storyId: SourceMaterialId,
+    question: String,
     honestDebater: String,
     dishonestDebater: String,
     judge: String,
@@ -32,7 +36,15 @@ object Assignment {
     honestFirst: Boolean
   ): Either[Exception, Assignment] = {
     val assignment =
-      new Assignment(storyId, honestDebater, dishonestDebater, judge, offlineJudges, honestFirst)
+      new Assignment(
+        storyId,
+        question,
+        honestDebater,
+        dishonestDebater,
+        judge,
+        offlineJudges,
+        honestFirst
+      )
     if (assignment.allParticipants.size != offlineJudges.size + 3) {
       return Left(new IllegalArgumentException("Debaters and judges must all be different people"))
     } else
@@ -62,6 +74,7 @@ object Assignment {
       honestFirst   = debate.setup.correctAnswerIndex == 0
     } yield create(
       SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
+      debate.setup.question,
       honestDebater,
       dishonestDebater,
       judge,
