@@ -2,11 +2,13 @@ package debate
 package scheduler
 
 import cats.implicits._
-import jjm.metrics.Numbers
-import jjm.Duad
+
 import jjm.implicits._
 
+import debate.util.SparseDistribution
+
 case class Schedule(
+  desiredWorkload: SparseDistribution[String],
   complete: Vector[Assignment],
   incomplete: Vector[Assignment],
   novel: Vector[Assignment]
@@ -14,117 +16,128 @@ case class Schedule(
   lazy val allIncomplete = incomplete ++ novel
   lazy val all           = complete ++ allIncomplete
 
-  import Schedule._
+  lazy val workload: SparseDistribution[String] = {
+    // imbalances in load should be penalized differently depending on source
+    // (e.g., judging an extra debate offline is less work than reading a new story)
+    val storyWeight          = 1.0
+    val debateWeight         = 1.0
+    val liveJudgingWeight    = 0.5
+    val offlineJudgingWeight = 0.25
 
-  // TODO: construct score terms here.
+    val stories = allIncomplete
+      .foldMap(a => a.debaters.map(_ -> Set(a.storyId)).toMap)
+      .mapVals(_.size.toDouble * storyWeight)
+    val debates = allIncomplete.foldMap(assignment =>
+      assignment.debaters.unorderedFoldMap(d => Map(d -> debateWeight)) |+|
+        Map(assignment.judge -> liveJudgingWeight) |+|
+        assignment.offlineJudges.unorderedFoldMap(j => Map(j -> offlineJudgingWeight))
+    )
+    SparseDistribution(stories |+| debates)
+  }
 
-  // TODO: these are probably not ideal.
-  // instead, score will be by deviation from desired load.
-  def timesDebatedVariance = Numbers(numTimesDebating(all).values.toVector).stats.variance
+  // Map[person, Map[factor -> load]]
+  def computeImbalance(computeLoad: Assignment => Map[String, Map[String, Double]]) = {
+    val loadPerDebater    = all.foldMap(computeLoad)
+    val balancePerDebater = loadPerDebater.mapVals(SparseDistribution(_))
+    val totalBalance      = SparseDistribution(loadPerDebater.unorderedFold)
 
-  def timesJudgedVariance = Numbers(numTimesJudging(all).values.toVector).stats.variance
+    balancePerDebater.unorderedFoldMap(distance(_, totalBalance)) / balancePerDebater.size
+  }
 
-  def storiesReadCost: Double = {
-    val storiesRead = all.foldMap { assignment =>
-      assignment.debaters.view.map(_ -> Set(assignment.storyId)).toMap
+  def computeImbalanceFromUniform(computeLoad: Assignment => Map[String, Map[String, Double]]) = {
+    val loadPerDebater    = all.foldMap(computeLoad)
+    val balancePerDebater = loadPerDebater.mapVals(SparseDistribution(_))
+    val totalBalance      = SparseDistribution(loadPerDebater.unorderedFold.mapVals(_ => 1.0))
+    balancePerDebater.unorderedFoldMap(distance(_, totalBalance)) / balancePerDebater.size
+  }
+
+  // slightly superlinear
+  def distance[A](
+    x: SparseDistribution[A],
+    y: SparseDistribution[A],
+    exponent: Double = 1.2
+  ): Double = (x.probs.mapVals(-_) |+| y.probs)
+    .unorderedFoldMap(x => math.pow(math.abs(x), exponent))
+
+  // assign the right amount of work to the right people
+  def workloadImbalance = distance(workload, desiredWorkload)
+
+  // minimize the number of times people have to read stories (concentrating debaters)
+  def storiesRead = all
+    .foldMap(a => a.debaters.map(_ -> Set(a.storyId)).toMap)
+    .unorderedFoldMap(_.size.toDouble)
+
+  // everyone should debate/judge live/judge offline in similar proportions in aggregate
+  def roleImbalance = computeImbalance(assignment =>
+    assignment.debaters.unorderedFoldMap(d => Map(d -> Map("debater" -> 1.0))) |+|
+      assignment.offlineJudges.unorderedFoldMap(d => Map(d -> Map("judge (offline)" -> 1.0))) |+|
+      Map(assignment.judge -> Map("judge (live)" -> 1.0))
+  )
+
+  // minimize imbalance of honesty/dishonesty
+  def honestyImbalance = computeImbalance(assignment =>
+    Map(assignment.honestDebater -> Map("honest" -> 1.0)) |+|
+      assignment.dishonestDebaters.unorderedFoldMap(d => Map(d -> Map("dishonest" -> 1.0)))
+  )
+
+  // TODO: a/b imbalance?
+
+  // maximize debater spread:
+  def opponentImbalance = computeImbalanceFromUniform(assignment =>
+    Map(assignment.honestDebater -> assignment.dishonestDebaters.map(_ -> 1.0).toMap) |+|
+      assignment
+        .dishonestDebaters
+        .unorderedFoldMap(d => Map(d -> Map(assignment.honestDebater -> 1.0)))
+  )
+
+  // maximize judge -> debater / debater -> judge spread:
+  def judgeDebaterLoadImbalance =
+    (computeImbalanceFromUniform(assignment =>
+      assignment.debaters.unorderedFoldMap(d => Map(assignment.judge -> Map(d -> 1.0)))
+    ) +
+      computeImbalanceFromUniform(assignment =>
+        assignment.debaters.unorderedFoldMap(d => Map(assignment.judge -> Map(d -> 1.0)))
+      )) / 2
+
+  // maximize offline judge -> debater / debater -> offline judge spread:
+  def offlineJudgeDebaterLoadImbalance =
+    (computeImbalanceFromUniform(assignment =>
+      assignment
+        .debaters
+        .unorderedFoldMap(d =>
+          assignment.offlineJudges.unorderedFoldMap(j => Map(j -> Map(d -> 1.0)))
+        )
+    ) +
+      computeImbalanceFromUniform(assignment =>
+        assignment
+          .debaters
+          .unorderedFoldMap(d =>
+            assignment.offlineJudges.unorderedFoldMap(j => Map(d -> Map(j -> 1.0)))
+          )
+      )) / 2
+
+  // strongly penalize judging the same story more than once
+  // (exponent strengthens penalty)
+  // this should only affect balance of 1 judging / 2 judgings
+  def judgingsPerStory(exponent: Double = 2): Double = all
+    .foldMap { assignment =>
+      Map(assignment.storyId -> assignment.judges.unorderedFoldMap(j => Map(j -> 1)))
     }
-    Numbers(storiesRead.values.view.map(_.size).toVector).stats.stdev
-  }
-
-  // TODO: probably want to just do sum square counts to spread them out
-  def judgingPerStory: Double = {
-    val judging = all.foldMap { assignment =>
-      Map(assignment.storyId -> Map(assignment.judge -> 1))
-    }
-    judging
-      .values
-      .map { personToJudgeCount =>
-        Numbers(personToJudgeCount.values.toVector).stats.stdev
-      }
-      .sum
-  }
-
-  def debatedOtherDebaters: Double = {
-    val adversarialPairs: Map[Duad[String], Int] =
-      all
-        .foldMap { assignment =>
-          val allDuads: Set[Duad[String]] = assignment
-            .dishonestDebaters
-            .map(assignment.honestDebater <-> _)
-          allDuads.map(_ -> 1)
-        }
-        .toMap
-    Numbers(adversarialPairs.values.toVector).stats.stdev
-  }
-
-  def judgedPerDebater: Double = {
-    val judgeToDebaters: Map[String, Set[String]] =
-      all
-        .map { assignment =>
-          assignment.judge -> (Set(assignment.honestDebater) ++ assignment.dishonestDebaters)
-        }
-        .toMap
-    // keys are tuples of (judge, debater)
-    val judgedPerDebater: Map[(String, String), Int] = judgeToDebaters
-      .toSeq
-      .foldMap { case (judge, debaters) =>
-        debaters
-          .toSeq
-          .foldMap { debater =>
-            Map((judge, debater) -> 1)
-          }
-      }
-
-    Numbers(judgedPerDebater.values.toVector).stats.stdev
-  }
-
-  def fractionsHonestWhenDebating: Double = {
-    val timesHonest: Map[String, Int]    = all.map(_.honestDebater).counts
-    val timesDishonest: Map[String, Int] = all.flatMap(_.dishonestDebaters).counts
-    val debaters                         = timesHonest.keySet ++ timesDishonest.keySet
-    val fractionsHonest =
-      debaters
-        .view
-        .map { debater =>
-          val nHonest    = timesHonest.getOrElse(debater, 0)
-          val nDishonest = timesDishonest.getOrElse(debater, 0)
-          debater -> (nHonest.toDouble / (nHonest + nDishonest))
-        }
-        .toMap
-    Numbers(fractionsHonest.values.toVector).stats.stdev
-  }
+    .unorderedFoldMap(_.unorderedFoldMap(math.pow(_, exponent)))
 
   /** result is non-negative */
   def cost: Double = {
-    val costParts = List(
-      timesDebatedVariance, // doesn't depend on the story name
-      storiesReadCost,
-      timesJudgedVariance,
-      judgingPerStory,
-      fractionsHonestWhenDebating,
-      judgedPerDebater,
-      debatedOtherDebaters
+    val terms = List(
+      workloadImbalance,
+      storiesRead,
+      roleImbalance,
+      honestyImbalance,
+      opponentImbalance,
+      judgeDebaterLoadImbalance,
+      offlineJudgeDebaterLoadImbalance,
+      judgingsPerStory(exponent = 2)
     )
-    costParts.sum
+    terms.sum
   }
 }
-object Schedule {
-
-  def numTimesDebating(assignments: Vector[Assignment]): Map[String, Int] =
-    assignments
-      .view
-      .flatMap { assignment =>
-        assignment.dishonestDebaters + assignment.honestDebater
-      }
-      .toVector
-      .counts
-
-  def numTimesJudging(assignments: Vector[Assignment]): Map[String, Int] =
-    assignments
-      .view
-      .flatMap { assignment =>
-        assignment.offlineJudges + assignment.judge
-      }
-      .toVector
-      .counts
-}
+object Schedule {}

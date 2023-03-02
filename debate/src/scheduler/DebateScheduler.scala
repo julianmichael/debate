@@ -1,6 +1,9 @@
 package debate
 package scheduler
 
+import debate.util.SparseDistribution
+import jjm.implicits._
+
 object DebateScheduler {
   // TODO is this a good value?
   val defaultJudgeScaleDownFactor = 0.3
@@ -143,6 +146,7 @@ object DebateScheduler {
     debaters: Map[String, DebaterLoadConstraint], // TODO: change to or add soft constraints
     rng: scala.util.Random = scala.util.Random
   ): Schedule = {
+    val workload = SparseDistribution(debaters.mapVals(_ => 1.0))
     // each vector in here is of length numQuestions
     val allSchedulesThatMeetConstraints = generateAllAssignments(
       storyId = storyId,
@@ -153,6 +157,7 @@ object DebateScheduler {
     ).filter(isAssignmentValid(_, debaters))
       .map { newAssignments =>
         Schedule(
+          desiredWorkload = workload,
           complete = history.filter(_.isOver).flatMap(Assignment.fromDebate),
           incomplete = history.filterNot(_.isOver).flatMap(Assignment.fromDebate),
           novel = newAssignments
