@@ -203,6 +203,11 @@ object DebateCreationPanel {
         Some(<.div("Offline judges must be assigned in official debates with no live judge."))
       ) *>
       ensure(
+        "offline judges are not also assigned to live roles",
+        setup.offlineJudges.keySet.intersect(setup.roles.values.toSet).isEmpty,
+        Some(<.div("Offline judges cannot also be assigned to live roles."))
+      ) *>
+      ensure(
         "no judge in debates which can end by agreement",
         setup
           .rules
