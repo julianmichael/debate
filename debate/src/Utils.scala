@@ -2,6 +2,9 @@ package debate
 
 import jjm.ling.Span
 import jjm.ling.Text
+import cats.Foldable
+import cats.implicits._
+import cats.Functor
 
 object Utils extends UtilsPlatformExtensions {
 
@@ -26,5 +29,17 @@ object Utils extends UtilsPlatformExtensions {
         )
         .updated(index, newProb)
     )
+  }
+
+  def zScores[F[_]: Foldable: Functor](x: F[Double]): F[Double] = {
+    val mean = x.fold / x.size
+    val stdDev = math.sqrt(
+      x.foldMap { xi =>
+        math.pow(xi - mean, 2)
+      } / x.size
+    )
+    return x.map { xi =>
+      (xi - mean) / stdDev
+    }
   }
 }

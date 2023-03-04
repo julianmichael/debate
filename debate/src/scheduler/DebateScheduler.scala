@@ -4,6 +4,8 @@ package scheduler
 import debate.util.SparseDistribution
 import jjm.implicits._
 import cats.implicits._
+import debate.util.DenseDistribution
+import cats.data.NonEmptyVector
 
 object DebateScheduler {
 
@@ -52,46 +54,20 @@ object DebateScheduler {
       )
       .map(_.flatten)
 
-  def sample(probabilities: Vector[Double], rng: scala.util.Random): Int = {
-    val randomDouble = rng.nextDouble()
-    var sum          = 0.0
-    for (i <- probabilities.indices) {
-      sum += probabilities(i)
-      if (randomDouble < sum) {
-        return i
-      }
-    }
-    return probabilities.length - 1
-  }
-
-  def zScores(x: Vector[Double]): Vector[Double] = {
-    val mean = x.sum / x.length
-    val stdDev = math.sqrt(
-      x.map { xi =>
-          math.pow(xi - mean, 2)
-        }
-        .sum / x.length
-    )
-    return x.map { xi =>
-      (xi - mean) / stdDev
-    }
-  }
-
   // complete = debates.filter(_.isOver).flatMap(Assignment.fromDebate),
   // incomplete = debates.filterNot(_.isOver).flatMap(Assignment.fromDebate),
-  def sampleScheduleForStory(
+  def generateAllSchedules(
     complete: Vector[Assignment],
     incomplete: Vector[Assignment],
     storyId: SourceMaterialId,
     questions: Vector[String],
     numDebatesPerQuestion: Int,
     numOfflineJudgesPerDebate: Int,
-    debaters: Map[String, DebaterLoadConstraint], // TODO: change to or add soft constraints
-    rng: scala.util.Random = scala.util.Random
-  ): () => Schedule = {
+    debaters: Map[String, DebaterLoadConstraint] // TODO: change to or add soft constraints
+  ): Vector[Schedule] = {
     val workload = SparseDistribution(debaters.mapVals(_ => 1.0))
     // each vector in here is of length numQuestions
-    val allSchedulesThatMeetConstraints = allAssignmentsForStory(
+    allAssignmentsForStory(
       storyId = storyId,
       questions = questions,
       numDebatesPerQuestion = numDebatesPerQuestion,
@@ -107,20 +83,30 @@ object DebateScheduler {
         )
       }
       .filter(Constraints.doesScheduleMeetJudgingConstraints)
-
-    val correspondingCosts = zScores(
-      allSchedulesThatMeetConstraints.map {
-        _.cost * -1
-      }
-    )
-    val expCosts  = correspondingCosts.map(math.exp)
-    val sumOfExps = expCosts.sum
-    val probabilities = expCosts.map { expCost =>
-      expCost / sumOfExps
-    }
-    return () => {
-      val index = sample(probabilities, rng = rng)
-      allSchedulesThatMeetConstraints(index)
-    }
   }
+
+  def getScheduleDistribution(
+    complete: Vector[Assignment],
+    incomplete: Vector[Assignment],
+    storyId: SourceMaterialId,
+    questions: Vector[String],
+    numDebatesPerQuestion: Int,
+    numOfflineJudgesPerDebate: Int,
+    debaters: Map[String, DebaterLoadConstraint] // TODO: change to or add soft constraints
+  ) = DenseDistribution.fromSoftmax[Schedule](
+    NonEmptyVector
+      .fromVector(
+        generateAllSchedules(
+          complete,
+          incomplete,
+          storyId,
+          questions,
+          numDebatesPerQuestion,
+          numOfflineJudgesPerDebate,
+          debaters
+        )
+      )
+      .get,
+    _.cost
+  )
 }
