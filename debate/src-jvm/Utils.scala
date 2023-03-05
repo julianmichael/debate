@@ -20,6 +20,7 @@ trait UtilsPlatformExtensions {
   def transformDebateQ(q: String) =
     q.replaceAll("<U\\+FFFD>", "").trim // .replaceAll("\"", "…").trim
 
+  // article ID -> set of question IDs
   def identifyQualityMatches(
     qualityDataset: Map[String, QuALITYStory],
     singleTurnDebateDataset: Map[String, Vector[SingleTurnDebateQuestion]]

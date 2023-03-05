@@ -21,6 +21,7 @@ case class QuALITYStory(
   article: String,
   url: String,
   license: String,
+  // map from question unique IDs to question objects
   questions: Map[String, QuALITYQuestion]
 ) {
   def merge(that: QuALITYStory): Either[IllegalArgumentException, QuALITYStory] = {
@@ -67,29 +68,7 @@ case class QuALITYQuestion(
   options: Vector[String],
   difficult: Boolean,
   annotations: Option[QuALITYQuestionAnnotations]
-) {
-  // TODO: make sure we're consistent about how we compute these
-  def bestDistractors: Set[Int] = annotations.foldMap {
-    case QuALITYQuestionAnnotations(
-          writerLabel,
-          goldLabel,
-          validations: Vector[QuALITYQuestionValidationInstance],
-          _
-        ) =>
-      validations
-        .foldMap { instance =>
-          val annotatorIsWrong = instance.untimedAnswer != goldLabel
-          if (annotatorIsWrong) {
-            Map(instance.untimedAnswer -> 1.0, instance.untimedBestDistractor -> 0.1)
-          } else
-            Map(instance.untimedBestDistractor -> 1.0)
-        }
-        .toVector
-        .maximaBy(_._2)
-        .map(_._1)
-        .toSet
-  }
-}
+)
 
 @JsonCodec
 case class QuALITYQuestionAnnotations(
@@ -97,7 +76,34 @@ case class QuALITYQuestionAnnotations(
   goldLabel: Int,
   validation: Vector[QuALITYQuestionValidationInstance],
   speedValidation: Vector[QuALITYQuestionSpeedValidationInstance]
-)
+) {
+  def untimedAccuracyAgainstGold   = validation.proportion(_.untimedAnswer == goldLabel)
+  def untimedAccuracyAgainstWriter = validation.proportion(_.untimedAnswer == writerLabel)
+  def speedAccuracyAgainstGold     = speedValidation.proportion(_.speedAnswer == goldLabel)
+  def speedAccuracyAgainstWriter   = speedValidation.proportion(_.speedAnswer == writerLabel)
+  // def bestDistractor =
+
+  // TODO: make sure we're consistent about how we compute these
+
+  private def untimedBestDistractorsMap = validation.foldMap { instance =>
+    val annotatorIsWrong = instance.untimedAnswer != goldLabel
+    if (annotatorIsWrong) {
+      Map(instance.untimedAnswer -> 1.0, instance.untimedBestDistractor -> 0.2)
+    } else
+      Map(instance.untimedBestDistractor -> 1.0)
+  }
+
+  private def timedbestDistractorsMap = speedValidation.foldMap { instance =>
+    Map(instance.speedAnswer -> 0.1)
+  }
+
+  def bestDistractors(correctAnswerIndex: Int) =
+    ((untimedBestDistractorsMap |+| timedbestDistractorsMap) - correctAnswerIndex)
+      .toVector
+      .maximaBy(_._2)
+      .map(_._1)
+      .toSet
+}
 
 // only putting this silly object here because scala 2 doesn't allow vals not in objects/etc.
 // and I don't want to have to put this implicit in another file

@@ -9,7 +9,7 @@ import cats.data.NonEmptyVector
 
 object DebateScheduler {
 
-  case class QASpec(question: String, answers: Vector[String], correctAnswerIndex: Int)
+  case class QASpec(question: String, correctAnswer: String, incorrectAnswer: String)
 
   def allAssignmentsForQuestion(
     rules: DebateRules,
@@ -27,17 +27,23 @@ object DebateScheduler {
         .toSeq
         .combinations(numOfflineJudgesPerQuestion)
         .map(_.toSet)
-      honestFirst <- List(true, false)
+      correctAnswerIndex <- List(0, 1)
       setup = DebateSetup(
         rules = rules,
         sourceMaterial = sourceMaterial,
         question = qa.question,
-        answers = qa.answers,
-        correctAnswerIndex = qa.correctAnswerIndex,
+        answers = {
+          val as = Vector(qa.correctAnswer, qa.incorrectAnswer)
+          if (correctAnswerIndex == 0)
+            as
+          else
+            as.reverse
+        },
+        correctAnswerIndex = correctAnswerIndex,
         roles = Map(
-          Debater(qa.correctAnswerIndex)     -> honestDebater,
-          Debater(1 - qa.correctAnswerIndex) -> dishonestDebater,
-          Judge                              -> judge
+          Debater(correctAnswerIndex)     -> honestDebater,
+          Debater(1 - correctAnswerIndex) -> dishonestDebater,
+          Judge                           -> judge
         ),
         offlineJudges = offlineJudges.map(_ -> None).toMap,
         creationTime = creationTime

@@ -18,24 +18,36 @@ case class Schedule(
   lazy val allIncomplete = incomplete ++ novel
   lazy val all           = complete ++ allIncomplete
 
-  lazy val workload: SparseDistribution[String] = {
+  def debatingWorkloadCounts = {
     // imbalances in load should be penalized differently depending on source
     // (e.g., judging an extra debate offline is less work than reading a new story)
-    val storyWeight          = 1.0
-    val debateWeight         = 1.0
-    val liveJudgingWeight    = 0.5
-    val offlineJudgingWeight = 0.25
+    val storyWeight  = 1.0
+    val debateWeight = 1.0
 
     val stories = allIncomplete
       .foldMap(a => a.debaters.map(_ -> Set(a.storyId)).toMap)
       .mapVals(_.size.toDouble * storyWeight)
+    val debates = allIncomplete
+      .foldMap(assignment => assignment.debaters.unorderedFoldMap(d => Map(d -> debateWeight)))
+    stories |+| debates
+  }
+  def debatingWorkload = SparseDistribution(debatingWorkloadCounts)
+
+  lazy val judgingWorkloadCounts = {
+    val liveJudgingWeight    = 0.5
+    val offlineJudgingWeight = 0.25
+
     val debates = allIncomplete.foldMap(assignment =>
-      assignment.debaters.unorderedFoldMap(d => Map(d -> debateWeight)) |+|
-        Map(assignment.judge -> liveJudgingWeight) |+|
+      Map(assignment.judge -> liveJudgingWeight) |+|
         assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(j -> offlineJudgingWeight))
     )
-    SparseDistribution(stories |+| debates)
+    debates
   }
+  def judgingWorkload = SparseDistribution(judgingWorkloadCounts)
+
+  lazy val workload: SparseDistribution[String] = SparseDistribution(
+    debatingWorkloadCounts |+| judgingWorkloadCounts
+  )
 
   // Map[person, Map[factor -> load]]
   def computeImbalance[A](computeLoad: DebateSetup => Map[String, Map[A, Double]]) = {

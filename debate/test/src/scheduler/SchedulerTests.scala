@@ -3,37 +3,11 @@ package scheduler
 
 import munit.CatsEffectSuite
 import DebateScheduler._
-import cats.effect.Resource
-import cats.effect.IO
-import java.nio.file.Paths
-import debate.quality.QuALITYUtils
-import cats.effect.Blocker
-import debate.singleturn.SingleTurnDebateUtils
 
 class SchedulerTests extends CatsEffectSuite {
   val debater1 = "debater1"
   val debater2 = "debater2"
   val debater3 = "debater3"
-
-  val dataPath = Paths.get("data")
-
-  val quality = ResourceSuiteLocalFixture(
-    "quality",
-    Resource
-      .make(Blocker[IO].use(blocker => QuALITYUtils.readQuALITY(dataPath, blocker)))(_ => IO.unit)
-  )
-
-  val singleTurnDebateDataset = ResourceSuiteLocalFixture(
-    "singleturn",
-    Resource.make(
-      Blocker[IO].use(blocker => SingleTurnDebateUtils.readSingleTurnDebate(dataPath, blocker))
-    )(_ => IO.unit)
-  )
-
-  // singleTurnDebateDataset <-
-  // qualityMatches = Utils.identifyQualityMatches(qualityDataset, singleTurnDebateDataset)
-
-  override def munitFixtures = List(quality, singleTurnDebateDataset)
 
   def makeRandomStoryName(history: Vector[Debate]): String = {
     var randomNewStoryName = "test story"
@@ -53,9 +27,7 @@ class SchedulerTests extends CatsEffectSuite {
       debater3 -> DebaterLoadConstraint(None, None)
     )
     val qas = (1 to 3)
-      .map(i =>
-        QASpec(s"Question $i", (1 to 2).map(j => s"Answer $j").toVector, correctAnswerIndex = 0)
-      )
+      .map(i => QASpec(s"Question $i", correctAnswer = "Correct", incorrectAnswer = "Incorrect"))
       .toVector
     val schedule = getDebateScheduleDistribution(
       debates = Vector(),
