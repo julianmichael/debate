@@ -6,14 +6,18 @@ import cats.implicits._
 case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])
 
 object Constraints {
-  def isAssignmentValid(assignment: Assignment) =
-    assignment.allParticipants.size == (assignment.offlineJudges.size + 3)
+  import Schedule.DebateSetupExtensions
 
-  def doesAssignmentObeyLoadConstraints(
-    assignments: Vector[Assignment],
+  // TODO: replace with global debatesetup validation
+
+  def isSetupValid(setup: DebateSetup) =
+    setup.allParticipants.size == (setup.offlineJudges.size + 3)
+
+  def doesScheduleObeyLoadConstraints(
+    schedule: Schedule,
     constraints: Map[String, DebaterLoadConstraint]
   ): Boolean = constraints.forall { case (debater, constraint) =>
-    val nParticipating = assignments.count(_.isAssigned(debater))
+    val nParticipating = schedule.allIncomplete.count(_.isAssigned(debater))
     constraint.min.forall(_ <= nParticipating) && constraint.max.forall(_ >= nParticipating)
   }
 

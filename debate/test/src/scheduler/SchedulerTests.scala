@@ -3,11 +3,37 @@ package scheduler
 
 import munit.CatsEffectSuite
 import DebateScheduler._
+import cats.effect.Resource
+import cats.effect.IO
+import java.nio.file.Paths
+import debate.quality.QuALITYUtils
+import cats.effect.Blocker
+import debate.singleturn.SingleTurnDebateUtils
 
 class SchedulerTests extends CatsEffectSuite {
   val debater1 = "debater1"
   val debater2 = "debater2"
   val debater3 = "debater3"
+
+  val dataPath = Paths.get("data")
+
+  val quality = ResourceSuiteLocalFixture(
+    "quality",
+    Resource
+      .make(Blocker[IO].use(blocker => QuALITYUtils.readQuALITY(dataPath, blocker)))(_ => IO.unit)
+  )
+
+  val singleTurnDebateDataset = ResourceSuiteLocalFixture(
+    "singleturn",
+    Resource.make(
+      Blocker[IO].use(blocker => SingleTurnDebateUtils.readSingleTurnDebate(dataPath, blocker))
+    )(_ => IO.unit)
+  )
+
+  // singleTurnDebateDataset <-
+  // qualityMatches = Utils.identifyQualityMatches(qualityDataset, singleTurnDebateDataset)
+
+  override def munitFixtures = List(quality, singleTurnDebateDataset)
 
   def makeRandomStoryName(history: Vector[Debate]): String = {
     var randomNewStoryName = "test story"
@@ -18,64 +44,41 @@ class SchedulerTests extends CatsEffectSuite {
 
   val rng = new scala.util.Random
 
+  val testSourceMaterial = CustomSourceMaterial(title = "test", contents = Vector.empty[String])
+
   test("sampleScheduleForStory minimally works") {
     val debaters = Map(
       debater1 -> DebaterLoadConstraint(None, None),
-      debater2 -> DebaterLoadConstraint(None, None)
-      // debater3 -> DebaterLoadConstraint(None, None)
+      debater2 -> DebaterLoadConstraint(None, None),
+      debater3 -> DebaterLoadConstraint(None, None)
     )
-    val questions = (1 to 3).map(i => s"Question $i").toVector
-    val schedule = getScheduleDistribution(
-      complete = Vector(),
-      incomplete = Vector(),
-      storyId = SourceMaterialId.Custom(makeRandomStoryName(history = Vector.empty)),
-      questions = questions,
-      numDebatesPerQuestion = 2,
-      numOfflineJudgesPerDebate = 0,
-      debaters = debaters
-    ).sample(rng)
-    assert {
-      schedule.novel.size == questions.size;
-      schedule
-        .all
-        .forall { assignment =>
-          // TODO offline judges too
-          assignment.honestDebater != assignment.judge &&
-          assignment.dishonestDebater != assignment.honestDebater
-          assignment.dishonestDebater != assignment.judge
-        };
-    }
-  }
-
-  val testSourceMaterial = CustomSourceMaterial(title = "test", contents = Vector.empty[String])
-
-  def testDebateSetup(assignment: Assignment): DebateSetup = {
-    val correctAnswerIndex = 0
-    val dishonestRoles: Map[LiveDebateRole, String] = Map(
-      Debater(1 + correctAnswerIndex) -> assignment.dishonestDebater
-    )
-    val roles: Map[LiveDebateRole, String] =
-      dishonestRoles +
-        (Debater(correctAnswerIndex) -> assignment.honestDebater) +
-        (Judge                       -> assignment.judge)
-
-    DebateSetup(
+    val qas = (1 to 3)
+      .map(i =>
+        QASpec(s"Question $i", (1 to 2).map(j => s"Answer $j").toVector, correctAnswerIndex = 0)
+      )
+      .toVector
+    val schedule = getDebateScheduleDistribution(
+      debates = Vector(),
       rules = DebateRules.default,
       sourceMaterial = testSourceMaterial,
-      question = "test question",
-      answers = Vector("the answer to everything, trust me", "the answer to nothing, trust me"),
-      correctAnswerIndex = correctAnswerIndex,
-      roles = roles,
-      offlineJudges = Map(),
-      creationTime = 0
-    )
-  }
+      qas = qas,
+      numDebatesPerQuestion = 2,
+      numOfflineJudgesPerDebate = 0,
+      debaters = debaters,
+      creationTime = System.currentTimeMillis()
+    ).get.sample(rng)
 
-  def testDebateOfAssignment(assignment: Assignment) = Debate(
-    setup = testDebateSetup(assignment),
-    rounds = Vector.empty[DebateRound],
-    feedback = Map()
-  )
+    import Schedule.DebateSetupExtensions
+
+    assert {
+      schedule.novel.size == qas.size;
+      schedule
+        .all
+        .forall { setup =>
+          setup.allParticipants.size == setup.offlineJudges.size + 3
+        }
+    }
+  }
 
   // the simplest cost to measure is debater cost
   // test("debater-only costs go down over time") {

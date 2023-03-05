@@ -9,10 +9,12 @@ import debate.util.SparseDistribution
 
 case class Schedule(
   desiredWorkload: SparseDistribution[String],
-  complete: Vector[Assignment],
-  incomplete: Vector[Assignment],
-  novel: Vector[Assignment]
+  complete: Vector[DebateSetup],
+  incomplete: Vector[DebateSetup],
+  novel: Vector[DebateSetup]
 ) {
+  import Schedule._
+
   lazy val allIncomplete = incomplete ++ novel
   lazy val all           = complete ++ allIncomplete
 
@@ -30,13 +32,13 @@ case class Schedule(
     val debates = allIncomplete.foldMap(assignment =>
       assignment.debaters.unorderedFoldMap(d => Map(d -> debateWeight)) |+|
         Map(assignment.judge -> liveJudgingWeight) |+|
-        assignment.offlineJudges.unorderedFoldMap(j => Map(j -> offlineJudgingWeight))
+        assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(j -> offlineJudgingWeight))
     )
     SparseDistribution(stories |+| debates)
   }
 
   // Map[person, Map[factor -> load]]
-  def computeImbalance[A](computeLoad: Assignment => Map[String, Map[A, Double]]) = {
+  def computeImbalance[A](computeLoad: DebateSetup => Map[String, Map[A, Double]]) = {
     val loadPerDebater    = all.foldMap(computeLoad)
     val balancePerDebater = loadPerDebater.mapVals(SparseDistribution(_))
     val totalBalance      = SparseDistribution(loadPerDebater.unorderedFold)
@@ -44,7 +46,7 @@ case class Schedule(
     balancePerDebater.unorderedFoldMap(distance(_, totalBalance)) / balancePerDebater.size
   }
 
-  def computeImbalanceFromUniform(computeLoad: Assignment => Map[String, Map[String, Double]]) = {
+  def computeImbalanceFromUniform(computeLoad: DebateSetup => Map[String, Map[String, Double]]) = {
     val loadPerDebater    = all.foldMap(computeLoad)
     val balancePerDebater = loadPerDebater.mapVals(SparseDistribution(_))
     val totalBalance      = SparseDistribution(loadPerDebater.unorderedFold.mapVals(_ => 1.0))
@@ -70,7 +72,10 @@ case class Schedule(
   // everyone should debate/judge live/judge offline in similar proportions in aggregate
   def roleImbalance = computeImbalance(assignment =>
     assignment.debaters.unorderedFoldMap(d => Map(d -> Map("debater" -> 1.0))) |+|
-      assignment.offlineJudges.unorderedFoldMap(d => Map(d -> Map("judge (offline)" -> 1.0))) |+|
+      assignment
+        .offlineJudges
+        .keySet
+        .unorderedFoldMap(d => Map(d -> Map("judge (offline)" -> 1.0))) |+|
       Map(assignment.judge -> Map("judge (live)" -> 1.0))
   )
 
@@ -106,14 +111,14 @@ case class Schedule(
       assignment
         .debaters
         .unorderedFoldMap(d =>
-          assignment.offlineJudges.unorderedFoldMap(j => Map(j -> Map(d -> 1.0)))
+          assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(j -> Map(d -> 1.0)))
         )
     ) +
       computeImbalanceFromUniform(assignment =>
         assignment
           .debaters
           .unorderedFoldMap(d =>
-            assignment.offlineJudges.unorderedFoldMap(j => Map(d -> Map(j -> 1.0)))
+            assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(d -> Map(j -> 1.0)))
           )
       )) / 2
 
@@ -142,4 +147,20 @@ case class Schedule(
     terms.sum
   }
 }
-object Schedule {}
+object Schedule {
+  implicit class DebateSetupExtensions(val setup: DebateSetup) {
+    def storyId: SourceMaterialId = SourceMaterialId.fromSourceMaterial(setup.sourceMaterial)
+    def honestDebater: String     = setup.roles(Debater(setup.correctAnswerIndex))
+    def dishonestDebater: String  = setup.roles(Debater(1 - setup.correctAnswerIndex))
+    def judge: String             = setup.roles(Judge) // TODO
+    // def offlineJudges: Set[String],
+    def honestFirst: Boolean = setup.correctAnswerIndex == 0
+
+    def debaters        = Set(dishonestDebater, honestDebater)
+    def judges          = setup.offlineJudges.keySet + judge
+    def allParticipants = debaters ++ judges
+
+    def isAssigned(debater: String): Boolean = allParticipants.contains(debater)
+  }
+
+}

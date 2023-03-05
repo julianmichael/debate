@@ -9,12 +9,16 @@ import cats.data.NonEmptyVector
 
 object DebateScheduler {
 
+  case class QASpec(question: String, answers: Vector[String], correctAnswerIndex: Int)
+
   def allAssignmentsForQuestion(
-    storyId: SourceMaterialId,
-    question: String,
+    rules: DebateRules,
+    sourceMaterial: SourceMaterial,
+    qa: QASpec,
     debaters: Set[String],
-    numOfflineJudgesPerQuestion: Int
-  ): Vector[Assignment] =
+    numOfflineJudgesPerQuestion: Int,
+    creationTime: Long
+  ): Vector[DebateSetup] =
     for {
       honestDebater    <- debaters.toVector
       dishonestDebater <- debaters - honestDebater
@@ -24,56 +28,56 @@ object DebateScheduler {
         .combinations(numOfflineJudgesPerQuestion)
         .map(_.toSet)
       honestFirst <- List(true, false)
-      assignment = Assignment(
-        storyId = storyId,
-        question = question,
-        honestDebater = honestDebater,
-        judge = judge,
-        dishonestDebater = dishonestDebater,
-        offlineJudges = offlineJudges,
-        honestFirst = honestFirst
+      setup = DebateSetup(
+        rules = rules,
+        sourceMaterial = sourceMaterial,
+        question = qa.question,
+        answers = qa.answers,
+        correctAnswerIndex = qa.correctAnswerIndex,
+        roles = Map(
+          Debater(qa.correctAnswerIndex)     -> honestDebater,
+          Debater(1 - qa.correctAnswerIndex) -> dishonestDebater,
+          Judge                              -> judge
+        ),
+        offlineJudges = offlineJudges.map(_ -> None).toMap,
+        creationTime = creationTime
       )
-      if Constraints.isAssignmentValid(assignment)
-    } yield assignment
+      if Constraints.isSetupValid(setup)
+    } yield setup
 
-  def allAssignmentsForStory(
-    storyId: SourceMaterialId,
-    questions: Vector[String],
+  case class RuleSpec(name: String, rules: DebateRules, numOfflineJudgesPerDebate: Int)
+
+  def getDebateScheduleDistribution(
+    debates: Vector[Debate],
+    rules: DebateRules,
+    sourceMaterial: SourceMaterial,
+    qas: Vector[QASpec],
     numDebatesPerQuestion: Int,
     numOfflineJudgesPerDebate: Int,
-    debaters: Set[String]
-  ): Vector[Vector[Assignment]] =
-    /** combinations are fine because we already know we don't want to exactly repeat a debate.
-      */
-    questions
-      .traverse(question =>
-        allAssignmentsForQuestion(storyId, question, debaters, numOfflineJudgesPerDebate)
-          .toVector
-          .combinations(numDebatesPerQuestion)
-          .toVector
-      )
-      .map(_.flatten)
+    // rules: SparseDistribution[RuleSpec],
+    debaters: Map[String, DebaterLoadConstraint],
+    creationTime: Long
+  ): Option[DenseDistribution[Schedule]] = {
+    // TODO validate setups
+    val complete   = debates.filter(_.isOver).map(_.setup)
+    val incomplete = debates.filterNot(_.isOver).map(_.setup)
 
-  // complete = debates.filter(_.isOver).flatMap(Assignment.fromDebate),
-  // incomplete = debates.filterNot(_.isOver).flatMap(Assignment.fromDebate),
-  def generateAllSchedules(
-    complete: Vector[Assignment],
-    incomplete: Vector[Assignment],
-    storyId: SourceMaterialId,
-    questions: Vector[String],
-    numDebatesPerQuestion: Int,
-    numOfflineJudgesPerDebate: Int,
-    debaters: Map[String, DebaterLoadConstraint] // TODO: change to or add soft constraints
-  ): Vector[Schedule] = {
     val workload = SparseDistribution(debaters.mapVals(_ => 1.0))
     // each vector in here is of length numQuestions
-    allAssignmentsForStory(
-      storyId = storyId,
-      questions = questions,
-      numDebatesPerQuestion = numDebatesPerQuestion,
-      numOfflineJudgesPerDebate = numOfflineJudgesPerDebate,
-      debaters = debaters.keySet
-    ).filter(Constraints.doesAssignmentObeyLoadConstraints(_, debaters))
+    /** combinations are fine because we already know we don't want to exactly repeat a debate.
+      */
+    val allSchedules = qas
+      .traverse(qa =>
+        allAssignmentsForQuestion(
+          rules,
+          sourceMaterial,
+          qa,
+          debaters.keySet,
+          numOfflineJudgesPerDebate,
+          creationTime
+        ).toVector.combinations(numDebatesPerQuestion).toVector
+      )
+      .map(_.flatten)
       .map { newAssignments =>
         Schedule(
           desiredWorkload = workload,
@@ -82,31 +86,14 @@ object DebateScheduler {
           novel = newAssignments
         )
       }
+      .filter(Constraints.doesScheduleObeyLoadConstraints(_, debaters))
       .filter(Constraints.doesScheduleMeetJudgingConstraints)
-  }
 
-  def getScheduleDistribution(
-    complete: Vector[Assignment],
-    incomplete: Vector[Assignment],
-    storyId: SourceMaterialId,
-    questions: Vector[String],
-    numDebatesPerQuestion: Int,
-    numOfflineJudgesPerDebate: Int,
-    debaters: Map[String, DebaterLoadConstraint] // TODO: change to or add soft constraints
-  ) = DenseDistribution.fromSoftmax[Schedule](
     NonEmptyVector
-      .fromVector(
-        generateAllSchedules(
-          complete,
-          incomplete,
-          storyId,
-          questions,
-          numDebatesPerQuestion,
-          numOfflineJudgesPerDebate,
-          debaters
-        )
-      )
-      .get,
-    _.cost
-  )
+      .fromVector(allSchedules)
+      .map(schedules => DenseDistribution.fromSoftmax[Schedule](schedules, _.cost))
+
+    // val schedule = scheduleDist.sample(rng)
+    // schedule.novel
+  }
 }
