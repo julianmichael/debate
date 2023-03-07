@@ -129,7 +129,7 @@ class LiveSchedulerTests extends CatsEffectSuite {
                     res
                 }
 
-              val scheduleDist = DenseDistribution.fromSoftmax[Schedule](scheduleSample, _.cost)
+              val scheduleDist = DenseDistribution.fromSoftmax[Schedule](scheduleSample, -_.cost)
 
               val schedule = scheduleDist.sample(rand)
 

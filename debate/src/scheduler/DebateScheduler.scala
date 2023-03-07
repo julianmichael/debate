@@ -78,7 +78,14 @@ object DebateScheduler {
               setup.offlineJudges.keySet ++ setup.roles.get(Judge) ++
                 setup
                   .roles
-                  .get(Debater(setup.correctAnswerIndex))
+                  .get(
+                    Debater(
+                      if (isHonest)
+                        setup.correctAnswerIndex
+                      else
+                        1 - setup.correctAnswerIndex
+                    )
+                  )
                   .filter(_ => setup.question == question)
             }
             .toSet -- opponentOpt
