@@ -38,7 +38,8 @@ case class DebateSetupSpec(
 ) {
   require(correctAnswerIndex >= 0 && correctAnswerIndex < answers.size)
   def areAllRolesAssigned =
-    roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))
+    answers.indices.forall(i => roles.contains(Debater(i))) &&
+      (rules.hasJudge --> roles.contains(Judge))
 
   def correctAnswer = answers(correctAnswerIndex)
 }

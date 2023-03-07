@@ -260,7 +260,7 @@ object DebateRulesPanel {
     rules: StateSnapshot[DebateRules]
     // lobby: Lobby,
     // qualityService: QuALITYService[AsyncCallback],
-  ) = <.div(
+  ) = ReactFragment(
     roundsConfig("Opening Rounds", 0, rules.zoomStateL(DebateRules.fixedOpening)),
     roundsConfig("Repeated Rounds", 1, rules.zoomStateL(DebateRules.repeatingStructure)),
     closingRoundsConfig(rules.zoomStateL(DebateRules.fixedClosing)),
