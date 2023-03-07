@@ -6,7 +6,10 @@ import cats.implicits._
 import jjm.implicits._
 
 import debate.util.SparseDistribution
+import monocle.macros.Lenses
+import cats.kernel.Order
 
+@Lenses
 case class Schedule(
   desiredWorkload: SparseDistribution[String],
   complete: Vector[DebateSetup],
@@ -17,51 +20,43 @@ case class Schedule(
 
   lazy val allIncomplete = incomplete ++ novel
   lazy val all           = complete ++ allIncomplete
+  lazy val allPeople = all.foldMap(setup => setup.roles.values.toSet ++ setup.offlineJudges.keySet)
 
-  def debatingWorkloadCounts = {
+  def forStory(storyId: SourceMaterialId) = all
+    .filter(setup => SourceMaterialId.fromSourceMaterial(setup.sourceMaterial) == storyId)
+
+  def workloadCounts = {
     // imbalances in load should be penalized differently depending on source
     // (e.g., judging an extra debate offline is less work than reading a new story)
-    val storyWeight  = 1.0
-    val debateWeight = 1.0
+    val storyWeight          = 1.0
+    val debateWeight         = 1.0
+    val liveJudgingWeight    = 0.5
+    val offlineJudgingWeight = 0.25
 
     val stories = allIncomplete
       .foldMap(a => a.debaters.map(_ -> Set(a.storyId)).toMap)
       .mapVals(_.size.toDouble * storyWeight)
-    val debates = allIncomplete
-      .foldMap(assignment => assignment.debaters.unorderedFoldMap(d => Map(d -> debateWeight)))
-    stories |+| debates
-  }
-  def debatingWorkload = SparseDistribution(debatingWorkloadCounts)
-
-  lazy val judgingWorkloadCounts = {
-    val liveJudgingWeight    = 0.5
-    val offlineJudgingWeight = 0.25
-
     val debates = allIncomplete.foldMap(assignment =>
-      Map(assignment.judge -> liveJudgingWeight) |+|
+      assignment.debaters.unorderedFoldMap(d => Map(d -> debateWeight)) |+|
+        assignment.judge.foldMap(j => Map(j -> liveJudgingWeight)) |+|
         assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(j -> offlineJudgingWeight))
     )
-    debates
+    stories |+| debates
   }
-  def judgingWorkload = SparseDistribution(judgingWorkloadCounts)
-
-  lazy val workload: SparseDistribution[String] = SparseDistribution(
-    debatingWorkloadCounts |+| judgingWorkloadCounts
-  )
+  lazy val workload = SparseDistribution.fromMap(workloadCounts).get
 
   // Map[person, Map[factor -> load]]
-  def computeImbalance[A](computeLoad: DebateSetup => Map[String, Map[A, Double]]) = {
-    val loadPerDebater    = all.foldMap(computeLoad)
-    val balancePerDebater = loadPerDebater.mapVals(SparseDistribution(_))
-    val totalBalance      = SparseDistribution(loadPerDebater.unorderedFold)
+  def computeImbalance[A: Order](loadPerDebater: Map[String, Map[A, Double]]) = {
+    val balancePerDebater = loadPerDebater.mapVals(m => SparseDistribution.fromMap(m).get)
+    val totalBalance      = SparseDistribution.fromMap(loadPerDebater.unorderedFold).get
 
     balancePerDebater.unorderedFoldMap(distance(_, totalBalance)) / balancePerDebater.size
   }
 
-  def computeImbalanceFromUniform(computeLoad: DebateSetup => Map[String, Map[String, Double]]) = {
-    val loadPerDebater    = all.foldMap(computeLoad)
-    val balancePerDebater = loadPerDebater.mapVals(SparseDistribution(_))
-    val totalBalance      = SparseDistribution(loadPerDebater.unorderedFold.mapVals(_ => 1.0))
+  def computeImbalanceFromUniform(loadPerDebater: Map[String, Map[String, Double]]) = {
+    val balancePerDebater = loadPerDebater.mapVals(m => SparseDistribution.fromMap(m).get)
+    val totalBalance =
+      SparseDistribution.fromMap(loadPerDebater.unorderedFold.mapVals(_ => 1.0)).get
     balancePerDebater.unorderedFoldMap(distance(_, totalBalance)) / balancePerDebater.size
   }
 
@@ -70,11 +65,13 @@ case class Schedule(
     x: SparseDistribution[A],
     y: SparseDistribution[A],
     exponent: Double = 1.2
-  ): Double = (x.probs.mapVals(-_) |+| y.probs)
-    .unorderedFoldMap(x => math.pow(math.abs(x), exponent))
+  ): Double = (x.probs.map(-_) |+| y.probs).unorderedFoldMap(x => math.pow(math.abs(x), exponent))
+
+  // assign the right amount of debating to the right people
+  def workloadImbalance = distance(workload, desiredWorkload)
 
   // assign the right amount of work to the right people
-  def workloadImbalance = distance(workload, desiredWorkload)
+  // def workloadImbalance = distance(workload, desiredWorkload)
 
   // minimize the number of times people have to read stories (concentrating debaters)
   def storiesRead = all
@@ -82,57 +79,77 @@ case class Schedule(
     .unorderedFoldMap(_.size.toDouble)
 
   // everyone should debate/judge live/judge offline in similar proportions in aggregate
-  def roleImbalance = computeImbalance(assignment =>
+  def roleLoad = all.foldMap(assignment =>
     assignment.debaters.unorderedFoldMap(d => Map(d -> Map("debater" -> 1.0))) |+|
       assignment
         .offlineJudges
         .keySet
         .unorderedFoldMap(d => Map(d -> Map("judge (offline)" -> 1.0))) |+|
-      Map(assignment.judge -> Map("judge (live)" -> 1.0))
+      assignment.judge.foldMap(j => Map(j -> Map("judge (live)" -> 1.0)))
   )
+  def roleDistributionPerDebater = roleLoad.mapVals(m => SparseDistribution.fromMap(m).get)
+  def roleDistributionGlobal     = SparseDistribution.fromMap(roleLoad.unorderedFold).get
+  def roleImbalance              = computeImbalance(roleLoad)
 
   // minimize imbalance of honesty/dishonesty
-  def honestyImbalance = computeImbalance(assignment =>
+  def honestyLoad = all.foldMap(assignment =>
     Map(assignment.honestDebater      -> Map("honest" -> 1.0)) |+|
       Map(assignment.dishonestDebater -> Map("dishonest" -> 1.0))
   )
+  def honestyImbalance = computeImbalance(honestyLoad)
 
-  def orderImbalance = computeImbalance(assignment =>
-    Map(assignment.honestDebater      -> Map(assignment.honestFirst -> 1.0)) |+|
-      Map(assignment.dishonestDebater -> Map(!assignment.honestFirst -> 1.0))
+  def orderLoad = all.foldMap(assignment =>
+    Map(assignment.honestDebater      -> Map(assignment.correctAnswerIndex -> 1.0)) |+|
+      Map(assignment.dishonestDebater -> Map((1 - assignment.correctAnswerIndex) -> 1.0))
   )
+  def orderImbalance = computeImbalance(orderLoad)
 
   // maximize debater spread:
-  def opponentImbalance = computeImbalanceFromUniform(assignment =>
+  def opponentLoad = all.foldMap(assignment =>
     Map(assignment.honestDebater      -> Map(assignment.dishonestDebater -> 1.0)) |+|
       Map(assignment.dishonestDebater -> Map(assignment.honestDebater -> 1.0))
   )
+  def opponentImbalance = computeImbalanceFromUniform(opponentLoad)
 
   // maximize judge -> debater / debater -> judge spread:
-  def judgeDebaterLoadImbalance =
-    (computeImbalanceFromUniform(assignment =>
-      assignment.debaters.unorderedFoldMap(d => Map(assignment.judge -> Map(d -> 1.0)))
-    ) +
-      computeImbalanceFromUniform(assignment =>
-        assignment.debaters.unorderedFoldMap(d => Map(assignment.judge -> Map(d -> 1.0)))
-      )) / 2
+  def judgeDebaterLoad = all.foldMap(assignment =>
+    assignment
+      .debaters
+      .unorderedFoldMap(d =>
+        (assignment.offlineJudges.keySet ++ assignment.judge)
+          .unorderedFoldMap(j => Map(j -> Map(d -> 1.0)))
+      )
+  )
 
-  // maximize offline judge -> debater / debater -> offline judge spread:
-  def offlineJudgeDebaterLoadImbalance =
-    (computeImbalanceFromUniform(assignment =>
-      assignment
-        .debaters
-        .unorderedFoldMap(d =>
-          assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(j -> Map(d -> 1.0)))
-        )
-    ) +
-      computeImbalanceFromUniform(assignment =>
-        assignment
-          .debaters
-          .unorderedFoldMap(d =>
-            assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(d -> Map(j -> 1.0)))
-          )
-      )) / 2
+  def debaterJudgeLoad = all.foldMap(assignment =>
+    assignment
+      .debaters
+      .unorderedFoldMap(d =>
+        (assignment.offlineJudges.keySet ++ assignment.judge)
+          .unorderedFoldMap(j => Map(d -> Map(j -> 1.0)))
+      )
+  )
+
+  def judgeDebaterImbalance =
+    (computeImbalanceFromUniform(judgeDebaterLoad) +
+      computeImbalanceFromUniform(debaterJudgeLoad)) / 2
+
+  // // maximize offline judge -> debater / debater -> offline judge spread:
+  // def offlineJudgeDebaterLoadImbalance =
+  //   (computeImbalanceFromUniform(assignment =>
+  //     assignment
+  //       .debaters
+  //       .unorderedFoldMap(d =>
+  //         assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(j -> Map(d -> 1.0)))
+  //       )
+  //   ) +
+  //     computeImbalanceFromUniform(assignment =>
+  //       assignment
+  //         .debaters
+  //         .unorderedFoldMap(d =>
+  //           assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(d -> Map(j -> 1.0)))
+  //         )
+  //     )) / 2
 
   // strongly penalize judging the same story more than once
   // (exponent strengthens penalty)
@@ -143,17 +160,17 @@ case class Schedule(
     }
     .unorderedFoldMap(_.unorderedFoldMap(math.pow(_, exponent)))
 
-  /** result is non-negative */
   lazy val cost: Double = {
+    import DebateScheduler.Params._
     val terms = List(
-      workloadImbalance,
+      workloadImbalance * workloadMultiplier,
       storiesRead,
-      roleImbalance,
+      // roleImbalance,
       honestyImbalance,
       orderImbalance,
       opponentImbalance,
-      judgeDebaterLoadImbalance,
-      offlineJudgeDebaterLoadImbalance,
+      judgeDebaterImbalance,
+      // offlineJudgeDebaterLoadImbalance,
       judgingsPerStory(exponent = 2)
     )
     terms.sum
@@ -164,12 +181,11 @@ object Schedule {
     def storyId: SourceMaterialId = SourceMaterialId.fromSourceMaterial(setup.sourceMaterial)
     def honestDebater: String     = setup.roles(Debater(setup.correctAnswerIndex))
     def dishonestDebater: String  = setup.roles(Debater(1 - setup.correctAnswerIndex))
-    def judge: String             = setup.roles(Judge) // TODO
+    def judge: Option[String]     = setup.roles.get(Judge)
     // def offlineJudges: Set[String],
-    def honestFirst: Boolean = setup.correctAnswerIndex == 0
 
     def debaters        = Set(dishonestDebater, honestDebater)
-    def judges          = setup.offlineJudges.keySet + judge
+    def judges          = setup.offlineJudges.keySet ++ judge
     def allParticipants = debaters ++ judges
 
     def isAssigned(debater: String): Boolean = allParticipants.contains(debater)

@@ -1,15 +1,25 @@
 package debate
 package util
 
-import jjm.implicits._
+import cats.implicits._
 
-class SparseDistribution[A] private (val probs: Map[A, Double]) {
-  def prob(a: A): Double = probs.getOrElse(a, 0.0)
-  def support            = probs.keySet
+import cats.data.NonEmptyMap
+import cats.Order
+import scala.collection.immutable.SortedMap
+
+class SparseDistribution[A] private (val probs: NonEmptyMap[A, Double]) {
+  def prob(a: A): Double = probs(a).getOrElse(0.0)
+  // def support            = probs.keySet
 }
 object SparseDistribution {
-  def apply[A](probs: Map[A, Double]) = {
-    val sum = probs.values.sum
-    new SparseDistribution(probs.mapVals(_ / sum))
+  def apply[A](values: NonEmptyMap[A, Double]): SparseDistribution[A] = {
+    val sum = values.unorderedFold
+    new SparseDistribution(values.map(_ / sum))
+  }
+
+  def fromMap[A: Order](probs: Map[A, Double]): Option[SparseDistribution[A]] = {
+    import cats.Order.catsKernelOrderingForOrder
+    val sortedMap = SortedMap.from(probs)
+    NonEmptyMap.fromMap(sortedMap).map(apply)
   }
 }

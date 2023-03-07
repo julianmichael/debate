@@ -25,7 +25,7 @@ val scalatagsVersion     = "0.8.2"
 val http4sVersion        = "0.21.18"
 // testing
 val munitVersion           = "0.7.29"
-val munitCatsEffectVersion = "1.0.7"
+val munitCatsEffectVersion = "1.0.0"
 
 // jvm deps
 val scalaCSVVersion = "1.3.10"

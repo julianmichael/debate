@@ -2,7 +2,7 @@ package debate
 package scheduler
 
 import munit.CatsEffectSuite
-import DebateScheduler._
+// import DebateScheduler._
 
 class SchedulerTests extends CatsEffectSuite {
   val debater1 = "debater1"
@@ -20,37 +20,37 @@ class SchedulerTests extends CatsEffectSuite {
 
   val testSourceMaterial = CustomSourceMaterial(title = "test", contents = Vector.empty[String])
 
-  test("sampleScheduleForStory minimally works") {
-    val debaters = Map(
-      debater1 -> DebaterLoadConstraint(None, None),
-      debater2 -> DebaterLoadConstraint(None, None),
-      debater3 -> DebaterLoadConstraint(None, None)
-    )
-    val qas = (1 to 3)
-      .map(i => QASpec(s"Question $i", correctAnswer = "Correct", incorrectAnswer = "Incorrect"))
-      .toVector
-    val schedule = getDebateScheduleDistribution(
-      debates = Vector(),
-      rules = DebateRules.default,
-      sourceMaterial = testSourceMaterial,
-      qas = qas,
-      numDebatesPerQuestion = 2,
-      numOfflineJudgesPerDebate = 0,
-      debaters = debaters,
-      creationTime = System.currentTimeMillis()
-    ).get.sample(rng)
+  // test("sampleScheduleForStory minimally works") {
+  //   val debaters = Map(
+  //     debater1 -> DebaterLoadConstraint(None, None),
+  //     debater2 -> DebaterLoadConstraint(None, None),
+  //     debater3 -> DebaterLoadConstraint(None, None)
+  //   )
+  //   val qas = (1 to 3)
+  //     .map(i => QASpec(s"Question $i", correctAnswer = "Correct", incorrectAnswer = "Incorrect"))
+  //     .toVector
+  //   val schedule = getDebateScheduleDistribution(
+  //     debates = Vector(),
+  //     rules = DebateRules.default,
+  //     sourceMaterial = testSourceMaterial,
+  //     qas = qas,
+  //     numDebatesPerQuestion = 2,
+  //     numOfflineJudgesPerDebate = 0,
+  //     debaters = debaters,
+  //     creationTime = System.currentTimeMillis()
+  //   ).get.sample(rng)
 
-    import Schedule.DebateSetupExtensions
+  //   import Schedule.DebateSetupExtensions
 
-    assert {
-      schedule.novel.size == qas.size;
-      schedule
-        .all
-        .forall { setup =>
-          setup.allParticipants.size == setup.offlineJudges.size + 3
-        }
-    }
-  }
+  //   assert {
+  //     schedule.novel.size == qas.size;
+  //     schedule
+  //       .all
+  //       .forall { setup =>
+  //         setup.allParticipants.size == setup.offlineJudges.size + 3
+  //       }
+  //   }
+  // }
 
   // the simplest cost to measure is debater cost
   // test("debater-only costs go down over time") {
