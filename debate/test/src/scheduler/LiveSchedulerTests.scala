@@ -32,8 +32,8 @@ class LiveSchedulerTests extends CatsEffectSuite {
 //     )(_ => IO.unit)
 //   )
 
-  val serverFixture = ResourceSuiteLocalFixture(
-    "server",
+  val serverFixture = ResourceFixture(
+    // "server",
     Resource.make(
       Blocker[IO].use { blocker =>
         Server.create(Paths.get("data"), Paths.get("scratch/save-server"), blocker)
@@ -41,10 +41,9 @@ class LiveSchedulerTests extends CatsEffectSuite {
     )(_ => IO.unit)
   )
 
-  override def munitFixtures = List(serverFixture)
+  // override def munitFixtures = List(serverFixture)
 
-  test("We get the expected number of question matching failures") {
-    val server = serverFixture()
+  serverFixture.test("We get the expected number of question matching failures") { server =>
     Utils.validateQualityMatches(server.qualityDataset, server.singleTurnDebateDataset) match {
       case Validated.Valid(_) =>
         ()
@@ -54,8 +53,7 @@ class LiveSchedulerTests extends CatsEffectSuite {
     }
   }
 
-  test("We can pick a new story and schedule debates for it") {
-    val server = serverFixture()
+  serverFixture.test("We can pick a new story and schedule debates for it") { server =>
     val qualityMatches = Utils
       .identifyQualityMatches(server.qualityDataset, server.singleTurnDebateDataset)
     // val candidateStories = server.qualityDataset.filter(_._2.)
