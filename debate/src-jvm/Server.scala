@@ -34,6 +34,7 @@ case class Server(
   qualityDataset: Map[String, QuALITYStory],
   singleTurnDebateDataset: Map[String, Vector[SingleTurnDebateQuestion]],
   profiles: Ref[IO, Map[String, Profile]],
+  ruleConfigs: Ref[IO, Map[String, RuleConfig]],
   presence: Ref[IO, Map[String, Int]],
   pushUpdate: IO[Unit],
   slackClientOpt: Option[Slack.Service[IO]],
@@ -119,10 +120,11 @@ case class Server(
 
     def createLobbyWebsocket(profile: String) =
       for {
-        debaters      <- profiles.get
-        officialRooms <- officialDebates.getRoomMetadata
-        practiceRooms <- practiceDebates.getRoomMetadata
-        leaderboard   <- officialDebates.getLeaderboard
+        debaters           <- profiles.get
+        currentRuleConfigs <- ruleConfigs.get
+        officialRooms      <- officialDebates.getRoomMetadata
+        practiceRooms      <- practiceDebates.getRoomMetadata
+        leaderboard        <- officialDebates.getLeaderboard
         allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
         _           <- presence.update(_ |+| Map(profile -> 1))
         _           <- pushUpdate
@@ -136,7 +138,8 @@ case class Server(
                 curPresence.keySet,
                 officialRooms,
                 practiceRooms,
-                leaderboard
+                leaderboard,
+                currentRuleConfigs
               )
             )
           ) // send the current set of debaters and rooms on connect
@@ -232,7 +235,9 @@ case class Server(
 }
 object Server {
 
-  def profilesSavePath(saveDir: NIOPath) = saveDir.resolve("profiles.json")
+  def profilesSavePath(saveDir: NIOPath)    = saveDir.resolve("profiles.json")
+  def ruleConfigsSavePath(saveDir: NIOPath) = saveDir.resolve("rules.json")
+  // TODO delete this
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
   def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
   def officialRoomsDir(saveDir: NIOPath) = saveDir.resolve("official")
@@ -304,9 +309,19 @@ object Server {
               }
             }
         }
-      profilesRef   <- Ref[IO].of(profiles)
-      presenceRef   <- Ref[IO].of(Map.empty[String, Int])
-      pushUpdateRef <- Ref[IO].of(IO.unit)
+      ruleConfigs <- FileUtil
+        .readJson[Map[String, RuleConfig]](ruleConfigsSavePath(saveDir))
+        .recoverWith { case e: Throwable =>
+          IO {
+            println("Error reading debaters JSON. Initializing to JSON with a dummy profile.")
+            println(s"--->\tError message: ${e.getMessage()}")
+            Map.empty[String, RuleConfig]
+          }
+        }
+      profilesRef    <- Ref[IO].of(profiles)
+      ruleConfigsRef <- Ref[IO].of(ruleConfigs)
+      presenceRef    <- Ref[IO].of(Map.empty[String, Int])
+      pushUpdateRef  <- Ref[IO].of(IO.unit)
       slackClientOpt <- FileUtil
         .readString(Paths.get("slack-token.txt"))
         .attempt
@@ -332,18 +347,35 @@ object Server {
       leaderboard <- officialDebates.getLeaderboard
       allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
       mainChannel <- Topic[IO, Lobby](
-        Lobby(profiles, allDebaters, Set.empty[String], officialRooms, practiceRooms, leaderboard)
+        Lobby(
+          profiles,
+          allDebaters,
+          Set.empty[String],
+          officialRooms,
+          practiceRooms,
+          leaderboard,
+          ruleConfigs
+        )
       )
       pushUpdate = {
         for {
           profiles      <- profilesRef.get
+          ruleConfigs   <- ruleConfigsRef.get
           presence      <- presenceRef.get
           officialRooms <- officialDebates.getRoomMetadata
           practiceRooms <- practiceDebates.getRoomMetadata
           leaderboard   <- officialDebates.getLeaderboard
           allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
           _ <- mainChannel.publish1(
-            Lobby(profiles, allDebaters, presence.keySet, officialRooms, practiceRooms, leaderboard)
+            Lobby(
+              profiles,
+              allDebaters,
+              presence.keySet,
+              officialRooms,
+              practiceRooms,
+              leaderboard,
+              ruleConfigs
+            )
           )
         } yield ()
       }
@@ -355,6 +387,7 @@ object Server {
       qualityDataset = qualityDataset,
       singleTurnDebateDataset = singleTurnDebateDataset,
       profiles = profilesRef,
+      ruleConfigs = ruleConfigsRef,
       presence = presenceRef,
       pushUpdate = pushUpdate,
       slackClientOpt = slackClientOpt,

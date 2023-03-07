@@ -170,14 +170,6 @@ class LiveSchedulerTests extends CatsEffectSuite {
                 }
 
               schedule
-
-              // schedule
-              //   .workload
-              //   .probs
-              //   .toSortedMap
-              //   .foreach { case (debater, load) =>
-              //     println(f"$debater%-20s $load%.2f")
-              //   }
             }
 
             val sched1 = sampleSchedule(origIncomplete)

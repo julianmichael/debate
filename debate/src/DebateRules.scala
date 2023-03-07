@@ -9,6 +9,11 @@ import jjm.implicits._
 
 @Lenses
 @JsonCodec
+case class RuleConfig(name: String, rules: DebateRules, numOfflineJudgesPerDebate: Int)
+object RuleConfig
+
+@Lenses
+@JsonCodec
 case class ClosingArgumentRules(maxRepeatCycles: Int, rounds: Vector[DebateRoundType])
 object ClosingArgumentRules {
   def default = ClosingArgumentRules(5, Vector())

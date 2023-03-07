@@ -35,11 +35,12 @@ case class Lobby(
   presentDebaters: Set[String],
   officialRooms: Set[RoomMetadata],
   practiceRooms: Set[RoomMetadata],
-  leaderboard: Leaderboard
+  leaderboard: Leaderboard,
+  ruleConfigs: Map[String, RuleConfig]
 ) {
   lazy val storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]] = RoomMetadata
     .constructStoryRecord(officialRooms)
 }
 object Lobby {
-  def empty = Lobby(Map(), Set(), Set(), Set(), Set(), Leaderboard(Map()))
+  def empty = Lobby(Map(), Set(), Set(), Set(), Set(), Leaderboard(Map()), Map())
 }
