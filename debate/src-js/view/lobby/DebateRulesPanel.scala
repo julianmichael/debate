@@ -119,6 +119,10 @@ object DebateRulesPanel {
                     )
                   )
                 )
+              },
+            "Negotiate End" ->
+              SumConfigOption(DebateRoundType.NegotiateEndRound, DebateRoundType.negotiateEnd) {
+                _ => <.div()
               }
           )
     }
