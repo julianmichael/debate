@@ -272,7 +272,7 @@ object SpeechInput {
             "Continue",
             ^.onClick --> debate.setState(vote(false))
           ),
-          <.button(c"col-md-6 btn btn-danger")("End", ^.onClick --> debate.setState(vote(false)))
+          <.button(c"col-md-6 btn btn-danger")("End", ^.onClick --> debate.setState(vote(true)))
         )
       )
 
