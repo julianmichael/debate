@@ -51,8 +51,8 @@ object AnalyticsPanel {
   val GraphNamesFetch = new CacheCallContent[Unit, Vector[String]]
   val GraphNameSelect = V.OptionalSelect[String](identity, "Choose...")
 
-  def makeGraphNamePretty(endpoint: String) = endpoint.replaceAll("_", " ").capitalize
-  def makeEndpointName(graphName: String)   = graphName.replaceAll(" ", "_").toLowerCase
+  def makeGraphNamePretty(endpoint: String) = endpoint.replaceAll("_", " ")
+  def makeEndpointName(graphName: String)   = graphName.replaceAll(" ", "_")
 
   def getGraphDisplayDivId(index: Int) = s"graph-$index"
 

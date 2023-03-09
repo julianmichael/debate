@@ -42,8 +42,10 @@ def debater_pairings():
     )
 
 
+# Keys must be valid URL paths. I'm not URL-encoding them.
+# Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
-    "debater_pairings": debater_pairings
+    "Debater_pairings": debater_pairings
 
 
 }
