@@ -1,44 +1,36 @@
+import sys
 from flask import Flask
-from flask import render_template
-from flask import request
 from flask import abort
 from flask import Response
 
-import traceback
 import json
 
 from typing import *
 import numpy as np  # type: ignore
-import scipy  # type: ignore
-import scipy.stats  # type: ignore
 import altair as alt  # type: ignore
 import pandas as pd  # type: ignore
-import pprint
-import textwrap
-import copy
-
-import itertools
-
-from math import sqrt
 
 from functools import reduce
 from functools import lru_cache
 
 from collections import namedtuple
 
-alt.data_transformers.enable('default', max_rows=1000000)
+import os
 
-# TODO read in the data
+app = Flask(__name__)
+app.config.from_prefixed_env()
+
+alt.data_transformers.enable('default', max_rows=1000000)
 
 
 def read_data():
     global debates
-    debates = pd.read_csv('save/official/summaries/debates.csv')
+    debates = pd.read_csv(
+        os.path.join(app.config['DATA_DIR'], 'official/summaries/debates.csv')
+    )
 
 
 read_data()
-
-app = Flask(__name__)
 
 
 def debater_pairings():
