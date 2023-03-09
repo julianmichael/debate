@@ -51,6 +51,9 @@ object AnalyticsPanel {
   val GraphNamesFetch = new CacheCallContent[Unit, Vector[String]]
   val GraphNameSelect = V.OptionalSelect[String](identity, "Choose...")
 
+  def makeGraphNamePretty(endpoint: String) = endpoint.replaceAll("_", " ").capitalize
+  def makeEndpointName(graphName: String)   = graphName.replaceAll(" ", "_").toLowerCase
+
   def getGraphDisplayDivId(index: Int) = s"graph-$index"
 
   def reloadGraphs(oldGraphs: Vector[Option[String]], newGraphs: Vector[Option[String]]) =
@@ -68,7 +71,7 @@ object AnalyticsPanel {
                 Callback(jqDiv.empty()) // empty the graph display
               case Some(graphName) =>
                 analyticsService
-                  .getAnalyticsGraph(graphName)
+                  .getAnalyticsGraph(makeEndpointName(graphName))
                   .completeWith {
                     case Failure(exception) =>
                       Callback(jqDiv.html(exception.getMessage()))
@@ -105,8 +108,10 @@ object AnalyticsPanel {
             ListConfig[Option[String]].nice(graphs, None, 1) {
               case ListConfig.Context(graphName, index) =>
                 ReactFragment(
-                  GraphNameSelect
-                    .mod(select = TagMod(S.listCardHeaderSelect))(graphNames.toSet, graphName),
+                  GraphNameSelect.mod(select = TagMod(S.listCardHeaderSelect))(
+                    graphNames.toSet.map(makeGraphNamePretty),
+                    graphName
+                  ),
                   <.div(c"card-body")(^.id := getGraphDisplayDivId(index))
                 )
             }
