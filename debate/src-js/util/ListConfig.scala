@@ -12,12 +12,13 @@ import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
 import jjm.implicits._
+import scala.reflect.ClassTag
 
 /** HOC middleman for easily rendering a config panel for a list of things.
   * Gives add/remove buttons and list format while letting the caller render the
   * list items.
   */
-case class ListConfig[A]() {
+class ListConfig[A] {
 
   import ListConfig.Context
 
@@ -149,5 +150,24 @@ object ListConfig {
 
   }
 
-  val String = ListConfig[String]()
+  // val String = ListConfig[String]()
+
+  var instances = new collection.mutable.HashMap[String, ListConfig[_]]
+
+  def getInstance[A](name: String) =
+    instances.get(name) match {
+      case None =>
+        val instance = new ListConfig[A] // (name)
+        instances.put(name, instance)
+        instance
+      case Some(instance) =>
+        instance.asInstanceOf[ListConfig[A]]
+    }
+
+  def apply[A](implicit ct: ClassTag[A]): ListConfig[A] = getInstance(ct.runtimeClass.getName())
+
+  // def named[A](name: String)(implicit ct: ClassTag[A]): ListConfig[A] = {
+  //   val fullName = s"$name: " + ct.runtimeClass.getName()
+  //   getInstance(fullName)
+  // }
 }

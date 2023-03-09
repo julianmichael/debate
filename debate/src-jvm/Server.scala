@@ -1,5 +1,13 @@
 package debate
 
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import org.http4s.server.blaze.BlazeServerBuilder
+import java.io.InputStream
+import java.security.KeyStore
+import java.security.SecureRandom
+
 import java.nio.file.{Path => NIOPath}
 import java.nio.file.Paths
 
@@ -26,6 +34,64 @@ import jjm.io.HttpUtil
 import debate.quality._
 import debate.singleturn.SingleTurnDebateUtils
 import debate.singleturn.SingleTurnDebateQuestion
+import _root_.io.circe.Json
+import org.http4s.client.Client
+import scala.concurrent.ExecutionContext
+
+object AnalyticsServer {
+  case class Handle(port: Int, restart: IO[Unit], shutdown: IO[Unit])
+  // def startPythonServer(port: Int)(implicit cs: ContextShift[IO]): Resource[IO, Handle] =
+  //   Resource.make[IO, Handle](
+  //     IO {
+  //       val x = IO.unit.start
+  //       import sys.process._
+  //       val p = Process("ls")
+  //       // p.
+  //       Handle(
+  //         port = port,
+  //         restart = IO.unit, // TODO
+  //         shutdown = IO.unit // TODO
+  //       )
+  //     }
+  //   )(_.shutdown)
+
+  // def makeClientOfPythonServer(handle: Handle, httpClient: Client[IO]): AnalyticsService[IO] = {
+  def makeClientOfPythonServer(port: Int, httpClient: Client[IO]): AnalyticsService[IO] = {
+    import org.http4s.{Request => HttpRequest}
+    import org.http4s._
+
+    val baseUri = Uri(
+      scheme = Some(Uri.Scheme.http),
+      authority = Some(Uri.Authority(port = Some(port)))
+    )
+
+    import org.http4s.circe._
+
+    def doRequest(req: AnalyticsService.Request, httpRequest: HttpRequest[IO]): IO[req.Out] =
+      httpClient
+        .expect[Json](httpRequest)
+        .flatMap { responseJson =>
+          IO.fromEither(
+            AnalyticsService.Request.analyticsServiceRequestDotDecoder(req)(responseJson.hcursor)
+          )
+        }
+
+    def get(uri: Uri) = HttpRequest[IO](method = Method.GET, uri = uri)
+
+    new AnalyticsService[IO] {
+      def refresh = doRequest(AnalyticsService.Request.Refresh, get(baseUri.withPath("/refresh")))
+      def getAnalyticsGraphNames = doRequest(
+        AnalyticsService.Request.GetAnalyticsGraphNames,
+        get(baseUri.withPath("/all_graphs"))
+      )
+      def getAnalyticsGraph(name: String) = doRequest(
+        AnalyticsService.Request.GetAnalyticsGraph(name),
+        get(baseUri.withPath(s"/graph/$name"))
+      )
+    }
+  }
+
+}
 
 case class Server(
   dataPath: NIOPath,
@@ -37,6 +103,7 @@ case class Server(
   ruleConfigs: Ref[IO, Map[String, RuleConfig]],
   presence: Ref[IO, Map[String, Int]],
   pushUpdate: IO[Unit],
+  httpClient: Client[IO],
   slackClientOpt: Option[Slack.Service[IO]],
   officialDebates: DebateStateManager,
   practiceDebates: DebateStateManager,
@@ -76,15 +143,80 @@ case class Server(
     }
   )
 
+  def run(
+    jsPath: NIOPath,
+    jsDepsPath: NIOPath,
+    port: Int,
+    analyticsPort: Int,
+    executionContext: ExecutionContext,
+    ssl: Boolean = false
+  )(implicit ce: ConcurrentEffect[IO], timer: Timer[IO], cs: ContextShift[IO]): IO[Unit] =
+    getBuilder(ssl, executionContext).flatMap { builder =>
+      // AnalyticsServer
+      //   .startPythonServer(analyticsPort)
+      //   .use { analyticsServer =>
+      val analyticsClient = AnalyticsServer.makeClientOfPythonServer(analyticsPort, httpClient)
+      val app             = httpApp(jsPath, jsDepsPath, analyticsClient)
+      builder.bindHttp(port, "0.0.0.0").withHttpApp(app).serve.compile.drain
+      // }
+    }
+
+  def getBuilder(
+    ssl: Boolean,
+    executionContext: ExecutionContext
+  )(implicit ce: ConcurrentEffect[IO], timer: Timer[IO]) =
+    if (!ssl)
+      IO.pure(BlazeServerBuilder[IO](executionContext))
+    else {
+      getSslContext.attempt >>= {
+        case Right(sslContext) =>
+          IO.pure(BlazeServerBuilder[IO](executionContext).withSslContext(sslContext))
+        case Left(e) =>
+          IO(System.err.println(s"HTTPS Configuration failed: ${e.getMessage}"))
+            .as(BlazeServerBuilder[IO](executionContext))
+      }
+    }
+
+  val getSslContext =
+    for {
+      password <- IO(
+        new java.util.Scanner(getClass.getClassLoader.getResourceAsStream("password"))
+          .next
+          .toCharArray
+      )
+      keystore <- IO {
+        val keystoreInputStream: InputStream = getClass
+          .getClassLoader
+          .getResourceAsStream("keystore.jks")
+        require(keystoreInputStream != null, "Keystore required!")
+        val keystore: KeyStore = KeyStore.getInstance("jks")
+        keystore.load(keystoreInputStream, password)
+        keystore
+      }
+      sslContext <- IO {
+        val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+        keyManagerFactory.init(keystore, password)
+
+        val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
+        tmf.init(keystore)
+
+        val context = SSLContext.getInstance("TLS")
+        context.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
+        context
+      }
+    } yield sslContext
+
   def httpApp(
     jsPath: NIOPath,
-    jsDepsPath: NIOPath
-  )(implicit timer: Timer[IO], c: Concurrent[IO], cs: ContextShift[IO]) =
+    jsDepsPath: NIOPath,
+    analyticsClient: AnalyticsService[IO]
+  )(implicit timer: Timer[IO], c: Concurrent[IO], cs: ContextShift[IO]): Http[IO, IO] =
     HttpsRedirect(
       Router(
-        s"/$qualityServiceApiEndpoint" -> qualityService,
-        s"/$ajaxServiceApiEndpoint"    -> ajaxService,
-        "/"                            -> service(jsPath, jsDepsPath)
+        s"/$qualityServiceApiEndpoint"   -> qualityService,
+        s"/$ajaxServiceApiEndpoint"      -> ajaxService,
+        s"/$analyticsServiceApiEndpoint" -> HttpUtil.makeHttpPostServer(analyticsClient),
+        s"/"                             -> service(jsPath, jsDepsPath)
       )
     ).orNotFound
 
@@ -287,10 +419,12 @@ object Server {
   ) = {
 
     val httpClient = JavaNetClientBuilder[IO](blocker).create
+
     // import org.http4s.client.blaze._
     // BlazeClientBuilder[IO](scala.concurrent.ExecutionContext.global)
     //   .resource
     //   .use { httpClient =>
+
     for {
       singleTurnDebateDataset <- SingleTurnDebateUtils.readSingleTurnDebate(dataPath, blocker)
       qualityDataset          <- QuALITYUtils.readQuALITY(dataPath, blocker)
@@ -313,7 +447,7 @@ object Server {
         .readJson[Map[String, RuleConfig]](ruleConfigsSavePath(saveDir))
         .recoverWith { case e: Throwable =>
           IO {
-            println("Error reading debaters JSON. Initializing to JSON with a dummy profile.")
+            println("Error reading rules JSON. Initializing to empty.")
             println(s"--->\tError message: ${e.getMessage()}")
             Map.empty[String, RuleConfig]
           }
@@ -390,11 +524,11 @@ object Server {
       ruleConfigs = ruleConfigsRef,
       presence = presenceRef,
       pushUpdate = pushUpdate,
+      httpClient = httpClient,
       slackClientOpt = slackClientOpt,
       officialDebates = officialDebates,
       practiceDebates = practiceDebates,
       mainChannel = mainChannel
     )
   }
-
 }

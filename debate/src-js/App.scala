@@ -37,7 +37,7 @@ object App {
   def mainWebsocketUri(userName: String): String =
     s"${Utils.wsProtocol}//${dom.document.location.host}/main-ws?name=$userName"
 
-  val httpProtocol = dom.document.location.protocol
+  def httpProtocol = dom.document.location.protocol
   type DelayedFuture[A] = () => Future[A]
   val toAsyncCallback = λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
 

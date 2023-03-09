@@ -18,9 +18,6 @@ object DebateRulesPanel {
 
   import Utils.ClassSetInterpolator
 
-  val RoundTypeList = ListConfig[DebateRoundType](
-    // DebateRoundType.SequentialSpeechesRound(500, None)
-  )
   val RoundTypeConfig       = SumConfig[DebateRoundType]()
   val ScoringFunctionConfig = SumConfig[ScoringFunction]()
 
@@ -52,7 +49,7 @@ object DebateRulesPanel {
   /** Config panel for setting a list of round types. */
   def roundTypeList(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
     val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None)
-    RoundTypeList.nice(roundTypes, defaultRoundType, minItems) {
+    ListConfig[DebateRoundType].nice(roundTypes, defaultRoundType, minItems) {
       case ListConfig.Context(roundType, _) =>
         val rowMod = TagMod(c"form-inline")
         RoundTypeConfig

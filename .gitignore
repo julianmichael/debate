@@ -17,5 +17,6 @@ scratch/
 .venv/
 node_modules/
 node_modules/
+/env
 
 /slack-token.txt

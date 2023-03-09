@@ -480,46 +480,42 @@ object DebateCreationPanel {
                   " (see console for more)."
                 )
               ),
-            ListConfig
-              .String
-              .nice(
-                items = setup.zoomStateL(DebateSetupSpec.answers),
-                defaultItem = "",
-                minItems = 1,
-                rearrange = rearrangeAnswers
-              ) { case ListConfig.Context(answer, index) =>
-                <.div(c"card-body", S.row)(
-                  <.span(c"col-form-label mr-2")(s"${answerLetter(index)}. "),
-                  <.div(S.col, S.grow)(
-                    V.LiveTextField.String(answer),
-                    <.div(S.row, c"mt-1")(
-                      <.input(S.correctAnswerRadio)(
-                        ^.`type`  := "radio",
-                        ^.name    := "correctAnswerIndex",
-                        ^.value   := index,
-                        ^.checked := setup.value.correctAnswerIndex == index,
-                        ^.onChange -->
-                          setup.zoomStateL(DebateSetupSpec.correctAnswerIndex).setState(index)
-                      ),
-                      <.span(c"mr-2", S.inputRowItem)(
-                        <.span(S.correctAnswerLabel)("Correct"),
-                        S.hidden.when(setup.value.correctAnswerIndex != index)
-                      ),
-                      <.div(S.inputLabel)("Debater:"),
-                      ProfileOptSelect.mod(select = S.customSelect)(
-                        choices = lobby.profiles.keySet,
-                        choice = setup.zoomStateL(
-                          DebateSetupSpec
-                            .roles
-                            .composeLens(Optics.at(Debater(index): LiveDebateRole))
-                        )
-                      )
+            ListConfig[String].nice(
+              items = setup.zoomStateL(DebateSetupSpec.answers),
+              defaultItem = "",
+              minItems = 1,
+              rearrange = rearrangeAnswers
+            ) { case ListConfig.Context(answer, index) =>
+              <.div(c"card-body", S.row)(
+                <.span(c"col-form-label mr-2")(s"${answerLetter(index)}. "),
+                <.div(S.col, S.grow)(
+                  V.LiveTextField.String(answer),
+                  <.div(S.row, c"mt-1")(
+                    <.input(S.correctAnswerRadio)(
+                      ^.`type`  := "radio",
+                      ^.name    := "correctAnswerIndex",
+                      ^.value   := index,
+                      ^.checked := setup.value.correctAnswerIndex == index,
+                      ^.onChange -->
+                        setup.zoomStateL(DebateSetupSpec.correctAnswerIndex).setState(index)
                     ),
-                    <.div(c"mt-1 text-danger")("Best distractor")
-                      .when(bestDistractors.value.contains(index))
-                  )
+                    <.span(c"mr-2", S.inputRowItem)(
+                      <.span(S.correctAnswerLabel)("Correct"),
+                      S.hidden.when(setup.value.correctAnswerIndex != index)
+                    ),
+                    <.div(S.inputLabel)("Debater:"),
+                    ProfileOptSelect.mod(select = S.customSelect)(
+                      choices = lobby.profiles.keySet,
+                      choice = setup.zoomStateL(
+                        DebateSetupSpec.roles.composeLens(Optics.at(Debater(index): LiveDebateRole))
+                      )
+                    )
+                  ),
+                  <.div(c"mt-1 text-danger")("Best distractor")
+                    .when(bestDistractors.value.contains(index))
                 )
-              },
+              )
+            },
             <.div(
               <.button(c"btn btn-outline-secondary mr-1 mt-1")(
                 "Shuffle answers",

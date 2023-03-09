@@ -42,6 +42,10 @@ val scalajsMacrotaskExecutorVersion = "1.0.0"
 val jqueryVersion = "2.2.1"
 val reactVersion  = "17.0.2"
 
+val vegaVersion      = "5"
+val vegaLiteVersion  = "5"
+val vegaEmbedVersion = "6"
+
 // for some reason the $file import doesn't work anymore?
 // import $file.`scripts-build`.SimpleJSDepsBuild, SimpleJSDepsBuild.SimpleJSDeps
 trait SimpleJSDeps extends Module {
@@ -205,7 +209,10 @@ object debate extends Module {
     def jsDeps = Agg(
       s"https://code.jquery.com/jquery-$jqueryVersion.min.js",
       s"https://unpkg.com/react@$reactVersion/umd/react.development.js",
-      s"https://unpkg.com/react-dom@$reactVersion/umd/react-dom.development.js"
+      s"https://unpkg.com/react-dom@$reactVersion/umd/react-dom.development.js",
+      s"https://cdn.jsdelivr.net/npm/vega@$vegaVersion",
+      s"https://cdn.jsdelivr.net/npm/vega-lite@$vegaLiteVersion",
+      s"https://cdn.jsdelivr.net/npm/vega-embed@$vegaEmbedVersion"
     )
 
     object test extends super.Tests with CommonTestModule {
