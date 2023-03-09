@@ -2,8 +2,10 @@ from flask import Flask
 from flask import render_template
 from flask import request
 from flask import abort
+from flask import Response
 
 import traceback
+import json
 
 from typing import *
 import numpy as np  # type: ignore
@@ -31,7 +33,7 @@ alt.data_transformers.enable('default', max_rows=1000000)
 
 def read_data():
     global debates
-    debates = pd.read_csv('scratch/save-server/official/summaries/debates.csv')
+    debates = pd.read_csv('save/official/summaries/debates.csv')
 
 
 read_data()
@@ -56,7 +58,8 @@ all_graph_specifications = {
 
 @ app.get("/all_graphs")
 def all_graphs():
-    return sorted(list(all_graph_specifications.keys()))
+    result = sorted(list(all_graph_specifications.keys()))
+    return Response(json.dumps(result),  mimetype='application/json')
 
 
 @ app.get("/graph/<name>")
@@ -71,4 +74,4 @@ def graph(name: str):
 @ app.post("/refresh")
 def refresh():
     read_data()
-    return ('', 204)
+    return {}
