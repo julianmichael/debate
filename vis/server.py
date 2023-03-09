@@ -18,15 +18,16 @@ from collections import namedtuple
 import os
 
 app = Flask(__name__)
-app.config.from_prefixed_env()
 
 alt.data_transformers.enable('default', max_rows=1000000)
+
+data_dir = os.environ.get('DATA_DIR', default='save')
 
 
 def read_data():
     global debates
     debates = pd.read_csv(
-        os.path.join(app.config['DATA_DIR'], 'official/summaries/debates.csv')
+        os.path.join(data_dir, 'official/summaries/debates.csv')
     )
 
 
