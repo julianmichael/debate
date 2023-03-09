@@ -22,35 +22,44 @@ from math import sqrt
 from functools import reduce
 from functools import lru_cache
 
+from collections import namedtuple
+
 alt.data_transformers.enable('default', max_rows=1000000)
 
 # TODO read in the data
 
+
+def read_data():
+    global debates
+    debates = pd.read_csv('scratch/save-server/official/summaries/debates.csv')
+
+
+read_data()
+
 app = Flask(__name__)
 
 
-def test_chart():
-    source = pd.DataFrame({
-        'a': ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'],
-        'b': [28, 55, 43, 91, 81, 53, 19, 87, 52]
-    })
-    return alt.Chart(source).mark_bar().encode(
-        x='a',
-        y='b'
+def debater_pairings():
+    return alt.Chart(debates).mark_rect().encode(
+        x='Honest debater:O',
+        y=alt.Y('Dishonest debater:O', scale=alt.Scale(reverse=True)),
+        color='count():Q'
     )
 
 
 all_graph_specifications = {
-    "Test Chart": test_chart
+    "debater_pairings": debater_pairings
+
+
 }
 
 
-@app.get("/all_graphs")
+@ app.get("/all_graphs")
 def all_graphs():
     return sorted(list(all_graph_specifications.keys()))
 
 
-@app.get("/graph/<name>")
+@ app.get("/graph/<name>")
 def graph(name: str):
     chart_fn = all_graph_specifications.get(name)
     if chart_fn is None:
@@ -59,6 +68,7 @@ def graph(name: str):
         return chart_fn().to_json(0)
 
 
-@app.post("/refresh")
+@ app.post("/refresh")
 def refresh():
-    pass  # TODO
+    read_data()
+    return ('', 204)

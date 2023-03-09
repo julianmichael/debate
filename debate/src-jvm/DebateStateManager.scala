@@ -19,6 +19,9 @@ import monocle.std.{all => StdOptics}
 import org.http4s.server.websocket._
 
 import jjm.io.FileUtil
+import jjm.implicits._
+import cats.effect.Blocker
+import cats.effect.ContextShift
 
 /** The server state for a debate room.
   *
@@ -44,6 +47,14 @@ case class DebateStateManager(
   pushUpdateRef: Ref[IO, IO[Unit]],
   slackClientOpt: Option[Slack.Service[IO]]
 )(implicit c: Concurrent[IO]) {
+
+  val summariesDir = saveDir.resolve("summaries")
+  def writeCSVs(blocker: Blocker)(implicit cs: ContextShift[IO]): IO[Unit] =
+    fs2.io.file.createDirectories[IO](blocker, summariesDir) >>
+      rooms
+        .get
+        .map(_.mapVals(_.debate.debate))
+        .flatMap(roomsVec => DataSummarizer.writeSummaries(roomsVec, summariesDir))
 
   // val blockingEC = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(5))
 

@@ -77,7 +77,7 @@ class ListConfig[A] {
       <.div(^.key := s"item-$index")(c"card mb-1", ^.overflow.hidden)(
         <.div(c"row no-gutters")(
           <.div(S.cardLeftSideXColumn)(leftSideButtons: _*).when(leftSideButtons.nonEmpty),
-          <.div(c"col")(renderItem(context))
+          <.div(c"col", ^.overflow.hidden)(renderItem(context))
         )
       )
     }.toVdomArray,

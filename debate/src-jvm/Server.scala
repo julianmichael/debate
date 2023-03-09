@@ -56,7 +56,12 @@ object AnalyticsServer {
   //   )(_.shutdown)
 
   // def makeClientOfPythonServer(handle: Handle, httpClient: Client[IO]): AnalyticsService[IO] = {
-  def makeClientOfPythonServer(port: Int, httpClient: Client[IO]): AnalyticsService[IO] = {
+  def makeClientOfPythonServer(
+    port: Int,
+    httpClient: Client[IO],
+    stateManager: DebateStateManager,
+    blocker: Blocker
+  )(implicit cs: ContextShift[IO]): AnalyticsService[IO] = {
     import org.http4s.{Request => HttpRequest}
     import org.http4s._
 
@@ -76,10 +81,13 @@ object AnalyticsServer {
           )
         }
 
-    def get(uri: Uri) = HttpRequest[IO](method = Method.GET, uri = uri)
+    def get(uri: Uri)  = HttpRequest[IO](method = Method.GET, uri = uri)
+    def post(uri: Uri) = HttpRequest[IO](method = Method.POST, uri = uri)
 
     new AnalyticsService[IO] {
-      def refresh = doRequest(AnalyticsService.Request.Refresh, get(baseUri.withPath("/refresh")))
+      def refresh =
+        stateManager.writeCSVs(blocker) >>
+          doRequest(AnalyticsService.Request.Refresh, post(baseUri.withPath("/refresh")))
       def getAnalyticsGraphNames = doRequest(
         AnalyticsService.Request.GetAnalyticsGraphNames,
         get(baseUri.withPath("/all_graphs"))
@@ -155,8 +163,9 @@ case class Server(
       // AnalyticsServer
       //   .startPythonServer(analyticsPort)
       //   .use { analyticsServer =>
-      val analyticsClient = AnalyticsServer.makeClientOfPythonServer(analyticsPort, httpClient)
-      val app             = httpApp(jsPath, jsDepsPath, analyticsClient)
+      val analyticsClient = AnalyticsServer
+        .makeClientOfPythonServer(analyticsPort, httpClient, officialDebates, blocker)
+      val app = httpApp(jsPath, jsDepsPath, analyticsClient)
       builder.bindHttp(port, "0.0.0.0").withHttpApp(app).serve.compile.drain
       // }
     }

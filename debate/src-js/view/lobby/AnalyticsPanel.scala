@@ -87,12 +87,21 @@ object AnalyticsPanel {
       .combineAll
 
   def apply() =
-    <.div(c"card-body", S.spaceySubcontainer)(
-      GraphNamesFetch.make((), _ => OrWrapped.wrapped(analyticsService.getAnalyticsGraphNames)) {
-        case GraphNamesFetch.Loading =>
-          <.div("Loading graph names.")
-        case GraphNamesFetch.Loaded(graphNames) =>
-          Local[Vector[Option[String]]].make(Vector(None), didUpdate = reloadGraphs) { graphs =>
+    Local[Vector[Option[String]]].make(Vector(None), didUpdate = reloadGraphs) { graphs =>
+      <.div(c"card-body", S.spaceySubcontainer)(
+        <.h3(c"card-title")("Analytics"),
+        <.div(c"card-text")(
+          <.a(
+            ^.href := "#",
+            "Refresh",
+            ^.onClick -->
+              (analyticsService.refresh.toCallback >> reloadGraphs(Vector(), graphs.value))
+          )
+        ),
+        GraphNamesFetch.make((), _ => OrWrapped.wrapped(analyticsService.getAnalyticsGraphNames)) {
+          case GraphNamesFetch.Loading =>
+            <.div("Loading graph names.")
+          case GraphNamesFetch.Loaded(graphNames) =>
             ListConfig[Option[String]].nice(graphs, None, 1) {
               case ListConfig.Context(graphName, index) =>
                 ReactFragment(
@@ -101,7 +110,7 @@ object AnalyticsPanel {
                   <.div(c"card-body")(^.id := getGraphDisplayDivId(index))
                 )
             }
-          }
-      }
-    )
+        }
+      )
+    }
 }
