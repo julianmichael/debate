@@ -20,3 +20,4 @@ node_modules/
 /env
 
 /slack-token.txt
+vis/__pycache__/server.cpython-310.pyc

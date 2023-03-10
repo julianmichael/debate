@@ -8,10 +8,11 @@ import cats.effect.IO
 
 object DataSummarizer {
 
-  // add new fields here
   val debateSummaryFields: List[(String, Debate => String)] = List(
     "Honest debater"    -> (d => d.setup.roles(Debater(d.setup.correctAnswerIndex))),
-    "Dishonest debater" -> (d => d.setup.roles(Debater(1 - d.setup.correctAnswerIndex)))
+    "Dishonest debater" -> (d => d.setup.roles(Debater(1 - d.setup.correctAnswerIndex))),
+    "Creation time"     -> (d => d.setup.creationTime.toString),
+    "Start time"        -> (d => d.startTime.map(_.toString).getOrElse(""))
   )
   def debateSummaryHeaderRow = "Room name" :: debateSummaryFields.map(_._1)
 
