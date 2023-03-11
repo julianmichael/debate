@@ -46,8 +46,6 @@ def debater_pairings():
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
     "Debater_pairings": debater_pairings
-
-
 }
 
 

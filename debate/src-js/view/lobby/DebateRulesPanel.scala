@@ -253,11 +253,7 @@ object DebateRulesPanel {
       )
     )
 
-  def apply(
-    rules: StateSnapshot[DebateRules]
-    // lobby: Lobby,
-    // qualityService: QuALITYService[AsyncCallback],
-  ) = ReactFragment(
+  def apply(rules: StateSnapshot[DebateRules]) = ReactFragment(
     roundsConfig("Opening Rounds", 0, rules.zoomStateL(DebateRules.fixedOpening)),
     roundsConfig("Repeated Rounds", 1, rules.zoomStateL(DebateRules.repeatingStructure)),
     closingRoundsConfig(rules.zoomStateL(DebateRules.fixedClosing)),

@@ -61,6 +61,7 @@ object AdminPanel {
                 DebateCreationPanel.make(
                   lobby = lobby,
                   qualityService = qualityService,
+                  registerRuleConfig = sendToMainChannel,
                   joinDebate = joinRoomOpt,
                   initDebate = sendToMainChannel
                 )
