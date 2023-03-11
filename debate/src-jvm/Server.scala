@@ -361,8 +361,11 @@ case class Server(
       // download all save data
       case req @ GET -> Root / "download" =>
         val saveZipPath = Paths.get(saveDir.toString + ".zip")
-        Utils.zipDirectory(saveZipPath, saveDir, exclude = _.getFileName() == "profiles.json") >>
-          StaticFile.fromString(saveZipPath.toString, blocker, Some(req)).getOrElseF(NotFound())
+        Utils.zipDirectory(
+          saveZipPath,
+          saveDir,
+          exclude = _.getFileName().toString == "profiles.json"
+        ) >> StaticFile.fromString(saveZipPath.toString, blocker, Some(req)).getOrElseF(NotFound())
 
       // js file
       case req @ GET -> Root / `staticFilePrefix` / `jsLocation` =>
