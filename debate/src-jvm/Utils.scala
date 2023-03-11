@@ -2,8 +2,12 @@ package debate
 
 import debate.singleturn.SingleTurnDebateQuestion
 import debate.quality.QuALITYStory
+import cats.effect.IO
 import cats.data.ValidatedNec
 import cats.implicits._
+import java.nio.file.Files
+import java.util.stream.Collectors
+import java.nio.file.Path
 
 trait UtilsPlatformExtensions {
 
@@ -84,4 +88,36 @@ trait UtilsPlatformExtensions {
             .map(articleId -> _)
         }
         .map(_.toMap)
+
+  import scala.jdk.CollectionConverters._
+
+  def zipDirectory(out: Path, dir: Path, exclude: Path => Boolean) = zipPaths(
+    out,
+    Files
+      .walk(dir)
+      .collect(Collectors.toList[Path])
+      .asScala
+      .filter(Files.isRegularFile(_))
+      .filterNot(exclude)
+  )
+
+  def zipPaths(out: Path, files: Iterable[Path]): IO[Unit] = IO {
+    import java.io.{BufferedInputStream, FileInputStream, FileOutputStream}
+    import java.util.zip.{ZipEntry, ZipOutputStream}
+
+    val zip = new ZipOutputStream(new FileOutputStream(out.toString))
+
+    files.foreach { name =>
+      zip.putNextEntry(new ZipEntry(name.toString))
+      val in = new BufferedInputStream(new FileInputStream(name.toString))
+      var b  = in.read()
+      while (b > -1) {
+        zip.write(b)
+        b = in.read()
+      }
+      in.close()
+      zip.closeEntry()
+    }
+    zip.close()
+  }
 }

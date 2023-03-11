@@ -93,13 +93,14 @@ object AnalyticsPanel {
     Local[Vector[Option[String]]].make(Vector(None), didUpdate = reloadGraphs) { graphs =>
       <.div(c"card-body", S.spaceySubcontainer)(
         <.h3(c"card-title")("Analytics"),
-        <.div(c"card-text")(
-          <.a(
+        <.div(c"pb-2")(
+          <.a(c"card-link")(
             ^.href := "#",
             "Refresh",
             ^.onClick -->
-              (analyticsService.refresh.toCallback >> reloadGraphs(Vector(), graphs.value))
-          )
+              (analyticsService.refresh.completeWith(_ => reloadGraphs(Vector(), graphs.value)))
+          ),
+          <.a(c"card-link")(^.href := "/download", ^.target.blank, "Download")
         ),
         GraphNamesFetch.make((), _ => OrWrapped.wrapped(analyticsService.getAnalyticsGraphNames)) {
           case GraphNamesFetch.Loading =>

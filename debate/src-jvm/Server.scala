@@ -358,6 +358,12 @@ case class Server(
           Header("Content-Type", "text/html")
         )
 
+      // download all save data
+      case req @ GET -> Root / "download" =>
+        val saveZipPath = Paths.get(saveDir.toString + ".zip")
+        Utils.zipDirectory(saveZipPath, saveDir, exclude = _.getFileName() == "profiles.json") >>
+          StaticFile.fromString(saveZipPath.toString, blocker, Some(req)).getOrElseF(NotFound())
+
       // js file
       case req @ GET -> Root / `staticFilePrefix` / `jsLocation` =>
         StaticFile.fromString(jsPath.toString, blocker, Some(req)).getOrElseF(NotFound())
@@ -450,17 +456,16 @@ object Server {
       qualityMatches = Utils.identifyQualityMatches(qualityDataset, singleTurnDebateDataset)
       profiles <- FileUtil
         .readJson[Map[String, Profile]](profilesSavePath(saveDir))
-        .recoverWith { case _: Throwable =>
-          FileUtil
-            .readJson[Set[String]](debatersSavePath(saveDir))
-            .map(_.map(name => name -> Profile(name, None)).toMap)
-            .recoverWith { case e: Throwable =>
-              IO {
-                println("Error reading debaters JSON. Initializing to JSON with a dummy profile.")
-                println(s"--->\tError message: ${e.getMessage()}")
-                List(Profile("John Doe", None)).view.map(p => p.name -> p).toMap
-              }
-            }
+        .recoverWith { case e: Throwable =>
+          IO {
+            println(
+              "Error reading debaters JSON. Initializing to empty. This may happen when " +
+                "loading a new development server for the first time, because we don't want to " +
+                "load slack emails, which would lead to poking during testing."
+            )
+            println(s"--->\tError message: ${e.getMessage()}")
+            List[Profile]().view.map(p => p.name -> p).toMap
+          }
         }
       ruleConfigs <- FileUtil
         .readJson[Map[String, RuleConfig]](ruleConfigsSavePath(saveDir))
@@ -499,6 +504,15 @@ object Server {
       // channel to update all clients on the lobby state
       leaderboard <- officialDebates.getLeaderboard
       allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
+      _ <- profilesRef
+        .get
+        .map(_.isEmpty)
+        .ifM(
+          ifTrue =
+            IO(println("Initializing profiles to include all assigned debaters.")) >>
+              profilesRef.set(allDebaters.view.map(name => name -> Profile(name, None)).toMap),
+          ifFalse = IO.unit
+        )
       mainChannel <- Topic[IO, Lobby](
         Lobby(
           profiles,
