@@ -11,8 +11,10 @@ object DataSummarizer {
   val debateSummaryFields: List[(String, Debate => String)] = List(
     "Honest debater"    -> (d => d.setup.roles(Debater(d.setup.correctAnswerIndex))),
     "Dishonest debater" -> (d => d.setup.roles(Debater(1 - d.setup.correctAnswerIndex))),
-    "Creation time"     -> (d => d.setup.creationTime.toString),
-    "Start time"        -> (d => d.startTime.map(_.toString).getOrElse(""))
+    // TODO better map, get offline judge, or >1 judges
+    "Judge"         -> (d => d.setup.roles.get(Judge).map(_.toString).getOrElse("[offline]")),
+    "Creation time" -> (d => d.setup.creationTime.toString),
+    "Start time"    -> (d => d.startTime.map(_.toString).getOrElse(""))
   )
   def debateSummaryHeaderRow = "Room name" :: debateSummaryFields.map(_._1)
 

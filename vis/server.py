@@ -34,7 +34,7 @@ def read_data():
 read_data()
 
 
-def debater_pairings():
+def debater_pairings_by_role():
     return alt.Chart(debates).mark_rect().encode(
         x='Honest debater:O',
         y=alt.Y('Dishonest debater:O', scale=alt.Scale(reverse=True)),
@@ -42,10 +42,24 @@ def debater_pairings():
     )
 
 
+def debater_pairings_by_person():
+    return
+
+
+def judge_pairings():
+    return alt.Chart(debates.melt(id_vars='Judge', value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_rect().encode(
+        x='Judge:O',
+        y=alt.Y('Debater:O', scale=alt.Scale(reverse=True)),
+        color='count():Q'
+    )
+
+
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
-    "Debater_pairings": debater_pairings
+    "Debater_pairings_by_role": debater_pairings_by_role,
+    # "Debater_pairings_by_person": debater_pairings_by_person,
+    "Judge_pairings": judge_pairings
 
 
 }
