@@ -8,8 +8,18 @@ import jjm.DotDecoder
 import jjm.DotEncoder
 import jjm.DotKleisli
 
-trait AjaxService[F[_]] {
+trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
   def getDebaters: F[Map[String, Profile]]
+
+  import AjaxService.Request
+  def apply(req: Request): F[req.Out] = {
+    val res =
+      req match {
+        case Request.GetDebaters =>
+          getDebaters
+      }
+    res.asInstanceOf[F[req.Out]]
+  }
 }
 object AjaxService {
   def apply[F[_]](f: DotKleisli[F, Request]) =

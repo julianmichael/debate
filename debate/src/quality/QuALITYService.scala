@@ -8,9 +8,22 @@ import jjm.DotDecoder
 import jjm.DotEncoder
 import jjm.DotKleisli
 
-trait QuALITYService[F[_]] {
+trait QuALITYService[F[_]] extends DotKleisli[F, QuALITYService.Request] {
   def getIndex: F[Map[String, String]]
   def getStory(articleId: String): F[QuALITYStory]
+
+  import QuALITYService.Request
+  def apply(req: Request): F[req.Out] = {
+    val res =
+      req match {
+        case Request.GetIndex =>
+          getIndex
+        case Request.GetStory(articleId) =>
+          getStory(articleId)
+      }
+    // not sure why it isn't inferring the type...
+    res.asInstanceOf[F[req.Out]]
+  }
 }
 object QuALITYService {
   def apply[F[_]](f: DotKleisli[F, Request]) =
