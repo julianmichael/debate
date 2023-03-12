@@ -9,6 +9,9 @@ import java.nio.file.Files
 import java.util.stream.Collectors
 import java.nio.file.Path
 
+import cats.data.NonEmptySet
+import scala.collection.immutable.SortedSet
+
 trait UtilsPlatformExtensions {
 
   def charReplacementDistance(x: String, y: String): Int = {
@@ -28,20 +31,24 @@ trait UtilsPlatformExtensions {
   def identifyQualityMatches(
     qualityDataset: Map[String, QuALITYStory],
     singleTurnDebateDataset: Map[String, Vector[SingleTurnDebateQuestion]]
-  ): Map[String, Set[String]] = qualityDataset.map { case (articleId, story) =>
+  ): Map[String, NonEmptySet[String]] = qualityDataset.flatMap { case (articleId, story) =>
     val singleTurnQs = singleTurnDebateDataset.get(articleId).combineAll.toSet
-    articleId ->
-      singleTurnQs
-        .toVector
-        .flatMap(singleTurnQ =>
-          story
-            .questions
-            .find { case (_, question) =>
-              transformQualityQ(question.question) == transformDebateQ(singleTurnQ.questionText)
-            }
-            .map(_._1)
+    NonEmptySet
+      .fromSet(
+        SortedSet(
+          singleTurnQs
+            .toVector
+            .flatMap(singleTurnQ =>
+              story
+                .questions
+                .find { case (_, question) =>
+                  transformQualityQ(question.question) == transformDebateQ(singleTurnQ.questionText)
+                }
+                .map(_._1)
+            ): _*
         )
-        .toSet
+      )
+      .map(articleId -> _)
   }
 
   // get QuALITY question IDs present in the single-turn debate dataset

@@ -37,12 +37,15 @@ import debate.singleturn.SingleTurnDebateQuestion
 import org.http4s.client.Client
 import scala.concurrent.ExecutionContext
 
+import cats.data.NonEmptySet
+
 case class Server(
   dataPath: NIOPath,
   saveDir: NIOPath,
   blocker: Blocker,
   qualityDataset: Map[String, QuALITYStory],
   singleTurnDebateDataset: Map[String, Vector[SingleTurnDebateQuestion]],
+  qualityMatches: Map[String, NonEmptySet[String]], // map from story ID to question IDs
   profiles: Ref[IO, Map[String, Profile]],
   ruleConfigs: Ref[IO, Map[String, RuleConfig]],
   presence: Ref[IO, Map[String, Int]],
@@ -473,6 +476,7 @@ object Server {
       blocker = blocker,
       qualityDataset = qualityDataset,
       singleTurnDebateDataset = singleTurnDebateDataset,
+      qualityMatches = qualityMatches,
       profiles = profilesRef,
       ruleConfigs = ruleConfigsRef,
       presence = presenceRef,
