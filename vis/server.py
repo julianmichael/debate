@@ -46,7 +46,27 @@ def debater_pairings_by_person():  # TODO Instead of having them in separate ite
     return
 
 
-def judge_pairings():
+def honest_debater_by_final_probability():  # esp. for here...
+    return alt.Chart(debates).mark_bar().encode(
+        x=alt.X('Honest debater:O', sort='-y'),
+        y='Average_probability:Q'
+    ).transform_aggregate(
+        Average_probability='mean(Final probability correct)',
+        groupby=['Honest debater']
+    )
+
+
+def dishonest_debater_by_final_probability():
+    return alt.Chart(debates).mark_bar().encode(
+        x=alt.X('Dishonest debater:O', sort='-y'),
+        y='Average_probability:Q'
+    ).transform_aggregate(
+        Average_probability='mean(Final probability correct)',
+        groupby=['Dishonest debater']
+    )
+
+
+def judge_pairings():  # might not be the Altair way
     return alt.Chart(debates.melt(id_vars='Judge', value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_rect().encode(
         x='Judge:O',
         y=alt.Y('Debater:O', scale=alt.Scale(reverse=True)),
@@ -54,13 +74,24 @@ def judge_pairings():
     )
 
 
+def probability_correct_vs_num_rounds():
+    return alt.Chart(debates).mark_circle(size=60).encode(
+        x='Rounds:Q',  # widens the graph, probably not best way
+        y='Final probability correct:Q',
+        # color='Judge:N',
+        tooltip=['Room name']
+    ).interactive()
+
+
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
     "Debater_pairings_by_role": debater_pairings_by_role,
     # "Debater_pairings_by_person": debater_pairings_by_person,
-    "Judge_pairings": judge_pairings
-
+    "Honest_debater_by_final_probability": honest_debater_by_final_probability,
+    "Dishonest_debater_by_final_probability": dishonest_debater_by_final_probability,
+    "Judge_pairings": judge_pairings,
+    "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds
 
 }
 
