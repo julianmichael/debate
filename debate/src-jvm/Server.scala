@@ -382,11 +382,11 @@ object Server {
         .recoverWith { case e: Throwable =>
           IO {
             println(
-              "Error reading debaters JSON. Initializing to empty. This may happen when " +
-                "loading a new development server for the first time, because we don't want to " +
-                "load slack emails, which would lead to poking during testing."
+              """Could not read debaters JSON. Initializing to empty. This may happen when
+                |loading a new development server for the first time, because we don't want to
+                |load slack emails, which would lead to poking during testing.""".stripMargin.trim
             )
-            println(s"--->\tError message: ${e.getMessage()}")
+            println(s"--->\tMessage: ${e.getMessage()}")
             List[Profile]().view.map(p => p.name -> p).toMap
           }
         }
@@ -394,8 +394,10 @@ object Server {
         .readJson[Map[String, RuleConfig]](ruleConfigsSavePath(saveDir))
         .recoverWith { case e: Throwable =>
           IO {
-            println("Error reading rules JSON. Initializing to empty.")
-            println(s"--->\tError message: ${e.getMessage()}")
+            println("""Could not read rules JSON. Initializing to empty. This happens when
+                      |there are no saved rule configurations, e.g., when loading a new development
+                      |server for the first time.""".stripMargin.trim)
+            println(s"--->\tMessage: ${e.getMessage()}")
             Map.empty[String, RuleConfig]
           }
         }
