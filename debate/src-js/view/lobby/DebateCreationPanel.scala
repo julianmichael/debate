@@ -744,18 +744,6 @@ object DebateCreationPanel {
       .builder[Props]("Debate Creation Panel")
       .render_P { case Props(lobby, qualityService, registerRuleConfig, joinDebate, initDebate) =>
         Local[State].syncedWithSessionStorage("debate-creation-panel-state", State()) { state =>
-          // Local[Option[String]].syncedWithSessionStorage(
-          //   "debate-setup-selected-rule-config",
-          //   None,
-          //   didUpdate =
-          //     (_, newRuleConfig) =>
-          //       newRuleConfig
-          //         .flatMap(lobby.ruleConfigs.get)
-          //         .map(_.rules)
-          //         .foldMap(
-          //           state.zoomStateL(State.setup.composeLens(DebateSetupSpec.rules)).setState(_)
-          //         )
-          // ) { ruleConfigName =>
           QuALITYIndexFetch
             .make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
               indexFetch =>

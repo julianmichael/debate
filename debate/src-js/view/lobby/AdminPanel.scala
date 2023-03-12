@@ -55,6 +55,8 @@ object AdminPanel {
                 )
               )
             ),
+          "Schedule Debates" ->
+            TabNav.tab(<.div(c"card-body", S.spaceySubcontainer)(DebateSchedulingPanel())),
           "Create Debate" ->
             TabNav.tab(
               <.div(c"card-body", S.spaceySubcontainer)(

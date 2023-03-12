@@ -30,6 +30,7 @@ import jjm.implicits._
 import jjm.io.FileUtil
 import jjm.io.HttpUtil
 
+import debate.service._
 import debate.quality._
 import debate.singleturn.SingleTurnDebateUtils
 import debate.singleturn.SingleTurnDebateQuestion

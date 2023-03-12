@@ -22,6 +22,7 @@ import jjm.ui.CacheCallContent
 
 import debate.util.ListConfig
 import debate.util.Local
+import debate.service.AnalyticsService
 
 object AnalyticsPanel {
   val S = Styles

@@ -6,6 +6,8 @@ import cats.implicits._
 import _root_.io.circe.Json
 import org.http4s.client.Client
 
+import debate.service.AnalyticsService
+
 object AnalyticsServer {
   case class Handle(port: Int, restart: IO[Unit], shutdown: IO[Unit])
   // def startPythonServer(port: Int)(implicit cs: ContextShift[IO]): Resource[IO, Handle] =

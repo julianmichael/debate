@@ -17,6 +17,7 @@ import jjm.ui.Mounting
 
 import org.scalajs.jquery.jQuery
 // import debate.facades.jQuery
+import debate.service._
 import debate.util._
 import japgolly.scalajs.react.extra.StateSnapshot
 
