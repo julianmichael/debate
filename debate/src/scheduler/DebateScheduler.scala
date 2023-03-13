@@ -66,6 +66,24 @@ object DebateScheduler {
     incorrectAnswer: String
   )
 
+  val ruleDistMultiplier = 3.0
+
+  def sampleRules(schedule: Schedule, rand: Random) = {
+    // silly?
+    val allRuleConfigs = NonEmptyVector
+      .fromVector(schedule.desiredRules.probs.toSortedMap.toVector)
+      .get
+      .map(_._1)
+    DenseDistribution
+      .fromSoftmax[RuleConfig](
+        allRuleConfigs,
+        config =>
+          ruleDistMultiplier *
+            (schedule.desiredRules.prob(config) - schedule.rulesDist.prob(config))
+      )
+      .sample(rand)
+  }
+
   def sampleDebater(
     schedule: Schedule,
     storyId: SourceMaterialId,
@@ -247,15 +265,14 @@ object DebateScheduler {
   def sampleSetupForQuestion(
     schedule: Schedule,
     sourceMaterial: SourceMaterial,
-    rules: DebateRules,
     qa: QASpec,
     debaters: Set[String],
     judges: Set[String],
-    numOfflineJudgesPerQuestion: Int,
     creationTime: Long,
     rand: Random
   ): Either[String, DebateSetup] = {
-    val storyId = SourceMaterialId.fromSourceMaterial(sourceMaterial)
+    val storyId    = SourceMaterialId.fromSourceMaterial(sourceMaterial)
+    val ruleConfig = sampleRules(schedule, rand)
     for {
       honestDebater <- sampleDebater(schedule, storyId, debaters, None, qa.question, true, rand)
         .toRight("Couldn't sample honest debater.")
@@ -268,24 +285,30 @@ object DebateScheduler {
         false,
         rand
       ).toRight("Couldn't sample dishonest debater.")
-      judge <- sampleJudge(
-        schedule,
-        Set(honestDebater, dishonestDebater),
-        storyId,
-        judges,
-        qa.question,
-        true,
-        rand
-      ).toRight(
-        s"""\nCouldn't sample judge.
-           |Assignment number: ${schedule.novel.size}
-           |Story: $storyId 
-           |Judges: $judges
-           |Debaters: ${Set(honestDebater, dishonestDebater)}
-           |Debates for story: ${schedule.forStory(storyId).map(_.question)}""".stripMargin.trim
-      )
-
-      offlineJudges <- (1 to numOfflineJudgesPerQuestion)
+      judgeOpt <-
+        if (ruleConfig.rules.hasJudge) {
+          sampleJudge(
+            schedule,
+            Set(honestDebater, dishonestDebater),
+            storyId,
+            judges,
+            qa.question,
+            true,
+            rand
+          ).toRight(
+              s"""\nCouldn't sample judge.
+                 |Assignment number: ${schedule.novel.size}
+                 |Story: $storyId 
+                 |Judges: $judges
+                 |Debaters: ${Set(honestDebater, dishonestDebater)}
+                 |Debates for story: ${schedule.forStory(storyId).map(_.question)}"""
+                .stripMargin
+                .trim
+            )
+            .map(Some(_))
+        } else
+          Right(None)
+      offlineJudges <- (1 to ruleConfig.numOfflineJudgesPerDebate)
         .toVector
         .traverse(_ =>
           for {
@@ -304,12 +327,12 @@ object DebateScheduler {
             _ <- StateT.modify[Option, Set[String]](_ + newJudge)
           } yield newJudge
         )
-        .run(Set(judge))
+        .run(judgeOpt.toSet)
         .map(_._2.toSet)
         .toRight("Couldn't sample offline judges.")
       correctAnswerIndex = sampleCorrectAnswerIndex(schedule, honestDebater, dishonestDebater, rand)
     } yield DebateSetup(
-      rules = rules,
+      rules = ruleConfig.rules,
       sourceMaterial = sourceMaterial,
       question = qa.question,
       answers = {
@@ -320,11 +343,11 @@ object DebateScheduler {
           as.reverse
       },
       correctAnswerIndex = correctAnswerIndex,
-      roles = Map(
-        Debater(correctAnswerIndex)     -> honestDebater,
-        Debater(1 - correctAnswerIndex) -> dishonestDebater,
-        Judge                           -> judge
-      ),
+      roles =
+        Map[LiveDebateRole, String](
+          Debater(correctAnswerIndex)     -> honestDebater,
+          Debater(1 - correctAnswerIndex) -> dishonestDebater
+        ) ++ judgeOpt.map(Judge -> _),
       offlineJudges = offlineJudges.map(_ -> None).toMap,
       creationTime = creationTime
     )
@@ -332,15 +355,13 @@ object DebateScheduler {
 
   def efficientlySampleSchedules(
     desiredWorkload: SparseDistribution[String],
+    rules: SparseDistribution[RuleConfig],
     complete: Vector[DebateSetup],
     incomplete: Vector[DebateSetup],
-    rules: DebateRules,
     sourceMaterial: SourceMaterial,
     qas: Vector[QASpec],
     numDebatesPerQuestion: Int,
-    numOfflineJudgesPerDebate: Int,
-    // rules: SparseDistribution[RuleSpec],
-    debaters: Map[String, DebaterLoadConstraint],
+    // debaters: Map[String, DebaterLoadConstraint],
     creationTime: Long,
     rand: Random
   ): Either[String, NonEmptyVector[Schedule]] = {
@@ -355,8 +376,11 @@ object DebateScheduler {
 
     // val numDebates       = qas.size * numDebatesPerQuestion
 
+    val people = desiredWorkload.probs.toSortedMap.keySet
+
     val startingSchedule = Schedule(
       desiredWorkload = desiredWorkload,
+      desiredRules = rules,
       complete = complete,
       incomplete = incomplete,
       novel = Vector()
@@ -364,7 +388,7 @@ object DebateScheduler {
     val workload = startingSchedule.workload
     val debaterChoiceDist = DenseDistribution
       .fromSoftmax[String](
-        NonEmptyVector.fromVector(debaters.keySet.toVector).get,
+        NonEmptyVector.fromVector(people.toVector).get,
         d => Params.workloadMultiplier * (desiredWorkload.prob(d) - workload.prob(d))
       )
       .withTemperature(Params.samplingTemperature)
@@ -386,11 +410,9 @@ object DebateScheduler {
                     sampleSetupForQuestion(
                       schedule,
                       sourceMaterial,
-                      rules,
                       qa,
                       chosenDebaters,
-                      debaters.keySet -- chosenDebaters,
-                      numOfflineJudgesPerDebate,
+                      people -- chosenDebaters,
                       creationTime,
                       rand
                     )
@@ -400,13 +422,13 @@ object DebateScheduler {
               )
           )
           .runS(startingSchedule)
-          .flatMap(schedule =>
-            if (Constraints.doesScheduleObeyLoadConstraints(schedule, debaters)) {
-              Right(schedule)
-            } else {
-              Left("Schedule does not obey load constraints")
-            }
-          )
+          // .flatMap(schedule =>
+          //   if (Constraints.doesScheduleObeyLoadConstraints(schedule, people)) {
+          //     Right(schedule)
+          //   } else {
+          //     Left("Schedule does not obey load constraints")
+          //   }
+          // )
           .flatMap(schedule =>
             if (Constraints.doesScheduleMeetJudgingConstraints(schedule)) {
               Right(schedule)

@@ -107,8 +107,7 @@ case class Server(
         numDebatesPerQuestion: Int
       ): IO[Option[Vector[DebateSetup]]] =
         for {
-          people <- profiles.get
-          rooms  <- officialDebates.rooms.get
+          rooms <- officialDebates.rooms.get
           allDebates = rooms.values.view.map(_.debate.debate).toVector
           complete   = allDebates.filter(_.isOver).map(_.setup)
           incomplete = allDebates.filterNot(_.isOver).map(_.setup)
@@ -119,19 +118,18 @@ case class Server(
           schedulesOpt =
             DebateScheduler
               .efficientlySampleSchedules(
-                people = ???, // people.keySet,
+                desiredWorkload = workloadDist,
+                rules = ruleDist,
                 complete = complete,
                 incomplete = incomplete,
-                rules = ???,
                 sourceMaterial = QuALITYSourceMaterial(
                   articleId = story.articleId,
                   title = story.title,
                   contents = tokenizeStory(story.article)
                 ),
                 qas = qas.filter(qa => questionIds.contains(qa.questionId)),
-                numDebatesPerQuestion = 2,
-                numOfflineJudgesPerDebate = 0,
-                debaters = people.mapVals(_ => DebaterLoadConstraint(None, None)),
+                numDebatesPerQuestion = numDebatesPerQuestion,
+                // debaters = Map(), // people.mapVals(_ => DebaterLoadConstraint(None, None)),
                 creationTime = creationTime,
                 rand
               )
