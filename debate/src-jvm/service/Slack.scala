@@ -1,4 +1,5 @@
 package debate
+package service
 
 import scala.util.Try
 

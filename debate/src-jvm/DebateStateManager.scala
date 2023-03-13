@@ -23,6 +23,8 @@ import org.http4s.server.websocket._
 import jjm.implicits._
 import jjm.io.FileUtil
 
+import debate.service.Slack
+
 /** The server state for a debate room.
   *
   * @param debate

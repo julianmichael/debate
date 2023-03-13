@@ -3,9 +3,7 @@ package debate
 import cats.implicits._
 
 import io.circe.generic.JsonCodec
-import monocle.Prism
 import monocle.function.{all => Optics}
-import monocle.macros.GenPrism
 import monocle.macros.Lenses
 
 import jjm.DotPair
@@ -36,6 +34,8 @@ case class Debate(
   def isOver: Boolean                        = result.nonEmpty
   def finalJudgement: Option[Vector[Double]] = result.flatMap(_.judgingInfo.map(_.finalJudgement))
 
+  def numDebaters = setup.answers.size
+
   def numContinues = rounds.foldMap {
     case JudgeFeedback(_, _, false) =>
       1
@@ -58,7 +58,6 @@ case class Debate(
   def stateInfo: (Option[DebateResult], DebateTransitionSet, Map[String, OfflineJudgment]) = {
 
     // turn sequence is always nonempty
-    val numDebaters   = setup.answers.size
     val roundSequence = setup.rules.roundTypes
 
     def newRoundSpeeches(roundType: DebateRoundType, isLastTurn: Boolean) = {
@@ -377,210 +376,4 @@ object Debate {
   }
 
   def init(setup: DebateSetup): Debate = Debate(setup, Vector(), Map())
-}
-
-/** Outcome of a debate turn after some/all relevant parties have submitted
-  * their arguments / info
-  */
-@JsonCodec
-sealed trait DebateRound {
-  def allSpeeches: Map[Role, DebateSpeech]
-
-  def isComplete(numDebaters: Int): Boolean
-  final def timestamp(numDebaters: Int): Option[Long] =
-    if (!isComplete(numDebaters))
-      None
-    else {
-      allSpeeches.values.view.map(_.timestamp).maxOption
-    }
-}
-
-@Lenses
-@JsonCodec
-case class SimultaneousSpeeches(
-  speeches: Map[Int, DebateSpeech] // map from answer index -> statement
-) extends DebateRound {
-  def isComplete(numDebaters: Int) = speeches.size == numDebaters
-  def allSpeeches = speeches.map { case (idx, speech) =>
-    Debater(idx) -> speech
-  }
-
-}
-object SimultaneousSpeeches
-
-@Lenses
-@JsonCodec
-case class SequentialSpeeches(speeches: Map[Int, DebateSpeech]) extends DebateRound {
-  def isComplete(numDebaters: Int) = speeches.size == numDebaters
-  def allSpeeches = speeches.map { case (idx, speech) =>
-    Debater(idx) -> speech
-  }
-
-}
-object SequentialSpeeches
-
-@Lenses
-@JsonCodec
-case class JudgeFeedback(
-  distribution: Vector[Double], // probability distribution
-  feedback: DebateSpeech,
-  endDebate: Boolean
-) extends DebateRound {
-  def isComplete(numDebaters: Int) = true
-  def allSpeeches                  = Map(Judge -> feedback)
-}
-object JudgeFeedback
-
-@Lenses
-@JsonCodec
-case class NegotiateEnd(votes: Map[Int, Boolean]) extends DebateRound {
-  def isComplete(numDebaters: Int) = votes.size == numDebaters
-  def allSpeeches                  = Map()
-}
-object NegotiateEnd
-
-@Lenses
-@JsonCodec
-case class OfflineJudgments(judgments: Map[String, OfflineJudgment]) extends DebateRound {
-  def isComplete(numDebaters: Int) = judgments.values.forall(_.result.nonEmpty)
-  def allSpeeches =
-    judgments
-      .toVector
-      .view
-      .flatMap { case (judge, judgment) =>
-        judgment
-          .result
-          .map { case OfflineJudgingResult(_, explanation, timestamp) =>
-            (OfflineJudge: Role) ->
-              DebateSpeech(judge, timestamp, Vector(SpeechSegment.Text(explanation)))
-          }
-      }
-      .toMap
-}
-object OfflineJudgments
-
-object DebateRound {
-  val simultaneousSpeeches = GenPrism[DebateRound, SimultaneousSpeeches]
-  val sequentialSpeeches   = GenPrism[DebateRound, SequentialSpeeches]
-  val judgeFeedback        = GenPrism[DebateRound, JudgeFeedback]
-  val negotiateEnd         = GenPrism[DebateRound, NegotiateEnd]
-  val offlineJudgments     = GenPrism[DebateRound, OfflineJudgments]
-}
-
-/** Specifies who gets to speak next and what kind of input they should provide.
-  */
-sealed trait DebateTurnType {
-  type AllowedRole <: DebateRole
-  type Round
-  type Input // type of input the turn expects from a participant of one of the admissible roles
-  type Out = Input // for jjm.Dot stuff
-  def charLimitOpt: Option[Int]
-  def quoteLimit: Option[Int]
-  def currentRoles: Set[AllowedRole]
-
-  def roundPrism: Prism[DebateRound, Round]
-  def newRoundTransition(role: AllowedRole): Input => Round
-  def curRoundSpeeches(role: AllowedRole): Input => Round => Round
-}
-object DebateTurnType {
-
-  case class SimultaneousSpeechesTurn(
-    remainingDebaters: Set[Int],
-    charLimit: Int,
-    quoteLimit: Option[Int]
-  ) extends DebateTurnType {
-    type AllowedRole = Debater
-    type Round       = SimultaneousSpeeches
-    type Input       = DebateSpeech
-    def currentRoles = remainingDebaters.map(Debater(_))
-    def charLimitOpt = Some(charLimit)
-    def roundPrism   = DebateRound.simultaneousSpeeches
-
-    def newRoundTransition(role: AllowedRole) = { case DebateSpeech(name, timestamp, contents) =>
-      SimultaneousSpeeches(Map(role.answerIndex -> DebateSpeech(name, timestamp, contents)))
-    }
-
-    def curRoundSpeeches(role: AllowedRole): DebateSpeech => Round => Round = {
-      case DebateSpeech(name, timestamp, contents) =>
-        val speech = DebateSpeech(name, timestamp, contents)
-        SimultaneousSpeeches.speeches.modify(_ + (role.answerIndex -> speech))
-    }
-  }
-  case class DebaterSpeechTurn(debater: Int, charLimit: Int, quoteLimit: Option[Int])
-      extends DebateTurnType {
-    type AllowedRole = Debater
-    type Round       = SequentialSpeeches
-    type Input       = DebateSpeech
-    def currentRoles = Set(Debater(debater))
-    def charLimitOpt = Some(charLimit)
-    def roundPrism   = DebateRound.sequentialSpeeches
-
-    def newRoundTransition(role: AllowedRole) = { case DebateSpeech(name, timestamp, contents) =>
-      SequentialSpeeches(Map(role.answerIndex -> DebateSpeech(name, timestamp, contents)))
-    }
-
-    def curRoundSpeeches(role: AllowedRole): DebateSpeech => Round => Round = {
-      case DebateSpeech(name, timestamp, contents) =>
-        val speech = DebateSpeech(name, timestamp, contents)
-        SequentialSpeeches.speeches.modify(_ + (debater -> speech))
-    }
-  }
-  case class JudgeFeedbackTurn(reportBeliefs: Boolean, charLimit: Int, mustEndDebate: Boolean)
-      extends DebateTurnType {
-    type AllowedRole = Judge.type
-    type Round       = JudgeFeedback
-    type Input       = JudgeFeedback
-    def charLimitOpt = Some(charLimit)
-    def currentRoles = Set(Judge)
-    def quoteLimit   = None
-    def roundPrism   = DebateRound.judgeFeedback
-
-    def newRoundTransition(role: AllowedRole) = { judgeFeedback =>
-      require(!mustEndDebate || judgeFeedback.endDebate, "Judge must end the debate.")
-      judgeFeedback
-    }
-
-    def curRoundSpeeches(role: AllowedRole): JudgeFeedback => JudgeFeedback => JudgeFeedback =
-      // no more speeches this round (shouldn't get here)
-      ???
-  }
-
-  case class NegotiateEndTurn(remainingDebaters: Set[Int]) extends DebateTurnType {
-    type AllowedRole = Debater
-    type Round       = NegotiateEnd
-    type Input       = Boolean
-
-    def charLimitOpt = None
-    def quoteLimit   = None
-
-    def currentRoles = remainingDebaters.map(Debater(_))
-
-    def roundPrism = DebateRound.negotiateEnd
-
-    def newRoundTransition(role: AllowedRole) = { case votesForEnd =>
-      NegotiateEnd(Map(role.answerIndex -> votesForEnd))
-    }
-
-    def curRoundSpeeches(role: AllowedRole): Boolean => Round => Round = { case votesForEnd =>
-      NegotiateEnd.votes.modify(_ + (role.answerIndex -> votesForEnd))
-    }
-  }
-
-  case class OfflineJudgingTurn(existingJudgments: Map[String, OfflineJudgment])
-      extends DebateTurnType {
-    type AllowedRole = OfflineJudge.type
-    type Round       = OfflineJudgments
-    type Input       = (String, OfflineJudgment)
-    def charLimitOpt = None
-    def currentRoles = Set(OfflineJudge)
-    def quoteLimit   = None
-    def roundPrism   = DebateRound.offlineJudgments
-
-    def newRoundTransition(role: AllowedRole) = judgmentPair => OfflineJudgments(Map(judgmentPair))
-
-    def curRoundSpeeches(
-      role: AllowedRole
-    ): ((String, OfflineJudgment)) => OfflineJudgments => OfflineJudgments =
-      input => OfflineJudgments.judgments.modify(_ + input)
-  }
 }
