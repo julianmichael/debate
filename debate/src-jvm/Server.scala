@@ -78,6 +78,7 @@ case class Server(
           qualityDataset.map { case (articleId, story) =>
             articleId ->
               QuALITYStoryMetadata(
+                articleId = story.articleId,
                 title = story.title,
                 splits = story.questions.map(_._2.split).toSet,
                 source = story.source,

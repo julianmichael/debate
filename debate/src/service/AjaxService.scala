@@ -11,15 +11,21 @@ import jjm.DotDecoder
 import jjm.DotEncoder
 import jjm.DotKleisli
 import debate.util.SparseDistribution
+import cats.kernel.Order
 
 @JsonCodec
 case class QuALITYStoryMetadata(
+  articleId: String,
   title: String,
   splits: Set[String],
   source: String,
   numSingleTurnDebateMatches: Int,
   hasBeenDebated: Boolean
 )
+object QuALITYStoryMetadata {
+  implicit def qualityStoryMetadataOrder = Order
+    .by[QuALITYStoryMetadata, (String, String)](m => m.title -> m.articleId)
+}
 
 trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
   def getDebaters: F[Map[String, Profile]]

@@ -75,9 +75,9 @@ case class Schedule(
     val configs = desiredRules.probs.keys.toList
     novel.flatMap(setup => configs.find(_.rules == setup.rules)).counts
   }
-  val rulesDist = SparseDistribution.fromMap(ruleCounts.mapVals(_.toDouble)).get
+  val rulesDistOpt = SparseDistribution.fromMap(ruleCounts.mapVals(_.toDouble))
   // distribute novel assignments according to rules distribution
-  def rulesImbalance = distance(rulesDist, desiredRules)
+  def rulesImbalance = rulesDistOpt.foldMap(rulesDist => distance(rulesDist, desiredRules))
 
   // assign the right amount of work to the right people
   // def workloadImbalance = distance(workload, desiredWorkload)

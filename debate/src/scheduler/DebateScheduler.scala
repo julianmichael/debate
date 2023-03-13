@@ -78,8 +78,11 @@ object DebateScheduler {
       .fromSoftmax[RuleConfig](
         allRuleConfigs,
         config =>
-          ruleDistMultiplier *
-            (schedule.desiredRules.prob(config) - schedule.rulesDist.prob(config))
+          schedule
+            .rulesDistOpt
+            .foldMap(rulesDist =>
+              ruleDistMultiplier * (schedule.desiredRules.prob(config) - rulesDist.prob(config))
+            )
       )
       .sample(rand)
   }
