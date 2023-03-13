@@ -1,5 +1,4 @@
-package debate
-package util
+package debate.util
 
 import cats.implicits._
 
@@ -9,7 +8,7 @@ import scala.collection.immutable.SortedMap
 import io.circe.Encoder
 import io.circe.Decoder
 
-case class SparseDistribution[A] private (val probs: NonEmptyMap[A, Double]) {
+class SparseDistribution[A] private (val probs: NonEmptyMap[A, Double]) {
   def prob(a: A): Double = probs(a).getOrElse(0.0)
   // def support            = probs.keySet
 }

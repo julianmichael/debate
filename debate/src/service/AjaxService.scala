@@ -83,11 +83,9 @@ object AjaxService {
     case object GetSourceMaterialIndex extends Request {
       type Out = Map[String, QuALITYStoryMetadata]
     }
-    @JsonCodec
     case class GetStoryAndMatches(articleId: String) extends Request {
       type Out = (QuALITYStory, Set[String])
     }
-    @JsonCodec
     case class SampleSchedule(
       workloadDist: SparseDistribution[String],
       ruleDist: SparseDistribution[RuleConfig],
