@@ -354,7 +354,7 @@ object SpeechInput {
                 )
               )
 
-              val continueOpt = Option(continue).filter(_ => numContinues < numTurns)
+              val continueOpt = Option(continue).filter(_ => numContinues < numTurns - 1)
 
               judgingInputPanel(probs, numContinues, submit, continueOpt)
           }
