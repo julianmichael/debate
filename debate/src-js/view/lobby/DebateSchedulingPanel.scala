@@ -28,6 +28,7 @@ import debate.quality.QuALITYStory
 import jjm.OrWrapped
 import debate.quality.QuALITYQuestion
 import debate.util.Checkbox2
+import debate.util.NumberField2
 
 object DebateSchedulingPanel {
   val S = Styles
@@ -157,10 +158,7 @@ object DebateSchedulingPanel {
 
   }
 
-  def apply(
-    lobby: Lobby
-    // initDebate: CreateRoom => Callback
-  ) =
+  def apply(lobby: Lobby, createRooms: CreateRooms => Callback) =
     NonEmptySet.fromSet(SortedSet(lobby.profiles.keySet.toSeq: _*)) match {
       case None =>
         <.div(
@@ -198,7 +196,13 @@ object DebateSchedulingPanel {
                                   ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
                               )
                             )
-                          }
+                          },
+                          <.div(S.row, c"mt-1")(
+                            NumberField2.apply(
+                              schedulingSpec.zoomStateL(SchedulingSpec.numDebatesPerQuestion),
+                              Some("Number of debates per question")
+                            )
+                          )
                         )
                       ),
                       <.div(c"card")(
@@ -413,7 +417,6 @@ object DebateSchedulingPanel {
                           )
                           .whenDefined(x => x)
                       ),
-                      // TODO article ID, question choices, num debates per Q
                       scheduleAttemptOpt
                         .value
                         .map {
@@ -433,8 +436,8 @@ object DebateSchedulingPanel {
                         .map { newSetups =>
                           <.button(c"btn btn-primary")(
                             "Commit",
-                            ^.onClick --> Callback(newSetups)
-                          ) // TODO submit
+                            ^.onClick --> createRooms(CreateRooms(true, newSetups))
+                          )
                         }
                     )
                 }

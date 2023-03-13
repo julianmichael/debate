@@ -397,7 +397,7 @@ object DebateScheduler {
       .withTemperature(Params.samplingTemperature)
 
     // sample debaters according to how far off they are from their desired workload
-    val attemptedSampledSchedules = (1 to 10) // number of different debater sets we try
+    val attemptedSampledSchedules = (1 to 100) // number of different debater sets we try
       .toVector
       .map { _ =>
         val chosenDebaters = debaterChoiceDist.sampleWithoutReplacement(numDebaters, rand).toSet
@@ -444,8 +444,8 @@ object DebateScheduler {
     val sampledSchedules = attemptedSampledSchedules.flatMap {
       case Right(sched) =>
         Some(sched)
-      case Left(msg) =>
-        System.err.println(msg)
+      case Left(_) =>
+        // System.err.println(msg)
         None
     }
 

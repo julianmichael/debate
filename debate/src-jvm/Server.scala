@@ -327,6 +327,11 @@ case class Server(
                       officialDebates.createDebate(roomName, setupSpec)
                     else
                       practiceDebates.createDebate(roomName, setupSpec)
+                  case CreateRooms(isOfficial, setups) =>
+                    if (isOfficial)
+                      officialDebates.createDebates(setups)
+                    else
+                      practiceDebates.createDebates(setups)
                 },
           onClose = presence.update(p => (p |+| Map(profile -> -1)).filter(_._2 > 0)) >> pushUpdate
         )
