@@ -154,9 +154,31 @@ case class DebateStateManager(
       _ <- pushUpdate
     } yield ()
 
-  def createDebate(roomName: String, setupSpec: DebateSetupSpec) =
+  def createDebates(setups: Vector[DebateSetup]): IO[Unit] = setups.traverse_ { setup =>
+    val title = setup.sourceMaterial.title
+    val roomTitlePrefix = title
+      .split("\\s+")
+      .toList
+      .take(5)
+      .map(_.filter(_.isLetterOrDigit))
+      .mkString("-")
+      .toLowerCase()
+    rooms
+      .get
+      .map(_.keySet)
+      .flatMap { existingRooms =>
+        val roomName =
+          LazyList.from(0).map(i => s"$roomTitlePrefix-$i").filterNot(existingRooms.contains).head
+        createDebate(roomName, setup)
+      }
+  }
+
+  def createDebate(roomName: String, setupSpec: DebateSetupSpec): IO[Unit] = initializeDebate(
+    setupSpec
+  ).flatMap(createDebate(roomName, _))
+
+  def createDebate(roomName: String, setup: DebateSetup): IO[Unit] =
     for {
-      setup <- initializeDebate(setupSpec)
       debatersWhoHaveReadStory <- SourceMaterial
         .quality
         .getOption(setup.sourceMaterial)

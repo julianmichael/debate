@@ -92,7 +92,6 @@ all_graph_specifications = {
     "Dishonest_debater_by_final_probability": dishonest_debater_by_final_probability,
     "Judge_pairings": judge_pairings,
     "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds
-
 }
 
 

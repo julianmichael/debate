@@ -123,7 +123,8 @@ object Styles extends jjm.ui.View.Styles {
 
   // generic arrangement styles
 
-  val row = style(display.flex, flexDirection.row)
+  val row        = style(display.flex, flexDirection.row)
+  val rowWithGap = style(display.flex, flexDirection.row, gap(1 rem))
 
   val col = style(display.flex, flexDirection.column)
 
@@ -436,6 +437,10 @@ object Styles extends jjm.ui.View.Styles {
   )
 
   val inputRowItem = style(margin.auto)
+
+  val genericProbSliderLabel     = style(width(14 rem))
+  val genericProbSliderProbLabel = style(width(3 rem))
+  val genericProbSlider          = style(flexGrow(1))
 
   val probSlider =
     styleF.int(0 to 4)(i =>

@@ -24,6 +24,8 @@ import jjm.ui.CacheCallContent
 
 import debate.quality._
 import debate.util._
+import monocle.macros.Lenses
+import io.circe.generic.JsonCodec
 
 object DebateCreationPanel {
   val S = Styles
@@ -59,7 +61,19 @@ object DebateCreationPanel {
           }
     )
 
-  val ProfileOptSelect = new V.OptionalSelect[String](show = _.toString)
+  val RulesConfigNameSelect =
+    new V.Select[Option[String]](
+      show =
+        choice =>
+          choice match {
+            case None =>
+              "(Custom rule configuration)"
+            case Some(name) =>
+              name
+          }
+    )
+
+  val OptionalSelectString = new V.OptionalSelect[String](show = _.toString)
 
   def getValidatedCreateDebateCb(
     lobby: Lobby,
@@ -196,26 +210,62 @@ object DebateCreationPanel {
 
   def headerBar(
     lobby: Lobby,
-    setup: DebateSetupSpec,
+    state: StateSnapshot[State],
+    // setup: DebateSetupSpec,
+    // rules: StateSnapshot[DebateRules],
+    // numExpectedOfflineJudges: StateSnapshot[Int],
+    // isOfficial: StateSnapshot[Boolean],
+    // roomName: StateSnapshot[String],
+    registerRuleConfig: RegisterRuleConfig => Callback,
     joinDebate: Option[(Boolean, String) => Callback],
-    initDebate: CreateRoom => Callback,
-    isOfficial: StateSnapshot[Boolean],
-    roomName: StateSnapshot[String]
+    initDebate: CreateRoom => Callback
   ) = {
     val createDebateValidated: Validated[NonEmptyChain[Option[VdomTag]], Callback] =
-      getValidatedCreateDebateCb(lobby, roomName, isOfficial.value, setup, initDebate, joinDebate)
+      getValidatedCreateDebateCb(
+        lobby,
+        state.zoomStateL(State.roomName),
+        state.value.isOfficial,
+        state.value.setup,
+        initDebate,
+        joinDebate
+      )
 
     val infoMessages =
       List(
         Option(<.div("Debate has no live judge, but can be used for offline judging."))
-          .filter(_ => !setup.rules.hasJudge)
+          .filter(_ => !state.value.setup.rules.hasJudge)
       ).flatten
 
-    <.div(S.spaceySubcontainer, S.stickyBanner)(
-      roomSettings(isOfficial, roomName, createDebateValidated.toOption),
+    val warningMessages =
+      List {
+        val nExpected = state.value.numExpectedOfflineJudges
+        val nAssigned = state.value.setup.offlineJudges.size
+        val judgesNoun =
+          if (nExpected == 1)
+            "judge"
+          else
+            "judges"
+        val assignedCopula =
+          if (nAssigned == 1)
+            "is"
+          else
+            "are"
+        Option(
+          <.div(
+            s"The current ruleset expects at least $nExpected offline $judgesNoun, but $nAssigned $assignedCopula assigned."
+          )
+        ).filter(_ => nExpected > nAssigned)
+      }.flatten
+
+    <.div(c"pt-1", S.spaceySubcontainer, S.stickyBanner)(
+      roomSettings(
+        state.zoomStateL(State.isOfficial),
+        state.zoomStateL(State.roomName),
+        createDebateValidated.toOption
+      ),
       <.div {
         val (prefix, rooms) =
-          if (isOfficial.value)
+          if (state.value.isOfficial)
             "official" -> lobby.officialRooms
           else
             "practice" -> lobby.practiceRooms
@@ -231,8 +281,9 @@ object DebateCreationPanel {
                     <.a(
                       ^.href := "#",
                       roomMeta.name,
-                      joinDebate
-                        .whenDefined(join => ^.onClick --> join(isOfficial.value, roomMeta.name))
+                      joinDebate.whenDefined(join =>
+                        ^.onClick --> join(state.value.isOfficial, roomMeta.name)
+                      )
                     )
                   }
                 )
@@ -248,9 +299,86 @@ object DebateCreationPanel {
           }
           .when(rooms.nonEmpty)
       },
+      Local[Option[String]].make(None) { ruleConfigNameOpt =>
+        val updateRuleConfigCbOpt = ruleConfigNameOpt
+          .value
+          .flatMap { ruleConfigName =>
+            val newRuleConfig = RuleConfig(
+              ruleConfigName,
+              state.value.setup.rules,
+              state.value.numExpectedOfflineJudges
+            )
+            lobby
+              .ruleConfigs
+              .get(ruleConfigName)
+              .filter(_ != newRuleConfig)
+              .map(_ => registerRuleConfig(RegisterRuleConfig(newRuleConfig)))
+          }
+        ReactFragment(
+          <.div(c"input-group", ^.width.auto)(
+            RulesConfigNameSelect.modFull(select = S.customSelect)(
+              choices = None +: lobby.ruleConfigs.keySet.toList.sorted.map(Some(_)),
+              curChoice = ruleConfigNameOpt.value,
+              setChoice = {
+                case None =>
+                  ruleConfigNameOpt.setState(None)
+                case Some(name) =>
+                  lobby
+                    .ruleConfigs
+                    .get(name)
+                    .foldMap(config =>
+                      state.modState(
+                        State
+                          .setup
+                          .composeLens(DebateSetupSpec.rules)
+                          .set(config.rules)
+                          .andThen(
+                            State.numExpectedOfflineJudges.set(config.numOfflineJudgesPerDebate)
+                          )
+                      )
+                    ) >> ruleConfigNameOpt.setState(Some(name))
+              }
+            ),
+            <.div(c"input-group-append")(
+              <.button(c"btn btn-primary")(
+                "Update",
+                ^.`type`   := "button",
+                ^.disabled := updateRuleConfigCbOpt.isEmpty,
+                updateRuleConfigCbOpt.whenDefined(^.onClick --> _)
+              )
+            )
+          ),
+          if (ruleConfigNameOpt.value.isEmpty)
+            Option {
+              Local[String].make("") { newRuleConfigName =>
+                Utils.textInputWithEnterButton(
+                  newRuleConfigName,
+                  Some("New rule configuration"),
+                  "Save",
+                  isEnabled = newRuleConfigName.value.trim.nonEmpty,
+                  enter =
+                    registerRuleConfig(
+                      RegisterRuleConfig(
+                        RuleConfig(
+                          newRuleConfigName.value,
+                          state.value.setup.rules,
+                          state.value.numExpectedOfflineJudges
+                        )
+                      )
+                    ) >> ruleConfigNameOpt.setState(Some(newRuleConfigName.value))
+                )
+              }
+            }
+          else
+            None
+        )
+      },
       NonEmptyList
         .fromList(infoMessages)
         .whenDefined(msgs => <.div(c"alert alert-info mt-1")(msgs.toList.toVdomArray)),
+      NonEmptyList
+        .fromList(warningMessages)
+        .whenDefined(msgs => <.div(c"alert alert-warning mt-1")(msgs.toList.toVdomArray)),
       createDebateValidated
         .swap
         .toOption
@@ -276,6 +404,15 @@ object DebateCreationPanel {
     ),
     <.div(S.row)(V.Checkbox(isOfficial, "Official debate"))
   )
+
+  def numExpectedOfflineJudgesConfig(numExpectedOfflineJudges: StateSnapshot[Int]) =
+    <.div(S.mainLabeledInputRow)(
+      <.div(S.inputRowLabel)("Expected Number of Offline Judges"),
+      <.div(S.inputRowContents)(
+        <.p("This will be saved with the rule configuration and used in auto-scheduling."),
+        <.div(c"form-inline")(NumberField2(numExpectedOfflineJudges, None))
+      )
+    )
 
   def sourceMaterialConfig(
     sourceMaterial: StateSnapshot[SourceMaterialSpec],
@@ -376,7 +513,7 @@ object DebateCreationPanel {
         V.LiveTextField.String(setup.zoomStateL(DebateSetupSpec.question)),
         <.div(S.row)(
           <.div(S.inputLabel)("Judge:"),
-          ProfileOptSelect.mod(select = S.customSelect)(
+          OptionalSelectString.mod(select = S.customSelect)(
             choices = profiles,
             choice = setup
               .zoomStateL(DebateSetupSpec.roles.composeLens(Optics.at(Judge: LiveDebateRole)))
@@ -504,7 +641,7 @@ object DebateCreationPanel {
                       S.hidden.when(setup.value.correctAnswerIndex != index)
                     ),
                     <.div(S.inputLabel)("Debater:"),
-                    ProfileOptSelect.mod(select = S.customSelect)(
+                    OptionalSelectString.mod(select = S.customSelect)(
                       choices = lobby.profiles.keySet,
                       choice = setup.zoomStateL(
                         DebateSetupSpec.roles.composeLens(Optics.at(Debater(index): LiveDebateRole))
@@ -579,84 +716,97 @@ object DebateCreationPanel {
   def make(
     lobby: Lobby,
     qualityService: QuALITYService[AsyncCallback],
+    registerRuleConfig: RegisterRuleConfig => Callback,
     joinDebate: Option[(Boolean, String) => Callback],
     initDebate: CreateRoom => Callback
-  ) = Component(Props(lobby, qualityService, joinDebate, initDebate))
+  ) = Component(Props(lobby, qualityService, registerRuleConfig, joinDebate, initDebate))
 
   case class Props(
     lobby: Lobby,
     qualityService: QuALITYService[AsyncCallback],
+    registerRuleConfig: RegisterRuleConfig => Callback,
     joinDebate: Option[(Boolean, String) => Callback],
     initDebate: CreateRoom => Callback
   )
 
+  @Lenses
+  @JsonCodec
+  case class State(
+    setup: DebateSetupSpec = DebateSetupSpec.init,
+    roomName: String = "",
+    isOfficial: Boolean = true,
+    numExpectedOfflineJudges: Int = 0
+  )
+  object State
+
   val Component =
     ScalaComponent
       .builder[Props]("Debate Creation Panel")
-      .render_P { case Props(lobby, qualityService, joinDebate, initDebate) =>
-        Local[DebateSetupSpec].syncedWithSessionStorage("debate-setup", DebateSetupSpec.init) {
-          setup =>
-            Local[String].syncedWithSessionStorage("debate-setup-room-name", "") { roomName =>
-              Local[Boolean].syncedWithSessionStorage("debate-setup-is-official", true) {
-                isOfficial =>
-                  QuALITYIndexFetch.make(
-                    request = (),
-                    sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)
-                  ) { indexFetch =>
-                    val indexOpt =
-                      indexFetch match {
-                        case QuALITYIndexFetch.Loading =>
-                          None
-                        case QuALITYIndexFetch.Loaded(index) =>
-                          Some(index)
-                      }
-                    val articleIdOpt = SourceMaterialSpec
-                      .quality
-                      .getOption(setup.value.sourceMaterial)
-                      .map(_.articleId)
-                    QuALITYStoryOptFetch.make(
-                      request = articleIdOpt,
-                      sendRequest =
-                        articleIdOpt =>
-                          articleIdOpt match {
-                            case None =>
-                              OrWrapped.pure[AsyncCallback](None)
-                            case Some(articleId) =>
-                              OrWrapped.wrapped(qualityService.getStory(articleId).map(Option(_)))
-                          }
-                    ) { storyOptFetch =>
-                      val qualityStoryOpt = storyOptFetch.toOption.flatten
-                      Local[Option[QuALITYQuestion]]
-                        .syncedWithSessionStorage("selected-question", None) { qualityQuestionOpt =>
-                          <.div(S.facilitatorColumn, S.spaceySubcontainer)(
-                            headerBar(
-                              lobby,
-                              setup.value,
-                              joinDebate,
-                              initDebate,
-                              isOfficial,
-                              roomName
-                            ),
-                            DebateRulesPanel(setup.zoomStateL(DebateSetupSpec.rules)),
-                            sourceMaterialConfig(
-                              setup.zoomStateL(DebateSetupSpec.sourceMaterial),
-                              indexOpt,
-                              articleIdOpt,
-                              qualityStoryOpt
-                            ),
-                            questionConfig(
-                              lobby.profiles.keySet,
-                              setup,
-                              qualityStoryOpt,
-                              qualityQuestionOpt
-                            ),
-                            answersConfig(lobby, setup, qualityQuestionOpt.value),
-                            offlineJudgesPanel(lobby, setup)
-                          )
-                        }
-                    }
+      .render_P { case Props(lobby, qualityService, registerRuleConfig, joinDebate, initDebate) =>
+        Local[State].syncedWithSessionStorage("debate-creation-panel-state", State()) { state =>
+          QuALITYIndexFetch
+            .make(request = (), sendRequest = _ => OrWrapped.wrapped(qualityService.getIndex)) {
+              indexFetch =>
+                val indexOpt =
+                  indexFetch match {
+                    case QuALITYIndexFetch.Loading =>
+                      None
+                    case QuALITYIndexFetch.Loaded(index) =>
+                      Some(index)
                   }
-              }
+                val articleIdOpt = SourceMaterialSpec
+                  .quality
+                  .getOption(state.value.setup.sourceMaterial)
+                  .map(_.articleId)
+                QuALITYStoryOptFetch.make(
+                  request = articleIdOpt,
+                  sendRequest =
+                    articleIdOpt =>
+                      articleIdOpt match {
+                        case None =>
+                          OrWrapped.pure[AsyncCallback](None)
+                        case Some(articleId) =>
+                          OrWrapped.wrapped(qualityService.getStory(articleId).map(Option(_)))
+                      }
+                ) { storyOptFetch =>
+                  val qualityStoryOpt = storyOptFetch.toOption.flatten
+                  Local[Option[QuALITYQuestion]]
+                    .syncedWithSessionStorage("selected-question", None) { qualityQuestionOpt =>
+                      <.div(S.facilitatorColumn, S.spaceySubcontainer)(
+                        headerBar(
+                          lobby,
+                          state,
+                          registerRuleConfig = registerRuleConfig,
+                          joinDebate,
+                          initDebate
+                        ),
+                        DebateRulesPanel(
+                          state.zoomStateL(State.setup.composeLens(DebateSetupSpec.rules))
+                        ),
+                        numExpectedOfflineJudgesConfig(
+                          state.zoomStateL(State.numExpectedOfflineJudges)
+                        ),
+                        sourceMaterialConfig(
+                          state.zoomStateL(State.setup.composeLens(DebateSetupSpec.sourceMaterial)),
+                          indexOpt,
+                          articleIdOpt,
+                          qualityStoryOpt
+                        ),
+                        questionConfig(
+                          lobby.profiles.keySet,
+                          state.zoomStateL(State.setup),
+                          qualityStoryOpt,
+                          qualityQuestionOpt
+                        ),
+                        answersConfig(
+                          lobby,
+                          state.zoomStateL(State.setup),
+                          qualityQuestionOpt.value
+                        ),
+                        offlineJudgesPanel(lobby, state.zoomStateL(State.setup))
+                      )
+                    }
+                }
             }
         }
       }

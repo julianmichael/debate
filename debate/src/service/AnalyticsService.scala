@@ -1,4 +1,5 @@
 package debate
+package service
 
 import io.circe.Decoder
 import io.circe.Encoder

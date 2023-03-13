@@ -1,5 +1,8 @@
 package debate
 
+import debate.util.SparseDistribution
+import debate.util.DenseDistribution
+
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
@@ -26,80 +29,18 @@ import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.websocket.WebSocketBuilder
 
-import jjm.DotKleisli
 import jjm.implicits._
 import jjm.io.FileUtil
 import jjm.io.HttpUtil
 
+import debate.service._
 import debate.quality._
 import debate.singleturn.SingleTurnDebateUtils
 import debate.singleturn.SingleTurnDebateQuestion
-import _root_.io.circe.Json
 import org.http4s.client.Client
 import scala.concurrent.ExecutionContext
 
-object AnalyticsServer {
-  case class Handle(port: Int, restart: IO[Unit], shutdown: IO[Unit])
-  // def startPythonServer(port: Int)(implicit cs: ContextShift[IO]): Resource[IO, Handle] =
-  //   Resource.make[IO, Handle](
-  //     IO {
-  //       val x = IO.unit.start
-  //       import sys.process._
-  //       val p = Process("ls")
-  //       // p.
-  //       Handle(
-  //         port = port,
-  //         restart = IO.unit, // TODO
-  //         shutdown = IO.unit // TODO
-  //       )
-  //     }
-  //   )(_.shutdown)
-
-  // def makeClientOfPythonServer(handle: Handle, httpClient: Client[IO]): AnalyticsService[IO] = {
-  def makeClientOfPythonServer(
-    port: Int,
-    httpClient: Client[IO],
-    stateManager: DebateStateManager,
-    blocker: Blocker
-  )(implicit cs: ContextShift[IO]): AnalyticsService[IO] = {
-    import org.http4s.{Request => HttpRequest}
-    import org.http4s._
-
-    val baseUri = Uri(
-      scheme = Some(Uri.Scheme.http),
-      authority = Some(Uri.Authority(port = Some(port)))
-    )
-
-    import org.http4s.circe._
-
-    def doRequest(req: AnalyticsService.Request, httpRequest: HttpRequest[IO]): IO[req.Out] =
-      httpClient
-        .expect[Json](httpRequest)
-        .flatMap { responseJson =>
-          IO.fromEither(
-            AnalyticsService.Request.analyticsServiceRequestDotDecoder(req)(responseJson.hcursor)
-          )
-        }
-
-    def get(uri: Uri)  = HttpRequest[IO](method = Method.GET, uri = uri)
-    def post(uri: Uri) = HttpRequest[IO](method = Method.POST, uri = uri)
-
-    new AnalyticsService[IO] {
-      def refresh =
-        stateManager.writeCSVs(blocker) >>
-          doRequest(AnalyticsService.Request.Refresh, post(baseUri.withPath("/refresh")))
-      def getAnalyticsGraphNames = doRequest(
-        AnalyticsService.Request.GetAnalyticsGraphNames,
-        get(baseUri.withPath("/all_graphs"))
-      )
-      def getAnalyticsGraph(name: String) = doRequest(
-        AnalyticsService.Request.GetAnalyticsGraph(name),
-        get(baseUri.withPath(s"/graph/$name"))
-      )
-    }
-  }
-
-}
+import cats.data.NonEmptySet
 
 case class Server(
   dataPath: NIOPath,
@@ -107,6 +48,7 @@ case class Server(
   blocker: Blocker,
   qualityDataset: Map[String, QuALITYStory],
   singleTurnDebateDataset: Map[String, Vector[SingleTurnDebateQuestion]],
+  qualityMatches: Map[String, NonEmptySet[String]], // map from story ID to question IDs
   profiles: Ref[IO, Map[String, Profile]],
   ruleConfigs: Ref[IO, Map[String, RuleConfig]],
   presence: Ref[IO, Map[String, Int]],
@@ -121,33 +63,82 @@ case class Server(
   import Server._
 
   val qualityService = HttpUtil.makeHttpPostServer(
-    new DotKleisli[IO, QuALITYService.Request] {
-      import QuALITYService.Request
-      def apply(req: Request): IO[req.Out] = {
-        val res =
-          req match {
-            case Request.GetIndex =>
-              IO(qualityDataset.mapVals(_.title))
-            case Request.GetStory(articleId) =>
-              IO(qualityDataset(articleId))
-          }
-        // not sure why it isn't inferring the type...
-        res.asInstanceOf[IO[req.Out]]
-      }
+    new QuALITYService[IO] {
+      def getIndex                    = IO(qualityDataset.mapVals(_.title))
+      def getStory(articleId: String) = IO(qualityDataset(articleId))
     }
   )
   val ajaxService = HttpUtil.makeHttpPostServer(
-    new DotKleisli[IO, AjaxService.Request] {
-      import AjaxService.Request
-      def apply(req: Request): IO[req.Out] = {
-        val res =
-          req match {
-            case Request.GetDebaters =>
-              profiles.get
+    new AjaxService[IO] {
+      def getDebaters = profiles.get
+      def getSourceMaterialIndex = officialDebates
+        .rooms
+        .get
+        .map { rooms =>
+          qualityDataset.map { case (articleId, story) =>
+            articleId ->
+              QuALITYStoryMetadata(
+                articleId = story.articleId,
+                title = story.title,
+                splits = story.questions.map(_._2.split).toSet,
+                source = story.source,
+                numSingleTurnDebateMatches = qualityMatches.get(articleId).foldMap(_.size.toInt),
+                hasBeenDebated = rooms
+                  .values
+                  .exists(room =>
+                    SourceMaterial
+                      .quality
+                      .getOption(room.debate.debate.setup.sourceMaterial)
+                      .exists(_.articleId == articleId)
+                  )
+              )
           }
-        // not sure why it isn't inferring the type...
-        res.asInstanceOf[IO[req.Out]]
-      }
+        }
+
+      def getStoryAndMatches(articleId: String): IO[(QuALITYStory, Set[String])] = IO(
+        qualityDataset(articleId) -> qualityMatches.get(articleId).foldMap(_.toSortedSet)
+      )
+
+      import debate.scheduler._
+      def sampleSchedule(
+        workloadDist: SparseDistribution[String],
+        ruleDist: SparseDistribution[RuleConfig],
+        articleId: String,
+        questionIds: Set[String],
+        numDebatesPerQuestion: Int
+      ): IO[Option[Vector[DebateSetup]]] =
+        for {
+          rooms <- officialDebates.rooms.get
+          allDebates = rooms.values.view.map(_.debate.debate).toVector
+          complete   = allDebates.filter(_.isOver).map(_.setup)
+          incomplete = allDebates.filterNot(_.isOver).map(_.setup)
+          story <- IO(qualityDataset(articleId))
+          qas = DebateScheduler.getQAsForStory(story)
+          rand         <- IO(new scala.util.Random)
+          creationTime <- IO(System.currentTimeMillis())
+          schedulesOpt =
+            DebateScheduler
+              .efficientlySampleSchedules(
+                desiredWorkload = workloadDist,
+                rules = ruleDist,
+                complete = complete,
+                incomplete = incomplete,
+                sourceMaterial = QuALITYSourceMaterial(
+                  articleId = story.articleId,
+                  title = story.title,
+                  contents = tokenizeStory(story.article)
+                ),
+                qas = qas.filter(qa => questionIds.contains(qa.questionId)),
+                numDebatesPerQuestion = numDebatesPerQuestion,
+                // debaters = Map(), // people.mapVals(_ => DebaterLoadConstraint(None, None)),
+                creationTime = creationTime,
+                rand
+              )
+              .toOption
+          scheduleDistOpt = schedulesOpt
+            .map(sample => DenseDistribution.fromSoftmax[Schedule](sample, -_.cost))
+          schedule <- IO(scheduleDistOpt.map(_.sample(rand)))
+        } yield schedule.map(_.novel)
     }
   )
 
@@ -251,6 +242,14 @@ case class Server(
         _        <- FileUtil.writeJson(profilesSavePath(saveDir))(debaters)
       } yield ()
 
+    def registerRuleConfig(ruleConfig: RuleConfig) =
+      for {
+        _           <- ruleConfigs.update(_ + (ruleConfig.name -> ruleConfig))
+        _           <- pushUpdate
+        ruleConfigs <- ruleConfigs.get
+        _           <- FileUtil.writeJson(ruleConfigsSavePath(saveDir))(ruleConfigs)
+      } yield ()
+
     def removeDebater(name: String) =
       for {
         _        <- profiles.update(_ - name)
@@ -314,6 +313,8 @@ case class Server(
                       }
                   case RegisterDebater(profile) =>
                     registerDebater(profile)
+                  case RegisterRuleConfig(ruleConfig) =>
+                    registerRuleConfig(ruleConfig)
                   case RemoveDebater(name) =>
                     removeDebater(name)
                   case DeleteRoom(isOfficial, roomName) =>
@@ -326,6 +327,11 @@ case class Server(
                       officialDebates.createDebate(roomName, setupSpec)
                     else
                       practiceDebates.createDebate(roomName, setupSpec)
+                  case CreateRooms(isOfficial, setups) =>
+                    if (isOfficial)
+                      officialDebates.createDebates(setups)
+                    else
+                      practiceDebates.createDebates(setups)
                 },
           onClose = presence.update(p => (p |+| Map(profile -> -1)).filter(_._2 > 0)) >> pushUpdate
         )
@@ -347,6 +353,15 @@ case class Server(
           debate.Page(jsLocation = jsLocation, jsDepsLocation = jsDepsLocation).render,
           Header("Content-Type", "text/html")
         )
+
+      // download all save data
+      case req @ GET -> Root / "download" =>
+        val saveZipPath = Paths.get(saveDir.toString + ".zip")
+        Utils.zipDirectory(
+          saveZipPath,
+          saveDir,
+          exclude = _.getFileName().toString == "profiles.json"
+        ) >> StaticFile.fromString(saveZipPath.toString, blocker, Some(req)).getOrElseF(NotFound())
 
       // js file
       case req @ GET -> Root / `staticFilePrefix` / `jsLocation` =>
@@ -440,24 +455,25 @@ object Server {
       qualityMatches = Utils.identifyQualityMatches(qualityDataset, singleTurnDebateDataset)
       profiles <- FileUtil
         .readJson[Map[String, Profile]](profilesSavePath(saveDir))
-        .recoverWith { case _: Throwable =>
-          FileUtil
-            .readJson[Set[String]](debatersSavePath(saveDir))
-            .map(_.map(name => name -> Profile(name, None)).toMap)
-            .recoverWith { case e: Throwable =>
-              IO {
-                println("Error reading debaters JSON. Initializing to JSON with a dummy profile.")
-                println(s"--->\tError message: ${e.getMessage()}")
-                List(Profile("John Doe", None)).view.map(p => p.name -> p).toMap
-              }
-            }
+        .recoverWith { case e: Throwable =>
+          IO {
+            println(
+              """Could not read debaters JSON. Initializing to empty. This may happen when
+                |loading a new development server for the first time, because we don't want to
+                |load slack emails, which would lead to poking during testing.""".stripMargin.trim
+            )
+            println(s"--->\tMessage: ${e.getMessage()}")
+            List[Profile]().view.map(p => p.name -> p).toMap
+          }
         }
       ruleConfigs <- FileUtil
         .readJson[Map[String, RuleConfig]](ruleConfigsSavePath(saveDir))
         .recoverWith { case e: Throwable =>
           IO {
-            println("Error reading rules JSON. Initializing to empty.")
-            println(s"--->\tError message: ${e.getMessage()}")
+            println("""Could not read rules JSON. Initializing to empty. This happens when
+                      |there are no saved rule configurations, e.g., when loading a new development
+                      |server for the first time.""".stripMargin.trim)
+            println(s"--->\tMessage: ${e.getMessage()}")
             Map.empty[String, RuleConfig]
           }
         }
@@ -489,6 +505,15 @@ object Server {
       // channel to update all clients on the lobby state
       leaderboard <- officialDebates.getLeaderboard
       allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
+      _ <- profilesRef
+        .get
+        .map(_.isEmpty)
+        .ifM(
+          ifTrue =
+            IO(println("Initializing profiles to include all assigned debaters.")) >>
+              profilesRef.set(allDebaters.view.map(name => name -> Profile(name, None)).toMap),
+          ifFalse = IO.unit
+        )
       mainChannel <- Topic[IO, Lobby](
         Lobby(
           profiles,
@@ -529,6 +554,7 @@ object Server {
       blocker = blocker,
       qualityDataset = qualityDataset,
       singleTurnDebateDataset = singleTurnDebateDataset,
+      qualityMatches = qualityMatches,
       profiles = profilesRef,
       ruleConfigs = ruleConfigsRef,
       presence = presenceRef,

@@ -1,5 +1,4 @@
-package debate
-package util
+package debate.util
 
 import cats.data.NonEmptyVector
 import scala.util.Random
@@ -39,6 +38,7 @@ class DenseDistribution[A] private (probs: NonEmptyVector[(A, Double)]) {
     var nToGo     = n
     while (nToGo > 0 && remaining.nonEmpty) {
       nToGo = nToGo - 1
+      // not deconstructing in assignment because of some compiler foible?
       val (next, idx) = DenseDistribution(NonEmptyVector.fromVector(remaining).get)
         .sampleWithIndex(rng)
       sampled = next :: sampled

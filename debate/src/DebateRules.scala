@@ -6,11 +6,14 @@ import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
 
 import jjm.implicits._
+import cats.Order
 
 @Lenses
 @JsonCodec
 case class RuleConfig(name: String, rules: DebateRules, numOfflineJudgesPerDebate: Int)
-object RuleConfig
+object RuleConfig {
+  implicit def ruleConfigOrder = Order.by[RuleConfig, String](_.name)
+}
 
 @Lenses
 @JsonCodec

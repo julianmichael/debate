@@ -55,12 +55,19 @@ object AdminPanel {
                 )
               )
             ),
+          "Schedule Debates" ->
+            TabNav.tab(
+              <.div(c"card-body", S.spaceySubcontainer)(
+                DebateSchedulingPanel(lobby, sendToMainChannel)
+              )
+            ),
           "Create Debate" ->
             TabNav.tab(
               <.div(c"card-body", S.spaceySubcontainer)(
                 DebateCreationPanel.make(
                   lobby = lobby,
                   qualityService = qualityService,
+                  registerRuleConfig = sendToMainChannel,
                   joinDebate = joinRoomOpt,
                   initDebate = sendToMainChannel
                 )

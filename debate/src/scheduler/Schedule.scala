@@ -12,6 +12,7 @@ import cats.kernel.Order
 @Lenses
 case class Schedule(
   desiredWorkload: SparseDistribution[String],
+  desiredRules: SparseDistribution[RuleConfig],
   complete: Vector[DebateSetup],
   incomplete: Vector[DebateSetup],
   novel: Vector[DebateSetup]
@@ -24,26 +25,6 @@ case class Schedule(
 
   def forStory(storyId: SourceMaterialId) = all
     .filter(setup => SourceMaterialId.fromSourceMaterial(setup.sourceMaterial) == storyId)
-
-  def workloadCounts = {
-    // imbalances in load should be penalized differently depending on source
-    // (e.g., judging an extra debate offline is less work than reading a new story)
-    val storyWeight          = 1.0
-    val debateWeight         = 1.0
-    val liveJudgingWeight    = 0.5
-    val offlineJudgingWeight = 0.25
-
-    val stories = allIncomplete
-      .foldMap(a => a.debaters.map(_ -> Set(a.storyId)).toMap)
-      .mapVals(_.size.toDouble * storyWeight)
-    val debates = allIncomplete.foldMap(assignment =>
-      assignment.debaters.unorderedFoldMap(d => Map(d -> debateWeight)) |+|
-        assignment.judge.foldMap(j => Map(j -> liveJudgingWeight)) |+|
-        assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(j -> offlineJudgingWeight))
-    )
-    stories |+| debates
-  }
-  lazy val workload = SparseDistribution.fromMap(workloadCounts).get
 
   // Map[person, Map[factor -> load]]
   def computeImbalance[A: Order](loadPerDebater: Map[String, Map[A, Double]]) = {
@@ -67,8 +48,36 @@ case class Schedule(
     exponent: Double = 1.2
   ): Double = (x.probs.map(-_) |+| y.probs).unorderedFoldMap(x => math.pow(math.abs(x), exponent))
 
+  def workloadCounts = {
+    // imbalances in load should be penalized differently depending on source
+    // (e.g., judging an extra debate offline is less work than reading a new story)
+    val storyWeight          = 1.0
+    val debateWeight         = 1.0
+    val liveJudgingWeight    = 0.5
+    val offlineJudgingWeight = 0.25
+
+    val stories = allIncomplete
+      .foldMap(a => a.debaters.map(_ -> Set(a.storyId)).toMap)
+      .mapVals(_.size.toDouble * storyWeight)
+    val debates = allIncomplete.foldMap(assignment =>
+      assignment.debaters.unorderedFoldMap(d => Map(d -> debateWeight)) |+|
+        assignment.judge.foldMap(j => Map(j -> liveJudgingWeight)) |+|
+        assignment.offlineJudges.keySet.unorderedFoldMap(j => Map(j -> offlineJudgingWeight))
+    )
+    stories |+| debates
+  }
+  lazy val workload = SparseDistribution.fromMap(workloadCounts).get
+
   // assign the right amount of debating to the right people
   def workloadImbalance = distance(workload, desiredWorkload)
+
+  val ruleCounts = {
+    val configs = desiredRules.probs.keys.toList
+    novel.flatMap(setup => configs.find(_.rules == setup.rules)).counts
+  }
+  val rulesDistOpt = SparseDistribution.fromMap(ruleCounts.mapVals(_.toDouble))
+  // distribute novel assignments according to rules distribution
+  def rulesImbalance = rulesDistOpt.foldMap(rulesDist => distance(rulesDist, desiredRules))
 
   // assign the right amount of work to the right people
   // def workloadImbalance = distance(workload, desiredWorkload)
