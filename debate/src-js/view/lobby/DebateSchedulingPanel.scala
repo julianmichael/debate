@@ -30,6 +30,12 @@ object DebateSchedulingPanel {
 //           }
 //     )
 
+//   import App.ajaxService
+
+  //   desiredWorkload <- SparseDistribution
+  //     .fromMap(people.map(_ -> 1.0).toMap)
+  //     .toRight("No people to schedule.")
+
   def apply(
     // lobby: Lobby,
     // qualityService: QuALITYService[AsyncCallback],

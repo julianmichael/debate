@@ -34,6 +34,7 @@ object DebateScheduler {
             // System.err.println(s"Multiple best distractors: ${question.asJson.spaces2}")
           }
           DebateScheduler.QASpec(
+            questionId = question.questionUniqueId,
             question = question.question,
             correctAnswer = question.options(annotations.goldLabel - 1),
             incorrectAnswer = question.options(bestDistractors.head - 1)
@@ -58,7 +59,12 @@ object DebateScheduler {
         |  ${setup.offlineJudges.keySet.mkString("\n|  ")}
     """.stripMargin.trim
 
-  case class QASpec(question: String, correctAnswer: String, incorrectAnswer: String)
+  case class QASpec(
+    questionId: String,
+    question: String,
+    correctAnswer: String,
+    incorrectAnswer: String
+  )
 
   def sampleDebater(
     schedule: Schedule,
@@ -325,7 +331,7 @@ object DebateScheduler {
   }
 
   def efficientlySampleSchedules(
-    people: Set[String],
+    desiredWorkload: SparseDistribution[String],
     complete: Vector[DebateSetup],
     incomplete: Vector[DebateSetup],
     rules: DebateRules,
@@ -349,79 +355,75 @@ object DebateScheduler {
 
     // val numDebates       = qas.size * numDebatesPerQuestion
 
-    for {
-      desiredWorkload <- SparseDistribution
-        .fromMap(people.map(_ -> 1.0).toMap)
-        .toRight("No people to schedule.")
-      startingSchedule = Schedule(
-        desiredWorkload = desiredWorkload,
-        complete = complete,
-        incomplete = incomplete,
-        novel = Vector()
+    val startingSchedule = Schedule(
+      desiredWorkload = desiredWorkload,
+      complete = complete,
+      incomplete = incomplete,
+      novel = Vector()
+    )
+    val workload = startingSchedule.workload
+    val debaterChoiceDist = DenseDistribution
+      .fromSoftmax[String](
+        NonEmptyVector.fromVector(debaters.keySet.toVector).get,
+        d => Params.workloadMultiplier * (desiredWorkload.prob(d) - workload.prob(d))
       )
-      workload = startingSchedule.workload
-      // sample debaters according to how far off they are from their desired workload
-      debaterChoiceDist = DenseDistribution
-        .fromSoftmax[String](
-          NonEmptyVector.fromVector(debaters.keySet.toVector).get,
-          d => Params.workloadMultiplier * (desiredWorkload.prob(d) - workload.prob(d))
-        )
-        .withTemperature(Params.samplingTemperature)
-      attemptedSampledSchedules = (1 to 10) // number of different debater sets we try
-        .toVector
-        .map { _ =>
-          val chosenDebaters = debaterChoiceDist.sampleWithoutReplacement(numDebaters, rand).toSet
+      .withTemperature(Params.samplingTemperature)
 
-          qas
-            .traverse(qa =>
-              (1 to numDebatesPerQuestion)
-                .toVector
-                .traverse(_ =>
-                  for {
-                    schedule <- StateT.get[Either[String, *], Schedule]
-                    setup <- StateT.liftF(
-                      sampleSetupForQuestion(
-                        schedule,
-                        sourceMaterial,
-                        rules,
-                        qa,
-                        chosenDebaters,
-                        debaters.keySet -- chosenDebaters,
-                        numOfflineJudgesPerDebate,
-                        creationTime,
-                        rand
-                      )
+    // sample debaters according to how far off they are from their desired workload
+    val attemptedSampledSchedules = (1 to 10) // number of different debater sets we try
+      .toVector
+      .map { _ =>
+        val chosenDebaters = debaterChoiceDist.sampleWithoutReplacement(numDebaters, rand).toSet
+
+        qas
+          .traverse(qa =>
+            (1 to numDebatesPerQuestion)
+              .toVector
+              .traverse(_ =>
+                for {
+                  schedule <- StateT.get[Either[String, *], Schedule]
+                  setup <- StateT.liftF(
+                    sampleSetupForQuestion(
+                      schedule,
+                      sourceMaterial,
+                      rules,
+                      qa,
+                      chosenDebaters,
+                      debaters.keySet -- chosenDebaters,
+                      numOfflineJudgesPerDebate,
+                      creationTime,
+                      rand
                     )
-                    _ <- StateT
-                      .modify[Either[String, *], Schedule](Schedule.novel.modify(_ :+ setup))
-                  } yield setup
-                )
-            )
-            .runS(startingSchedule)
-            .flatMap(schedule =>
-              if (Constraints.doesScheduleObeyLoadConstraints(schedule, debaters)) {
-                Right(schedule)
-              } else {
-                Left("Schedule does not obey load constraints")
-              }
-            )
-            .flatMap(schedule =>
-              if (Constraints.doesScheduleMeetJudgingConstraints(schedule)) {
-                Right(schedule)
-              } else {
-                Left("Schedule does not meet judging constraints")
-              }
-            )
-        }
-
-      sampledSchedules = attemptedSampledSchedules.flatMap {
-        case Right(sched) =>
-          Some(sched)
-        case Left(msg) =>
-          System.err.println(msg)
-          None
+                  )
+                  _ <- StateT.modify[Either[String, *], Schedule](Schedule.novel.modify(_ :+ setup))
+                } yield setup
+              )
+          )
+          .runS(startingSchedule)
+          .flatMap(schedule =>
+            if (Constraints.doesScheduleObeyLoadConstraints(schedule, debaters)) {
+              Right(schedule)
+            } else {
+              Left("Schedule does not obey load constraints")
+            }
+          )
+          .flatMap(schedule =>
+            if (Constraints.doesScheduleMeetJudgingConstraints(schedule)) {
+              Right(schedule)
+            } else {
+              Left("Schedule does not meet judging constraints")
+            }
+          )
       }
-      result <- NonEmptyVector.fromVector(sampledSchedules).toRight("No valid schedules produced.")
-    } yield result
+
+    val sampledSchedules = attemptedSampledSchedules.flatMap {
+      case Right(sched) =>
+        Some(sched)
+      case Left(msg) =>
+        System.err.println(msg)
+        None
+    }
+
+    NonEmptyVector.fromVector(sampledSchedules).toRight("No valid schedules produced.")
   }
 }

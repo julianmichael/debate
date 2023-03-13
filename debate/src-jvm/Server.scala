@@ -1,5 +1,8 @@
 package debate
 
+import debate.util.SparseDistribution
+import debate.util.DenseDistribution
+
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
@@ -68,6 +71,75 @@ case class Server(
   val ajaxService = HttpUtil.makeHttpPostServer(
     new AjaxService[IO] {
       def getDebaters = profiles.get
+      def getSourceMaterialIndex = officialDebates
+        .rooms
+        .get
+        .map { rooms =>
+          qualityDataset.map { case (articleId, story) =>
+            articleId ->
+              QuALITYStoryMetadata(
+                title = story.title,
+                splits = story.questions.map(_._2.split).toSet,
+                source = story.source,
+                numSingleTurnDebateMatches = qualityMatches.get(articleId).foldMap(_.size.toInt),
+                hasBeenDebated = rooms
+                  .values
+                  .exists(room =>
+                    SourceMaterial
+                      .quality
+                      .getOption(room.debate.debate.setup.sourceMaterial)
+                      .exists(_.articleId == articleId)
+                  )
+              )
+          }
+        }
+
+      def getStoryAndMatches(articleId: String): IO[(QuALITYStory, Set[String])] = IO(
+        qualityDataset(articleId) -> qualityMatches.get(articleId).foldMap(_.toSortedSet)
+      )
+
+      import debate.scheduler._
+      def sampleSchedule(
+        workloadDist: SparseDistribution[String],
+        ruleDist: SparseDistribution[RuleConfig],
+        articleId: String,
+        questionIds: Set[String],
+        numDebatesPerQuestion: Int
+      ): IO[Option[Vector[DebateSetup]]] =
+        for {
+          people <- profiles.get
+          rooms  <- officialDebates.rooms.get
+          allDebates = rooms.values.view.map(_.debate.debate).toVector
+          complete   = allDebates.filter(_.isOver).map(_.setup)
+          incomplete = allDebates.filterNot(_.isOver).map(_.setup)
+          story <- IO(qualityDataset(articleId))
+          qas = DebateScheduler.getQAsForStory(story)
+          rand         <- IO(new scala.util.Random)
+          creationTime <- IO(System.currentTimeMillis())
+          schedulesOpt =
+            DebateScheduler
+              .efficientlySampleSchedules(
+                people = ???, // people.keySet,
+                complete = complete,
+                incomplete = incomplete,
+                rules = ???,
+                sourceMaterial = QuALITYSourceMaterial(
+                  articleId = story.articleId,
+                  title = story.title,
+                  contents = tokenizeStory(story.article)
+                ),
+                qas = qas.filter(qa => questionIds.contains(qa.questionId)),
+                numDebatesPerQuestion = 2,
+                numOfflineJudgesPerDebate = 0,
+                debaters = people.mapVals(_ => DebaterLoadConstraint(None, None)),
+                creationTime = creationTime,
+                rand
+              )
+              .toOption
+          scheduleDistOpt = schedulesOpt
+            .map(sample => DenseDistribution.fromSoftmax[Schedule](sample, -_.cost))
+          schedule <- IO(scheduleDistOpt.map(_.sample(rand)))
+        } yield schedule.map(_.novel)
     }
   )
 

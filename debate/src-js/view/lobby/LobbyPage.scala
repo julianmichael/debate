@@ -68,7 +68,7 @@ object LobbyPage {
                 )
               ),
             "Leaderboard" -> TabNav.tab(LeaderboardPanel(lobby)),
-            "Analytics" -> TabNav.tab(AnalyticsPanel()),
+            "Analytics"   -> TabNav.tab(AnalyticsPanel()),
             "Admin" ->
               TabNav.tab(
                 AdminPanel(
