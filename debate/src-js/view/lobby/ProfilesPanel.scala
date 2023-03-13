@@ -1,13 +1,15 @@
 package debate
 package view.lobby
 
+import cats.Order
 import cats.implicits._
-import debate.Utils.ClassSetInterpolator
+
+import japgolly.scalajs.react._
+import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
-import japgolly.scalajs.react._
-import cats.Order
-import japgolly.scalajs.react.feature.ReactFragment
+
+import debate.Utils.ClassSetInterpolator
 import debate.util.Local
 
 object ProfilesPanel {

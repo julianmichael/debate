@@ -9,13 +9,13 @@ import java.time.temporal.ChronoUnit
 import cats.implicits._
 
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
 import jjm.implicits._
 import jjm.ui.Rgba
-import japgolly.scalajs.react.extra.StateSnapshot
 
 object MetadataBox {
   import Utils.ClassSetInterpolator

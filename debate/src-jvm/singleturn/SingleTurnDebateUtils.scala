@@ -1,5 +1,6 @@
 package debate.singleturn
 
+import java.io.File
 import java.net.URL
 import java.nio.file.{Path => NIOPath}
 import java.nio.file.Files
@@ -8,7 +9,6 @@ import cats.effect.Blocker
 import cats.effect.ContextShift
 import cats.effect.IO
 import cats.implicits._
-import java.io.File
 
 // import jjm.io.FileUtil
 

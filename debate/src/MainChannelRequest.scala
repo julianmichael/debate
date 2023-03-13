@@ -1,7 +1,8 @@
 package debate
 
-import io.circe.generic.JsonCodec
 import cats.data.NonEmptySet
+
+import io.circe.generic.JsonCodec
 
 @JsonCodec
 sealed trait MainChannelRequest

@@ -1,10 +1,11 @@
 package debate
 
+import java.io.File
 import java.nio.file.{Path => NIOPath}
 
-import com.github.tototoshi.csv._
-import java.io.File
 import cats.effect.IO
+
+import com.github.tototoshi.csv._
 
 object DataSummarizer {
 

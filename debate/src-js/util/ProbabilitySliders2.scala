@@ -4,6 +4,7 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
+
 import debate.util.SparseDistribution
 
 /** HOC for probability sliders, where each outcome gets a slider and they're

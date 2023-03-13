@@ -1,24 +1,22 @@
 package debate
 package view.debate
 import cats.Id
-
 import cats.data.NonEmptyChain
+import cats.data.Validated
 import cats.implicits._
 
-import japgolly.scalajs.react.vdom.html_<^._
+import japgolly.scalajs.react.Callback
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.feature.ReactFragment
+import japgolly.scalajs.react.vdom.html_<^._
+import monocle.function.{all => Optics}
+import scalacss.ScalaCssReact._
+
 import jjm.DotMap
 import jjm.DotPair
-import japgolly.scalajs.react.feature.ReactFragment
 
 import debate.Utils.ClassSetInterpolator
-
-import scalacss.ScalaCssReact._
-import japgolly.scalajs.react.Callback
-import cats.data.Validated
-
-import monocle.function.{all => Optics}
 
 object FeedbackSurvey {
 

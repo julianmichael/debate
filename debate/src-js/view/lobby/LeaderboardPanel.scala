@@ -11,9 +11,8 @@ import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros.Lenses
 import scalacss.ScalaCssReact._
 
-import debate.util.Local
-
 import debate.Utils.ClassSetInterpolator
+import debate.util.Local
 
 object LeaderboardPanel {
 

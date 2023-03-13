@@ -1,9 +1,9 @@
 package debate
 package scheduler
 
-import munit.CatsEffectSuite
-
 import java.nio.file.Paths
+
+import munit.CatsEffectSuite
 
 // import cats.effect.Blocker
 // import cats.effect.IO

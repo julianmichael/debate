@@ -1,34 +1,33 @@
 package debate
 package view.lobby
 
-import japgolly.scalajs.react._
-import japgolly.scalajs.react.MonocleReact._
-// import japgolly.scalajs.react.extra.StateSnapshot
-// import japgolly.scalajs.react.feature.ReactFragment
-import japgolly.scalajs.react.vdom.html_<^._
-import japgolly.scalajs.react.feature.ReactFragment
-import debate.scheduler.DebateScheduler
-import debate.util.Local
-import debate.util.SparseDistribution
-import debate.util.ProbabilitySliders2
-import monocle.function.{all => Optics}
-// import monocle.std.{all => StdOptics}
-import scalacss.ScalaCssReact._
-
-import cats.implicits._
+import scala.collection.immutable.SortedSet
+import scala.util.Failure
+import scala.util.Success
 
 import cats.data.NonEmptySet
-import scala.collection.immutable.SortedSet
-import scala.util.Success
-import scala.util.Failure
+import cats.implicits._
+
+import japgolly.scalajs.react._
+import japgolly.scalajs.react.MonocleReact._
+import japgolly.scalajs.react.feature.ReactFragment
+import japgolly.scalajs.react.vdom.html_<^._
+import monocle.function.{all => Optics}
 import monocle.macros.Lenses
-import jjm.ui.CacheCallContent
-import debate.service.QuALITYStoryMetadata
-import debate.quality.QuALITYStory
+import scalacss.ScalaCssReact._
+
 import jjm.OrWrapped
+import jjm.ui.CacheCallContent
+
 import debate.quality.QuALITYQuestion
+import debate.quality.QuALITYStory
+import debate.scheduler.DebateScheduler
+import debate.service.QuALITYStoryMetadata
 import debate.util.Checkbox2
+import debate.util.Local
 import debate.util.NumberField2
+import debate.util.ProbabilitySliders2
+import debate.util.SparseDistribution
 
 object DebateSchedulingPanel {
   val S = Styles

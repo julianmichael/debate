@@ -1,13 +1,15 @@
 package debate
 package scheduler
 
-import debate.util.SparseDistribution
-import cats.implicits._
-import debate.util.DenseDistribution
-import cats.data.NonEmptyVector
 import scala.util.Random
+
+import cats.data.NonEmptyVector
 import cats.data.StateT
+import cats.implicits._
+
 import debate.quality.QuALITYStory
+import debate.util.DenseDistribution
+import debate.util.SparseDistribution
 
 object DebateScheduler {
 

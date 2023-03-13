@@ -1,12 +1,13 @@
 package debate
 package util
 
+import scala.reflect.ClassTag
+
 import io.circe.Decoder
 import io.circe.Encoder
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
-import scala.reflect.ClassTag
 
 class Local[A] private (name: String) {
   type State   = A

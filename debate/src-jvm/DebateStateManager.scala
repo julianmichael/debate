@@ -5,7 +5,9 @@ import java.nio.file.Files
 
 import scala.concurrent.duration._
 
+import cats.effect.Blocker
 import cats.effect.Concurrent
+import cats.effect.ContextShift
 import cats.effect.IO
 import cats.effect.Timer
 import cats.effect.concurrent.Ref
@@ -18,10 +20,8 @@ import monocle.macros.Lenses
 import monocle.std.{all => StdOptics}
 import org.http4s.server.websocket._
 
-import jjm.io.FileUtil
 import jjm.implicits._
-import cats.effect.Blocker
-import cats.effect.ContextShift
+import jjm.io.FileUtil
 
 /** The server state for a debate room.
   *

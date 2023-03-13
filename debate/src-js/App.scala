@@ -7,23 +7,21 @@ import cats.~>
 
 import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
+import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
+import org.scalajs.jquery.jQuery
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
+import jjm.OrWrapped
 import jjm.io.HttpUtil
+import jjm.ui.CacheCallContent
 import jjm.ui.Mounting
 
-import org.scalajs.jquery.jQuery
-// import debate.facades.jQuery
+import debate.Utils.ClassSetInterpolator
 import debate.service._
 import debate.util._
-import japgolly.scalajs.react.extra.StateSnapshot
-
-import Utils.ClassSetInterpolator
-import jjm.ui.CacheCallContent
-import jjm.OrWrapped
 
 @JsonCodec
 case class ConnectionSpec(isOfficial: Boolean, roomName: String, participantName: String)

@@ -1,5 +1,7 @@
 package debate
 
+import scala.util.Try
+
 import cats.ApplicativeError
 import cats.effect.Sync
 import cats.implicits._
@@ -10,7 +12,6 @@ import org.http4s._
 import org.http4s.client.Client
 
 import jjm.DotKleisli
-import scala.util.Try
 
 object Slack {
   @JsonCodec

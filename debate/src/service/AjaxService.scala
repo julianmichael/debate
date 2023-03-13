@@ -1,7 +1,7 @@
 package debate
 package service
 
-import quality.QuALITYStory
+import cats.kernel.Order
 
 import io.circe.Decoder
 import io.circe.Encoder
@@ -10,8 +10,9 @@ import io.circe.generic.JsonCodec
 import jjm.DotDecoder
 import jjm.DotEncoder
 import jjm.DotKleisli
+
+import debate.quality.QuALITYStory
 import debate.util.SparseDistribution
-import cats.kernel.Order
 
 @JsonCodec
 case class QuALITYStoryMetadata(

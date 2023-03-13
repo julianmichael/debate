@@ -1,27 +1,27 @@
 package debate
 package view.debate
 
+import scala.collection.immutable.SortedSet
+
+import cats.data.NonEmptySet
 import cats.implicits._
 
-import monocle.function.{all => Optics}
+import japgolly.scalajs.react.AsyncCallback
+import japgolly.scalajs.react.Callback
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
+import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
+import jjm.DotMap
+import jjm.DotPair
 import jjm.ling.ESpan
 import jjm.ui.Rgba
 
+import debate.MainChannelRequest
 import debate.util.Local
 import debate.view.lobby.TabNav
-import jjm.DotMap
-import jjm.DotPair
-import japgolly.scalajs.react.Callback
-import debate.MainChannelRequest
-
-import cats.data.NonEmptySet
-import scala.collection.immutable.SortedSet
-import japgolly.scalajs.react.AsyncCallback
 
 // import Utils.ClassSetInterpolator
 
