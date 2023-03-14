@@ -84,7 +84,7 @@ object MetadataBox {
       roomMetadata.result.isEmpty &&
         !roomMetadata.roleAssignments.values.toSet.contains(userName) &&
         (roomMetadata.offlineJudgeAssignments.contains(userName) ||
-          (!stats.hasReadStory && stats.canJudgeMore))
+          (!stats.hasReadStory && stats.canJudgeMore && userName != adminUsername))
 
     val canEnterRoom =
       userName.nonEmpty && debatesUserMustJudgeFirst.isEmpty && !mustWaitForDebateToEnd

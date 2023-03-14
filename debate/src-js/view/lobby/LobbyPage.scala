@@ -2,7 +2,6 @@ package debate
 package view.lobby
 
 import japgolly.scalajs.react._
-import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
 import org.scalajs.dom
 import scalacss.ScalaCssReact._
@@ -31,7 +30,7 @@ object LobbyPage {
     lobby: Lobby,
     sendToMainChannel: MainChannelRequest => CallbackTo[Unit],
     connect: ConnectionSpec => Callback,
-    isAdmin: StateSnapshot[Boolean],
+    isAdmin: Boolean,
     logout: Callback,
     userName: String
   ) =
@@ -61,7 +60,7 @@ object LobbyPage {
             "Debates" ->
               TabNav.tabWithNotifications(numDebatesMyTurn + numDebatesReadyToJudge)(
                 DebatesPanel(
-                  isAdmin = isAdmin.value,
+                  isAdmin = isAdmin,
                   lobby = lobby,
                   userName = userName,
                   connect = connect,

@@ -26,6 +26,13 @@ import debate.util._
 @JsonCodec
 case class ConnectionSpec(isOfficial: Boolean, roomName: String, participantName: String)
 
+import scalajs.js
+@js.native
+@js.annotation.JSGlobal("window")
+object Globals extends js.Object {
+  var powerOverwhelming: js.Function0[Unit] = js.native
+}
+
 /** The main webapp. */
 object App {
 
@@ -89,11 +96,11 @@ object App {
 
   def profileSelector(
     profiles: Set[String],
-    isAdmin: StateSnapshot[Boolean],
+    // isAdmin: StateSnapshot[Boolean],
     profile: StateSnapshot[Option[String]]
   ) =
     <.div(c"form-group row")(
-      <.label(c"col-sm-2 col-form-label")("Profile:", ^.onClick --> isAdmin.modState(!_)),
+      <.label(c"col-sm-2 col-form-label")("Profile:"),
       V.Select
         .String
         .modFull(TagMod(c"col-sm-10", S.customSelect))(
@@ -103,13 +110,18 @@ object App {
         )
     )
 
+  def setAdminCallback(profile: StateSnapshot[Option[String]]) = Callback(
+    Globals.powerOverwhelming = () => profile.setState(Some(adminUsername)).runNow()
+  )
+
   val Component =
     ScalaComponent
       .builder[Unit]("Full UI")
       .render { _ =>
         <.div(S.app)(
-          Local[Boolean].syncedWithSessionStorage(key = "is-admin", defaultValue = false) { isAdmin =>
-            Local[Option[String]].syncedWithLocalStorage("profile", None) { profile =>
+          Local[Option[String]].syncedWithLocalStorage("profile", None) { profile =>
+            val isAdmin = profile.value == Some(adminUsername)
+            Mounting.make(setAdminCallback(profile)) {
               profile.value match {
                 case None =>
                   DebatersFetch.make(
@@ -121,7 +133,7 @@ object App {
                         case DebatersFetch.Loading =>
                           <.div("Loading profiles...")
                         case DebatersFetch.Loaded(profiles) =>
-                          profileSelector(profiles.keySet, isAdmin = isAdmin, profile = profile)
+                          profileSelector(profiles.keySet, profile = profile)
                       }
                     )
                   }
@@ -178,6 +190,7 @@ object App {
                   }
               }
             }
+
           }
         )
       }

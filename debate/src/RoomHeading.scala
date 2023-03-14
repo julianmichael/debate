@@ -1,5 +1,7 @@
 package debate
 
+import debate.adminUsername
+
 trait RoomHeading {
   import RoomHeading._
 
@@ -79,7 +81,7 @@ object RoomHeading {
           CurrentlyOfflineJudging
         } else if (
           offlineJudging.get(user).exists(_.result.nonEmpty) || stats.hasReadStory ||
-          !stats.canJudgeMore
+          !stats.canJudgeMore || user == adminUsername
         ) {
           Complete
         } else if (metadata.offlineJudgeAssignments.contains(user)) {
@@ -98,7 +100,7 @@ object RoomHeading {
         AssignedForOfflineJudging
       case _
           if !metadata.roleAssignments.values.toSet.contains(user) && !stats.hasReadStory &&
-            stats.canJudgeMore =>
+            stats.canJudgeMore && user != adminUsername =>
         EligibleForOfflineJudging
       case RoomStatus.InProgress =>
         InProgress
