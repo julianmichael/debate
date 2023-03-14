@@ -225,7 +225,8 @@ case class DebateStateManager(
                 slack.sendMessage(
                   profiles,
                   debater,
-                  s"You've been assigned to read the story \"${setup.sourceMaterial.title}\". Check your debates."
+                  s"You've been assigned to read the story \"${setup.sourceMaterial.title}\". Check your debates. " +
+                    MotivationalQuotes.newMaterial.sample()
                 )
               } >>
               debate
@@ -244,7 +245,8 @@ case class DebateStateManager(
                           slack.sendMessage(
                             profiles,
                             debater,
-                            s"It's your turn in the new room `$roomName`!"
+                            s"It's your turn in the new room `$roomName`! " +
+                              MotivationalQuotes.yourTurn.sample()
                           )
                         )
                     )
@@ -261,29 +263,119 @@ case class DebateStateManager(
       }
 
     for {
+      priorState  <- rooms.get.map(_.apply(roomName).debate)
       _           <- updateState
       debateState <- rooms.get.map(_.apply(roomName).debate)
-      _ <- {
-        val curUsersWhoseTurnItIs = debateState
-          .debate
-          .currentTransitions
-          .giveSpeech
-          .keySet
-          .flatMap(_.asLiveDebateRoleOpt)
-          .flatMap(debateState.debate.setup.roles.get)
-        val usersToNotifyThroughSlack = curUsersWhoseTurnItIs -- debateState.participants.keySet
-        slackClientOpt.traverse_ { slack =>
-          profilesRef
-            .get
-            .flatMap { profiles =>
-              usersToNotifyThroughSlack
-                .toVector
-                .traverse_ { debater =>
-                  slack.sendMessage(profiles, debater, s"It's your turn in `$roomName`!")
+      profiles    <- profilesRef.get
+      _ <- slackClientOpt.traverse_ { slack =>
+        for {
+          _ <- {
+            val curUsersWhoseTurnItIs = debateState.debate.currentTransitions.giveSpeech.keySet
+            val liveUsersToNotify =
+              curUsersWhoseTurnItIs
+                .flatMap(_.asLiveDebateRoleOpt)
+                .flatMap(debateState.debate.setup.roles.get) -- debateState.participants.keySet
+            val offlineJudgesToNotify =
+              if (
+                !priorState.debate.currentTransitions.giveSpeech.contains(OfflineJudge) &&
+                curUsersWhoseTurnItIs.contains(OfflineJudge)
+              ) {
+                debateState.debate.setup.offlineJudges.keySet -- debateState.participants.keySet
+              } else
+                Set.empty[String]
+
+            profilesRef
+              .get
+              .flatMap { profiles =>
+                liveUsersToNotify
+                  .toVector
+                  .traverse_ { debater =>
+                    slack.sendMessage(
+                      profiles,
+                      debater,
+                      s"It's your turn in `$roomName`! " + MotivationalQuotes.yourTurn.sample()
+                    )
+                  } >>
+                  offlineJudgesToNotify
+                    .toVector
+                    .traverse_ { debater =>
+                      slack.sendMessage(
+                        profiles,
+                        debater,
+                        s"You can now judge in the room `$roomName`! " +
+                          MotivationalQuotes.newJudging.sample()
+                      )
+                    }
+
+              }
+          }
+          _ <- debateState
+            .debate
+            .result
+            .filter(_ => !priorState.debate.isOver)
+            .flatMap(_.judgingInfo)
+            .traverse_ { result =>
+              val winners = result.finalJudgement.zipWithIndex.maximaBy(_._1)
+              val notifyWinners =
+                if (winners.size > 1) { // no clear winner
+                  debateState
+                    .debate
+                    .setup
+                    .roles
+                    .toVector
+                    .collect {
+                      case (Debater(i), name) if winners.contains(i) =>
+                        name -> result.finalJudgement(i)
+                    }
+                    .traverse_ { case (name, prob) =>
+                      slack.sendMessage(
+                        profiles,
+                        name,
+                        f"You tied with your opponent in room `$roomName%s` with ${prob * 100.0}%.0f%% judge confidence! " +
+                          MotivationalQuotes.youveTied.sample()
+                      )
+                    }
+                } else {
+                  debateState
+                    .debate
+                    .setup
+                    .roles
+                    .toVector
+                    .collect {
+                      case (Debater(i), name) if winners.contains(i) =>
+                        name -> result.finalJudgement(i)
+                    }
+                    .traverse_ { case (name, prob) =>
+                      slack.sendMessage(
+                        profiles,
+                        name,
+                        f"You won in room `$roomName` with ${prob * 100.0}%.0f%% judge confidence! " +
+                          MotivationalQuotes.youveWon.sample()
+                      )
+                    }
                 }
 
+              val notifyLosers = debateState
+                .debate
+                .setup
+                .roles
+                .toVector
+                .collect {
+                  case (Debater(i), name) if !winners.contains(i) =>
+                    name -> result.finalJudgement(i)
+                }
+                .traverse_ { case (name, prob) =>
+                  slack.sendMessage(
+                    profiles,
+                    name,
+                    f"You lost in room `$roomName` with ${prob * 100.0}%.0f%% judge confidence. " +
+                      MotivationalQuotes.youveLost.sample()
+                  )
+                }
+
+              notifyWinners >> notifyLosers
             }
-        }
+        } yield ()
       }
       _ <-
         FileUtil.writeJson(saveDir.resolve(roomName + ".json"))(
