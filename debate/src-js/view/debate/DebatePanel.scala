@@ -16,6 +16,7 @@ import scalacss.ScalaCssReact._
 
 import jjm.DotMap
 import jjm.DotPair
+import jjm.implicits._
 import jjm.ling.ESpan
 import jjm.ui.Rgba
 
@@ -316,7 +317,18 @@ object DebatePanel {
                           numDebaters = setup.answers.size,
                           numPreviousContinues = numPreviousContinues,
                           getRewardForJudgment = getRewardForJudgment,
-                          round
+                          round,
+                          roundOpt =>
+                            debate
+                              .zoomStateL(Debate.rounds)
+                              .modState(rounds =>
+                                roundOpt match {
+                                  case None =>
+                                    rounds.remove(roundIndex)
+                                  case Some(r) =>
+                                    rounds.updated(roundIndex, r)
+                                }
+                              )
                         )(^.key := s"round-$roundIndex")
                       )
                     }

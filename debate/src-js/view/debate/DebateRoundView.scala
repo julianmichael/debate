@@ -11,10 +11,12 @@ import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
 
 import jjm.ling.ESpan
+import japgolly.scalajs.react.Callback
+import japgolly.scalajs.react.feature.ReactFragment
 
 object DebateRoundView {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
-  // import Utils.ClassSetInterpolator
+  import Utils.ClassSetInterpolator
   val S = Styles
   val V = new jjm.ui.View(S)
 
@@ -144,7 +146,8 @@ object DebateRoundView {
     numDebaters: Int,
     numPreviousContinues: Int,
     getRewardForJudgment: (Int, Vector[Double]) => Option[Double],
-    round: DebateRound
+    round: DebateRound,
+    modifyRound: Option[DebateRound] => Callback
   ) = <.div(
     round
       .timestamp(numDebaters)
@@ -158,8 +161,7 @@ object DebateRoundView {
           speeches
             .toVector
             .filter { case (index, _) =>
-              // can see your own, or everyone's if you're the facilitator
-              role == Debater(index) || role == Facilitator
+              role.canSeeWhatDebaterSees(index)
             }
             .map { case (index, speech) =>
               val speechStyle = TagMod(
@@ -331,23 +333,48 @@ object DebateRoundView {
             .filter { case (judge, _) =>
               judge == userName || canSeeOfflineJudgingResults
             }
-            .flatMap { case (judge, OfflineJudgment(_, _, numContinues, resultOpt)) =>
+            .flatMap { case (judge, OfflineJudgment(_, startTimeMillis, numContinues, resultOpt)) =>
               Vector(
-                resultOpt.map(result =>
-                  makeSpeechHtml(
-                    Vector(),
-                    OfflineJudge,
-                    DebateSpeech(
-                      judge,
-                      result.timestamp,
-                      Vector(SpeechSegment.Text(result.explanation))
-                    ),
-                    debateStartTime,
-                    role,
-                    userName,
-                    anonymize,
-                    speechStyle
-                  )
+                Option(
+                  resultOpt
+                    .map(result =>
+                      makeSpeechHtml(
+                        Vector(),
+                        OfflineJudge,
+                        DebateSpeech(
+                          judge,
+                          result.timestamp,
+                          Vector(SpeechSegment.Text(result.explanation))
+                        ),
+                        debateStartTime,
+                        role,
+                        userName,
+                        anonymize,
+                        speechStyle
+                      )
+                    )
+                    .getOrElse(
+                      ReactFragment(
+                        makeSpeechHtml(
+                          Vector(),
+                          OfflineJudge,
+                          DebateSpeech(
+                            judge,
+                            startTimeMillis,
+                            Vector(SpeechSegment.Text("<pending>"))
+                          ),
+                          debateStartTime,
+                          role,
+                          userName,
+                          anonymize,
+                          speechStyle
+                        ),
+                        <.div(
+                          <.a(c"text-danger")("Click to delete the judgment above"),
+                          ^.onClick --> modifyRound(None)
+                        )
+                      )
+                    )
                 ),
                 resultOpt
                   .filter(_.distribution.size > 1)

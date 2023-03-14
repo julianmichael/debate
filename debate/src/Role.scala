@@ -47,6 +47,14 @@ sealed trait Role extends Product with Serializable {
         false
     }
 
+  def canSeeWhatDebaterSees(index: Int): Boolean =
+    this match {
+      case Facilitator | Debater(`index`) =>
+        true
+      case _ =>
+        false
+    }
+
   def canSeeStory: Boolean                 = canSeeWhatDebatersSee
   def canSeeVotes: Boolean                 = canSeeWhatDebatersSee
   def canSeeIntermediateArguments: Boolean = canSeeWhatDebatersSee
