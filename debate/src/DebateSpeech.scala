@@ -38,14 +38,14 @@ object SpeechSegments {
 
   private[this] def getFromStringAux(content: String): Vector[SpeechSegment] = {
     val indexOfStartTag = content.indexOf("<<")
-    if (indexOfStartTag < 0)
+    if (indexOfStartTag < 0) // no quotes
       Vector(SpeechSegment.Text(content))
-    else { // no quotes
+    else {
       val postStartTag  = content.substring(indexOfStartTag + 2)
       val indexOfEndTag = postStartTag.indexOf(">>")
-      if (indexOfEndTag < 0)
+      if (indexOfEndTag < 0) // tag wasn't closed
         Vector(SpeechSegment.Text(content))
-      else { // tag wasn't closed
+      else {
         val tagContent = postStartTag.substring(0, indexOfEndTag)
         val postEndTag = postStartTag.substring(indexOfEndTag + 2)
         tagContent match {
