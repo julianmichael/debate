@@ -31,6 +31,12 @@ object DataSummarizer {
       def name = "debates"
 
       def fields: List[(String, DebateInfo => String)] = List(
+        "Creation time" -> { info =>
+          info.debate.setup.creationTime.toString
+        },
+        "Start time" -> { info =>
+          info.debate.startTime.map(_.toString).getOrElse("")
+        },
         "Room name" -> (_.roomName),
         "Honest debater" -> { info =>
           info.debate.setup.roles(Debater(info.debate.setup.correctAnswerIndex))
@@ -38,12 +44,13 @@ object DataSummarizer {
         "Dishonest debater" -> { info =>
           info.debate.setup.roles(Debater(1 - info.debate.setup.correctAnswerIndex))
         },
-        "Creation time" -> { info =>
-          info.debate.setup.creationTime.toString
+        "Judge" -> { info =>
+          info.debate.setup.roles.get(Judge).map(_.toString).getOrElse("")
         },
-        "Start time" -> { info =>
-          info.debate.startTime.map(_.toString).getOrElse("")
-        }
+        "Final probability correct" -> { info =>
+          info.debate.finalJudgement.map(_.apply(info.debate.setup.correctAnswerIndex).toString).getOrElse("")
+        },
+      "Rounds" -> { info => info.debate.numContinues.toString }
       )
     }
 

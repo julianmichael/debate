@@ -84,11 +84,11 @@ def judge_pairings():  # might not be the Altair way
 
 def probability_correct_vs_num_rounds():
     return alt.Chart(debates).mark_circle(size=60).encode(
-        x='Rounds:Q',  # widens the graph, probably not best way
+        x='Rounds:O',  # widens the graph, probably not best way
         y='Final probability correct:Q',
         # color='Judge:N',
         tooltip=['Room name']
-    ).interactive()
+    ).properties(width=750)
 
 
 # Keys must be valid URL paths. I'm not URL-encoding them.
