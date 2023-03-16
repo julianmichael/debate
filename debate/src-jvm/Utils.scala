@@ -1,16 +1,18 @@
 package debate
 
-import debate.singleturn.SingleTurnDebateQuestion
-import debate.quality.QuALITYStory
-import cats.effect.IO
-import cats.data.ValidatedNec
-import cats.implicits._
 import java.nio.file.Files
-import java.util.stream.Collectors
 import java.nio.file.Path
+import java.util.stream.Collectors
+
+import scala.collection.immutable.SortedSet
 
 import cats.data.NonEmptySet
-import scala.collection.immutable.SortedSet
+import cats.data.ValidatedNec
+import cats.effect.IO
+import cats.implicits._
+
+import debate.quality.QuALITYStory
+import debate.singleturn.SingleTurnDebateQuestion
 
 trait UtilsPlatformExtensions {
 

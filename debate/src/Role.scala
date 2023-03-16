@@ -37,11 +37,27 @@ sealed trait Role extends Product with Serializable {
         None
     }
 
+  def isDebater =
+    this match {
+      case Debater(_) =>
+        true
+      case _ =>
+        false
+    }
+
   def canSeeDebaterNames: Boolean = this == Facilitator
 
   def canSeeWhatDebatersSee =
     this match {
       case Facilitator | Debater(_) =>
+        true
+      case _ =>
+        false
+    }
+
+  def canSeeWhatDebaterSees(index: Int): Boolean =
+    this match {
+      case Facilitator | Debater(`index`) =>
         true
       case _ =>
         false
@@ -64,15 +80,7 @@ case object Peeper extends Role {
   override def toString = "Peeper"
 }
 @JsonCodec
-sealed trait DebateRole extends Role {
-  def isDebater: Boolean =
-    this match {
-      case Debater(_) =>
-        true
-      case _ =>
-        false
-    }
-}
+sealed trait DebateRole extends Role
 case object OfflineJudge extends DebateRole {
   override def toString = "Offline Judge (Timed)"
 }

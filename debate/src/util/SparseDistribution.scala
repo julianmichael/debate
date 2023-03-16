@@ -1,13 +1,14 @@
 package debate.util
 
-import cats.implicits._
+import scala.collection.immutable.SortedMap
 
+import cats.Order
 import cats.data.NonEmptyMap
 import cats.data.NonEmptySet
-import cats.Order
-import scala.collection.immutable.SortedMap
-import io.circe.Encoder
+import cats.implicits._
+
 import io.circe.Decoder
+import io.circe.Encoder
 
 class SparseDistribution[A] private (val probs: NonEmptyMap[A, Double]) {
   def prob(a: A): Double = probs(a).getOrElse(0.0)

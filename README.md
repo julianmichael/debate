@@ -88,6 +88,17 @@ you'll need to restart the server (i.e., interrupt and re-run `mill debate.dev.s
 - Use `bloop` as the build server.
 - Use `scalafix` somewhat-often. Check out e.g. `mill debate.jvm.fix`.
 
+### Setting up a powerful instance for fast builds
+
+ Jess Smith did the following to speed up compilation and linking. This was, in his view, surprisingly cheap for the productivity gains. (Julian has not had problems with Metals in VSCode on his M2 Air, but `fastestOpt` sometimes takes ~10s, and YMMV.)
+
+ 1. Set up a powerful instance on google cloud platform. (*be sure to shut this down when you're done using it, else you can be billed a lot*) Jess uses a c2d-highcpu-8 instance in us-central1-a using debian-11-bullseye-v20221206. (As of 11 Dec 2022.)
+ 2. Install homebrew. (This was, in his experience, the least painful way to set up mill.)
+ 1. Install mill using homebrew.
+ 4. Use vscode remote ssh to connect to the instance.
+ 5. Use ssh forwarding to connect to the instance from your local machine. (This lets you use e.g. `localhost:8080` to connect to `server:8080`).
+ 6. Reminder again to shut down the instance when you're done using it. :)
+
 ## Background
 
 The code in this repository is written in Scala in functional style.

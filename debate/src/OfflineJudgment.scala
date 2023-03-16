@@ -1,9 +1,9 @@
 package debate
 
+import io.circe.Decoder
+import io.circe.Encoder
 import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
-import io.circe.Encoder
-import io.circe.Decoder
 
 sealed trait OfflineJudgingMode {
   override def toString =

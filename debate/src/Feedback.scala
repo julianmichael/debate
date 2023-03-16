@@ -1,16 +1,18 @@
 package debate
 
-import jjm.DotEncoder
-import jjm.DotDecoder
 import cats.Id
-import jjm.DotPair
-import jjm.DotMap
-import io.circe.generic.JsonCodec
-import io.circe.KeyEncoder
-import io.circe.KeyDecoder
-import io.circe.Encoder
+
 import io.circe.Decoder
+import io.circe.Encoder
+import io.circe.KeyDecoder
+import io.circe.KeyEncoder
+import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
+
+import jjm.DotDecoder
+import jjm.DotEncoder
+import jjm.DotMap
+import jjm.DotPair
 
 object Feedback {
 
@@ -135,12 +137,15 @@ object Feedback {
 
   val survey: List[DotPair[Question, Key]] = List(
     DotPair[Question][Key](Key.FreeText("reason for outcome"))(
-      Question.FreeText {
-        case Debater(_) =>
-          "Why do you think you won/lost this debate?"
-        case Judge | OfflineJudge =>
-          "How would you explain why you got the right/wrong answer in this debate?"
-      }
+      Question.FreeText(
+        {
+          case Debater(_) =>
+            "Why do you think you won/lost this debate?"
+          case Judge | OfflineJudge =>
+            "How would you explain why you got the right/wrong answer in this debate?"
+        },
+        isValid = (setup, role) => !(!setup.rules.hasJudge && role.isDebater)
+      )
     ),
     DotPair[Question][Key](Key.Likert("subjective correctness"))(
       Question.Likert(

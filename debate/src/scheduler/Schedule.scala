@@ -2,12 +2,13 @@ package debate
 package scheduler
 
 import cats.implicits._
+import cats.kernel.Order
+
+import monocle.macros.Lenses
 
 import jjm.implicits._
 
 import debate.util.SparseDistribution
-import monocle.macros.Lenses
-import cats.kernel.Order
 
 @Lenses
 case class Schedule(

@@ -16,6 +16,8 @@ import jjm.ling.ESpan
 
 package object debate extends PackagePlatformExtensions {
 
+  val adminUsername = "Admin"
+
   // you're only allowed to judge the same story twice
   val numJudgingsAllowedPerStory = 2
 

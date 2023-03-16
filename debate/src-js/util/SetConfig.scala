@@ -1,13 +1,13 @@
 package debate
 package util
 
+import cats.Order
+import cats.implicits._
+
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import scalacss.ScalaCssReact._
-
-import cats.Order
-import cats.implicits._
 
 /** HOC middleman for easily rendering a config panel for a list of things.
   * Gives add/remove buttons and list format while letting the caller render the

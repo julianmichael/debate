@@ -1,8 +1,10 @@
 package debate.util
 
-import cats.data.NonEmptyVector
 import scala.util.Random
+
+import cats.data.NonEmptyVector
 import cats.implicits._
+
 import jjm.implicits._
 
 class DenseDistribution[A] private (probs: NonEmptyVector[(A, Double)]) {

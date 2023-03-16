@@ -1,21 +1,15 @@
 package debate
 
-import debate.util.SparseDistribution
-import debate.util.DenseDistribution
-
-import javax.net.ssl.KeyManagerFactory
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import org.http4s.server.blaze.BlazeServerBuilder
 import java.io.InputStream
+import java.nio.file.{Path => NIOPath}
+import java.nio.file.Paths
 import java.security.KeyStore
 import java.security.SecureRandom
 
-import java.nio.file.{Path => NIOPath}
-import java.nio.file.Paths
-
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
+import cats.data.NonEmptySet
 import cats.effect._
 import cats.effect.concurrent.Ref
 import cats.implicits._
@@ -23,24 +17,27 @@ import cats.implicits._
 import _root_.org.http4s.server.middleware.HttpsRedirect
 import fs2._
 import fs2.concurrent.Topic
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
 import org.http4s._
+import org.http4s.client.Client
 import org.http4s.client.JavaNetClientBuilder
 import org.http4s.implicits._
 import org.http4s.server.Router
+import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.websocket.WebSocketBuilder
 
 import jjm.implicits._
 import jjm.io.FileUtil
 import jjm.io.HttpUtil
 
-import debate.service._
 import debate.quality._
-import debate.singleturn.SingleTurnDebateUtils
+import debate.service._
 import debate.singleturn.SingleTurnDebateQuestion
-import org.http4s.client.Client
-import scala.concurrent.ExecutionContext
-
-import cats.data.NonEmptySet
+import debate.singleturn.SingleTurnDebateUtils
+import debate.util.DenseDistribution
+import debate.util.SparseDistribution
 
 case class Server(
   dataPath: NIOPath,

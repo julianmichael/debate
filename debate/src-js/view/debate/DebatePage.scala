@@ -10,13 +10,12 @@ import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.function.{all => Optics}
 import org.scalajs.dom
+import org.scalajs.jquery.jQuery
 import scalacss.ScalaCssReact._
 
 import jjm.ui.Mounting
 
 import debate.Utils.ClassSetInterpolator
-import org.scalajs.jquery.jQuery
-// import debate.facades.jQuery
 import debate.util._
 
 object DebatePage {

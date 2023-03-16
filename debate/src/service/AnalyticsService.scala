@@ -3,12 +3,12 @@ package service
 
 import io.circe.Decoder
 import io.circe.Encoder
+import io.circe.Json
 import io.circe.generic.JsonCodec
 
 import jjm.DotDecoder
 import jjm.DotEncoder
 import jjm.DotKleisli
-import io.circe.Json
 
 trait AnalyticsService[F[_]] extends DotKleisli[F, AnalyticsService.Request] {
   def refresh: F[Unit]

@@ -1,42 +1,130 @@
 package debate
 
+import java.io.File
 import java.nio.file.{Path => NIOPath}
 
-import com.github.tototoshi.csv._
-import java.io.File
 import cats.effect.IO
+import cats.implicits._
+
+import com.github.tototoshi.csv._
 
 object DataSummarizer {
 
-  val debateSummaryFields: List[(String, Debate => Any)] = List( // TODO ask J, Any ok? or split
-    "Honest debater"    -> (d => d.setup.roles(Debater(d.setup.correctAnswerIndex))),
-    "Dishonest debater" -> (d => d.setup.roles(Debater(1 - d.setup.correctAnswerIndex))),
+  sealed trait CSVSpec[A] {
 
-    // TODO better map, get offline judge, or >1 judges. For offline vs online comparison
-    "Judge" -> (d => d.setup.roles.get(Judge).map(_.toString).getOrElse("[offline]")),
+    def name: String
 
-    // TODO ask J, other than Debate, can other input objects be used? For 1st time judging story vs 2nd time
-    // "Judge" -> (stats.allJudging - Assigned - Begun).unorderedFoldMap(_.size),
+    def fields: List[(String, A => String)]
 
-    // TODO ask J, refactor interface code for probabilities per turn? finalJudgement => last turn, end debate
-    // For per turn accuracy
-    "Final probability correct" ->
-      (d => d.finalJudgement.map(_.apply(d.setup.correctAnswerIndex)).getOrElse("NA")),
+    def writeToPath(items: List[A], path: NIOPath): IO[Unit] = IO {
+      val headerRow = fields.map(_._1)
 
-    // TODO probably clean up first?, or as above, get separated automatically?
-    // "Transcript" -> (d => d.rounds), // for per turn probabilities? for counting characters?
-
-    "Creation time" -> (d => d.setup.creationTime.toString),
-    "Start time"    -> (d => d.startTime.map(_.toString).getOrElse("")),
-    "Rounds"        -> (d => d.numContinues.toString)
-  )
-  def debateSummaryHeaderRow = "Room name" :: debateSummaryFields.map(_._1)
-
-  def debateSummaryRow(name: String, debate: Debate) = name :: debateSummaryFields.map(_._2(debate))
-
-  def writeSummaries(debates: Map[String, Debate], summaryDir: NIOPath): IO[Unit] = IO {
-    val rows = debateSummaryHeaderRow :: debates.toList.map(Function.tupled(debateSummaryRow))
-    CSVWriter.open(new File(summaryDir.resolve("debates.csv").toString)).writeAll(rows)
+      val rows = headerRow :: items.toList.map(item => fields.map(_._2(item)))
+      CSVWriter.open(new File(path.resolve(s"$name.csv").toString)).writeAll(rows)
+    }
   }
+
+  case class DebateInfo(roomName: String, debate: Debate)
+
+  val debatesCSV =
+    new CSVSpec[DebateInfo] {
+      def name = "debates"
+
+      def fields: List[(String, DebateInfo => String)] = List(
+        "Room name" -> (_.roomName),
+        "Honest debater" -> { info =>
+          info.debate.setup.roles(Debater(info.debate.setup.correctAnswerIndex))
+        },
+        "Dishonest debater" -> { info =>
+          info.debate.setup.roles(Debater(1 - info.debate.setup.correctAnswerIndex))
+        },
+        "Creation time" -> { info =>
+          info.debate.setup.creationTime.toString
+        },
+        "Start time" -> { info =>
+          info.debate.startTime.map(_.toString).getOrElse("")
+        }
+      )
+    }
+
+  case class DebateTurnInfo(
+    roomName: String,
+    debate: Debate,
+    round: DebateRound,
+    roundIndex: Int,
+    role: DebateRole,
+    speech: DebateSpeech
+  )
+
+  val turnsCSV =
+    new CSVSpec[DebateTurnInfo] {
+      def name = "turns"
+
+      def fields: List[(String, DebateTurnInfo => String)] = List(
+        "Room name" -> { info =>
+          info.roomName
+        }
+      )
+    }
+
+  case class DebateSessionInfo(roomName: String, debate: Debate, participant: String)
+
+  val sessionsCSV =
+    new CSVSpec[DebateSessionInfo] {
+      def name = "sessions"
+
+      def fields: List[(String, DebateSessionInfo => String)] = List(
+        "Room name" -> { info =>
+          info.roomName
+        },
+        "Participant" -> { info =>
+          info.participant
+        }
+      )
+    }
+
+  def writeSummaries(debates: Map[String, Debate], summaryDir: NIOPath) =
+    debatesCSV.writeToPath(
+      debates
+        .toList
+        .map { case (roomName, debate) =>
+          DebateInfo(roomName, debate)
+        },
+      summaryDir
+    ) >> {
+      val turnInfos =
+        for {
+          (roomName, debate) <- debates.toList
+          roles = Judge :: (0 until debate.numDebaters).map(Debater(_)).toList
+          (round, roundIndex) <- debate.rounds.zipWithIndex
+          role                <- roles
+          turn <-
+            (round, role) match {
+              case (JudgeFeedback(_, speech, _), Judge) =>
+                Some(DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
+              case (SimultaneousSpeeches(speeches), Debater(i)) =>
+                speeches
+                  .get(i)
+                  .map(speech => DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
+              case (SequentialSpeeches(speeches), Debater(i)) =>
+                speeches
+                  .get(i)
+                  .map(speech => DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
+              case _ =>
+                None
+            }
+        } yield turn
+      turnsCSV.writeToPath(turnInfos, summaryDir)
+    } >> {
+      val sessionInfos =
+        for {
+          (roomName, debate) <- debates.toList
+          participant <-
+            debate.setup.roles.values.toSet ++ debate.setup.offlineJudges.keySet ++
+              debate.offlineJudgingResults.keySet
+        } yield DebateSessionInfo(roomName, debate, participant)
+
+      sessionsCSV.writeToPath(sessionInfos, summaryDir)
+    }
 
 }

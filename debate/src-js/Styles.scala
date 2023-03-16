@@ -1,11 +1,11 @@
 package debate
 
+import scala.annotation.nowarn
 import scala.language.postfixOps
 
 import scalacss.DevDefaults._
-import scalacss.internal.ValueT
-import scala.annotation.nowarn
 import scalacss.internal.Attr
+import scalacss.internal.ValueT
 
 object gridGap extends ValueT.TypedAttrT1[ValueT.Len] with ValueT.ZeroLit {
   override val attr = Attr.real("grid-gap")

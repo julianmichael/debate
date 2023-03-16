@@ -1,6 +1,8 @@
 package debate
 package util
 
+import scala.reflect.ClassTag
+
 import cats.~>
 
 import japgolly.scalajs.react.Callback
@@ -12,7 +14,6 @@ import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
 import jjm.implicits._
-import scala.reflect.ClassTag
 
 /** HOC middleman for easily rendering a config panel for a list of things.
   * Gives add/remove buttons and list format while letting the caller render the

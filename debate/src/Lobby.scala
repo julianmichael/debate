@@ -1,9 +1,10 @@
 package debate
 
 import cats.implicits._
+import cats.kernel.CommutativeMonoid
+
 import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
-import cats.kernel.CommutativeMonoid
 
 case class DebaterStoryStats(
   debating: Map[DebateProgressLabel, Set[String]] = Map(),

@@ -1,12 +1,12 @@
 package debate
 
+import cats.Order
 import cats.implicits._
 
 import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
 
 import jjm.implicits._
-import cats.Order
 
 @Lenses
 @JsonCodec

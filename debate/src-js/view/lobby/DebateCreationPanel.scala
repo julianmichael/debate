@@ -11,12 +11,14 @@ import cats.implicits._
 import cats.kernel.Order
 import cats.~>
 
+import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.function.{all => Optics}
+import monocle.macros.Lenses
 import scalacss.ScalaCssReact._
 
 import jjm.OrWrapped
@@ -24,8 +26,6 @@ import jjm.ui.CacheCallContent
 
 import debate.quality._
 import debate.util._
-import monocle.macros.Lenses
-import io.circe.generic.JsonCodec
 
 object DebateCreationPanel {
   val S = Styles

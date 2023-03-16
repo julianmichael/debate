@@ -26,8 +26,16 @@ data_dir = os.environ.get('DATA_DIR', default='save')
 
 def read_data():
     global debates
+    global sessions
+    global turns
     debates = pd.read_csv(
         os.path.join(data_dir, 'official/summaries/debates.csv')
+    )
+    sessions = pd.read_csv(
+        os.path.join(data_dir, 'official/summaries/sessions.csv')
+    )
+    turns = pd.read_csv(
+        os.path.join(data_dir, 'official/summaries/turns.csv')
     )
 
 

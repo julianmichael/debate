@@ -1,13 +1,15 @@
 package debate
 package scheduler
 
-import debate.util.SparseDistribution
-import cats.implicits._
-import debate.util.DenseDistribution
-import cats.data.NonEmptyVector
 import scala.util.Random
+
+import cats.data.NonEmptyVector
 import cats.data.StateT
+import cats.implicits._
+
 import debate.quality.QuALITYStory
+import debate.util.DenseDistribution
+import debate.util.SparseDistribution
 
 object DebateScheduler {
 
@@ -397,7 +399,7 @@ object DebateScheduler {
       .withTemperature(Params.samplingTemperature)
 
     // sample debaters according to how far off they are from their desired workload
-    val attemptedSampledSchedules = (1 to 100) // number of different debater sets we try
+    val attemptedSampledSchedules = (1 to 50) // number of different debater sets we try
       .toVector
       .map { _ =>
         val chosenDebaters = debaterChoiceDist.sampleWithoutReplacement(numDebaters, rand).toSet

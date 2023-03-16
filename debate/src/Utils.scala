@@ -1,10 +1,11 @@
 package debate
 
+import cats.Foldable
+import cats.Functor
+import cats.implicits._
+
 import jjm.ling.Span
 import jjm.ling.Text
-import cats.Foldable
-import cats.implicits._
-import cats.Functor
 
 object Utils extends UtilsPlatformExtensions {
 
