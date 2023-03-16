@@ -137,12 +137,15 @@ object Feedback {
 
   val survey: List[DotPair[Question, Key]] = List(
     DotPair[Question][Key](Key.FreeText("reason for outcome"))(
-      Question.FreeText {
-        case Debater(_) =>
-          "Why do you think you won/lost this debate?"
-        case Judge | OfflineJudge =>
-          "How would you explain why you got the right/wrong answer in this debate?"
-      }
+      Question.FreeText(
+        {
+          case Debater(_) =>
+            "Why do you think you won/lost this debate?"
+          case Judge | OfflineJudge =>
+            "How would you explain why you got the right/wrong answer in this debate?"
+        },
+        isValid = (setup, role) => !(!setup.rules.hasJudge && role.isDebater)
+      )
     ),
     DotPair[Question][Key](Key.Likert("subjective correctness"))(
       Question.Likert(
