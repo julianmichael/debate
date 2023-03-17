@@ -48,9 +48,15 @@ object DataSummarizer {
           info.debate.setup.roles.get(Judge).map(_.toString).getOrElse("")
         },
         "Final probability correct" -> { info =>
-          info.debate.finalJudgement.map(_.apply(info.debate.setup.correctAnswerIndex).toString).getOrElse("")
+          info
+            .debate
+            .finalJudgement
+            .map(_.apply(info.debate.setup.correctAnswerIndex).toString)
+            .getOrElse("")
         },
-      "Rounds" -> { info => info.debate.numContinues.toString }
+        "Rounds" -> { info =>
+          info.debate.numContinues.toString
+        }
       )
     }
 

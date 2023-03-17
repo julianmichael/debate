@@ -31,6 +31,10 @@ def read_data():
     debates = pd.read_csv(
         os.path.join(data_dir, 'official/summaries/debates.csv')
     )
+    debates['Start time'] = pd.to_datetime(
+        debates['Start time'], unit='ms')
+    debates['Final_probability_incorrect'] = (
+        1 - debates['Final probability correct'])
     sessions = pd.read_csv(
         os.path.join(data_dir, 'official/summaries/sessions.csv')
     )
@@ -57,9 +61,9 @@ def debater_pairings_by_person():  # TODO Instead of having them in separate ite
 def honest_debater_by_final_probability():  # esp. for here...
     return alt.Chart(debates).mark_bar().encode(
         x=alt.X('Honest debater:O', sort='-y'),
-        y='Average_probability:Q'
+        y='Average_final_probability:Q'
     ).transform_aggregate(
-        Average_probability='mean(Final probability correct)',
+        Average_final_probability='mean(Final probability correct)',
         groupby=['Honest debater']
     )
 
@@ -67,10 +71,20 @@ def honest_debater_by_final_probability():  # esp. for here...
 def dishonest_debater_by_final_probability():
     return alt.Chart(debates).mark_bar().encode(
         x=alt.X('Dishonest debater:O', sort='-y'),
-        y='Average_probability:Q'
+        y='Average_final_probability:Q'
     ).transform_aggregate(
-        Average_probability='mean(Final probability correct)',
+        Average_final_probability='mean(Final_probability_incorrect)',
         groupby=['Dishonest debater']
+    )
+
+
+def judge_by_final_probability():
+    return alt.Chart(debates).mark_bar().encode(
+        x=alt.X('Judge:O', sort='-y'),
+        y='Average_final_probability:Q'
+    ).transform_aggregate(
+        Average_final_probability='mean(Final probability correct)',
+        groupby=['Judge']
     )
 
 
@@ -84,10 +98,17 @@ def judge_pairings():  # might not be the Altair way
 
 def probability_correct_vs_num_rounds():
     return alt.Chart(debates).mark_circle(size=60).encode(
-        x='Rounds:O',  # widens the graph, probably not best way
+        x='Rounds:O',
         y='Final probability correct:Q',
         # color='Judge:N',
         tooltip=['Room name']
+    ).properties(width=750)
+
+
+def probability_correct_over_time():
+    return alt.Chart(debates).mark_bar().encode(
+        x='yearmonthdate(Start time):T',
+        y='mean(Final probability correct):Q'
     ).properties(width=750)
 
 
@@ -99,7 +120,10 @@ all_graph_specifications = {
     "Honest_debater_by_final_probability": honest_debater_by_final_probability,
     "Dishonest_debater_by_final_probability": dishonest_debater_by_final_probability,
     "Judge_pairings": judge_pairings,
-    "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds
+    "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds,
+    "Probability_correct_over_time": probability_correct_over_time
+
+
 }
 
 
