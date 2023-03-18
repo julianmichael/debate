@@ -48,14 +48,16 @@ object DataSummarizer {
           info.debate.setup.roles.get(Judge).map(_.toString).getOrElse("")
         },
         "Final probability correct" -> { info =>
-          info
-            .debate
-            .finalJudgement
-            .map(_.apply(info.debate.setup.correctAnswerIndex).toString)
-            .getOrElse("")
+          info.debate.finalJudgement.map(_.apply(info.debate.setup.correctAnswerIndex).toString).getOrElse("")
         },
         "Rounds" -> { info =>
           info.debate.numContinues.toString
+        },
+        "Is over" -> { info => info.debate.isOver.toString },
+        // TODO: conditional/option for whether or not debate.isOver
+        // currently is last time debated instead?
+        "End time" -> { info =>
+          info.debate.rounds.view.flatMap(_.timestamp(info.debate.setup.numDebaters)).lastOption.map(_.toString).getOrElse("")
         }
       )
     }
@@ -74,9 +76,28 @@ object DataSummarizer {
       def name = "turns"
 
       def fields: List[(String, DebateTurnInfo => String)] = List(
+        "Room creation time" -> { info =>
+          info.debate.setup.creationTime.toString
+        },
         "Room name" -> { info =>
           info.roomName
-        }
+        },
+        "Speech time" -> { info => info.round.allSpeeches(info.role).timestamp.toString },
+        "Participant" -> { info => info.round.allSpeeches(info.role).speaker },
+        "Role" -> { info => info.role.toString },
+        "Round index" -> { info => info.roundIndex.toString},
+        "Participant text" -> { info => info.round.allSpeeches(info.role).content
+          .collect{ case SpeechSegment.Text(text) => text }.toString },
+        "Participant quote" -> { info => info.round.allSpeeches(info.role).content
+          .collect{ case SpeechSegment.Quote(span) => Utils.renderSpan(info.debate.setup.sourceMaterial.contents, span) }.toString 
+        },
+        // Q: length redundant here?
+        "Text length" -> { info => info.round.allSpeeches(info.role).content
+          .collect{ case SpeechSegment.Text(text) => text.size }.toString },
+        "Text quote" -> { info => info.round.allSpeeches(info.role).content
+          .collect{ case SpeechSegment.Quote(span) => Utils.renderSpan(info.debate.setup.sourceMaterial.contents, span).size }.toString 
+        },
+        // "Probability correct" -> { info => info. }
       )
     }
 
@@ -93,6 +114,9 @@ object DataSummarizer {
         "Participant" -> { info =>
           info.participant
         }
+        // "Feedback test" -> { info =>
+        //   info.debate.feedback
+        // }
       )
     }
 
