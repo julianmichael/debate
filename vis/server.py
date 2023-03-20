@@ -80,7 +80,7 @@ def dishonest_debater_by_final_probability():
 
 def judge_by_final_probability():
     return alt.Chart(debates).mark_bar().encode(
-        x=alt.X('Judge:O', sort='-y'),
+        x=alt.X('Live judge:O', sort='-y'),
         y='Average_final_probability:Q'
     ).transform_aggregate(
         Average_final_probability='mean(Final probability correct)',
@@ -90,7 +90,7 @@ def judge_by_final_probability():
 
 def judge_pairings():  # might not be the Altair way
     return alt.Chart(debates.melt(id_vars='Judge', value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_rect().encode(
-        x='Judge:O',
+        x='Live judge:O',
         y=alt.Y('Debater:O', scale=alt.Scale(reverse=True)),
         color='count():Q'
     )
@@ -98,7 +98,7 @@ def judge_pairings():  # might not be the Altair way
 
 def probability_correct_vs_num_rounds():
     return alt.Chart(debates).mark_circle(size=60).encode(
-        x='Rounds:O',
+        x='Number of rounds:O',
         y='Final probability correct:Q',
         # color='Judge:N',
         tooltip=['Room name']
