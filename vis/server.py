@@ -17,6 +17,8 @@ from collections import namedtuple
 
 import os
 
+from altair import datum
+
 app = Flask(__name__)
 
 alt.data_transformers.enable('default', max_rows=1000000)
@@ -42,6 +44,13 @@ def read_data():
         os.path.join(data_dir, 'official/summaries/turns.csv')
     )
 
+    print("Debates:")
+    print(debates.dtypes)
+    print(debates)
+    print("Sessions:")
+    print(sessions.dtypes)
+    print(sessions)
+
 
 read_data()
 
@@ -58,24 +67,52 @@ def debater_pairings_by_person():  # TODO Instead of having them in separate ite
     return
 
 
-def honest_debater_by_final_probability():  # esp. for here...
-    return alt.Chart(debates).mark_bar().encode(
-        x=alt.X('Honest debater:O', sort='-y'),
-        y='Average_final_probability:Q'
-    ).transform_aggregate(
-        Average_final_probability='mean(Final probability correct)',
-        groupby=['Honest debater']
+def honest_and_dishonest_debater_by_final_probability():
+    honest_bar = alt.Chart(debates).mark_bar().encode(
+        x=alt.X('Honest debater:O', sort=alt.EncodingSortField(
+            field='Final probability correct',
+            op='mean',
+            order='descending'
+        )
+        ),
+        y='mean(Final probability correct):Q'
     )
-
-
-def dishonest_debater_by_final_probability():
-    return alt.Chart(debates).mark_bar().encode(
+    honest_err = alt.Chart(debates).mark_rule().encode(
+        x=alt.X('Honest debater:O', sort=alt.EncodingSortField(
+            field='Final probability correct',
+            op='mean',
+            order='descending'
+        )),
+        y='ci0(Final probability correct)',
+        y2='ci1(Final probability correct)',
+        # y=alt.Y('Final probability correct:Q', scale=alt.Scale(zero=False))
+    )
+    dishonest = alt.Chart(debates).mark_bar().encode(
         x=alt.X('Dishonest debater:O', sort='-y'),
         y='Average_final_probability:Q'
     ).transform_aggregate(
         Average_final_probability='mean(Final_probability_incorrect)',
         groupby=['Dishonest debater']
     )
+    # return alt.hconcat(honest, dishonest, )
+    return (honest_bar + honest_err) | dishonest
+
+
+def participant_by_workload():
+    # debates.set_index('Room name')
+    source = sessions.merge(debates, how='left', on='Room name')
+    source['Role'] = source['Role'].map(
+        lambda x: 'Debater' if x.startswith('Debater') else x)
+
+    return alt.Chart(source).mark_bar().encode(
+        x=alt.X('count()'),
+        y=alt.Y('Participant:O', sort=alt.EncodingSortField(
+            op='count', order='descending')),
+        color=alt.Color('Role:O'),
+        column=alt.Column('Role:O')
+    ).transform_filter(
+        datum['Status'] != 'complete'
+    ).properties(width=200)
 
 
 def judge_by_final_probability():
@@ -88,8 +125,8 @@ def judge_by_final_probability():
     )
 
 
-def judge_pairings():  # might not be the Altair way
-    return alt.Chart(debates.melt(id_vars='Judge', value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_rect().encode(
+def judge_pairings():
+    return alt.Chart(debates.melt(id_vars='Live judge', value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_rect().encode(
         x='Live judge:O',
         y=alt.Y('Debater:O', scale=alt.Scale(reverse=True)),
         color='count():Q'
@@ -117,11 +154,11 @@ def probability_correct_over_time():
 all_graph_specifications = {
     "Debater_pairings_by_role": debater_pairings_by_role,
     # "Debater_pairings_by_person": debater_pairings_by_person,
-    "Honest_debater_by_final_probability": honest_debater_by_final_probability,
-    "Dishonest_debater_by_final_probability": dishonest_debater_by_final_probability,
+    "Debaters_by_final_probability": honest_and_dishonest_debater_by_final_probability,
     "Judge_pairings": judge_pairings,
     "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds,
-    "Probability_correct_over_time": probability_correct_over_time
+    "Probability_correct_over_time": probability_correct_over_time,
+    "Participant_by_workload": participant_by_workload
 
 
 }
