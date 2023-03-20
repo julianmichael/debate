@@ -37,6 +37,8 @@ def read_data():
         debates['Start time'], unit='ms')
     debates['Final_probability_incorrect'] = (
         1 - debates['Final probability correct'])
+    debates['End time'] = pd.to_datetime(
+        debates['End time'], unit='ms')
     sessions = pd.read_csv(
         os.path.join(data_dir, 'official/summaries/sessions.csv')
     )
@@ -87,18 +89,43 @@ def honest_and_dishonest_debater_by_final_probability():
         y2='ci1(Final probability correct)',
         # y=alt.Y('Final probability correct:Q', scale=alt.Scale(zero=False))
     )
-    dishonest = alt.Chart(debates).mark_bar().encode(
-        x=alt.X('Dishonest debater:O', sort='-y'),
-        y='Average_final_probability:Q'
-    ).transform_aggregate(
-        Average_final_probability='mean(Final_probability_incorrect)',
-        groupby=['Dishonest debater']
+    dishonest_bar = alt.Chart(debates).mark_bar().encode(
+        x=alt.X('Dishonest debater:O', sort=alt.EncodingSortField(
+            field='Final probability correct',
+            op='mean',
+            order='descending'
+        )
+        ),
+        y='mean(Final probability correct):Q'
+    )
+    dishonest_err = alt.Chart(debates).mark_rule().encode(
+        x=alt.X('Dishonest debater:O', sort=alt.EncodingSortField(
+            field='Final probability correct',
+            op='mean',
+            order='descending'
+        )),
+        y='ci0(Final probability correct)',
+        y2='ci1(Final probability correct)',
+        # y=alt.Y('Final probability correct:Q', scale=alt.Scale(zero=False))
     )
     # return alt.hconcat(honest, dishonest, )
-    return (honest_bar + honest_err) | dishonest
+    return (honest_bar + honest_err) | (dishonest_bar + dishonest_err)
 
 
-def participant_by_workload():
+def evidence_by_rounds():
+    evidence_line = alt.Chart(turns).mark_line().encode(
+        x='Debating Rounds So Far:O',
+        y='mean(Quote length)'
+    )
+    evidence_err = alt.Chart(debates).mark_errorbar().encode(
+        x='Debating Rounds So Far:O',
+        y='ymin:Q',
+        y2='ymax:Q'
+    )
+    return evidence_line + evidence_err
+
+
+def participant_by_current_workload():
     # debates.set_index('Room name')
     source = sessions.merge(debates, how='left', on='Room name')
     source['Role'] = source['Role'].map(
@@ -112,6 +139,19 @@ def participant_by_workload():
         column=alt.Column('Role:O')
     ).transform_filter(
         datum['Status'] != 'complete'
+    ).properties(width=200)
+
+
+def participant_by_past_workload():
+    source = sessions.merge(debates, how='left', on='Room name')
+    return alt.Chart(source).mark_bar().encode(
+        x=alt.X('count()'),
+        y=alt.Y('Participant:O', sort=alt.EncodingSortField(
+            op='count', order='descending')),
+        color=alt.Color('Role:O'),
+        column=alt.Column('Role:O')
+    ).transform_filter(
+        datum['Status'] == 'complete'
     ).properties(width=200)
 
 
@@ -149,6 +189,19 @@ def probability_correct_over_time():
     ).properties(width=750)
 
 
+def debates_completed_per_week():
+    debates['End date'] = debates['End time'] - pd.to_timedelta(7, unit='d')
+    print(debates['End date'])
+    debates_by_week = debates.groupby(
+        ['Room name', pd.Grouper(key='End date', freq='W-MON')]).sum().reset_index().sort_values('End date')
+    print(debates_by_week)
+    print(debates_by_week.dtypes)
+    return alt.Chart(debates_by_week[debates_by_week["Is over"] == True]).mark_bar().encode(
+        x='End date:T',
+        y='count(Room name):Q'
+    )
+
+
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
@@ -158,9 +211,10 @@ all_graph_specifications = {
     "Judge_pairings": judge_pairings,
     "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds,
     "Probability_correct_over_time": probability_correct_over_time,
-    "Participant_by_workload": participant_by_workload
-
-
+    "Participant_by_current_workload": participant_by_current_workload,
+    # "Participant_by_past_workload": participant_by_past_workload,
+    "Evidence_by_rounds": evidence_by_rounds,
+    "Debates_completed_per_week": debates_completed_per_week
 }
 
 

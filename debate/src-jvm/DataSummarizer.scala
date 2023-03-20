@@ -171,6 +171,31 @@ object DataSummarizer {
         "Round index" -> { info =>
           info.roundIndex.toString
         },
+        "Judging Rounds So Far" -> { info =>
+          info
+            .debate
+            .rounds
+            .take(info.roundIndex)
+            .collect { case JudgeFeedback(_, _, _) =>
+              ()
+            }
+            .size
+            .toString
+        },
+        "Debating Rounds So Far" -> { info =>
+          info
+            .debate
+            .rounds
+            .take(info.roundIndex)
+            .collect {
+              case SequentialSpeeches(_) =>
+                ()
+              case SimultaneousSpeeches(_) =>
+                ()
+            }
+            .size
+            .toString
+        },
         // TODO: ask, should we have one whole speech text instead?
         "Participant text" -> { info =>
           info
