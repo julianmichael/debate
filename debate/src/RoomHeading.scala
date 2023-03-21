@@ -80,12 +80,15 @@ object RoomHeading {
         } else if (offlineJudging.get(user).exists(_.result.isEmpty)) {
           CurrentlyOfflineJudging
         } else if (
+          metadata.offlineJudgeAssignments.contains(user) &&
+          !offlineJudging.get(user).exists(_.result.nonEmpty)
+        ) {
+          AssignedForOfflineJudging
+        } else if (
           offlineJudging.get(user).exists(_.result.nonEmpty) || stats.hasReadStory ||
           !stats.canJudgeMore || user == adminUsername
         ) {
           Complete
-        } else if (metadata.offlineJudgeAssignments.contains(user)) {
-          AssignedForOfflineJudging
         } else
           EligibleForOfflineJudging
       case _
