@@ -17,17 +17,7 @@ import monocle.macros.Lenses
 @JsonCodec
 case class DebateState(debate: Debate, participants: Map[String, Role]) {
 
-  def status: RoomStatus = debate
-    .result
-    .map(result =>
-      RoomStatus.Complete(result, debate.offlineJudgingResults, debate.feedback.keySet)
-    )
-    .getOrElse(
-      if (debate.rounds.isEmpty)
-        RoomStatus.WaitingToBegin
-      else
-        RoomStatus.InProgress
-    )
+  def status = debate.status
 
   def metadata(roomName: String): RoomMetadata = RoomMetadata(
     name = roomName,

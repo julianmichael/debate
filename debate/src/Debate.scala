@@ -26,6 +26,15 @@ case class Debate(
 ) {
   import Debate.DebateTransitionSet
 
+  def status: RoomStatus = result
+    .map(result => RoomStatus.Complete(result, offlineJudgingResults, feedback.keySet))
+    .getOrElse(
+      if (rounds.isEmpty)
+        RoomStatus.WaitingToBegin
+      else
+        RoomStatus.InProgress
+    )
+
   /** Time of the first round of the debate (not the init time of the debate
     * setup).
     */
