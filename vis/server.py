@@ -106,9 +106,10 @@ def probability_correct_vs_num_rounds():
 
 
 def probability_correct_over_time():
-    return alt.Chart(debates).mark_bar().encode(
+    return alt.Chart(debates).mark_line().encode(
         x='yearmonthdate(Start time):T',
-        y='mean(Final probability correct):Q'
+        y='mean(Final probability correct):Q',
+        tooltip=['yearmonthdate(Start time):T', 'mean(Final probability correct)']
     ).properties(width=750)
 
 
