@@ -315,7 +315,7 @@ case class DebateStateManager(
             .filter(_ => !priorState.debate.isOver)
             .flatMap(_.judgingInfo)
             .traverse_ { result =>
-              val winners = result.finalJudgement.zipWithIndex.maximaBy(_._1)
+              val winners = result.finalJudgement.zipWithIndex.maximaBy(_._1).map(_._2)
               val notifyWinners =
                 if (winners.size > 1) { // no clear winner
                   debateState
