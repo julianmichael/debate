@@ -291,6 +291,15 @@ object DebatePanel {
                   )
                 )
             ).filter(_ => role.canSeeStory),
+            Option(
+              "Quotes" ->
+                TabNav.tab(
+                  ConsolidatedQuotesPanel(
+                    setup.sourceMaterial.contents,
+                    getHighlights(role, setup.numDebaters, rounds, curMessageSpans)
+                  )
+                )
+            ),
             role
               .asDebateRoleOpt
               .map(debateRole =>

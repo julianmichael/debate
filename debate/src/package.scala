@@ -15,6 +15,7 @@ import monocle.macros.Lenses
 import jjm.ling.ESpan
 import cats.Monoid
 import monocle.Iso
+import jjm.ling.Span
 
 package object debate extends PackagePlatformExtensions {
 
@@ -137,5 +138,11 @@ package object debate extends PackagePlatformExtensions {
     // version of reduceLeftM which takes advantage of Monad.pure
     def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] =
       fa.reduceLeftTo(Monad[G].pure)((ga, a) => Monad[G].flatMap(ga)(g(_, a)))
+  }
+
+  implicit class RichESpan(span: ESpan) {
+    def contains(other: Span) = span.begin <= other.begin && span.endExclusive >= other.endExclusive
+    def +(offset: Int)        = span.translate(offset)
+    def -(offset: Int)        = span.translate(-offset)
   }
 }
