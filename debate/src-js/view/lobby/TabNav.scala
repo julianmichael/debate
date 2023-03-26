@@ -83,11 +83,9 @@ object TabNav {
               props
                 .tabs
                 .zipWithIndex
-                .find(_._2 == tabIndex.value)
-                .map(_._1._2)
-                .filter(_.enabled)
-                .map(_.content)
-                .getOrElse(<.div("Tab nav error. Click a tab above to make things good again."))
+                .toVdomArray { case ((_, TabInfo(content, _, _)), index) =>
+                  <.div(^.key := index)(content, ^.display.none.when(index != tabIndex.value))
+                }
             )
           }
       }
