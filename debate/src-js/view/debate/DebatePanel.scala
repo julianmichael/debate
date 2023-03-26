@@ -8,6 +8,7 @@ import cats.implicits._
 
 import japgolly.scalajs.react.AsyncCallback
 import japgolly.scalajs.react.Callback
+import japgolly.scalajs.react.CallbackTo
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
@@ -26,7 +27,7 @@ import debate.view.lobby.TabNav
 import debate.SpeechSegment.Quote
 import debate.span2text
 
-// import Utils.ClassSetInterpolator
+import Utils.ClassSetInterpolator
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -223,6 +224,13 @@ object DebatePanel {
   ) = {
     import debate.value.{setup, rounds}
 
+    def scratchpad(debateRole: DebateRole) = debate.zoomStateL(
+      Debate
+        .scratchpads
+        .composeLens(Optics.at(debateRole))
+        .composeIso(optionIsoWithEmpty[Vector[Vector[SpeechSegment]]])
+    )
+
     val currentTransitions = debate.value.currentTransitions
     val userTurn = Role.debateRole.getOption(role).flatMap(currentTransitions.giveSpeech.get)
     // for {
@@ -283,14 +291,23 @@ object DebatePanel {
                   )
                 )
             ).filter(_ => role.canSeeStory),
-            // role
-            //   .asDebateRoleOpt
-            //   .map(debateRole =>
-            //     "Scratchpad" ->
-            //       TabNav.tabWithNotifications(
-            //         debate.value.scratchpads.get(debateRole).foldMap(_.size)
-            //       )(ScratchpadPanel(debate.zoomStateL(Debate.scratchpads),  role))
-            //   ),
+            role
+              .asDebateRoleOpt
+              .map(debateRole =>
+                "Scratchpad" ->
+                  TabNav.tabWithNotifications(
+                    debate.value.scratchpads.get(debateRole).foldMap(_.size),
+                    mod = c"badge-secondary"
+                  )(
+                    <.div(c"card-body") {
+                      ScratchpadPanel(
+                        setup.sourceMaterial.contents,
+                        currentMessage,
+                        scratchpad(debateRole)
+                      )
+                    }
+                  )
+              ),
             Option(
               "Feedback Survey" ->
                 TabNav.tab(
@@ -379,7 +396,25 @@ object DebatePanel {
             <.div(S.col)(
               <.div(S.col)(
                 userTurn.whenDefined { case turnDotPair =>
-                  SpeechInput.speechInput(debate, userName, role, turnDotPair, currentMessage)
+                  SpeechInput.speechInput(
+                    debate,
+                    userName,
+                    role,
+                    turnDotPair,
+                    currentMessage,
+                    saveCallbackOpt = role
+                      .asDebateRoleOpt
+                      .map(debateRole =>
+                        CallbackTo {
+                          println("yo")
+                          println(currentMessageSpeechSegments)
+                          println(scratchpad(debateRole).value)
+                          println(scratchpad(debateRole).value :+ currentMessageSpeechSegments)
+                          scratchpad(debateRole).modState(_ :+ currentMessageSpeechSegments)
+                        }.flatten
+                      // currentMessage.setState("")
+                      )
+                  )
                 },
                 role
                   .asDebateRoleOpt

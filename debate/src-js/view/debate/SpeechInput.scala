@@ -27,7 +27,8 @@ object SpeechInput {
     userName: String,
     role: Role,
     turn: DotPair[* => Debate, DebateTurnType],
-    currentMessage: StateSnapshot[String]
+    currentMessage: StateSnapshot[String],
+    saveCallbackOpt: Option[Callback]
   ): TagMod = {
     val setup                        = debate.value.setup
     val currentMessageSpeechSegments = SpeechSegments.getFromString(currentMessage.value)
@@ -214,6 +215,7 @@ object SpeechInput {
 
     def debaterSpeechInput(
       // turnType: DebateTurnType { type Input = DebateSpeechContent },
+      saveOpt: Option[Callback],
       giveSpeech: DebateSpeech => Debate
     ) = {
       def submit = CallbackTo(System.currentTimeMillis()).flatMap(time =>
@@ -222,7 +224,16 @@ object SpeechInput {
       )
       <.div(S.col)(
         speechInputPanel(submit, true),
-        <.button("Submit", ^.disabled := !canSubmit, (^.onClick --> submit).when(canSubmit))
+        <.div(S.row)(
+          saveOpt.whenDefined(save =>
+            <.button(c"btn btn-secondary")(<.i(c"bi bi-arrow-left"), " Save", ^.onClick --> save)
+          ),
+          <.button(c"btn btn-primary")(
+            "Submit",
+            ^.disabled := !canSubmit,
+            (^.onClick --> submit).when(canSubmit)
+          )
+        )
       )
     }
 
@@ -363,9 +374,9 @@ object SpeechInput {
 
     turn.fst match {
       case turnType @ DebateTurnType.SimultaneousSpeechesTurn(_, _, _) =>
-        debaterSpeechInput(turn.get(turnType).get)
+        debaterSpeechInput(saveCallbackOpt, turn.get(turnType).get)
       case turnType @ DebateTurnType.DebaterSpeechTurn(_, _, _) =>
-        debaterSpeechInput(turn.get(turnType).get)
+        debaterSpeechInput(saveCallbackOpt, turn.get(turnType).get)
       case turnType @ DebateTurnType.JudgeFeedbackTurn(_, _, _) =>
         judgeSpeechInput(turnType, turn.get(turnType).get)
       case turnType @ DebateTurnType.NegotiateEndTurn(_) =>

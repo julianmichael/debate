@@ -13,6 +13,8 @@ import monocle.Lens
 import monocle.macros.Lenses
 
 import jjm.ling.ESpan
+import cats.Monoid
+import monocle.Iso
 
 package object debate extends PackagePlatformExtensions {
 
@@ -26,6 +28,14 @@ package object debate extends PackagePlatformExtensions {
   val appDivId = "app"
 
   type Constant[C, A] = C
+
+  def optionIsoWithEmpty[A: Monoid] =
+    Iso[Option[A], A](_.combineAll)(a =>
+      if (a == Monoid[A].empty)
+        None
+      else
+        Some(a)
+    )
 
   @JsonCodec
   sealed trait DebateEndReason

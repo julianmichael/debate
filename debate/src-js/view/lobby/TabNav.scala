@@ -11,14 +11,30 @@ import debate.util.Local
 
 object TabNav {
 
-  case class TabInfo(content: VdomElement, enabled: Boolean = true, numNotifications: Int = 0)
+  case class TabInfo(
+    content: VdomElement,
+    enabled: Boolean = true,
+    badge: Option[VdomElement] = None
+  )
   object TabInfo
 
   def tab(content: VdomElement) = TabInfo(content)
 
-  def tabWithNotifications(numNotifications: Int)(content: VdomElement) = TabInfo(
+  def tabWithBadge(badge: VdomElement)(content: VdomElement) = TabInfo(content, badge = Some(badge))
+
+  def tabWithNotifications(numNotifications: Int, mod: TagMod = c"badge-danger")(
+    content: VdomElement
+  ) = TabInfo(
     content,
-    numNotifications = numNotifications
+    badge = Option(numNotifications)
+      .filter(_ > 0)
+      .map { numNotifs =>
+        <.span(c"badge badge-pill", mod)(
+          ^.marginLeft  := "0.5rem",
+          ^.marginRight := "-0.5rem",
+          numNotifs
+        )
+      }
   )
 
   def tabIf(enabled: Boolean)(content: VdomElement) = TabInfo(content, enabled = enabled)
@@ -57,16 +73,8 @@ object TabNav {
                         )(
                           ^.href := "#",
                           (^.onClick --> tabIndex.setState(index)).when(tabInfo.enabled),
-                          tab.toString,
-                          Option(tabInfo.numNotifications)
-                            .filter(_ > 0)
-                            .map { numNotifs =>
-                              <.span(c"badge badge-danger badge-pill")(
-                                ^.marginLeft  := "0.5rem",
-                                ^.marginRight := "-0.5rem",
-                                numNotifs
-                              )
-                            }
+                          tab,
+                          tabInfo.badge
                         )
                       )
                     }

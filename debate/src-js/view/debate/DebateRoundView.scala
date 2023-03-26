@@ -111,6 +111,18 @@ object DebateRoundView {
         }
     )
 
+  def makeSpeechContentHtml(source: Vector[String], content: Vector[SpeechSegment]) = content
+    .map {
+      case SpeechSegment.Text(text) =>
+        <.span(breakNewlines(text))
+      case SpeechSegment.Quote(span) =>
+        quoteToHTML(source, span)
+    }
+    .zipWithIndex
+    .toVdomArray { case (el, i) =>
+      el(^.key := s"text-$i")
+    }
+
   def makeSpeechHtml(
     source: Vector[String],
     role: Role,
@@ -123,18 +135,7 @@ object DebateRoundView {
   ) =
     <.div(S.speechBox, style)(
       speechHeaderHTML(role, speech, startTimeOpt, userRole, userName, anonymize),
-      speech
-        .content
-        .map {
-          case SpeechSegment.Text(text) =>
-            <.span(breakNewlines(text))
-          case SpeechSegment.Quote(span) =>
-            quoteToHTML(source, span)
-        }
-        .zipWithIndex
-        .toVdomArray { case (el, i) =>
-          el(^.key := s"text-$i")
-        }
+      makeSpeechContentHtml(source, speech.content)
     )
 
   def makeRoundHtml(

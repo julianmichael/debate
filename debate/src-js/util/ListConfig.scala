@@ -27,15 +27,20 @@ class ListConfig[A] {
 
   import Utils.ClassSetInterpolator
 
-  def nice(items: StateSnapshot[Vector[A]], defaultItem: A, minItems: Int)(
-    renderItem: Context[A] => VdomElement
-  ): VdomElement = nice(items, defaultItem, minItems, f => items.modState(f[A]))(renderItem)
+  def nice(
+    items: StateSnapshot[Vector[A]],
+    defaultItem: A,
+    minItems: Int,
+    includeAddButton: Boolean = true
+  )(renderItem: Context[A] => VdomElement): VdomElement =
+    nice(items, defaultItem, minItems, includeAddButton, f => items.modState(f[A]))(renderItem)
 
   def nice(
     items: StateSnapshot[Vector[A]],
     defaultItem: A,
     minItems: Int,
     // allow for rearrangements to rearrange other stuff too
+    includeAddButton: Boolean,
     rearrange: Vector ~> Vector => Callback
   )(renderItem: Context[A] => VdomElement): VdomElement = ReactFragment(
     apply(items, minItems)(rearrange) { case context @ Context(_, index) =>
@@ -67,7 +72,7 @@ class ListConfig[A] {
               )
             ),
           Option(index)
-            .filter(_ == items.value.size - 1)
+            .filter(_ == items.value.size - 1 && includeAddButton)
             .map(_ =>
               <.div(sideButtonStyle, c"btn-outline-primary")(
                 <.div(^.margin.auto, <.i(c"bi bi-plus")),
@@ -83,7 +88,7 @@ class ListConfig[A] {
       )
     }.toVdomArray,
     Option(items.value.size)
-      .filter(_ == 0)
+      .filter(_ == 0 && includeAddButton)
       .map(_ =>
         <.button(c"btn btn-block btn-outline-primary")(
           <.div(^.margin.auto, <.i(c"bi bi-plus")),

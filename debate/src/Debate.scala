@@ -2,12 +2,12 @@ package debate
 
 import cats.implicits._
 
-import io.circe.generic.JsonCodec
 import monocle.function.{all => Optics}
 import monocle.macros.Lenses
 
 import jjm.DotPair
 import jjm.implicits._
+import io.circe.Decoder
 
 /** The state of a debate. Persists when people leave; this is the saveable data
   * object.
@@ -18,12 +18,11 @@ import jjm.implicits._
   *   the sequence of arguments, feedback or other info exchanged in the debate.
   */
 @Lenses
-@JsonCodec
 case class Debate(
   setup: DebateSetup,
   rounds: Vector[DebateRound],
-  feedback: Map[String, Feedback.SurveyResponse]
-  // scratchpads: Map[DebateRole, Vector[Vector[SpeechSegment]]] = Map()
+  feedback: Map[String, Feedback.SurveyResponse],
+  scratchpads: Map[DebateRole, Vector[Vector[SpeechSegment]]] = Map()
   // TODO premoves
 ) {
   import Debate.DebateTransitionSet
@@ -374,6 +373,29 @@ case class Debate(
   }
 }
 object Debate {
+
+  implicit val debateEncoder = {
+    import io.circe.generic.semiauto._
+    deriveEncoder[Debate]
+  }
+
+  implicit val debateDecoder =
+    // import io.circe.generic.semiauto._
+    // deriveDecoder[Debate]
+    Decoder.instance { c =>
+      for {
+        setup    <- c.downField("setup").as[DebateSetup]
+        rounds   <- c.downField("rounds").as[Vector[DebateRound]]
+        feedback <- c.downField("feedback").as[Map[String, Feedback.SurveyResponse]]
+        scratchpads =
+          c.downField("scratchpads").as[Map[DebateRole, Vector[Vector[SpeechSegment]]]] match {
+            case Right(scratchpads) =>
+              scratchpads
+            case Left(err) =>
+              Map.empty[DebateRole, Vector[Vector[SpeechSegment]]]
+          }
+      } yield Debate(setup, rounds, feedback, scratchpads)
+    }
 
   /** Set of operations available to a particular role. */
   case class DebateTransitionSet(

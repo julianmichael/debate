@@ -621,6 +621,7 @@ object DebateCreationPanel {
               items = setup.zoomStateL(DebateSetupSpec.answers),
               defaultItem = "",
               minItems = 1,
+              includeAddButton = true,
               rearrange = rearrangeAnswers
             ) { case ListConfig.Context(answer, index) =>
               <.div(c"card-body", S.row)(
