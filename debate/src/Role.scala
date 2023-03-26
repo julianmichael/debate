@@ -130,6 +130,16 @@ object DebateRole {
     case Debater(i) =>
       i
   }
+
+  def fromString(x: String): Option[DebateRole] =
+    x match {
+      case "Offline Judge" =>
+        Some(OfflineJudge)
+      case x =>
+        LiveDebateRole.fromString(x)
+    }
+  implicit val debateRoleKeyEncoder = KeyEncoder.instance[DebateRole](_.toString)
+  implicit val debateRoleKeyDecoder = KeyDecoder.instance[DebateRole](fromString)
 }
 object Role {
   def debateRole     = GenPrism[Role, DebateRole]
@@ -141,12 +151,10 @@ object Role {
         Some(Observer)
       case "Facilitator" =>
         Some(Facilitator)
-      case "Offline Judge" =>
-        Some(OfflineJudge)
       case "Peeper" =>
         Some(Peeper)
       case x =>
-        LiveDebateRole.fromString(x)
+        DebateRole.fromString(x)
     }
   implicit val roleKeyEncoder = KeyEncoder.instance[Role](_.toString)
   implicit val roleKeyDecoder = KeyDecoder.instance[Role](fromString)

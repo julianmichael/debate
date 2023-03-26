@@ -23,6 +23,8 @@ case class Debate(
   setup: DebateSetup,
   rounds: Vector[DebateRound],
   feedback: Map[String, Feedback.SurveyResponse]
+  // scratchpads: Map[DebateRole, Vector[Vector[SpeechSegment]]] = Map()
+  // TODO premoves
 ) {
   import Debate.DebateTransitionSet
 
