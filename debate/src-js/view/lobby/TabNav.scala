@@ -1,6 +1,8 @@
 package debate
 package view.lobby
 
+import cats.implicits._
+
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
@@ -24,10 +26,12 @@ object TabNav {
 
   def tabWithNotifications(numNotifications: Int, mod: TagMod = c"badge-danger")(
     content: VdomElement
-  ) = TabInfo(
+  ) = tabWithBadge(Option(numNotifications).filter(_ > 0).foldMap(_.toString), mod)(content)
+
+  def tabWithBadge(message: String, mod: TagMod = c"badge-danger")(content: VdomElement) = TabInfo(
     content,
-    badge = Option(numNotifications)
-      .filter(_ > 0)
+    badge = Option(message)
+      .filter(_.nonEmpty)
       .map { numNotifs =>
         <.span(c"badge badge-pill", mod)(
           ^.marginLeft  := "0.5rem",

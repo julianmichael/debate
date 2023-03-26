@@ -113,7 +113,8 @@ object SpeechInput {
       probs: StateSnapshot[Vector[Double]],
       numContinues: Int,
       submit: Callback,
-      continueOpt: Option[Callback]
+      continueOpt: Option[Callback],
+      saveOpt: Option[Callback]
     ) =
       Local[Boolean].make(false) { consideringContinue =>
         val answerIndices = setup.answers.indices
@@ -147,6 +148,13 @@ object SpeechInput {
             },
             speechInputPanel(submit, false),
             <.div(S.row)(
+              saveOpt.whenDefined(save =>
+                <.button(c"btn btn-secondary")(
+                  <.i(c"bi bi-arrow-left"),
+                  " Save",
+                  ^.onClick --> save
+                )
+              ),
               <.button(S.grow)(
                 "Submit judgment & collect reward",
                 ^.disabled := speechIsTooLong,
@@ -238,6 +246,7 @@ object SpeechInput {
     }
 
     def judgeSpeechInput(
+      saveOpt: Option[Callback],
       turnType: DebateTurnType.JudgeFeedbackTurn,
       giveSpeech: JudgeFeedback => Debate
     ) = {
@@ -274,7 +283,7 @@ object SpeechInput {
           val finish      = submit(true)
           val continueOpt = Option(submit(false)).filter(_ => !turnType.mustEndDebate)
 
-          judgingInputPanel(probs, turnNum, finish, continueOpt)
+          judgingInputPanel(probs, turnNum, finish, continueOpt, saveOpt)
       }
     }
 
@@ -367,7 +376,7 @@ object SpeechInput {
 
               val continueOpt = Option(continue).filter(_ => numContinues < numTurns - 1)
 
-              judgingInputPanel(probs, numContinues, submit, continueOpt)
+              judgingInputPanel(probs, numContinues, submit, continueOpt, saveOpt = None)
           }
       }
     }
@@ -378,7 +387,7 @@ object SpeechInput {
       case turnType @ DebateTurnType.DebaterSpeechTurn(_, _, _) =>
         debaterSpeechInput(saveCallbackOpt, turn.get(turnType).get)
       case turnType @ DebateTurnType.JudgeFeedbackTurn(_, _, _) =>
-        judgeSpeechInput(turnType, turn.get(turnType).get)
+        judgeSpeechInput(saveCallbackOpt, turnType, turn.get(turnType).get)
       case turnType @ DebateTurnType.NegotiateEndTurn(_) =>
         negotiateEndInput(turn.get(turnType).get)
       case turnType @ DebateTurnType.OfflineJudgingTurn(_) =>

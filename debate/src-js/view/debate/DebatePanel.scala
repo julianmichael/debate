@@ -8,7 +8,6 @@ import cats.implicits._
 
 import japgolly.scalajs.react.AsyncCallback
 import japgolly.scalajs.react.Callback
-import japgolly.scalajs.react.CallbackTo
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
@@ -319,7 +318,7 @@ object DebatePanel {
               ),
             Option(
               "Feedback Survey" ->
-                TabNav.tab(
+                TabNav.tabWithBadge("!")(
                   FeedbackSurvey(
                     setup,
                     profiles,
@@ -414,14 +413,8 @@ object DebatePanel {
                     saveCallbackOpt = role
                       .asDebateRoleOpt
                       .map(debateRole =>
-                        CallbackTo {
-                          println("yo")
-                          println(currentMessageSpeechSegments)
-                          println(scratchpad(debateRole).value)
-                          println(scratchpad(debateRole).value :+ currentMessageSpeechSegments)
-                          scratchpad(debateRole).modState(_ :+ currentMessageSpeechSegments)
-                        }.flatten
-                      // currentMessage.setState("")
+                        scratchpad(debateRole).modState(_ :+ currentMessageSpeechSegments) >>
+                          currentMessage.setState("")
                       )
                   )
                 },
