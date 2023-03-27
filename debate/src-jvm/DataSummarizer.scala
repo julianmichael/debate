@@ -8,6 +8,7 @@ import cats.implicits._
 
 import com.github.tototoshi.csv._
 import jjm.metrics.Numbers
+import jjm.DotPair
 
 object DataSummarizer {
 
@@ -103,7 +104,7 @@ object DataSummarizer {
             )
             .getOrElse("")
         },
-        "Number of rounds" -> { info =>
+        "Num rounds" -> { info =>
           info.debate.numContinues.toString
         },
         "Status" -> { info =>
@@ -131,9 +132,6 @@ object DataSummarizer {
             .map(_.toString)
             .getOrElse("")
         }
-
-        // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
-        // But there might be cases where times overlap.. let's decide def first?
 
         // TODO: anything else missing for overall debate room info?
       )
@@ -171,7 +169,7 @@ object DataSummarizer {
         "Round index" -> { info =>
           info.roundIndex.toString
         },
-        "Judging Rounds So Far" -> { info =>
+        "Num previous judging rounds" -> { info =>
           info
             .debate
             .rounds
@@ -182,7 +180,7 @@ object DataSummarizer {
             .size
             .toString
         },
-        "Debating Rounds So Far" -> { info =>
+        "Num previous debating rounds" -> { info =>
           info
             .debate
             .rounds
@@ -262,27 +260,62 @@ object DataSummarizer {
     roomName: String,
     debate: Debate,
     role: DebateRole,
-    participant: String
+    participant: String,
+    survey: DotPair[Feedback.Question, Feedback.Key]
   )
 
   val sessionsCSV =
     new CSVSpec[DebateSessionInfo] {
       def name = "sessions"
 
-      def fields: List[(String, DebateSessionInfo => String)] = List(
+      def normalFields: List[(String, DebateSessionInfo => String)] = List(
         "Room name" -> { info =>
           info.roomName
+        },
+        "Room start time" -> { info =>
+          info.debate.setup.creationTime.toString
         },
         "Participant" -> { info =>
           info.participant
         },
         "Role" -> { info =>
           info.role.toString
-        }
-        // "Feedback test" -> { info =>
-        //   info.debate.feedback
-        // }
+        },
+        "Role2" -> { info =>
+          info.role.toString
+        },
+        
+        // "Feedback" -> { info: DebateSessionInfo =>
+        //   info.debate.feedback.get(info.participant).collect {
+        //         case Feedback.SurveyResponse.Debater(answers)      => answers.
+        //         case Feedback.SurveyResponse.Judge(answers)        => answers.
+        //         case Feedback.SurveyResponse.OfflineJudge(answers) => answers.
+        //         case _ => List.empty[String]
+        //   }.getOrElse(List.empty[String])
+        // }: _*
+        
+
+        // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
+        // But there might be cases where times overlap.. let's decide def first?
       )
+      
+      def surveyFields: List[(DebateSessionInfo => String, DebateSessionInfo => String)] = List(
+        { info: DebateSessionInfo => info.debate.feedback.get(info.participant).collect {
+                case Feedback.SurveyResponse.Debater(answers)      => answers.keySet.toString
+                case Feedback.SurveyResponse.Judge(answers)        => answers.keySet.toString
+                case Feedback.SurveyResponse.OfflineJudge(answers) => answers.keySet.toString
+                case _ => List.empty[String]
+          }.getOrElse(List.empty[String]).toString } -> { info: DebateSessionInfo => info.survey.toString}
+      )
+
+      // def surveyFields(info: DebateSessionInfo): List[(String, String)] = {
+      //   val surveyResponses = info.debate.feedback.get(info.participant)
+      //   val 
+      // }
+        
+      def fields = (normalFields ::: surveyFields.map { case (k, v) => (k.toString, v) })
+
+
     }
 
   def writeSummaries(debates: Map[String, Debate], summaryDir: NIOPath) =
@@ -324,7 +357,8 @@ object DataSummarizer {
           (role, participant) <-
             debate.setup.roles.toSet ++ debate.setup.offlineJudges.keySet.map(OfflineJudge -> _) ++
               debate.offlineJudgingResults.keySet.map(OfflineJudge -> _)
-        } yield DebateSessionInfo(roomName, debate, role, participant)
+          survey <- Feedback.survey
+        } yield DebateSessionInfo(roomName, debate, role, participant, survey)
 
       sessionsCSV.writeToPath(sessionInfos, summaryDir)
     }

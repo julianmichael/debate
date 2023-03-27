@@ -35,10 +35,11 @@ def read_data():
     )
     debates['Start time'] = pd.to_datetime(
         debates['Start time'], unit='ms')
-    debates['Final_probability_incorrect'] = (
+    debates['Final probability incorrect'] = (
         1 - debates['Final probability correct'])
     debates['End time'] = pd.to_datetime(
         debates['End time'], unit='ms')
+    #filter 10 feb
     sessions = pd.read_csv(
         os.path.join(data_dir, 'official/summaries/sessions.csv')
     )
@@ -53,6 +54,8 @@ def read_data():
     print(sessions.dtypes)
     print(sessions)
 
+    print("max")
+    print(turns[turns["Participant"]=="Max Layden"].sort_values(by="Quote length",ascending=False))
 
 read_data()
 
@@ -91,38 +94,56 @@ def honest_and_dishonest_debater_by_final_probability():
     )
     dishonest_bar = alt.Chart(debates).mark_bar().encode(
         x=alt.X('Dishonest debater:O', sort=alt.EncodingSortField(
-            field='Final probability correct',
+            field='Final probability incorrect',
             op='mean',
             order='descending'
         )
         ),
-        y='mean(Final probability correct):Q'
+        y='mean(Final probability incorrect):Q'
     )
     dishonest_err = alt.Chart(debates).mark_rule().encode(
         x=alt.X('Dishonest debater:O', sort=alt.EncodingSortField(
-            field='Final probability correct',
+            field='Final probability incorrect',
             op='mean',
             order='descending'
         )),
-        y='ci0(Final probability correct)',
-        y2='ci1(Final probability correct)',
+        y='ci0(Final probability incorrect)',
+        y2='ci1(Final probability incorrect)',
         # y=alt.Y('Final probability correct:Q', scale=alt.Scale(zero=False))
     )
     # return alt.hconcat(honest, dishonest, )
     return (honest_bar + honest_err) | (dishonest_bar + dishonest_err)
 
 
+def evidence_by_roundss():
+    evidence_line = alt.Chart(turns).mark_area().encode(
+        x='Num previous debating rounds:O',
+        y='ci0(Quote length)',
+        y2='ci1(Quote length)'
+    ).facet(
+        facet='Participant:N',
+        columns=6
+    )
+    # evidence_err = alt.Chart(debates).mark_errorbar().encode(
+    #     x='Num previous debating rounds:O',
+    #     y='ymin:Q',
+    #     y2='ymax:Q'
+    # )
+    return evidence_line #+ evidence_err
+
+
 def evidence_by_rounds():
     evidence_line = alt.Chart(turns).mark_line().encode(
-        x='Debating Rounds So Far:O',
-        y='mean(Quote length)'
+        x='Num previous debating rounds:O',
+        y='mean(Quote length)',
+        color='Participant:N'
     )
-    evidence_err = alt.Chart(debates).mark_errorbar().encode(
-        x='Debating Rounds So Far:O',
-        y='ymin:Q',
-        y2='ymax:Q'
-    )
-    return evidence_line + evidence_err
+    # evidence_err = alt.Chart(debates).mark_errorbar().encode(
+    #     x='Num previous debating rounds:O',
+    #     y='ymin:Q',
+    #     y2='ymax:Q'
+    # )
+    return evidence_line #+ evidence_err
 
 
 def participant_by_current_workload():
@@ -175,7 +196,17 @@ def judge_pairings():
 
 def probability_correct_vs_num_rounds():
     return alt.Chart(debates).mark_circle(size=60).encode(
-        x='Number of rounds:O',
+        x='Num rounds:O',
+        y='Final probability correct:Q',
+        # color='Judge:N',
+        tooltip=['Room name']
+    ).properties(width=750)
+
+
+
+def probability_correct_vs_num_rounds():
+    return alt.Chart(debates).mark_circle(size=60).encode(
+        x='Num rounds:O',
         y='Final probability correct:Q',
         # color='Judge:N',
         tooltip=['Room name']
@@ -190,7 +221,7 @@ def probability_correct_over_time():
 
 
 def debates_completed_per_week():
-    debates['End date'] = debates['End time'] - pd.to_timedelta(7, unit='d')
+    debates['End date'] = debates['End time'] - pd.to_timedelta(6, unit='d')
     print(debates['End date'])
     debates_by_week = debates.groupby(
         ['Room name', pd.Grouper(key='End date', freq='W-MON')]).sum().reset_index().sort_values('End date')
@@ -199,7 +230,7 @@ def debates_completed_per_week():
     return alt.Chart(debates_by_week[debates_by_week["Is over"] == True]).mark_bar().encode(
         x='End date:T',
         y='count(Room name):Q'
-    )
+    ).properties(width=750)
 
 
 # Keys must be valid URL paths. I'm not URL-encoding them.
