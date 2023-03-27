@@ -198,7 +198,7 @@ object MetadataBox {
         val style =
           result.judgingInfo match {
             case None =>
-              if (offlineJudgingResults.nonEmpty) {
+              if (offlineJudgingResults.flatMap(_._2.result).nonEmpty) {
                 val avgJudgment =
                   offlineJudgingResults
                     .flatMap(_._2.result)
