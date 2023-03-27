@@ -88,7 +88,10 @@ object TabNav {
                 .tabs
                 .zipWithIndex
                 .toVdomArray { case ((_, TabInfo(content, _, _)), index) =>
-                  <.div(^.key := index)(content, ^.display.none.when(index != tabIndex.value))
+                  <.div(^.overflowY.auto, ^.key := index)(
+                    content,
+                    ^.display.none.when(index != tabIndex.value)
+                  )
                 }
             )
           }
