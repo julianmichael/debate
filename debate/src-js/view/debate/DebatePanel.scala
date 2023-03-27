@@ -413,8 +413,7 @@ object DebatePanel {
                     saveCallbackOpt = role
                       .asDebateRoleOpt
                       .map(debateRole =>
-                        scratchpad(debateRole).modState(_ :+ currentMessageSpeechSegments) >>
-                          currentMessage.setState("")
+                        scratchpad(debateRole).modState(_ :+ currentMessageSpeechSegments)
                       )
                   )
                 },
