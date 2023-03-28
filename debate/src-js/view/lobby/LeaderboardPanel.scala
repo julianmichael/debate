@@ -20,6 +20,7 @@ import jjm.ui.Rgba
 object LeaderboardPanel {
 
   val S = Styles
+  val V = new jjm.ui.View(S)
 
   sealed trait Column {
     type Out
@@ -38,11 +39,10 @@ object LeaderboardPanel {
     }
   }
   object Column {
-    private case class Impl[Out0](
-      header: String,
-      isRightAligned: Boolean,
-      show: Out0 => VdomTag,
-      order: Order[Out0]
+    private case class Impl[Out0](header: String)(
+      val isRightAligned: Boolean,
+      val show: Out0 => VdomTag,
+      val order: Order[Out0]
     ) extends Column {
       type Out = Out0
     }
@@ -50,13 +50,13 @@ object LeaderboardPanel {
       implicit order: Order[Out0]
     ): Column {
       type Out = Out0
-    } = Impl(header, isRightAligned, show, order)
+    } = Impl(header)(isRightAligned, show, order)
 
     def withStringShow[Out0](header: String, isRightAligned: Boolean, show: Out0 => String)(
       implicit order: Order[Out0]
     ): Column {
       type Out = Out0
-    } = Impl(header, isRightAligned, o => <.span(show(o)), order)
+    } = Impl(header)(isRightAligned, o => <.span(show(o)), order)
 
     val count = Column.withStringShow[Int]("Count", true, _.toString)
 
@@ -79,21 +79,46 @@ object LeaderboardPanel {
       1.0
     )
 
-    def showRating(rating: Double) = {
+    def showRating(useWinPercentage: Boolean)(rating: Double) = {
       val color = getColorFromCorrectnessScore(Elo.sigmoid2(rating)).toColorStyleString
-      <.strong(^.color := color, f"${math.pow(2, rating)}%.2f")
+      <.strong(
+        ^.color := color,
+        if (useWinPercentage)
+          f"${Elo.sigmoid2(rating) * 100.0}%.0f%%"
+        else
+          f"${math.pow(2, rating)}%.2f"
+      )
     }
     // f"${math.pow(2, rating)}%.2f (${Elo.sigmoid2(rating) * 100.0}%.0f%%)"
 
-    val debated      = Column.withStringShow[Int]("Debated", true, _.toString)
-    val debateRating = Column[Double]("Debate Rating", true, showRating)
-    val judged       = Column.withStringShow[Int]("Judged", true, _.toString)
-    val judgeRating  = Column[Double]("Judge Rating", true, showRating)
-    val rating       = Column[Double]("Avg Rating", true, showRating)
+    val debated = Column.withStringShow[Int]("Debated", true, _.toString)
+    def debateRating(useWinPercentage: Boolean) = Column[Double](
+      "Debate Rating",
+      true,
+      showRating(useWinPercentage)
+    )
+    val judged = Column.withStringShow[Int]("Judged", true, _.toString)
+    def judgeRating(useWinPercentage: Boolean) = Column[Double](
+      "Judge Rating",
+      true,
+      showRating(useWinPercentage)
+    )
+    def rating(useWinPercentage: Boolean) = Column[Double](
+      "Avg Rating",
+      true,
+      showRating(useWinPercentage)
+    )
 
     // list of all columns
-    val allForRoleLeaderboard    = List(name, wins, losses, winPercentage, reward)
-    val allForRatingsLeaderboard = List(name, debated, debateRating, judged, judgeRating, rating)
+    val allForRoleLeaderboard = List(name, wins, losses, winPercentage, reward)
+    def allForRatingsLeaderboard(useWinPercentage: Boolean) = List(
+      name,
+      debated,
+      debateRating(useWinPercentage),
+      judged,
+      judgeRating(useWinPercentage),
+      rating(useWinPercentage)
+    )
   }
 
   type RowData = DotMap[Id, Column]
@@ -131,17 +156,20 @@ object LeaderboardPanel {
     name: String,
     debatingStats: DebateStats,
     judgingStats: DebateStats,
-    ratings: Elo.Ratings
+    ratings: Elo.Ratings,
+    showRatingsAsWinPercentage: Boolean
   ) =
     DotMap
       .empty[Id, Column]
       .put(Column.name)(name)
       .put(Column.count)(debatingStats.wins.total + judgingStats.wins.total)
       .put(Column.debated)(debatingStats.wins.total)
-      .put(Column.debateRating)(ratings.debaterSkills(name))
+      .put(Column.debateRating(showRatingsAsWinPercentage))(ratings.debaterSkills(name))
       .put(Column.judged)(judgingStats.wins.total)
-      .put(Column.judgeRating)(ratings.judgeSkills(name))
-      .put(Column.rating)((ratings.debaterSkills(name) + ratings.judgeSkills(name)) / 2)
+      .put(Column.judgeRating(showRatingsAsWinPercentage))(ratings.judgeSkills(name))
+      .put(Column.rating(showRatingsAsWinPercentage))(
+        (ratings.debaterSkills(name) + ratings.judgeSkills(name)) / 2
+      )
 
   def renderRows(
     rows: Vector[RowData],
@@ -206,8 +234,11 @@ object LeaderboardPanel {
     )
   }
 
-  val defaultRoleSortingOrder    = SortingOrder(isAscending = false, Column.reward)
-  val defaultRatingsSortingOrder = SortingOrder(isAscending = false, Column.rating)
+  val defaultRoleSortingOrder = SortingOrder(isAscending = false, Column.reward)
+  def defaultRatingsSortingOrder(showRatingsAsWinPercentage: Boolean) = SortingOrder(
+    isAscending = false,
+    Column.rating(showRatingsAsWinPercentage)
+  )
 
   def makeRatingsLeaderboard(debaters: Set[String], leaderboard: Leaderboard) = {
     val debatingStats = List(
@@ -219,26 +250,75 @@ object LeaderboardPanel {
       .flatMap(leaderboard.data.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
 
-    Local[SortingOrder].make(defaultRatingsSortingOrder) { sortOrder =>
-      <.div(
-        ^.key := s"leaderboard-ratings",
-        <.h3("Skill Ratings"),
-        renderRows(
-          rows = debaters
-            .toVector
-            .map(debater =>
-              makeRatingsRowData(
-                debater,
-                debatingStats(debater),
-                judgingStats(debater),
-                leaderboard.ratings
+    Local[Boolean].make(false) { showRatingsAsWinPercentage =>
+      Local[SortingOrder].make(defaultRatingsSortingOrder(showRatingsAsWinPercentage.value)) {
+        sortOrder =>
+          Local[Boolean].make(false) { showInfo =>
+            <.div(
+              ^.key := s"leaderboard-ratings",
+              <.h3(c"card-title")("Skill Ratings"),
+              <.div(c"pb-2")(
+                <.a(c"card-link")(
+                  ^.href := "#",
+                  if (showInfo.value)
+                    "What do these ratings mean? (Hide)"
+                  else
+                    "What do these ratings mean?",
+                  ^.onClick --> showInfo.modState(!_)
+                )
+              ),
+              <.div(c"alert alert-info")(
+                  "Skill ratings are calculated using a method similar to the ",
+                  <.a(
+                    ^.href := "https://en.wikipedia.org/wiki/Elo_rating_system",
+                    "Elo rating system"
+                  ),
+                  ". Your displayed skill rating is your odds of winning a debate (or judging it correctly), ",
+                  " statistically corrected for the skill ratings of the other debate participants, ",
+                  " the difficulty of arguing for an incorrect answer, the difficulty of particular questions, ",
+                  " and the difficulty of offline versus online judging. ",
+                  " For example, a debater with a skill rating of 2.0 gets a 2x higher probability assigned to their answer ",
+                  " than their opponent in the average case. "
+                )
+                .when(showInfo.value),
+              <.div(c"pb-2")(
+                <.span(c"card-link")(
+                  V.Checkbox(
+                    showRatingsAsWinPercentage,
+                    labelOpt = Some("Display rating as win percentage")
+                  )
+                ),
+                <.span(c"card-link")(
+                  f"Global bias: ",
+                  Column
+                    .showRating(showRatingsAsWinPercentage.value)(leaderboard.ratings.globalBias)
+                ),
+                <.span(c"card-link")(
+                  f"Offline judging adjustment: ",
+                  Column.showRating(showRatingsAsWinPercentage.value)(
+                    leaderboard.ratings.offlineAdjustment
+                  )
+                )
+              ),
+              renderRows(
+                rows = debaters
+                  .toVector
+                  .map(debater =>
+                    makeRatingsRowData(
+                      debater,
+                      debatingStats(debater),
+                      judgingStats(debater),
+                      leaderboard.ratings,
+                      showRatingsAsWinPercentage.value
+                    )
+                  ),
+                columns = Column.allForRatingsLeaderboard(showRatingsAsWinPercentage.value),
+                rankColumn = Column.rating(showRatingsAsWinPercentage.value),
+                sortOrder = sortOrder
               )
-            ),
-          columns = Column.allForRatingsLeaderboard,
-          rankColumn = Column.rating,
-          sortOrder = sortOrder
-        )
-      )
+            )
+          }
+      }
     }
   }
 
