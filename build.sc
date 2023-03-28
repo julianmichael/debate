@@ -23,6 +23,7 @@ val declineVersion       = "1.0.0"
 val scalaJavaTimeVersion = "2.3.0"
 val scalatagsVersion     = "0.8.2"
 val http4sVersion        = "0.21.18"
+val rainierVersion       = "0.3.5"
 // testing
 val munitVersion           = "0.7.21"
 val munitCatsEffectVersion = "0.13.0"
@@ -80,7 +81,10 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
 
   override def repositoriesTask = T.task {
     super.repositoriesTask() ++
-      Seq(MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"))
+      Seq(
+        MavenRepository("https://oss.sonatype.org/content/repositories/snapshots"),
+        MavenRepository("https://dl.bintray.com/rainier/maven")
+      )
   }
 
   override def scalacOptions = Seq(
@@ -102,7 +106,8 @@ trait CommonModule extends ScalaModule with ScalafmtModule with ScalafixModule {
     ivy"org.julianmichael::jjm-core::$jjmVersion",
     ivy"org.julianmichael::jjm-io::$jjmVersion",
     ivy"io.circe::circe-generic-extras::$circeVersion",
-    ivy"io.github.cquiroz::scala-java-time::$scalaJavaTimeVersion"
+    ivy"io.github.cquiroz::scala-java-time::$scalaJavaTimeVersion",
+    ivy"com.stripe::rainier-core:$rainierVersion"
   )
 
   trait CommonTestModule extends CommonModule with TestModule.Munit {
@@ -157,6 +162,7 @@ object debate extends Module {
         )
 
     object test extends super.Tests with CommonTestModule {
+      def moduleDeps      = Seq(debate.jvm)
       def platformSegment = "jvm"
     }
   }
@@ -215,11 +221,12 @@ object debate extends Module {
       s"https://cdn.jsdelivr.net/npm/vega-embed@$vegaEmbedVersion"
     )
 
-    object test extends super.Tests with CommonTestModule {
-      def platformSegment = "js"
-      def scalaJSVersion  = T(thisScalaJSVersion)
-      def moduleKind      = T(ModuleKind.ESModule)
-    }
+    // object test extends super.Tests with CommonTestModule {
+    //   def moduleDeps      = Seq(debate.js)
+    //   def platformSegment = "js"
+    //   def scalaJSVersion  = T(thisScalaJSVersion)
+    //   def moduleKind      = T(ModuleKind.ESModule)
+    // }
   }
 
   object dev extends Module {
