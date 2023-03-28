@@ -64,7 +64,8 @@ object LeaderboardPanel {
     )
     val reward = Column[Option[Double]]("Avg Reward", true, _.fold("-")(reward => f"$reward%.2f"))
 
-    def showRating(rating: Double) = f"$rating%.2f (${Elo.sigmoid2(rating) * 100.0}%.0f%%)"
+    def showRating(rating: Double) = f"${math.pow(2, rating)}%.2f"
+    // f"${math.pow(2, rating)}%.2f (${Elo.sigmoid2(rating) * 100.0}%.0f%%)"
 
     val debated      = Column[Int]("Debated", true, rating => f"${rating.toInt}%d")
     val debateRating = Column[Double]("Debate Rating", true, showRating)
