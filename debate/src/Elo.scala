@@ -1,71 +1,27 @@
 package debate
 
-import munit.CatsEffectSuite
-
 import cats.implicits._
+import jjm.implicits._
 
 import com.stripe.rainier.core._
 import com.stripe.rainier.compute._
-import com.stripe.rainier.sampler._
-import cats.effect.Blocker
-import cats.effect.IO
-import java.nio.file.Paths
-import jjm.implicits._
+import io.circe.generic.JsonCodec
 
-class ProbProgTests extends CatsEffectSuite {
+object Elo {
 
-  test("Babby's first variable") {
-    val a = Uniform(0, 1).latent
-    assert(clue(Model.sample(a).take(10)).forall(_ >= 0))
-  }
+  def mkElo(x: Double) = 1200 + (x * 400)
 
-  val eggs = List[Long](
-    45, 52, 45, 47, 41, 42, 44, 42, 46, 38, 36, 35, 41, 48, 42, 29, 45, 43, 45, 40, 42, 53, 31, 48,
-    40, 45, 39, 29, 45, 42
-  )
-  val lambda   = Gamma(0.5, 100).latent
-  val eggModel = Model.observe(eggs, Poisson(lambda))
+  def sigmoid10(x: Double) = 1 / (1 + math.pow(10, -x))
 
-  test("Babby's first MAP") {
-    val result = eggModel.optimize(lambda)
-    assert(clue(result) > 0)
-  }
+  // def renderElos(skills: Seq[Double]) = skills
+  //   .zipWithIndex
+  //   .sortBy(-_._1)
+  //   .map { case (skill, i) =>
+  //     f"\t${debaters(i)}%s (${mkElo(skill).toInt}%d) — ${math.pow(10, skill)}%.2f:1 (${sigmoid10(skill)}%.2f))"
+  //   }
+  //   .mkString("\n")
 
-  test("Babby's first sample") {
-    val sampler  = EHMC(5000, 500)
-    val eggTrace = eggModel.sample(sampler)
-    eggTrace
-      .diagnostics
-      .foreach { diagnostics =>
-        assert(clue(diagnostics.rHat) < 1.1)
-        assert(clue(diagnostics.effectiveSampleSize) == 2000.0)
-      }
-  }
-
-  test("Babby's first posterior") {
-    val sampler   = EHMC(5000, 500)
-    val eggTrace  = eggModel.sample(sampler)
-    val posterior = eggTrace.predict(lambda)
-    assert(clue(posterior.meanOpt).exists(m => math.abs(m - 42.0) < 2.0))
-  }
-
-  def getQuestionId(debate: Debate) = {
-    val storyId  = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial)
-    val question = debate.setup.question
-    storyId -> question
-  }
-
-  case class DebateData(debates: Vector[Debate], debaters: Vector[String]) {
-    val questions = debates.map(getQuestionId).toSet.toVector
-  }
-
-  def loadDebateData: IO[DebateData] = Blocker[IO].use { blocker =>
-    for {
-      server   <- Server.create(Paths.get("data"), Paths.get("save"), blocker)
-      debates  <- server.officialDebates.rooms.get.map(_.values.toVector.map(_.debate.debate))
-      debaters <- server.profiles.get.map(_.keySet.toVector)
-    } yield DebateData(debates, debaters)
-  }
+  // val avgElos = map._4.lazyZip(map._5).map(_ + _).map(_ / 2)
 
   implicit def zip5toGen[A, B, C, D, E, Z, Y, X, W, V](
     implicit az: ToGenerator[A, Z],
@@ -85,17 +41,34 @@ class ProbProgTests extends CatsEffectSuite {
         }
     }
 
-  test("Babby's first debater ELO model") {
-    val data         = loadDebateData.unsafeRunSync()
+  @JsonCodec
+  case class Ratings(
+    globalBias: Double,
+    offlineAdjustment: Double,
+    questionEase: Vector[(QuestionId, Double)],
+    debaterSkills: Map[String, Double],
+    judgeSkills: Map[String, Double]
+  ) {
+    def averageSkills = (debaterSkills |+| judgeSkills).mapVals(_ / 2)
+  }
+  object Ratings {
+    def empty = Ratings(0.0, 0.0, Vector(), Map(), Map())
+  }
+
+  def computeRatings(debates: Vector[Debate], debaterSet: Set[String]): Ratings = {
+    val questions = debates.map(QuestionId.fromDebate)
+    val debaters  = debaterSet.toVector
+
+    // val data         = loadDebateData.unsafeRunSync()
     val globalBias   = Normal(0, 1).latent
-    val questionEase = Normal(0, 1).latentVec(data.questions.size)
-    val debaterSkill = Normal(0, 1).latentVec(data.debaters.size)
-    val judgeSkill   = Normal(0, 1).latentVec(data.debaters.size)
+    val questionEase = Normal(0, 1).latentVec(questions.size)
+    val debaterSkill = Normal(0, 1).latentVec(debaters.size)
+    val judgeSkill   = Normal(0, 1).latentVec(debaters.size)
     // val debateVariance = Gamma(0.5, 100).latent
     val offlineAdjustment = Normal(0, 1).latent
 
-    val personIndex   = data.debaters.zipWithIndex.toMap
-    val questionIndex = data.questions.zipWithIndex.toMap
+    val personIndex   = debaters.zipWithIndex.toMap
+    val questionIndex = questions.zipWithIndex.toMap
 
     val allVariablesModel = Model.track(
       Set(globalBias) ++ questionEase.toVector ++ debaterSkill.toVector ++ judgeSkill.toVector
@@ -106,8 +79,7 @@ class ProbProgTests extends CatsEffectSuite {
         val probCorrect  = judging.finalJudgement(judging.correctAnswerIndex)
         def logitCorrect = math.log10(probCorrect / (1 - probCorrect))
       }
-      val onlineResults = data
-        .debates
+      val onlineResults = debates
         .zipWithIndex
         .flatMap { case (debate, index) =>
           debate
@@ -121,7 +93,7 @@ class ProbProgTests extends CatsEffectSuite {
       val onlineResultModels = onlineResults.map { case OnlineResult(debate, _, _) =>
         val setup            = debate.setup
         val roles            = setup.roles
-        val thisQuestionEase = questionEase(questionIndex(getQuestionId(debate)))
+        val thisQuestionEase = questionEase(questionIndex(QuestionId.fromDebate(debate)))
         val thisHonestSkill  = debaterSkill(personIndex(roles(Debater(setup.correctAnswerIndex))))
         val thisDishonestSkill = debaterSkill(
           personIndex(roles(Debater(1 - setup.correctAnswerIndex)))
@@ -145,8 +117,7 @@ class ProbProgTests extends CatsEffectSuite {
         val probCorrect  = offlineJudgment.distribution(debate.setup.correctAnswerIndex)
         def logitCorrect = math.log10(probCorrect / (1 - probCorrect))
       }
-      val offlineResults = data
-        .debates
+      val offlineResults = debates
         .zipWithIndex
         .flatMap { case (debate, index) =>
           debate
@@ -160,7 +131,7 @@ class ProbProgTests extends CatsEffectSuite {
       val offlineResultModels = offlineResults.map { case OfflineResult(debate, judge, _, _) =>
         val setup            = debate.setup
         val roles            = setup.roles
-        val thisQuestionEase = questionEase(questionIndex(getQuestionId(debate)))
+        val thisQuestionEase = questionEase(questionIndex(QuestionId.fromDebate(debate)))
         val thisHonestSkill  = debaterSkill(personIndex(roles(Debater(setup.correctAnswerIndex))))
         val thisDishonestSkill = debaterSkill(
           personIndex(roles(Debater(1 - setup.correctAnswerIndex)))
@@ -177,36 +148,15 @@ class ProbProgTests extends CatsEffectSuite {
 
     val fullModel = List(onlineModel, offlineModel, allVariablesModel).reduce(_ merge _)
 
-    val map = fullModel
+    val mapEstimate = fullModel
       .optimize((globalBias, offlineAdjustment, questionEase, debaterSkill, judgeSkill))
 
-    def mkElo(x: Double) = 1200 + (x * 400)
-
-    def sigmoid10(x: Double) = 1 / (1 + math.pow(10, -x))
-
-    def renderElos(skills: Seq[Double]) = skills
-      .zipWithIndex
-      .sortBy(-_._1)
-      .map { case (skill, i) =>
-        f"\t${data.debaters(i)}%s (${mkElo(skill).toInt}%d) — ${math.pow(10, skill)}%.2f:1 (${sigmoid10(skill)}%.2f))"
-      }
-      .mkString("\n")
-
-    val avgElos = map._4.lazyZip(map._5).map(_ + _).map(_ / 2)
-
-    val res =
-      f"""
-         |Global bias (${mkElo(map._1)}) — ${math.pow(10, map._1)}%.2f:1 (${sigmoid10(map._1)}%.2f)
-         |Offline adjustment: (${mkElo(map._2)}) — ${math
-          .pow(10, map._2)}%.2f:1 (${sigmoid10(map._2)}%.2f)
-         |Debater Elos:\n${renderElos(map._4)}%s
-         |Judge Elos:\n${renderElos(map._5)}%s
-         |Average Elos:\n${renderElos(avgElos)}%s
-         |""".stripMargin.trim
-
-    println(res)
-
-    assert(true)
-
+    Ratings(
+      mapEstimate._1,
+      mapEstimate._2,
+      questions.zip(mapEstimate._3),
+      debaters.zip(mapEstimate._4).toMap,
+      debaters.zip(mapEstimate._5).toMap
+    )
   }
 }

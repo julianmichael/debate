@@ -136,12 +136,18 @@ object LeaderboardCategory {
 }
 
 @JsonCodec
-case class Leaderboard(data: Map[LeaderboardCategory, Map[String, DebateStats]]) {
+case class Leaderboard(
+  data: Map[LeaderboardCategory, Map[String, DebateStats]],
+  ratings: Elo.Ratings
+) {
   def allDebaters = data.unorderedFoldMap(_.keySet)
 }
 
 object Leaderboard {
-  def fromDebates[F[_]: Foldable](debates: F[Debate]) = Leaderboard(
-    debates.foldMap(DebateStats.fromDebate).data.view.mapValues(_.data).toMap
-  )
+  def fromDebates[F[_]: Foldable](debates: F[Debate]) = {
+    val data     = debates.foldMap(DebateStats.fromDebate).data.view.mapValues(_.data).toMap
+    val debaters = debates.foldMap(_.setup.participants)
+    val ratings  = Elo.computeRatings(debates.toList.toVector, debaters)
+    Leaderboard(data, ratings)
+  }
 }

@@ -43,5 +43,5 @@ case class Lobby(
     .constructStoryRecord(officialRooms)
 }
 object Lobby {
-  def empty = Lobby(Map(), Set(), Set(), Set(), Set(), Leaderboard(Map()), Map())
+  def empty = Lobby(Map(), Set(), Set(), Set(), Set(), Leaderboard(Map(), Elo.Ratings.empty), Map())
 }
