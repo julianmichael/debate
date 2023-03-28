@@ -146,7 +146,11 @@ case class Leaderboard(
 
 object Leaderboard {
   private val oneWeekMillis = 604800000L
-  def fromDebates[F[_]: Foldable](debates: F[Debate]) = {
+  def fromDebates[F[_]: Foldable](_debates: F[Debate]) = {
+    // filter out debates from pre-2023
+    val debates = _debates
+      .toList
+      .filter(_.setup.creationTime > timeBeforeWhichToIgnoreMissingFeedback)
     val data     = debates.foldMap(DebateStats.fromDebate).data.view.mapValues(_.data).toMap
     val debaters = debates.foldMap(_.setup.participants)
     val ratings  = Elo.computeRatings(debates.toList.toVector, debaters)

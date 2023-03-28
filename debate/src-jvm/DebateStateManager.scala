@@ -259,16 +259,7 @@ case class DebateStateManager(
   private def refreshLeaderboard = rooms
     .get
     .flatMap { roomMap =>
-      leaderboard.set(
-        Leaderboard.fromDebates(
-          roomMap
-            .values
-            .toList
-            .map(_.debate.debate)
-            // filter out debates from pre-2023
-            .filter(_.setup.creationTime > timeBeforeWhichToIgnoreMissingFeedback)
-        )
-      )
+      leaderboard.set(Leaderboard.fromDebates(roomMap.values.toList.map(_.debate.debate)))
     }
 
   def processUpdate(roomName: String, request: DebateStateUpdateRequest) = {
