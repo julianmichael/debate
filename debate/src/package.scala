@@ -19,6 +19,11 @@ import jjm.ling.Span
 
 package object debate extends PackagePlatformExtensions {
 
+  def tapPrint[A](a: A): A = {
+    println(a)
+    a
+  }
+
   val adminUsername = "Admin"
 
   // you're only allowed to judge the same story twice

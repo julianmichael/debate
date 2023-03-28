@@ -9,9 +9,10 @@ import io.circe.generic.JsonCodec
 
 object Elo {
 
-  def mkElo(x: Double) = 1200 + (x * 400)
+  def mkElo(x: Double): Int = math.round(1200 + (x * 400)).toInt
 
   def sigmoid10(x: Double) = 1 / (1 + math.pow(10, -x))
+  def sigmoid2(x: Double)  = 1 / (1 + math.pow(2, -x))
 
   // def renderElos(skills: Seq[Double]) = skills
   //   .zipWithIndex
@@ -70,14 +71,10 @@ object Elo {
     val personIndex   = debaters.zipWithIndex.toMap
     val questionIndex = questions.zipWithIndex.toMap
 
-    val allVariablesModel = Model.track(
-      Set(globalBias) ++ questionEase.toVector ++ debaterSkill.toVector ++ judgeSkill.toVector
-    )
-
-    val onlineModel = {
+    val onlineModelOpt = {
       case class OnlineResult(debate: Debate, judging: JudgingResult, index: Int) {
         val probCorrect  = judging.finalJudgement(judging.correctAnswerIndex)
-        def logitCorrect = math.log10(probCorrect / (1 - probCorrect))
+        def logitCorrect = math.log(probCorrect / (1 - probCorrect)) / math.log(2.0)
       }
       val onlineResults = debates
         .zipWithIndex
@@ -89,6 +86,7 @@ object Elo {
               OnlineResult(debate, judgingInfo, index)
             }
         }
+        .filter(_.debate.setup.roles.size == 3)
       val onlineResultLogits = onlineResults.map(_.logitCorrect)
       val onlineResultModels = onlineResults.map { case OnlineResult(debate, _, _) =>
         val setup            = debate.setup
@@ -103,10 +101,13 @@ object Elo {
           globalBias + thisQuestionEase + thisHonestSkill - thisDishonestSkill + thisJudgeSkill
         logit
       }
-      Model.observe(onlineResultLogits, Vec.from(onlineResultModels).map(Normal(_, 1.0)))
+      if (onlineResultLogits.isEmpty)
+        None
+      else
+        Some(Model.observe(onlineResultLogits, Vec.from(onlineResultModels).map(Normal(_, 1.0))))
     }
 
-    val offlineModel = {
+    val offlineModelOpt = {
       // same as online model, but looking at offlineJudgments for each debate
       case class OfflineResult(
         debate: Debate,
@@ -115,7 +116,7 @@ object Elo {
         index: Int
       ) {
         val probCorrect  = offlineJudgment.distribution(debate.setup.correctAnswerIndex)
-        def logitCorrect = math.log10(probCorrect / (1 - probCorrect))
+        def logitCorrect = math.log(probCorrect / (1 - probCorrect)) / math.log(2.0)
       }
       val offlineResults = debates
         .zipWithIndex
@@ -127,6 +128,7 @@ object Elo {
               judgment.result.map(result => OfflineResult(debate, judge, result, index))
             }
         }
+        .filter(r => (r.debate.setup.roles - Judge).size == 2)
       val offlineResultLogits = offlineResults.map(_.logitCorrect)
       val offlineResultModels = offlineResults.map { case OfflineResult(debate, judge, _, _) =>
         val setup            = debate.setup
@@ -143,20 +145,35 @@ object Elo {
         logit
       }
 
-      Model.observe(offlineResultLogits, Vec.from(offlineResultModels).map(Normal(_, 1.0)))
+      if (offlineResultLogits.isEmpty)
+        None
+      else
+        Some(Model.observe(offlineResultLogits, Vec.from(offlineResultModels).map(Normal(_, 1.0))))
     }
 
-    val fullModel = List(onlineModel, offlineModel, allVariablesModel).reduce(_ merge _)
-
-    val mapEstimate = fullModel
-      .optimize((globalBias, offlineAdjustment, questionEase, debaterSkill, judgeSkill))
-
-    Ratings(
-      mapEstimate._1,
-      mapEstimate._2,
-      questions.zip(mapEstimate._3),
-      debaters.zip(mapEstimate._4).toMap,
-      debaters.zip(mapEstimate._5).toMap
+    val allVariablesModel = Model.track(
+      Set(globalBias, offlineAdjustment) ++ questionEase.toVector ++ debaterSkill.toVector ++
+        judgeSkill.toVector
     )
+
+    if (onlineModelOpt.isEmpty && offlineModelOpt.isEmpty)
+      return Ratings.empty
+    else {
+
+      val fullModel = (List(onlineModelOpt, offlineModelOpt).flatten ++ List(allVariablesModel))
+        .reduce(_ merge _)
+
+      val mapEstimate = fullModel
+        .optimize((globalBias, offlineAdjustment, questionEase, debaterSkill, judgeSkill))
+
+      Ratings(
+        mapEstimate._1,
+        mapEstimate._2,
+        questions.zip(mapEstimate._3),
+        debaters.zip(mapEstimate._4).toMap,
+        debaters.zip(mapEstimate._5).toMap
+      )
+    }
+
   }
 }
