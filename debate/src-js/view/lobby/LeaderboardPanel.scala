@@ -15,6 +15,7 @@ import debate.Utils.ClassSetInterpolator
 import debate.util.Local
 import jjm.DotMap
 import japgolly.scalajs.react.feature.ReactFragment
+import jjm.ui.Rgba
 
 object LeaderboardPanel {
 
@@ -25,7 +26,7 @@ object LeaderboardPanel {
     def header: String
     def order: Order[Out]
     def isRightAligned: Boolean
-    val show: Out => String
+    val show: Out => VdomTag
 
     def getRowOrder(isAscending: Boolean): Order[DotMap[Id, Column]] = {
       implicit val directionalOrder =
@@ -40,36 +41,53 @@ object LeaderboardPanel {
     private case class Impl[Out0](
       header: String,
       isRightAligned: Boolean,
-      show: Out0 => String,
+      show: Out0 => VdomTag,
       order: Order[Out0]
     ) extends Column {
       type Out = Out0
     }
-    def apply[Out0](header: String, isRightAligned: Boolean, show: Out0 => String)(
+    def apply[Out0](header: String, isRightAligned: Boolean, show: Out0 => VdomTag)(
       implicit order: Order[Out0]
     ): Column {
       type Out = Out0
     } = Impl(header, isRightAligned, show, order)
 
-    val count = Column[Int]("Count", true, _.toString)
+    def withStringShow[Out0](header: String, isRightAligned: Boolean, show: Out0 => String)(
+      implicit order: Order[Out0]
+    ): Column {
+      type Out = Out0
+    } = Impl(header, isRightAligned, o => <.span(show(o)), order)
+
+    val count = Column.withStringShow[Int]("Count", true, _.toString)
 
     // leaderboard columns
-    val name   = Column[String]("Name", false, identity)
-    val wins   = Column[Int]("Wins", true, _.toString)
-    val losses = Column[Int]("Losses", true, _.toString)
-    val winPercentage = Column[Option[Double]](
+    val name   = Column.withStringShow[String]("Name", false, identity)
+    val wins   = Column.withStringShow[Int]("Wins", true, _.toString)
+    val losses = Column.withStringShow[Int]("Losses", true, _.toString)
+    val winPercentage = Column.withStringShow[Option[Double]](
       "Win %",
       true,
       _.fold("-")(winProp => f"${winProp * 100}%.0f%%")
     )
-    val reward = Column[Option[Double]]("Avg Reward", true, _.fold("-")(reward => f"$reward%.2f"))
+    val reward = Column
+      .withStringShow[Option[Double]]("Avg Reward", true, _.fold("-")(reward => f"$reward%.2f"))
 
-    def showRating(rating: Double) = f"${math.pow(2, rating)}%.2f"
+    def getColorFromCorrectnessScore(correctnessScore: Double) = Rgba(
+      math.max(0.0, 255.0 * math.sqrt(0.5 - correctnessScore) * 2.0 * math.sqrt(0.5)).toInt,
+      math.max(0.0, 255.0 * math.sqrt(correctnessScore - 0.5) * 2.0 * math.sqrt(0.5)).toInt,
+      0,
+      1.0
+    )
+
+    def showRating(rating: Double) = {
+      val color = getColorFromCorrectnessScore(Elo.sigmoid2(rating)).toColorStyleString
+      <.strong(^.color := color, f"${math.pow(2, rating)}%.2f")
+    }
     // f"${math.pow(2, rating)}%.2f (${Elo.sigmoid2(rating) * 100.0}%.0f%%)"
 
-    val debated      = Column[Int]("Debated", true, rating => f"${rating.toInt}%d")
+    val debated      = Column.withStringShow[Int]("Debated", true, _.toString)
     val debateRating = Column[Double]("Debate Rating", true, showRating)
-    val judged       = Column[Int]("Judged", true, rating => f"${rating.toInt}%d")
+    val judged       = Column.withStringShow[Int]("Judged", true, _.toString)
     val judgeRating  = Column[Double]("Judge Rating", true, showRating)
     val rating       = Column[Double]("Avg Rating", true, showRating)
 
