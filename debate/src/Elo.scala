@@ -42,18 +42,40 @@ object Elo {
         }
     }
 
+  implicit def zip6toGen[A, B, C, D, E, F, Z, Y, X, W, V, U](
+    implicit az: ToGenerator[A, Z],
+    by: ToGenerator[B, Y],
+    cx: ToGenerator[C, X],
+    dw: ToGenerator[D, W],
+    ev: ToGenerator[E, V],
+    fu: ToGenerator[F, U]
+  ): ToGenerator[(A, B, C, D, E, F), (Z, Y, X, W, V, U)] =
+    new ToGenerator[(A, B, C, D, E, F), (Z, Y, X, W, V, U)] {
+      def apply(t: (A, B, C, D, E, F)) = az(t._1)
+        .zip(by(t._2))
+        .zip(cx(t._3))
+        .zip(dw(t._4))
+        .zip(ev(t._5))
+        .zip(fu(t._6))
+        .map { case (((((z, y), x), w), v), u) =>
+          (z, y, x, w, v, u)
+        }
+    }
+
   @JsonCodec
   case class Ratings(
     globalBias: Double,
     offlineAdjustment: Double,
     questionEase: Vector[(QuestionId, Double)],
-    debaterSkills: Map[String, Double],
+    honestSkills: Map[String, Double],
+    dishonestSkills: Map[String, Double],
     judgeSkills: Map[String, Double]
   ) {
-    def averageSkills = (debaterSkills |+| judgeSkills).mapVals(_ / 2)
+    def averageSkills = ((honestSkills |+| dishonestSkills).mapVals(_ / 2) |+| judgeSkills)
+      .mapVals(_ / 2)
   }
   object Ratings {
-    def empty = Ratings(0.0, 0.0, Vector(), Map(), Map())
+    def empty = Ratings(0.0, 0.0, Vector(), Map(), Map(), Map())
   }
 
   def computeRatings(
@@ -65,10 +87,11 @@ object Elo {
     val debaters  = debaterSet.toVector
 
     // val data         = loadDebateData.unsafeRunSync()
-    val globalBias   = Normal(0, 1).latent
-    val questionEase = Normal(0, 1).latentVec(questions.size)
-    val debaterSkill = Normal(0, 1).latentVec(debaters.size)
-    val judgeSkill   = Normal(0, 1).latentVec(debaters.size)
+    val globalBias     = Normal(0, 1).latent
+    val questionEase   = Normal(0, 1).latentVec(questions.size)
+    val honestSkill    = Normal(0, 1).latentVec(debaters.size)
+    val dishonestSkill = Normal(0, 1).latentVec(debaters.size)
+    val judgeSkill     = Normal(0, 1).latentVec(debaters.size)
     // val debateVariance = Gamma(0.5, 100).latent
     val offlineAdjustment = Normal(0, 1).latent
 
@@ -97,8 +120,8 @@ object Elo {
         val setup            = debate.setup
         val roles            = setup.roles
         val thisQuestionEase = questionEase(questionIndex(QuestionId.fromDebate(debate)))
-        val thisHonestSkill  = debaterSkill(personIndex(roles(Debater(setup.correctAnswerIndex))))
-        val thisDishonestSkill = debaterSkill(
+        val thisHonestSkill  = honestSkill(personIndex(roles(Debater(setup.correctAnswerIndex))))
+        val thisDishonestSkill = dishonestSkill(
           personIndex(roles(Debater(1 - setup.correctAnswerIndex)))
         )
         val thisJudgeSkill = judgeSkill(personIndex(roles(Judge)))
@@ -142,8 +165,8 @@ object Elo {
         val setup            = debate.setup
         val roles            = setup.roles
         val thisQuestionEase = questionEase(questionIndex(QuestionId.fromDebate(debate)))
-        val thisHonestSkill  = debaterSkill(personIndex(roles(Debater(setup.correctAnswerIndex))))
-        val thisDishonestSkill = debaterSkill(
+        val thisHonestSkill  = honestSkill(personIndex(roles(Debater(setup.correctAnswerIndex))))
+        val thisDishonestSkill = dishonestSkill(
           personIndex(roles(Debater(1 - setup.correctAnswerIndex)))
         )
         val thisJudgeSkill = judgeSkill(personIndex(judge))
@@ -160,8 +183,8 @@ object Elo {
     }
 
     val allVariablesModel = Model.track(
-      Set(globalBias, offlineAdjustment) ++ questionEase.toVector ++ debaterSkill.toVector ++
-        judgeSkill.toVector
+      Set(globalBias, offlineAdjustment) ++ questionEase.toVector ++ honestSkill.toVector ++
+        dishonestSkill.toVector ++ judgeSkill.toVector
     )
 
     if (onlineModelOpt.isEmpty && offlineModelOpt.isEmpty)
@@ -171,15 +194,17 @@ object Elo {
       val fullModel = (List(onlineModelOpt, offlineModelOpt).flatten ++ List(allVariablesModel))
         .reduce(_ merge _)
 
-      val mapEstimate = fullModel
-        .optimize((globalBias, offlineAdjustment, questionEase, debaterSkill, judgeSkill))
+      val mapEstimate = fullModel.optimize(
+        (globalBias, offlineAdjustment, questionEase, honestSkill, dishonestSkill, judgeSkill)
+      )
 
       Ratings(
         mapEstimate._1,
         mapEstimate._2,
         questions.zip(mapEstimate._3),
         debaters.zip(mapEstimate._4).toMap,
-        debaters.zip(mapEstimate._5).toMap
+        debaters.zip(mapEstimate._5).toMap,
+        debaters.zip(mapEstimate._6).toMap
       )
     }
 

@@ -91,18 +91,24 @@ object LeaderboardPanel {
     }
     // f"${math.pow(2, rating)}%.2f (${Elo.sigmoid2(rating) * 100.0}%.0f%%)"
 
-    val debated = Column.withStringShow[Int]("Debated", true, _.toString)
-    def debateRating(useWinPercentage: Boolean) = Column[Double](
-      "Debate Rating",
+    def honestRating(useWinPercentage: Boolean) = Column[Double](
+      "Honest",
       true,
       showRating(useWinPercentage)
     )
-    val judged = Column.withStringShow[Int]("Judged", true, _.toString)
+    val honestN = Column.withStringShow[Int]("#H", true, _.toString)
+    def dishonestRating(useWinPercentage: Boolean) = Column[Double](
+      "Dishonest",
+      true,
+      showRating(useWinPercentage)
+    )
+    val dishonestN = Column.withStringShow[Int]("#D", true, _.toString)
     def judgeRating(useWinPercentage: Boolean) = Column[Double](
-      "Judge Rating",
+      "Judge",
       true,
       showRating(useWinPercentage)
     )
+    val judgedN = Column.withStringShow[Int]("#J", true, _.toString)
     def rating(useWinPercentage: Boolean) = Column[Double](
       "Avg Rating",
       true,
@@ -118,17 +124,19 @@ object LeaderboardPanel {
     val allForRoleLeaderboard = List(name, wins, losses, winPercentage, reward)
     def allForRatingsLeaderboard(useWinPercentage: Boolean) = List(
       name,
-      debated,
-      debateRating(useWinPercentage),
-      judged,
+      honestRating(useWinPercentage),
+      honestN,
+      dishonestRating(useWinPercentage),
+      dishonestN,
       judgeRating(useWinPercentage),
+      judgedN,
       rating(useWinPercentage),
       ratingDelta(useWinPercentage)
     )
   }
 
   type RowData = DotMap[Id, Column]
-  def isRowEmpty(row: RowData) = row.get(Column.count).exists(_.isEmpty)
+  def isRowEmpty(row: RowData) = row.get(Column.count).exists(_ == 0)
 
   @Lenses
   case class SortingOrder(isAscending: Boolean, column: Column)
@@ -160,23 +168,31 @@ object LeaderboardPanel {
 
   def makeRatingsRowData(
     name: String,
-    debatingStats: DebateStats,
+    honestStats: DebateStats,
+    dishonestStats: DebateStats,
     judgingStats: DebateStats,
     ratings: Elo.Ratings,
     oneWeekOldRatings: Elo.Ratings,
     showRatingsAsWinPercentage: Boolean
   ) = {
-    val rating = (ratings.debaterSkills(name) + ratings.judgeSkills(name)) / 2
+    val rating =
+      ((ratings.honestSkills(name) + ratings.dishonestSkills(name)) / 2 +
+        ratings.judgeSkills(name)) / 2
     val oldRating =
-      (oneWeekOldRatings.debaterSkills(name) + oneWeekOldRatings.judgeSkills(name)) / 2
+      ((oneWeekOldRatings.honestSkills(name) + oneWeekOldRatings.dishonestSkills(name)) / 2 +
+        oneWeekOldRatings.judgeSkills(name)) / 2
     DotMap
       .empty[Id, Column]
       .put(Column.name)(name)
-      .put(Column.count)(debatingStats.wins.total + judgingStats.wins.total)
-      .put(Column.debated)(debatingStats.wins.total)
-      .put(Column.debateRating(showRatingsAsWinPercentage))(ratings.debaterSkills(name))
-      .put(Column.judged)(judgingStats.wins.total)
+      .put(Column.count)(
+        dishonestStats.wins.total + honestStats.wins.total + judgingStats.wins.total
+      )
+      .put(Column.honestRating(showRatingsAsWinPercentage))(ratings.honestSkills(name))
+      .put(Column.honestN)(honestStats.wins.total)
+      .put(Column.dishonestRating(showRatingsAsWinPercentage))(ratings.dishonestSkills(name))
+      .put(Column.dishonestN)(dishonestStats.wins.total)
       .put(Column.judgeRating(showRatingsAsWinPercentage))(ratings.judgeSkills(name))
+      .put(Column.judgedN)(judgingStats.wins.total)
       .put(Column.rating(showRatingsAsWinPercentage))(rating)
       .put(Column.ratingDelta(showRatingsAsWinPercentage))(rating - oldRating)
   }
@@ -251,11 +267,14 @@ object LeaderboardPanel {
   )
 
   def makeRatingsLeaderboard(debaters: Set[String], leaderboard: Leaderboard) = {
-    val debatingStats = List(
-      LeaderboardCategory.HonestDebater,
-      LeaderboardCategory.DishonestDebater
-    ).flatMap(leaderboard.data.get)
+    val honestStats = List(LeaderboardCategory.HonestDebater)
+      .flatMap(leaderboard.data.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
+
+    val dishonestStats = List(LeaderboardCategory.DishonestDebater)
+      .flatMap(leaderboard.data.get)
+      .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
+
     val judgingStats = List(LeaderboardCategory.Judge, LeaderboardCategory.OfflineJudge)
       .flatMap(leaderboard.data.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
@@ -324,7 +343,8 @@ object LeaderboardPanel {
                   .map(debater =>
                     makeRatingsRowData(
                       debater,
-                      debatingStats(debater),
+                      honestStats(debater),
+                      dishonestStats(debater),
                       judgingStats(debater),
                       leaderboard.ratings,
                       leaderboard.oneWeekOldRatings,
