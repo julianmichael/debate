@@ -138,16 +138,23 @@ object LeaderboardCategory {
 @JsonCodec
 case class Leaderboard(
   data: Map[LeaderboardCategory, Map[String, DebateStats]],
-  ratings: Elo.Ratings
+  ratings: Elo.Ratings,
+  oneWeekOldRatings: Elo.Ratings
 ) {
   def allDebaters = data.unorderedFoldMap(_.keySet)
 }
 
 object Leaderboard {
+  private val oneWeekMillis = 604800000L
   def fromDebates[F[_]: Foldable](debates: F[Debate]) = {
     val data     = debates.foldMap(DebateStats.fromDebate).data.view.mapValues(_.data).toMap
     val debaters = debates.foldMap(_.setup.participants)
     val ratings  = Elo.computeRatings(debates.toList.toVector, debaters)
-    Leaderboard(data, ratings)
+    val oneWeekOldRatings = Elo.computeRatings(
+      debates.toList.toVector,
+      debaters,
+      timeCutoff = Some(System.currentTimeMillis() - oneWeekMillis)
+    )
+    Leaderboard(data, ratings, oneWeekOldRatings)
   }
 }

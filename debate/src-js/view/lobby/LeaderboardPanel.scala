@@ -108,6 +108,11 @@ object LeaderboardPanel {
       true,
       showRating(useWinPercentage)
     )
+    def ratingDelta(useWinPercentage: Boolean) = Column[Double](
+      "1wk Δ",
+      true,
+      showRating(useWinPercentage)
+    )
 
     // list of all columns
     val allForRoleLeaderboard = List(name, wins, losses, winPercentage, reward)
@@ -117,7 +122,8 @@ object LeaderboardPanel {
       debateRating(useWinPercentage),
       judged,
       judgeRating(useWinPercentage),
-      rating(useWinPercentage)
+      rating(useWinPercentage),
+      ratingDelta(useWinPercentage)
     )
   }
 
@@ -157,8 +163,12 @@ object LeaderboardPanel {
     debatingStats: DebateStats,
     judgingStats: DebateStats,
     ratings: Elo.Ratings,
+    oneWeekOldRatings: Elo.Ratings,
     showRatingsAsWinPercentage: Boolean
-  ) =
+  ) = {
+    val rating = (ratings.debaterSkills(name) + ratings.judgeSkills(name)) / 2
+    val oldRating =
+      (oneWeekOldRatings.debaterSkills(name) + oneWeekOldRatings.judgeSkills(name)) / 2
     DotMap
       .empty[Id, Column]
       .put(Column.name)(name)
@@ -167,9 +177,9 @@ object LeaderboardPanel {
       .put(Column.debateRating(showRatingsAsWinPercentage))(ratings.debaterSkills(name))
       .put(Column.judged)(judgingStats.wins.total)
       .put(Column.judgeRating(showRatingsAsWinPercentage))(ratings.judgeSkills(name))
-      .put(Column.rating(showRatingsAsWinPercentage))(
-        (ratings.debaterSkills(name) + ratings.judgeSkills(name)) / 2
-      )
+      .put(Column.rating(showRatingsAsWinPercentage))(rating)
+      .put(Column.ratingDelta(showRatingsAsWinPercentage))(rating - oldRating)
+  }
 
   def renderRows(
     rows: Vector[RowData],
@@ -268,17 +278,25 @@ object LeaderboardPanel {
                 )
               ),
               <.div(c"alert alert-info")(
-                  "Skill ratings are calculated using a method similar to the ",
-                  <.a(
-                    ^.href := "https://en.wikipedia.org/wiki/Elo_rating_system",
-                    "Elo rating system"
+                  <.p(
+                    "Skill ratings are calculated using a method similar to the ",
+                    <.a(
+                      ^.href := "https://en.wikipedia.org/wiki/Elo_rating_system",
+                      "Elo rating system"
+                    ),
+                    ". Your displayed skill rating is your odds of winning a debate (or judging it correctly), ",
+                    " statistically corrected for the skill ratings of the other debate participants, ",
+                    " the difficulty of arguing for an incorrect answer, the difficulty of particular questions, ",
+                    " and the difficulty of offline versus online judging. ",
+                    " For example, a debater with a skill rating of 2.0 gets a 2x higher probability assigned to their answer ",
+                    " than their opponent in the average case. "
                   ),
-                  ". Your displayed skill rating is your odds of winning a debate (or judging it correctly), ",
-                  " statistically corrected for the skill ratings of the other debate participants, ",
-                  " the difficulty of arguing for an incorrect answer, the difficulty of particular questions, ",
-                  " and the difficulty of offline versus online judging. ",
-                  " For example, a debater with a skill rating of 2.0 gets a 2x higher probability assigned to their answer ",
-                  " than their opponent in the average case. "
+                  <.p(c"mb-0")(
+                    "1wk Δ (one week delta) is the change in rating (multiplicative) over the past week. ",
+                    <.strong(
+                      "The person with the most improvement gets to choose the food order for the following week :)."
+                    )
+                  )
                 )
                 .when(showInfo.value),
               <.div(c"pb-2")(
@@ -309,6 +327,7 @@ object LeaderboardPanel {
                       debatingStats(debater),
                       judgingStats(debater),
                       leaderboard.ratings,
+                      leaderboard.oneWeekOldRatings,
                       showRatingsAsWinPercentage.value
                     )
                   ),

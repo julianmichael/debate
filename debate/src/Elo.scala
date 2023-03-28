@@ -56,7 +56,11 @@ object Elo {
     def empty = Ratings(0.0, 0.0, Vector(), Map(), Map())
   }
 
-  def computeRatings(debates: Vector[Debate], debaterSet: Set[String]): Ratings = {
+  def computeRatings(
+    debates: Vector[Debate],
+    debaterSet: Set[String],
+    timeCutoff: Option[Long] = None
+  ): Ratings = {
     val questions = debates.map(QuestionId.fromDebate)
     val debaters  = debaterSet.toVector
 
@@ -81,6 +85,7 @@ object Elo {
         .flatMap { case (debate, index) =>
           debate
             .result
+            .filter(r => timeCutoff.forall(r.timestamp <= _))
             .flatMap(_.judgingInfo)
             .map { judgingInfo =>
               OnlineResult(debate, judgingInfo, index)
@@ -125,7 +130,10 @@ object Elo {
             .offlineJudgingResults
             .toVector
             .flatMap { case (judge, judgment) =>
-              judgment.result.map(result => OfflineResult(debate, judge, result, index))
+              judgment
+                .result
+                .filter(r => timeCutoff.forall(r.timestamp <= _))
+                .map(result => OfflineResult(debate, judge, result, index))
             }
         }
         .filter(r => (r.debate.setup.roles - Judge).size == 2)

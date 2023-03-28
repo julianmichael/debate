@@ -214,6 +214,9 @@ case class Debate(
                             RoundAcc(
                               result = Some(
                                 DebateResult(
+                                  timestamp = previousRoundOpt
+                                    .flatMap(_.timestamp(numDebaters))
+                                    .getOrElse(setup.creationTime),
                                   correctAnswerIndex = setup.correctAnswerIndex,
                                   endedBy = DebateEndReason.TimeUp,
                                   judgingInfo =
@@ -289,6 +292,13 @@ case class Debate(
                           RoundAcc(
                             result = Some(
                               DebateResult(
+                                timestamp = nextRound
+                                  .timestamp(numDebaters)
+                                  .getOrElse(
+                                    previousRoundOpt
+                                      .flatMap(_.timestamp(numDebaters))
+                                      .getOrElse(setup.creationTime)
+                                  ),
                                 correctAnswerIndex = setup.correctAnswerIndex,
                                 endedBy = DebateEndReason.JudgeDecided,
                                 judgingInfo = Some(
@@ -316,6 +326,13 @@ case class Debate(
                           RoundAcc(
                             result = Some(
                               DebateResult(
+                                timestamp = nextRound
+                                  .timestamp(numDebaters)
+                                  .getOrElse(
+                                    previousRoundOpt
+                                      .flatMap(_.timestamp(numDebaters))
+                                      .getOrElse(setup.creationTime)
+                                  ),
                                 correctAnswerIndex = setup.correctAnswerIndex,
                                 endedBy = DebateEndReason.MutualAgreement,
                                 judgingInfo = None

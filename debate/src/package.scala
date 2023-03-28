@@ -64,6 +64,7 @@ package object debate extends PackagePlatformExtensions {
   @Lenses
   @JsonCodec
   case class DebateResult(
+    timestamp: Long,
     correctAnswerIndex: Int,
     endedBy: DebateEndReason,
     judgingInfo: Option[JudgingResult]
