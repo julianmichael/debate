@@ -73,7 +73,7 @@ object DebateScheduler {
   def sampleRules(schedule: Schedule, rand: Random) = {
     // silly?
     val allRuleConfigs = NonEmptyVector
-      .fromVector(schedule.desiredRules.probs.toSortedMap.toVector)
+      .fromVector(schedule.desiredRules.probs.toSortedMap.filter(_._2 > 0.0).toVector)
       .get
       .map(_._1)
     DenseDistribution
@@ -407,7 +407,8 @@ object DebateScheduler {
     val numDebaters: Int = {
       val minNumDebaters = math.max(2, numDebatesPerQuestion)
       // val maxNumDebaters = math.ceil(math.sqrt(2 * numDebatesPerQuestion * qas.size) + 0.5)
-      val preferredNumDebaters = math.floor(math.sqrt(2 * numDebatesPerQuestion * qas.size)).toInt
+      val preferredNumDebaters =
+        math.floor(math.sqrt(2 * numDebatesPerQuestion * qas.size - 1)).toInt
       math.max(minNumDebaters, preferredNumDebaters)
     }
 
@@ -425,7 +426,7 @@ object DebateScheduler {
     val workload = startingSchedule.workload
     val debaterChoiceDist = DenseDistribution
       .fromSoftmax[String](
-        NonEmptyVector.fromVector(people.toVector).get,
+        NonEmptyVector.fromVector(people.toVector.filter(d => desiredWorkload.prob(d) > 0.0)).get,
         d => Params.workloadMultiplier * (desiredWorkload.prob(d) - workload.prob(d))
       )
       .withTemperature(Params.samplingTemperature)
