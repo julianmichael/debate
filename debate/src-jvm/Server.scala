@@ -247,6 +247,14 @@ case class Server(
         _           <- FileUtil.writeJson(ruleConfigsSavePath(saveDir))(ruleConfigs)
       } yield ()
 
+    def removeRuleConfig(ruleConfigName: String) =
+      for {
+        _           <- ruleConfigs.update(_ - ruleConfigName)
+        _           <- pushUpdate
+        ruleConfigs <- ruleConfigs.get
+        _           <- FileUtil.writeJson(ruleConfigsSavePath(saveDir))(ruleConfigs)
+      } yield ()
+
     def removeDebater(name: String) =
       for {
         _        <- profiles.update(_ - name)
@@ -312,6 +320,8 @@ case class Server(
                     registerDebater(profile)
                   case RegisterRuleConfig(ruleConfig) =>
                     registerRuleConfig(ruleConfig)
+                  case RemoveRuleConfig(ruleConfigName) =>
+                    removeRuleConfig(ruleConfigName)
                   case RemoveDebater(name) =>
                     removeDebater(name)
                   case DeleteRoom(isOfficial, roomName) =>

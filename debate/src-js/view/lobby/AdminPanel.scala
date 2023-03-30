@@ -68,6 +68,7 @@ object AdminPanel {
                   lobby = lobby,
                   qualityService = qualityService,
                   registerRuleConfig = sendToMainChannel,
+                  removeRuleConfig = sendToMainChannel,
                   joinDebate = joinRoomOpt,
                   initDebate = sendToMainChannel
                 )
