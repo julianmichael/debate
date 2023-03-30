@@ -147,32 +147,97 @@ object DebateRoundView {
     numDebaters: Int,
     numPreviousContinues: Int,
     getRewardForJudgment: (Int, Vector[Double]) => Option[Double],
+    assignedDebaters: Set[Int],
+    roundType: DebateRoundType,
     round: DebateRound,
     modifyRound: Option[DebateRound] => Callback
-  ) = <.div(
-    round
-      .timestamp(numDebaters)
-      .whenDefined(roundTime =>
-        debateStartTime.whenDefined(startTime => timestampHTML(startTime, roundTime))
-      )
-      .when(role.seesRoundTimestamp),
-    round match {
-      case SimultaneousSpeeches(speeches) =>
-        if (speeches.size < numDebaters) {
-          speeches
-            .toVector
-            .filter { case (index, _) =>
-              role.canSeeWhatDebaterSees(index)
-            }
-            .map { case (index, speech) =>
-              val speechStyle = TagMod(
-                S.answerOutline(index),
-                S.pendingBg,
-                S.debateWidthOffset(index)
+  ) = {
+    val debaters =
+      if (roundType.assignedDebatersOnly)
+        assignedDebaters
+      else
+        (0 until numDebaters).toSet
+    <.div(
+      round
+        .timestamp(debaters)
+        .whenDefined(roundTime =>
+          debateStartTime.whenDefined(startTime => timestampHTML(startTime, roundTime))
+        )
+        .when(role.seesRoundTimestamp),
+      round match {
+        case SimultaneousSpeeches(speeches) =>
+          if (speeches.size < debaters.size) {
+            speeches
+              .toVector
+              .filter { case (index, _) =>
+                role.canSeeWhatDebaterSees(index)
+              }
+              .map { case (index, speech) =>
+                val speechStyle = TagMod(
+                  S.answerOutline(index),
+                  S.pendingBg,
+                  S.debateWidthOffset(index)
+                )
+                makeSpeechHtml(
+                  source,
+                  Debater(index),
+                  speech,
+                  debateStartTime,
+                  role,
+                  userName,
+                  anonymize,
+                  speechStyle
+                )
+              }
+              .zipWithIndex
+              .toVdomArray { case (el, i) =>
+                el(^.key := s"text-$i")
+              }
+          } else {
+            Vector(
+              makeSimultaneousSpeechesHtml(
+                source,
+                speeches,
+                debateStartTime,
+                role,
+                userName,
+                anonymize
               )
+            ).zipWithIndex
+              .toVdomArray { case (el, i) =>
+                el(^.key := s"text-$i")
+              }
+          }
+        case SequentialSpeeches(speeches) =>
+          val speechesToShow =
+            if (speeches.size < debaters.size && !role.canSeeIntermediateArguments) {
+              Map[Int, DebateSpeech]()
+            } else
+              speeches
+
+          speechesToShow
+            .toVector
+            .sortBy(_._1)
+            .toVdomArray { case (debaterIndex, speech) =>
+              val speechStyle = TagMod(S.answerBg(debaterIndex), S.debateWidthOffset(debaterIndex))
               makeSpeechHtml(
                 source,
-                Debater(index),
+                Debater(debaterIndex),
+                speech,
+                debateStartTime,
+                role,
+                userName,
+                anonymize,
+                speechStyle
+              )(^.key := s"speech-$debaterIndex")
+            }
+        case JudgeFeedback(probabilities, speech, endsDebate) =>
+          val speechStyle = TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
+          Vector(
+            Option(
+              makeSpeechHtml(
+                Vector(),
+                Judge,
                 speech,
                 debateStartTime,
                 role,
@@ -180,234 +245,179 @@ object DebateRoundView {
                 anonymize,
                 speechStyle
               )
-            }
-            .zipWithIndex
-            .toVdomArray { case (el, i) =>
-              el(^.key := s"text-$i")
-            }
-        } else {
-          Vector(
-            makeSimultaneousSpeechesHtml(
-              source,
-              speeches,
-              debateStartTime,
-              role,
-              userName,
-              anonymize
-            )
-          ).zipWithIndex
-            .toVdomArray { case (el, i) =>
-              el(^.key := s"text-$i")
-            }
-        }
-      case SequentialSpeeches(speeches) =>
-        val speechesToShow =
-          if (speeches.size < numDebaters && !role.canSeeIntermediateArguments) {
-            Map[Int, DebateSpeech]()
-          } else
-            speeches
-
-        speechesToShow
-          .toVector
-          .sortBy(_._1)
-          .toVdomArray { case (debaterIndex, speech) =>
-            val speechStyle = TagMod(S.answerBg(debaterIndex), S.debateWidthOffset(debaterIndex))
-            makeSpeechHtml(
-              source,
-              Debater(debaterIndex),
-              speech,
-              debateStartTime,
-              role,
-              userName,
-              anonymize,
-              speechStyle
-            )(^.key := s"speech-$debaterIndex")
-          }
-      case JudgeFeedback(probabilities, speech, endsDebate) =>
-        val speechStyle = TagMod(S.judgeFeedbackBg, S.judgeDecision.when(endsDebate))
-        Vector(
-          Option(
-            makeSpeechHtml(
-              Vector(),
-              Judge,
-              speech,
-              debateStartTime,
-              role,
-              userName,
-              anonymize,
-              speechStyle
-            )
-          ),
-          Option(
-            <.div(
-              ^.display       := "flex",
-              ^.flexDirection := "row",
-              probabilities
-                .zipWithIndex
-                .toVdomArray { case (prob, index) =>
-                  val pct = f"${prob * 100.0}%.0f%%"
-                  <.div(
-                    ^.key := s"prob-$index",
-                    S.answerBg(index),
-                    ^.width      := pct,
-                    ^.color      := "white",
-                    ^.fontWeight := "bold",
-                    ^.flexGrow   := "1"
-                  )(pct)
-                }
-            )
-          ).filter(_ => probabilities.size > 1),
-          Option {
-            val continueOrEnd =
-              if (endsDebate)
-                "end"
-              else
-                "continue"
-            <.div(s"The judge decided to ", <.strong(continueOrEnd), " the debate.")
-          },
-          getRewardForJudgment(numPreviousContinues, probabilities).map { reward =>
-            <.div(f"Reward: $reward%.3f")
-          }
-        ).flatten
-          .zipWithIndex
-          .toVdomArray { case (speechBox, index) =>
-            speechBox(^.key := s"speechbox-$index")
-          }
-      case NegotiateEnd(votes) =>
-        if (votes.size == numDebaters || role == Facilitator) {
-          if (role.canSeeVotes) {
-            if (votes.values.forall(identity)) {
-              <.div("All debaters voted to ", <.strong("end"), " the debate.")
-            } else if (votes.values.forall(!_)) {
-              <.div("All debaters voted to ", <.strong("continue"), " the debate.")
-            } else {
+            ),
+            Option(
               <.div(
-                "Continue votes: ",
-                Utils
-                  .delimitedSpans(votes.filter(!_._2).keySet.toVector.sorted.map(answerLetter))
-                  .toVdomArray,
-                ". ",
-                "End votes: ",
-                Utils
-                  .delimitedSpans(votes.filter(_._2).keySet.toVector.sorted.map(answerLetter))
-                  .toVdomArray
+                ^.display       := "flex",
+                ^.flexDirection := "row",
+                probabilities
+                  .zipWithIndex
+                  .toVdomArray { case (prob, index) =>
+                    val pct = f"${prob * 100.0}%.0f%%"
+                    <.div(
+                      ^.key := s"prob-$index",
+                      S.answerBg(index),
+                      ^.width      := pct,
+                      ^.color      := "white",
+                      ^.fontWeight := "bold",
+                      ^.flexGrow   := "1"
+                    )(pct)
+                  }
               )
+            ).filter(_ => probabilities.size > 1),
+            Option {
+              val continueOrEnd =
+                if (endsDebate)
+                  "end"
+                else
+                  "continue"
+              <.div(s"The judge decided to ", <.strong(continueOrEnd), " the debate.")
+            },
+            getRewardForJudgment(numPreviousContinues, probabilities).map { reward =>
+              <.div(f"Reward: $reward%.3f")
+            }
+          ).flatten
+            .zipWithIndex
+            .toVdomArray { case (speechBox, index) =>
+              speechBox(^.key := s"speechbox-$index")
+            }
+        case NegotiateEnd(votes) =>
+          if (votes.size == debaters.size || role == Facilitator) {
+            if (role.canSeeVotes) {
+              if (votes.values.forall(identity)) {
+                <.div("All debaters voted to ", <.strong("end"), " the debate.")
+              } else if (votes.values.forall(!_)) {
+                <.div("All debaters voted to ", <.strong("continue"), " the debate.")
+              } else {
+                <.div(
+                  "Continue votes: ",
+                  Utils
+                    .delimitedSpans(votes.filter(!_._2).keySet.toVector.sorted.map(answerLetter))
+                    .toVdomArray,
+                  ". ",
+                  "End votes: ",
+                  Utils
+                    .delimitedSpans(votes.filter(_._2).keySet.toVector.sorted.map(answerLetter))
+                    .toVdomArray
+                )
+              }
+            } else {
+              if (votes.values.forall(identity)) {
+                <.div("All debaters have mutually agreed to ", <.strong("end"), " the debate.")
+              } else {
+                <.div("Debaters did not agree to end the debate.")
+              }
             }
           } else {
-            if (votes.values.forall(identity)) {
-              <.div("All debaters have mutually agreed to ", <.strong("end"), " the debate.")
-            } else {
-              <.div("Debaters did not agree to end the debate.")
-            }
+            Option(role)
+              .collect { case Debater(index) =>
+                votes
+                  .get(index)
+                  .map { votedToEnd =>
+                    if (votedToEnd) {
+                      <.div("You voted to ", <.strong("end"), " the debate.")
+                    } else {
+                      <.div("You voted to ", <.strong("continue"), " the debate.")
+                    }
+                  }
+              }
+              .flatten
+              .toVector
+              .zipWithIndex
+              .toVdomArray { case (el, i) =>
+                el(^.key := s"text-$i")
+              }
           }
-        } else {
-          Option(role)
-            .collect { case Debater(index) =>
-              votes
-                .get(index)
-                .map { votedToEnd =>
-                  if (votedToEnd) {
-                    <.div("You voted to ", <.strong("end"), " the debate.")
-                  } else {
-                    <.div("You voted to ", <.strong("continue"), " the debate.")
-                  }
-                }
-            }
-            .flatten
-            .toVector
-            .zipWithIndex
-            .toVdomArray { case (el, i) =>
-              el(^.key := s"text-$i")
-            }
-        }
-      case OfflineJudgments(judgments) =>
-        val canSeeOfflineJudgingResults = !anonymize
-        // role != OfflineJudge || judgments.get(userName).exists(_.result.nonEmpty)
+        case OfflineJudgments(judgments) =>
+          val canSeeOfflineJudgingResults = !anonymize
+          // role != OfflineJudge || judgments.get(userName).exists(_.result.nonEmpty)
 
-        // TODO: display info about num continues and time taken to judge
-        // TODO: display info about people currently judging? (maybe facilitator only)
-        val speechStyle = TagMod(S.offlineJudgeBg)
-        TagMod(
-          judgments
-            .toVector
-            .sortBy(_._2.result.isEmpty)
-            .filter { case (judge, _) =>
-              judge == userName || canSeeOfflineJudgingResults
-            }
-            .flatMap { case (judge, OfflineJudgment(_, startTimeMillis, numContinues, resultOpt)) =>
-              Vector(
-                Option(
-                  resultOpt
-                    .map(result =>
-                      makeSpeechHtml(
-                        Vector(),
-                        OfflineJudge,
-                        DebateSpeech(
-                          judge,
-                          result.timestamp,
-                          Vector(SpeechSegment.Text(result.explanation))
-                        ),
-                        debateStartTime,
-                        role,
-                        userName,
-                        anonymize,
-                        speechStyle
-                      )
-                    )
-                    .getOrElse(
-                      ReactFragment(
-                        makeSpeechHtml(
-                          Vector(),
-                          OfflineJudge,
-                          DebateSpeech(
-                            judge,
-                            startTimeMillis,
-                            Vector(SpeechSegment.Text("<pending>"))
-                          ),
-                          debateStartTime,
-                          role,
-                          userName,
-                          anonymize,
-                          speechStyle
-                        ),
-                        <.div(
-                          <.a(c"text-danger")("Click to delete the judgment above"),
-                          ^.onClick --> modifyRound(None)
+          // TODO: display info about num continues and time taken to judge
+          // TODO: display info about people currently judging? (maybe facilitator only)
+          val speechStyle = TagMod(S.offlineJudgeBg)
+          TagMod(
+            judgments
+              .toVector
+              .sortBy(_._2.result.isEmpty)
+              .filter { case (judge, _) =>
+                judge == userName || canSeeOfflineJudgingResults
+              }
+              .flatMap {
+                case (judge, OfflineJudgment(_, startTimeMillis, numContinues, resultOpt)) =>
+                  Vector(
+                    Option(
+                      resultOpt
+                        .map(result =>
+                          makeSpeechHtml(
+                            Vector(),
+                            OfflineJudge,
+                            DebateSpeech(
+                              judge,
+                              result.timestamp,
+                              Vector(SpeechSegment.Text(result.explanation))
+                            ),
+                            debateStartTime,
+                            role,
+                            userName,
+                            anonymize,
+                            speechStyle
+                          )
                         )
-                      )
-                    )
-                ),
-                resultOpt
-                  .filter(_.distribution.size > 1)
-                  .map(result =>
-                    <.div(
-                      ^.display       := "flex",
-                      ^.flexDirection := "row",
-                      result
-                        .distribution
-                        .zipWithIndex
-                        .toVdomArray { case (prob, index) =>
-                          val pct = f"${prob * 100.0}%.0f%%"
-                          <.div(
-                            ^.key := s"prob-$index",
-                            S.answerBg(index),
-                            ^.width      := pct,
-                            ^.color      := "white",
-                            ^.fontWeight := "bold",
-                            ^.flexGrow   := "1"
-                          )(pct)
-                        }
-                    )
-                  ),
-                resultOpt
-                  .map(_.distribution)
-                  .flatMap(getRewardForJudgment(numContinues, _))
-                  .map { reward =>
-                    <.div(f"Reward: $reward%.3f")
-                  }
-              ).flatten
-            }: _*
-        )
-    }
-  )
+                        .getOrElse(
+                          ReactFragment(
+                            makeSpeechHtml(
+                              Vector(),
+                              OfflineJudge,
+                              DebateSpeech(
+                                judge,
+                                startTimeMillis,
+                                Vector(SpeechSegment.Text("<pending>"))
+                              ),
+                              debateStartTime,
+                              role,
+                              userName,
+                              anonymize,
+                              speechStyle
+                            ),
+                            <.div(
+                              <.a(c"text-danger")("Click to delete the judgment above"),
+                              ^.onClick --> modifyRound(None)
+                            )
+                          )
+                        )
+                    ),
+                    resultOpt
+                      .filter(_.distribution.size > 1)
+                      .map(result =>
+                        <.div(
+                          ^.display       := "flex",
+                          ^.flexDirection := "row",
+                          result
+                            .distribution
+                            .zipWithIndex
+                            .toVdomArray { case (prob, index) =>
+                              val pct = f"${prob * 100.0}%.0f%%"
+                              <.div(
+                                ^.key := s"prob-$index",
+                                S.answerBg(index),
+                                ^.width      := pct,
+                                ^.color      := "white",
+                                ^.fontWeight := "bold",
+                                ^.flexGrow   := "1"
+                              )(pct)
+                            }
+                        )
+                      ),
+                    resultOpt
+                      .map(_.distribution)
+                      .flatMap(getRewardForJudgment(numContinues, _))
+                      .map { reward =>
+                        <.div(f"Reward: $reward%.3f")
+                      }
+                  ).flatten
+              }: _*
+          )
+      }
+    )
+  }
 }

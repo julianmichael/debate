@@ -158,6 +158,7 @@ object DebatePanel {
 
   def visibleRounds(role: Role, debate: Debate) = debate
     .rounds
+    .zip(debate.setup.rules.roundTypes)
     .zip(
       debate
         .rounds
@@ -170,32 +171,58 @@ object DebatePanel {
           }
         }
     )
-    .filter { case (round, _) =>
-      role.canSeeIntermediateArguments || round.isComplete(debate.setup.numDebaters)
+    .filter { case ((round, roundType), _) =>
+      val debaters =
+        if (roundType.assignedDebatersOnly)
+          debate
+            .setup
+            .roles
+            .keySet
+            .collect { case Debater(i) =>
+              i
+            }
+        else
+          (0 until debate.setup.numDebaters).toSet
+      role.canSeeIntermediateArguments || round.isComplete(debaters)
     }
 
-  def debateSpansWithSpeaker(role: Role, numDebaters: Int, rounds: Vector[DebateRound]) = rounds
-    .flatMap { round =>
-      if (round.isComplete(numDebaters)) {
-        round
-          .allSpeeches
-          .view
-          .flatMap { case (role, speech) =>
-            speech.allQuotes.map(role -> _)
-          }
-          .toVector
-      } else {
-        round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
-      }
-    }
-
-  def getHighlights(
+  def debateSpansWithSpeaker(
     role: Role,
     numDebaters: Int,
-    rounds: Vector[DebateRound],
-    curMessageSpans: Set[ESpan]
-  ) =
-    debateSpansWithSpeaker(role, numDebaters, rounds).map { case (role, span) =>
+    assignedDebaters: Set[Int],
+    rounds: Vector[(DebateRoundType, DebateRound)]
+  ) = rounds.flatMap { case (roundType, round) =>
+    val debaters =
+      if (roundType.assignedDebatersOnly)
+        assignedDebaters
+      else
+        (0 until numDebaters).toSet
+    if (round.isComplete(debaters)) {
+      round
+        .allSpeeches
+        .view
+        .flatMap { case (role, speech) =>
+          speech.allQuotes.map(role -> _)
+        }
+        .toVector
+    } else {
+      round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
+    }
+  }
+
+  def getHighlights(role: Role, debate: Debate, curMessageSpans: Set[ESpan]) =
+    debateSpansWithSpeaker(
+      role,
+      debate.setup.numDebaters,
+      debate
+        .setup
+        .roles
+        .keySet
+        .collect { case Debater(i) =>
+          i
+        },
+      debate.rounds.zip(debate.setup.rules.roundTypes).map(_.swap)
+    ).map { case (role, span) =>
       span -> getSpanColorForRole(role)
     } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
 
@@ -221,7 +248,7 @@ object DebatePanel {
     anonymize: Boolean,
     sendToMainChannel: MainChannelRequest => Callback
   ) = {
-    import debate.value.{setup, rounds}
+    import debate.value.setup
 
     def scratchpad(debateRole: DebateRole) = debate.zoomStateL(
       Debate
@@ -285,7 +312,7 @@ object DebatePanel {
                 TabNav.tab(
                   StoryPanel(
                     setup.sourceMaterial.contents,
-                    getHighlights(role, setup.numDebaters, rounds, curMessageSpans),
+                    getHighlights(role, debate.value, curMessageSpans),
                     span => currentMessage.modState(_ + span2text(span))
                   )
                 )
@@ -295,7 +322,7 @@ object DebatePanel {
                 TabNav.tab(
                   ConsolidatedQuotesPanel(
                     setup.sourceMaterial.contents,
-                    getHighlights(role, setup.numDebaters, rounds, curMessageSpans)
+                    getHighlights(role, debate.value, curMessageSpans)
                   )
                 )
             ),
@@ -345,7 +372,7 @@ object DebatePanel {
                 ^.id := "speeches",
                 visibleRounds(role, debate.value)
                   .zipWithIndex
-                  .flatMap { case ((round, numPreviousContinues), roundIndex) =>
+                  .flatMap { case (((round, roundType), numPreviousContinues), roundIndex) =>
                     Option(
                       DebateRoundView.makeRoundHtml(
                         source = setup.sourceMaterial.contents,
@@ -356,18 +383,26 @@ object DebatePanel {
                         numDebaters = setup.answers.size,
                         numPreviousContinues = numPreviousContinues,
                         getRewardForJudgment = getRewardForJudgment,
-                        round,
-                        roundOpt =>
-                          debate
-                            .zoomStateL(Debate.rounds)
-                            .modState(rounds =>
-                              roundOpt match {
-                                case None =>
-                                  rounds.remove(roundIndex)
-                                case Some(r) =>
-                                  rounds.updated(roundIndex, r)
-                              }
-                            )
+                        assignedDebaters = setup
+                          .roles
+                          .keySet
+                          .collect { case Debater(i) =>
+                            i
+                          },
+                        roundType = roundType,
+                        round = round,
+                        modifyRound =
+                          roundOpt =>
+                            debate
+                              .zoomStateL(Debate.rounds)
+                              .modState(rounds =>
+                                roundOpt match {
+                                  case None =>
+                                    rounds.remove(roundIndex)
+                                  case Some(r) =>
+                                    rounds.updated(roundIndex, r)
+                                }
+                              )
                       )(^.key := s"round-$roundIndex")
                     )
                   }

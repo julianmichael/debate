@@ -311,6 +311,7 @@ object DebateCreationPanel {
             val newRuleConfig = RuleConfig(
               ruleConfigName,
               state.value.setup.rules,
+              state.value.numAssignedDebaters,
               state.value.numExpectedOfflineJudges
             )
             lobby
@@ -380,6 +381,7 @@ object DebateCreationPanel {
                         RuleConfig(
                           newRuleConfigName.value,
                           state.value.setup.rules,
+                          state.value.numAssignedDebaters,
                           state.value.numExpectedOfflineJudges
                         )
                       )
@@ -423,12 +425,18 @@ object DebateCreationPanel {
     <.div(S.row)(V.Checkbox(isOfficial, "Official debate"))
   )
 
-  def numExpectedOfflineJudgesConfig(numExpectedOfflineJudges: StateSnapshot[Int]) =
+  def roleConstraintsConfig(
+    numDebaters: StateSnapshot[Int],
+    numExpectedOfflineJudges: StateSnapshot[Int]
+  ) =
     <.div(S.mainLabeledInputRow)(
-      <.div(S.inputRowLabel)("Expected Number of Offline Judges"),
+      <.div(S.inputRowLabel)("Role Constraints"),
       <.div(S.inputRowContents)(
         <.p("This will be saved with the rule configuration and used in auto-scheduling."),
-        <.div(c"form-inline")(NumberField2(numExpectedOfflineJudges, None))
+        <.div(c"form-inline")(NumberField2(numDebaters, Some("Number of assigned debaters"))),
+        <.div(c"form-inline")(
+          NumberField2(numExpectedOfflineJudges, Some("Number of offline judges"))
+        )
       )
     )
 
@@ -758,6 +766,7 @@ object DebateCreationPanel {
     setup: DebateSetupSpec = DebateSetupSpec.init,
     roomName: String = "",
     isOfficial: Boolean = true,
+    numAssignedDebaters: Int = 2,
     numExpectedOfflineJudges: Int = 0
   )
   object State
@@ -815,7 +824,8 @@ object DebateCreationPanel {
                           DebateRulesPanel(
                             state.zoomStateL(State.setup.composeLens(DebateSetupSpec.rules))
                           ),
-                          numExpectedOfflineJudgesConfig(
+                          roleConstraintsConfig(
+                            state.zoomStateL(State.numAssignedDebaters),
                             state.zoomStateL(State.numExpectedOfflineJudges)
                           ),
                           sourceMaterialConfig(

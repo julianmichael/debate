@@ -126,7 +126,7 @@ object DataSummarizer {
             .debate
             .rounds
             .view
-            .flatMap(_.timestamp(info.debate.setup.numDebaters))
+            .flatMap(_.maxTimestamp)
             .lastOption
             .map(_.toString)
             .getOrElse("")

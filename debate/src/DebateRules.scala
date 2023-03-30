@@ -10,7 +10,12 @@ import jjm.implicits._
 
 @Lenses
 @JsonCodec
-case class RuleConfig(name: String, rules: DebateRules, numOfflineJudgesPerDebate: Int)
+case class RuleConfig(
+  name: String,
+  rules: DebateRules,
+  numAssignedDebaters: Int,
+  numOfflineJudgesPerDebate: Int
+)
 object RuleConfig {
   implicit def ruleConfigOrder = Order.by[RuleConfig, String](_.name)
 }

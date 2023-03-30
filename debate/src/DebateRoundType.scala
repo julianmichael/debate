@@ -23,6 +23,7 @@ sealed trait DebateRoundType {
   def charLimitOpt: Option[Int]
   def hasJudge: Boolean
   def canEndDebate: Boolean
+  def assignedDebatersOnly: Boolean
 
   import DebateRoundType._
   def summary(defaultCharLimit: Option[Int]): String = {
@@ -213,9 +214,10 @@ object DebateRoundType {
   @Lenses
   @JsonCodec
   case class JudgeFeedbackRound(reportBeliefs: Boolean, charLimit: Int) extends DebateRoundType {
-    def charLimitOpt = Some(charLimit)
-    def hasJudge     = true
-    def canEndDebate = true
+    def charLimitOpt         = Some(charLimit)
+    def hasJudge             = true
+    def canEndDebate         = true
+    def assignedDebatersOnly = false
   }
   val judgeFeedbackRound = GenPrism[DebateRoundType, JudgeFeedbackRound]
 
@@ -236,9 +238,10 @@ object DebateRoundType {
   val negotiateEnd = GenPrism[DebateRoundType, NegotiateEndRound]
 
   case object OfflineJudgingRound extends DebateRoundType {
-    def charLimitOpt = None
-    def hasJudge     = true
-    def canEndDebate = false
+    def charLimitOpt         = None
+    def hasJudge             = true
+    def canEndDebate         = false
+    def assignedDebatersOnly = false
   }
   val offlineJudgingRound = GenPrism[DebateRoundType, OfflineJudgingRound.type]
 }

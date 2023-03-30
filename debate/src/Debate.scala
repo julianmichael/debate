@@ -39,7 +39,7 @@ case class Debate(
   /** Time of the first round of the debate (not the init time of the debate
     * setup).
     */
-  def startTime: Option[Long] = rounds.headOption.flatMap(_.timestamp(setup.numDebaters))
+  def startTime: Option[Long] = rounds.headOption.flatMap(_.maxTimestamp)
 
   def isOver: Boolean                        = result.nonEmpty
   def finalJudgement: Option[Vector[Double]] = result.flatMap(_.judgingInfo.map(_.finalJudgement))
@@ -222,7 +222,7 @@ case class Debate(
                               result = Some(
                                 DebateResult(
                                   timestamp = previousRoundOpt
-                                    .flatMap(_.timestamp(numDebaters))
+                                    .flatMap(_.maxTimestamp)
                                     .getOrElse(setup.creationTime),
                                   correctAnswerIndex = setup.correctAnswerIndex,
                                   endedBy = DebateEndReason.TimeUp,
@@ -300,10 +300,10 @@ case class Debate(
                             result = Some(
                               DebateResult(
                                 timestamp = nextRound
-                                  .timestamp(numDebaters)
+                                  .maxTimestamp
                                   .getOrElse(
                                     previousRoundOpt
-                                      .flatMap(_.timestamp(numDebaters))
+                                      .flatMap(_.maxTimestamp)
                                       .getOrElse(setup.creationTime)
                                   ),
                                 correctAnswerIndex = setup.correctAnswerIndex,
@@ -334,10 +334,10 @@ case class Debate(
                             result = Some(
                               DebateResult(
                                 timestamp = nextRound
-                                  .timestamp(numDebaters)
+                                  .maxTimestamp
                                   .getOrElse(
                                     previousRoundOpt
-                                      .flatMap(_.timestamp(numDebaters))
+                                      .flatMap(_.maxTimestamp)
                                       .getOrElse(setup.creationTime)
                                   ),
                                 correctAnswerIndex = setup.correctAnswerIndex,
