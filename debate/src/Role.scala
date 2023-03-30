@@ -81,7 +81,9 @@ case object Peeper extends Role {
 }
 @JsonCodec
 sealed trait DebateRole extends Role
-case object OfflineJudge extends DebateRole {
+@JsonCodec
+sealed trait JudgeRole extends DebateRole
+case object OfflineJudge extends DebateRole with JudgeRole {
   override def toString = "Offline Judge (Timed)"
 }
 @JsonCodec
@@ -90,7 +92,7 @@ sealed trait LiveDebateRole extends DebateRole
 case class Debater(answerIndex: Int) extends LiveDebateRole {
   override def toString = s"Debater ${answerLetter(answerIndex)}"
 }
-case object Judge extends LiveDebateRole {
+case object Judge extends LiveDebateRole with JudgeRole {
   override def toString = "Judge"
 }
 object LiveDebateRole {
