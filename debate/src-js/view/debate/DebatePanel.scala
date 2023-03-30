@@ -318,7 +318,7 @@ object DebatePanel {
               ),
             Option(
               "Feedback Survey" ->
-                TabNav.tabWithBadge("!")(
+                TabNav.tabWithBadge(Option("!").filter(_ => uploadedResponse.isEmpty))(
                   FeedbackSurvey(
                     setup,
                     profiles,
