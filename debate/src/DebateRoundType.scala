@@ -5,6 +5,8 @@ import cats.implicits._
 import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism
 import monocle.macros.Lenses
+import io.circe.Encoder
+import io.circe.Decoder
 
 sealed trait DebateTurnTypeResult extends Product with Serializable
 object DebateTurnTypeResult {
@@ -29,14 +31,19 @@ sealed trait DebateRoundType {
         ""
       else
         charLimit.toString
+    def aoStr(assignedOnly: Boolean) =
+      if (assignedOnly)
+        "a:"
+      else
+        ""
 
     this match {
-      case SimultaneousSpeechesRound(charLimit, quoteLimit) =>
+      case SimultaneousSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly) =>
         val quoteLimitStr = quoteLimit.foldMap(x => s"c$x")
-        s"sim${clStr(charLimit)}$quoteLimitStr"
-      case SequentialSpeechesRound(charLimit, quoteLimit) =>
+        s"${aoStr(assignedDebatersOnly)}${clStr(charLimit)}$quoteLimitStr"
+      case SequentialSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly) =>
         val quoteLimitStr = quoteLimit.foldMap(x => s"c$x")
-        s"seq${clStr(charLimit)}$quoteLimitStr"
+        s"${aoStr(assignedDebatersOnly)}seq${clStr(charLimit)}$quoteLimitStr"
       case JudgeFeedbackRound(reportBeliefs, charLimit) =>
         val reportBeliefsStr =
           if (reportBeliefs)
@@ -44,46 +51,86 @@ sealed trait DebateRoundType {
           else
             ""
         s"j${clStr(charLimit)}$reportBeliefsStr"
-      case NegotiateEndRound =>
-        "end?"
+      case NegotiateEndRound(assignedDebatersOnly) =>
+        s"${aoStr(assignedDebatersOnly)}end?"
       case OfflineJudgingRound =>
         "oj"
     }
   }
 
-  def getFirstTurn(numDebaters: Int, isLastTurn: Boolean): DebateTurnType = {
+  def getFirstTurn(
+    numDebaters: Int,
+    assignedDebaters: Set[Int],
+    isLastTurn: Boolean
+  ): DebateTurnType = {
     require(numDebaters > 0)
     this match {
-      case SimultaneousSpeechesRound(charLimit, quoteLimit) =>
-        DebateTurnType.SimultaneousSpeechesTurn((0 until numDebaters).toSet, charLimit, quoteLimit)
-      case SequentialSpeechesRound(charLimit, quoteLimit) =>
-        DebateTurnType.DebaterSpeechTurn(0, charLimit, quoteLimit)
+      case SimultaneousSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly) =>
+        DebateTurnType.SimultaneousSpeechesTurn(
+          if (assignedDebatersOnly)
+            assignedDebaters
+          else
+            (0 until numDebaters).toSet,
+          charLimit,
+          quoteLimit
+        )
+      case SequentialSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly) =>
+        DebateTurnType.DebaterSpeechTurn(
+          if (assignedDebatersOnly)
+            assignedDebaters.min
+          else
+            0,
+          charLimit,
+          quoteLimit
+        )
       case JudgeFeedbackRound(reportBeliefs, charLimit) =>
         DebateTurnType.JudgeFeedbackTurn(reportBeliefs, charLimit, mustEndDebate = isLastTurn)
-      case NegotiateEndRound =>
-        DebateTurnType.NegotiateEndTurn((0 until numDebaters).toSet)
+      case NegotiateEndRound(assignedDebatersOnly) =>
+        DebateTurnType.NegotiateEndTurn(
+          if (assignedDebatersOnly)
+            assignedDebaters
+          else
+            (0 until numDebaters).toSet
+        )
       case OfflineJudgingRound =>
         DebateTurnType.OfflineJudgingTurn(Map())
     }
   }
 
   // returns None if round type and round are incompatible
-  def getTurn(round: DebateRound, numDebaters: Int): DebateTurnTypeResult =
+  def getTurn(
+    round: DebateRound,
+    numDebaters: Int,
+    assignedDebaters: Set[Int]
+  ): DebateTurnTypeResult =
     (this, round) match {
-      case (SimultaneousSpeechesRound(charLimit, quoteLimit), SimultaneousSpeeches(speeches)) =>
-        if (speeches.size == numDebaters)
+      case (
+            SimultaneousSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly),
+            SimultaneousSpeeches(speeches)
+          ) =>
+        val desiredSpeeches =
+          if (assignedDebatersOnly)
+            assignedDebaters
+          else
+            (0 until numDebaters).toSet
+        if (speeches.size == desiredSpeeches.size)
           DebateTurnTypeResult.Next
         else {
           DebateTurnTypeResult.Turn(
-            DebateTurnType.SimultaneousSpeechesTurn(
-              (0 until numDebaters).toSet -- speeches.keySet,
-              charLimit,
-              quoteLimit
-            )
+            DebateTurnType
+              .SimultaneousSpeechesTurn(desiredSpeeches -- speeches.keySet, charLimit, quoteLimit)
           )
         }
-      case (SequentialSpeechesRound(charLimit, quoteLimit), SequentialSpeeches(speeches)) =>
-        val remainingDebaters = (0 until numDebaters).toSet -- speeches.keySet
+      case (
+            SequentialSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly),
+            SequentialSpeeches(speeches)
+          ) =>
+        val desiredSpeeches =
+          if (assignedDebatersOnly)
+            assignedDebaters
+          else
+            (0 until numDebaters).toSet
+        val remainingDebaters = desiredSpeeches -- speeches.keySet
         remainingDebaters
           .minOption
           .fold(DebateTurnTypeResult.Next: DebateTurnTypeResult) { nextDebater =>
@@ -95,15 +142,20 @@ sealed trait DebateRoundType {
           DebateTurnTypeResult.Next
         else
           DebateTurnTypeResult.EndByJudge(judgment)
-      case (NegotiateEndRound, NegotiateEnd(votes)) =>
-        if (votes.size == numDebaters) {
+      case (NegotiateEndRound(assignedDebatersOnly), NegotiateEnd(votes)) =>
+        val desiredDebaters =
+          if (assignedDebatersOnly)
+            assignedDebaters
+          else
+            (0 until numDebaters).toSet
+        if (votes.size == desiredDebaters.size) {
           if (votes.values.forall(identity))
             DebateTurnTypeResult.EndByAgreement
           else
             DebateTurnTypeResult.Next
         } else {
           DebateTurnTypeResult
-            .Turn(DebateTurnType.NegotiateEndTurn((0 until numDebaters).toSet -- votes.keySet))
+            .Turn(DebateTurnType.NegotiateEndTurn(desiredDebaters -- votes.keySet))
         }
       case _ =>
         DebateTurnTypeResult.Mismatch
@@ -112,24 +164,49 @@ sealed trait DebateRoundType {
 object DebateRoundType {
 
   @Lenses
-  @JsonCodec
-  case class SimultaneousSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
-      extends DebateRoundType {
-
+  case class SimultaneousSpeechesRound(
+    charLimit: Int,
+    quoteLimit: Option[Int],
+    assignedDebatersOnly: Boolean
+  ) extends DebateRoundType {
     def charLimitOpt = Some(charLimit)
     def hasJudge     = false
     def canEndDebate = false
   }
+  object SimultaneousSpeechesRound {
+    // gracefully handle the case where assignedDebatersOnly is missing
+    implicit val simultaneousSpeechesRoundEncoder: Encoder[SimultaneousSpeechesRound] =
+      Encoder.forProduct3("charLimit", "quoteLimit", "assignedDebatersOnly")(x =>
+        (x.charLimit, x.quoteLimit, x.assignedDebatersOnly)
+      )
+    implicit val simultaneousSpeechesRoundDecoder: Decoder[SimultaneousSpeechesRound] =
+      Decoder.forProduct3("charLimit", "quoteLimit", "assignedDebatersOnly") {
+        (charLimit: Int, quoteLimit: Option[Int], assignedDebatersOnly: Option[Boolean]) =>
+          SimultaneousSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly.getOrElse(false))
+      }
+  }
   val simultaneousSpeechesRound = GenPrism[DebateRoundType, SimultaneousSpeechesRound]
 
   @Lenses
-  @JsonCodec
-  case class SequentialSpeechesRound(charLimit: Int, quoteLimit: Option[Int])
-      extends DebateRoundType {
-
+  case class SequentialSpeechesRound(
+    charLimit: Int,
+    quoteLimit: Option[Int],
+    assignedDebatersOnly: Boolean
+  ) extends DebateRoundType {
     def charLimitOpt = Some(charLimit)
     def hasJudge     = false
     def canEndDebate = false
+  }
+  object SequentialSpeechesRound {
+    implicit val sequentialSpeechesRoundEncoder: Encoder[SequentialSpeechesRound] =
+      Encoder.forProduct3("charLimit", "quoteLimit", "assignedDebatersOnly")(x =>
+        (x.charLimit, x.quoteLimit, x.assignedDebatersOnly)
+      )
+    implicit val sequentialSpeechesRoundDecoder: Decoder[SequentialSpeechesRound] =
+      Decoder.forProduct3("charLimit", "quoteLimit", "assignedDebatersOnly") {
+        (charLimit: Int, quoteLimit: Option[Int], assignedDebatersOnly: Option[Boolean]) =>
+          SequentialSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly.getOrElse(false))
+      }
   }
   val sequentialSpeechesRound = GenPrism[DebateRoundType, SequentialSpeechesRound]
 
@@ -142,12 +219,21 @@ object DebateRoundType {
   }
   val judgeFeedbackRound = GenPrism[DebateRoundType, JudgeFeedbackRound]
 
-  case object NegotiateEndRound extends DebateRoundType {
+  @Lenses
+  case class NegotiateEndRound(assignedDebatersOnly: Boolean) extends DebateRoundType {
     def charLimitOpt = None
     def hasJudge     = false
     def canEndDebate = true
   }
-  val negotiateEnd = GenPrism[DebateRoundType, NegotiateEndRound.type]
+  object NegotiateEndRound {
+    implicit val negotiateEndRoundEncoder: Encoder[NegotiateEndRound] =
+      Encoder.forProduct1("assignedDebatersOnly")(x => x.assignedDebatersOnly)
+    implicit val negotiateEndRoundDecoder: Decoder[NegotiateEndRound] =
+      Decoder.forProduct1("assignedDebatersOnly") { (assignedDebatersOnly: Option[Boolean]) =>
+        NegotiateEndRound(assignedDebatersOnly.getOrElse(false))
+      }
+  }
+  val negotiateEnd = GenPrism[DebateRoundType, NegotiateEndRound]
 
   case object OfflineJudgingRound extends DebateRoundType {
     def charLimitOpt = None

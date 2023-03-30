@@ -79,11 +79,11 @@ object DebateRules {
   def default: DebateRules = DebateRules(
     fixedOpening = Vector(
       DebateRoundType.JudgeFeedbackRound(true, 500),
-      DebateRoundType.SimultaneousSpeechesRound(500, None),
+      DebateRoundType.SimultaneousSpeechesRound(500, None, false),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
     repeatingStructure = Vector(
-      DebateRoundType.SequentialSpeechesRound(500, None),
+      DebateRoundType.SequentialSpeechesRound(500, None, false),
       DebateRoundType.JudgeFeedbackRound(true, 500)
     ),
     fixedClosing = None,

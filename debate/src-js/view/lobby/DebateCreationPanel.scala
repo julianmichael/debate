@@ -103,8 +103,12 @@ object DebateCreationPanel {
       ) *>
       ensure(
         "all roles assigned",
-        isOfficial --> setup.areAllRolesAssigned,
-        Some(<.div("All roles must be assigned in official debates."))
+        isOfficial --> setup.areAllNecessaryRolesAssigned,
+        Some(
+          <.div(
+            "All roles must be assigned in official debates, unless all debater rounds are 'assigned debaters only'."
+          )
+        )
       ) *>
       ensure(
         "room doesn't exist",
@@ -193,7 +197,7 @@ object DebateCreationPanel {
         setup
           .rules
           .roundTypeSet
-          .existsAs { case DebateRoundType.NegotiateEndRound =>
+          .existsAs { case DebateRoundType.NegotiateEndRound(_) =>
             true
           } --> !setup.rules.hasJudge,
         Some(

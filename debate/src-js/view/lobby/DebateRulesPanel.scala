@@ -48,7 +48,7 @@ object DebateRulesPanel {
 
   /** Config panel for setting a list of round types. */
   def roundTypeList(roundTypes: StateSnapshot[Vector[DebateRoundType]], minItems: Int) = {
-    val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None)
+    val defaultRoundType = DebateRoundType.SequentialSpeechesRound(500, None, false)
     ListConfig[DebateRoundType].nice(roundTypes, defaultRoundType, minItems) {
       case ListConfig.Context(roundType, _) =>
         val rowMod = TagMod(c"form-inline")
@@ -56,7 +56,7 @@ object DebateRulesPanel {
           .mod(select = TagMod(S.listCardHeaderSelect), optionsDiv = c"card-body")(roundType)(
             "Simultaneous Speeches" ->
               SumConfigOption(
-                DebateRoundType.SimultaneousSpeechesRound(500, None),
+                DebateRoundType.SimultaneousSpeechesRound(500, None, false),
                 DebateRoundType.simultaneousSpeechesRound
               ) { simulSpeeches =>
                 ReactFragment(
@@ -66,19 +66,26 @@ object DebateRulesPanel {
                       Some("Character limit")
                     )
                   ),
-                  <.div(rowMod)(
+                  <.div(rowMod, c"mb-1")(
                     optionalIntInput(
                       simulSpeeches
                         .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.quoteLimit),
                       Some("Quote character limit"),
                       defaultPerMessageQuoteLimit
                     )
+                  ),
+                  <.div(rowMod)(
+                    Checkbox2(
+                      simulSpeeches
+                        .zoomStateL(DebateRoundType.SimultaneousSpeechesRound.assignedDebatersOnly),
+                      Some("Assigned debaters only")
+                    )
                   )
                 )
               },
             "Sequential Speeches" ->
               SumConfigOption(
-                DebateRoundType.SequentialSpeechesRound(500, None),
+                DebateRoundType.SequentialSpeechesRound(500, None, false),
                 DebateRoundType.sequentialSpeechesRound
               ) { seqSpeeches =>
                 ReactFragment(
@@ -88,11 +95,18 @@ object DebateRulesPanel {
                       labelOpt = Some("Character limit")
                     )
                   ),
-                  <.div(rowMod)(
+                  <.div(rowMod, c"mb-1")(
                     optionalIntInput(
                       seqSpeeches.zoomStateL(DebateRoundType.SequentialSpeechesRound.quoteLimit),
                       Some("Quote character limit"),
                       defaultPerMessageQuoteLimit
+                    )
+                  ),
+                  <.div(rowMod)(
+                    Checkbox2(
+                      seqSpeeches
+                        .zoomStateL(DebateRoundType.SequentialSpeechesRound.assignedDebatersOnly),
+                      Some("Assigned debaters only")
                     )
                   )
                 )
@@ -118,8 +132,19 @@ object DebateRulesPanel {
                 )
               },
             "Negotiate End" ->
-              SumConfigOption(DebateRoundType.NegotiateEndRound, DebateRoundType.negotiateEnd) {
-                _ => <.div()
+              SumConfigOption(
+                DebateRoundType.NegotiateEndRound(false),
+                DebateRoundType.negotiateEnd
+              ) { negotiateEnd =>
+                ReactFragment(
+                  <.div(rowMod)(
+                    Checkbox2(
+                      negotiateEnd
+                        .zoomStateL(DebateRoundType.NegotiateEndRound.assignedDebatersOnly),
+                      Some("Assigned debaters only")
+                    )
+                  )
+                )
               }
           )
     }
