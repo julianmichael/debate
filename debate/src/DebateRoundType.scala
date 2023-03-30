@@ -21,17 +21,28 @@ object DebateTurnTypeResult {
 @JsonCodec
 sealed trait DebateRoundType {
   def charLimitOpt: Option[Int]
+  def quoteLimitOpt: Option[Option[Int]]
   def hasJudge: Boolean
   def canEndDebate: Boolean
   def assignedDebatersOnly: Boolean
 
   import DebateRoundType._
-  def summary(defaultCharLimit: Option[Int]): String = {
+  def summary(defaultCharLimit: Option[Int], defaultQuoteLimit: Option[Option[Int]]): String = {
     def clStr(charLimit: Int) =
       if (defaultCharLimit.exists(_ == charLimit))
         ""
       else
-        charLimit.toString
+        "c" + charLimit.toString
+    def qlStr(quoteLimit: Option[Int]) =
+      if (defaultQuoteLimit.exists(_ == quoteLimit))
+        ""
+      else
+        quoteLimit match {
+          case Some(ql) =>
+            "q" + ql.toString
+          case None =>
+            "q!"
+        }
     def aoStr(assignedOnly: Boolean) =
       if (assignedOnly)
         "a:"
@@ -40,22 +51,20 @@ sealed trait DebateRoundType {
 
     this match {
       case SimultaneousSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly) =>
-        val quoteLimitStr = quoteLimit.foldMap(x => s"c$x")
-        s"${aoStr(assignedDebatersOnly)}${clStr(charLimit)}$quoteLimitStr"
+        s"${aoStr(assignedDebatersOnly)}[sim]${clStr(charLimit)}${qlStr(quoteLimit)}"
       case SequentialSpeechesRound(charLimit, quoteLimit, assignedDebatersOnly) =>
-        val quoteLimitStr = quoteLimit.foldMap(x => s"c$x")
-        s"${aoStr(assignedDebatersOnly)}seq${clStr(charLimit)}$quoteLimitStr"
+        s"${aoStr(assignedDebatersOnly)}[seq]${clStr(charLimit)}${qlStr(quoteLimit)}"
       case JudgeFeedbackRound(reportBeliefs, charLimit) =>
         val reportBeliefsStr =
           if (reportBeliefs)
             "b"
           else
             ""
-        s"j${clStr(charLimit)}$reportBeliefsStr"
+        s"[j]${clStr(charLimit)}$reportBeliefsStr"
       case NegotiateEndRound(assignedDebatersOnly) =>
-        s"${aoStr(assignedDebatersOnly)}end?"
+        s"${aoStr(assignedDebatersOnly)}[end?]"
       case OfflineJudgingRound =>
-        "oj"
+        "[oj]"
     }
   }
 
@@ -170,9 +179,10 @@ object DebateRoundType {
     quoteLimit: Option[Int],
     assignedDebatersOnly: Boolean
   ) extends DebateRoundType {
-    def charLimitOpt = Some(charLimit)
-    def hasJudge     = false
-    def canEndDebate = false
+    def charLimitOpt  = Some(charLimit)
+    def quoteLimitOpt = Some(quoteLimit)
+    def hasJudge      = false
+    def canEndDebate  = false
   }
   object SimultaneousSpeechesRound {
     // gracefully handle the case where assignedDebatersOnly is missing
@@ -194,9 +204,10 @@ object DebateRoundType {
     quoteLimit: Option[Int],
     assignedDebatersOnly: Boolean
   ) extends DebateRoundType {
-    def charLimitOpt = Some(charLimit)
-    def hasJudge     = false
-    def canEndDebate = false
+    def charLimitOpt  = Some(charLimit)
+    def quoteLimitOpt = Some(quoteLimit)
+    def hasJudge      = false
+    def canEndDebate  = false
   }
   object SequentialSpeechesRound {
     implicit val sequentialSpeechesRoundEncoder: Encoder[SequentialSpeechesRound] =
@@ -215,6 +226,7 @@ object DebateRoundType {
   @JsonCodec
   case class JudgeFeedbackRound(reportBeliefs: Boolean, charLimit: Int) extends DebateRoundType {
     def charLimitOpt         = Some(charLimit)
+    def quoteLimitOpt        = None
     def hasJudge             = true
     def canEndDebate         = true
     def assignedDebatersOnly = false
@@ -223,9 +235,10 @@ object DebateRoundType {
 
   @Lenses
   case class NegotiateEndRound(assignedDebatersOnly: Boolean) extends DebateRoundType {
-    def charLimitOpt = None
-    def hasJudge     = false
-    def canEndDebate = true
+    def charLimitOpt  = None
+    def quoteLimitOpt = None
+    def hasJudge      = false
+    def canEndDebate  = true
   }
   object NegotiateEndRound {
     implicit val negotiateEndRoundEncoder: Encoder[NegotiateEndRound] =
@@ -239,6 +252,7 @@ object DebateRoundType {
 
   case object OfflineJudgingRound extends DebateRoundType {
     def charLimitOpt         = None
+    def quoteLimitOpt        = None
     def hasJudge             = true
     def canEndDebate         = false
     def assignedDebatersOnly = false

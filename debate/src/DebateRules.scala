@@ -46,19 +46,42 @@ case class DebateRules(
       .maximaBy(_._2)
       .map(_._1)
       .maximumOption
+    val mostCommonQuoteLimitOpt = (fixedOpening ++ repeatingStructure)
+      .foldMap(_.quoteLimitOpt.foldMap(charLimit => Map(charLimit -> 1)))
+      .toVector
+      .maximaBy(_._2)
+      .map(_._1)
+      .maximumOption
 
-    mostCommonCharLimitOpt.foldMap(n => s"c$n ") +
-      fixedOpening.map(_.summary(mostCommonCharLimitOpt)).mkString(",") + "," +
-      Option("(" + repeatingStructure.map(_.summary(mostCommonCharLimitOpt)).mkString(",") + ")")
-        .filter(_ => fixedClosing.forall(_.maxRepeatCycles != 0))
-        .combineAll +
+    val defaults =
+      List(
+        mostCommonCharLimitOpt.foldMap(n => s"c$n") +
+          mostCommonQuoteLimitOpt.flatten.foldMap(n => s"q$n")
+      ).mkString
+    val prefix =
+      if (defaults.isEmpty)
+        ""
+      else
+        s"$defaults "
+    prefix +
+      fixedOpening.map(_.summary(mostCommonCharLimitOpt, mostCommonQuoteLimitOpt)).mkString(",") +
+      "," +
+      Option(
+        "(" +
+          repeatingStructure
+            .map(_.summary(mostCommonCharLimitOpt, mostCommonQuoteLimitOpt))
+            .mkString(",") + ")"
+      ).filter(_ => fixedClosing.forall(_.maxRepeatCycles != 0)).combineAll +
       fixedClosing.fold("*")(closing =>
         (if (closing.maxRepeatCycles > 1)
            s"{1-${closing.maxRepeatCycles}}"
          else
-           "") + closing.rounds.map(_.summary(mostCommonCharLimitOpt)).mkString(",")
-      )
-    globalQuoteRestriction.foldMap(n => s"gq$n ") + scoringFunction.summary
+           "") +
+          closing
+            .rounds
+            .map(_.summary(mostCommonCharLimitOpt, mostCommonQuoteLimitOpt))
+            .mkString(",")
+      ) + " " + globalQuoteRestriction.foldMap(n => s"gq$n ") + scoringFunction.summary
   }
 
   def roundTypes: LazyList[DebateRoundType] = {
