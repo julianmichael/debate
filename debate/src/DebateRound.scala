@@ -28,9 +28,7 @@ sealed trait DebateRound {
 case class SimultaneousSpeeches(
   speeches: Map[Int, DebateSpeech] // map from answer index -> statement
 ) extends DebateRound {
-  def isComplete(debaters: Set[Int]): Boolean = {
-    debaters.forall(speeches.contains)
-  }
+  def isComplete(debaters: Set[Int]): Boolean = debaters.forall(speeches.contains)
   def allSpeeches = speeches.map { case (idx, speech) =>
     Debater(idx) -> speech
   }
@@ -41,9 +39,7 @@ object SimultaneousSpeeches
 @Lenses
 @JsonCodec
 case class SequentialSpeeches(speeches: Map[Int, DebateSpeech]) extends DebateRound {
-  def isComplete(debaters: Set[Int]): Boolean = {
-    debaters.forall(speeches.contains)
-  }
+  def isComplete(debaters: Set[Int]): Boolean = debaters.forall(speeches.contains)
   def allSpeeches = speeches.map { case (idx, speech) =>
     Debater(idx) -> speech
   }
@@ -59,27 +55,22 @@ case class JudgeFeedback(
   endDebate: Boolean
 ) extends DebateRound {
   def isComplete(debaters: Set[Int]): Boolean = true
-  def allSpeeches                  = Map(Judge -> feedback)
+  def allSpeeches                             = Map(Judge -> feedback)
 }
 object JudgeFeedback
 
 @Lenses
 @JsonCodec
 case class NegotiateEnd(votes: Map[Int, Boolean]) extends DebateRound {
-  def isComplete(debaters: Set[Int]): Boolean = {
-    debaters.forall(votes.contains)
-  }
-  def allSpeeches                  = Map()
+  def isComplete(debaters: Set[Int]): Boolean = debaters.forall(votes.contains)
+  def allSpeeches                             = Map()
 }
 object NegotiateEnd
 
 @Lenses
 @JsonCodec
 case class OfflineJudgments(judgments: Map[String, OfflineJudgment]) extends DebateRound {
-  def isComplete(debaters: Set[Int]): Boolean = {
-    // TODO: maybe this should just always return true?
-    judgments.values.forall(_.result.nonEmpty)
-  }
+  def isComplete(debaters: Set[Int]): Boolean = true
   def allSpeeches =
     judgments
       .toVector

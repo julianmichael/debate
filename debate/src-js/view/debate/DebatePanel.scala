@@ -158,7 +158,9 @@ object DebatePanel {
 
   def visibleRounds(role: Role, debate: Debate) = debate
     .rounds
-    .zip(debate.setup.rules.roundTypes)
+    .zip(
+      debate.setup.rules.roundTypes #::: LazyList.continually(DebateRoundType.OfflineJudgingRound)
+    )
     .zip(
       debate
         .rounds
@@ -372,39 +374,42 @@ object DebatePanel {
                 ^.id := "speeches",
                 visibleRounds(role, debate.value)
                   .zipWithIndex
-                  .flatMap { case (((round, roundType), numPreviousContinues), roundIndex) =>
-                    Option(
-                      DebateRoundView.makeRoundHtml(
-                        source = setup.sourceMaterial.contents,
-                        userName = userName,
-                        role = role,
-                        anonymize = anonymize,
-                        debateStartTime = debate.value.startTime,
-                        numDebaters = setup.answers.size,
-                        numPreviousContinues = numPreviousContinues,
-                        getRewardForJudgment = getRewardForJudgment,
-                        assignedDebaters = setup
-                          .roles
-                          .keySet
-                          .collect { case Debater(i) =>
-                            i
-                          },
-                        roundType = roundType,
-                        round = round,
-                        modifyRound =
-                          roundOpt =>
-                            debate
-                              .zoomStateL(Debate.rounds)
-                              .modState(rounds =>
-                                roundOpt match {
-                                  case None =>
-                                    rounds.remove(roundIndex)
-                                  case Some(r) =>
-                                    rounds.updated(roundIndex, r)
-                                }
-                              )
-                      )(^.key := s"round-$roundIndex")
-                    )
+                  .map { case (((round, roundType), numPreviousContinues), roundIndex) =>
+                    println(round)
+                    println(roundType)
+                    println(roundIndex)
+                    DebateRoundView.makeRoundHtml(
+                      source = setup.sourceMaterial.contents,
+                      userName = userName,
+                      role = role,
+                      anonymize = anonymize,
+                      debateStartTime = debate.value.startTime,
+                      numPreviousContinues = numPreviousContinues,
+                      getRewardForJudgment = getRewardForJudgment,
+                      debaters =
+                        if (roundType.assignedDebatersOnly)
+                          setup
+                            .roles
+                            .keySet
+                            .collect { case Debater(i) =>
+                              i
+                            }
+                        else
+                          (0 until setup.numDebaters).toSet,
+                      round = round,
+                      modifyRound =
+                        roundOpt =>
+                          debate
+                            .zoomStateL(Debate.rounds)
+                            .modState(rounds =>
+                              roundOpt match {
+                                case None =>
+                                  rounds.remove(roundIndex)
+                                case Some(r) =>
+                                  rounds.updated(roundIndex, r)
+                              }
+                            )
+                    )(^.key := s"round-$roundIndex")
                   }
                   .toVdomArray,
                 DebateRoundView

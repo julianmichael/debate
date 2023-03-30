@@ -144,19 +144,12 @@ object DebateRoundView {
     role: Role,
     anonymize: Boolean,
     debateStartTime: Option[Long],
-    numDebaters: Int,
     numPreviousContinues: Int,
     getRewardForJudgment: (Int, Vector[Double]) => Option[Double],
-    assignedDebaters: Set[Int],
-    roundType: DebateRoundType,
+    debaters: Set[Int],
     round: DebateRound,
     modifyRound: Option[DebateRound] => Callback
   ) = {
-    val debaters =
-      if (roundType.assignedDebatersOnly)
-        assignedDebaters
-      else
-        (0 until numDebaters).toSet
     <.div(
       round
         .timestamp(debaters)
@@ -335,6 +328,7 @@ object DebateRoundView {
           // TODO: display info about num continues and time taken to judge
           // TODO: display info about people currently judging? (maybe facilitator only)
           val speechStyle = TagMod(S.offlineJudgeBg)
+
           TagMod(
             judgments
               .toVector
