@@ -407,8 +407,7 @@ object DebateScheduler {
     val numDebaters: Int = {
       val minNumDebaters = math.max(2, numDebatesPerQuestion)
       // val maxNumDebaters = math.ceil(math.sqrt(2 * numDebatesPerQuestion * qas.size) + 0.5)
-      val preferredNumDebaters =
-        math.floor(math.sqrt(2 * numDebatesPerQuestion * qas.size - 1)).toInt
+      val preferredNumDebaters = math.floor(math.sqrt(2 * numDebatesPerQuestion * qas.size)).toInt
       math.max(minNumDebaters, preferredNumDebaters)
     }
 
