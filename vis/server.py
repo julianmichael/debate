@@ -3,6 +3,7 @@ from flask import Flask
 from flask import abort
 from flask import Response
 
+import datetime
 import json
 
 from typing import *
@@ -35,11 +36,13 @@ def read_data():
     )
     debates['Start time'] = pd.to_datetime(
         debates['Start time'], unit='ms')
+    debates = debates[debates['Start time'] >
+                      pd.to_datetime('10/02/23', format='%d/%m/%y')]
+    print(pd.to_datetime(1672531200000))
     debates['Final probability incorrect'] = (
         1 - debates['Final probability correct'])
     debates['End time'] = pd.to_datetime(
         debates['End time'], unit='ms')
-    #filter 10 feb
     sessions = pd.read_csv(
         os.path.join(data_dir, 'official/summaries/sessions.csv')
     )
@@ -49,15 +52,26 @@ def read_data():
 
     print("Debates:")
     print(debates.dtypes)
-    print(debates)
+    print(debates.describe())
+    print("Turns:")
+    print(turns.dtypes)
+    print(turns.describe())
     print("Sessions:")
     print(sessions.dtypes)
-    print(sessions)
+    print(sessions.describe())
 
-    print("max")
-    print(turns[turns["Participant"]=="Max Layden"].sort_values(by="Quote length",ascending=False))
 
 read_data()
+
+
+# TRACK
+
+def speeches_by_time():
+    return alt.Chart(turns).mark_line().encode(
+        x='Time:Q',
+        y='mean(Quote length)',
+        column='Participant:N'
+    )
 
 
 def debater_pairings_by_role():
@@ -129,7 +143,7 @@ def evidence_by_roundss():
     #     y='ymin:Q',
     #     y2='ymax:Q'
     # )
-    return evidence_line #+ evidence_err
+    return evidence_line  # + evidence_err
 
 
 def evidence_by_rounds():
@@ -143,7 +157,7 @@ def evidence_by_rounds():
     #     y='ymin:Q',
     #     y2='ymax:Q'
     # )
-    return evidence_line #+ evidence_err
+    return evidence_line  # + evidence_err
 
 
 def participant_by_current_workload():
@@ -163,14 +177,20 @@ def participant_by_current_workload():
     ).properties(width=200)
 
 
-def participant_by_past_workload():
+def participant_by_past_workloads():
     source = sessions.merge(debates, how='left', on='Room name')
-    return alt.Chart(source).mark_bar().encode(
+    source['Role'] = source['Role'].map(
+        lambda x: 'Debater' if x.startswith('Debater') else x)
+    source['End date'] = source['End time'] - pd.to_timedelta(6, unit='d')
+    source_by_week = source.groupby(
+        ['Participant', pd.Grouper(key='End date', freq='W-MON')]).sum().reset_index().sort_values('End date')
+
+    return alt.Chart(source_by_week).mark_bar().encode(
         x=alt.X('count()'),
         y=alt.Y('Participant:O', sort=alt.EncodingSortField(
             op='count', order='descending')),
-        color=alt.Color('Role:O'),
-        column=alt.Column('Role:O')
+        color=alt.Color('End date:O'),
+        column=alt.Column('End date:O')
     ).transform_filter(
         datum['Status'] == 'complete'
     ).properties(width=200)
@@ -203,7 +223,6 @@ def probability_correct_vs_num_rounds():
     ).properties(width=750)
 
 
-
 def probability_correct_vs_num_rounds():
     return alt.Chart(debates).mark_circle(size=60).encode(
         x='Num rounds:O',
@@ -221,31 +240,61 @@ def probability_correct_over_time():
 
 
 def debates_completed_per_week():
-    debates['End date'] = debates['End time'] - pd.to_timedelta(6, unit='d')
-    print(debates['End date'])
-    debates_by_week = debates.groupby(
-        ['Room name', pd.Grouper(key='End date', freq='W-MON')]).sum().reset_index().sort_values('End date')
-    print(debates_by_week)
-    print(debates_by_week.dtypes)
-    return alt.Chart(debates_by_week[debates_by_week["Is over"] == True]).mark_bar().encode(
-        x='End date:T',
-        y='count(Room name):Q'
+    # debates['End date'] = debates['End time'] - pd.to_timedelta(6, unit='d')
+
+    debates['End week'] = debates['End time'].apply(
+        lambda x: x.week
+        # lambda x: f'{(x.dt.week).strftime("%b %d")} - {x.strftime("%B %d")}'
+    )
+
+    def convert_time(x):
+        start_date = datetime.datetime.strptime(
+            f'{x.year}-{x.week}-1', "%Y-%W-%w"
+        )
+        end_date = start_date + pd.Timedelta(days=6)
+        return f'{start_date.strftime("%b %d")} - {end_date.strftime("%B %d")}'
+    debates['End week label'] = debates['End time'].apply(
+        convert_time
+        # lambda x: datetime.datetime.strptime(
+        #     f'{x.year}-{x.week}-1', "%Y-%W-%w"
+        # ).strftime("%b %d") + ' - ' + datetime.datetime.strptime(
+        #     f'{(x + pd.Timedelta(days=6)).year}-{(x + pd.Timedelta(days=6)).week}-0', "%Y-%W-%w"
+        # ).strftime("%B %d")
+        # lambda x: f'{x.year}- {(x.week).strftime("%b %d")} - {x.strftime("%B %d")}'
+    )
+    # add a column to debates with a human-readable date range from End week (week number) using pandas
+    # debates['End week label'] = debates['End time'].apply(
+    #     lambda x: f'{(x - pd.to_timedelta(6, unit="d")).strftime("%b %d")} - {x.strftime("%b %d")}'
+    # )
+    all_bar = alt.Chart(debates[debates["Is over"] == True]).mark_bar().encode(
+        x=alt.X('End week label:O', sort=alt.EncodingSortField(
+            field='End week', order='ascending')),
+        y='count():Q'
     ).properties(width=750)
+
+    all_line = alt.Chart(debates[debates["Is over"] == True].melt(id_vars=['Room name', 'End week label', 'End week'], value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_line().encode(
+        x=alt.X('End week label:O', sort=alt.EncodingSortField(
+            field='End week', order='ascending')),
+        y='count():Q',
+        color='Debater:N'
+    ).properties(width=750)
+
+    return all_bar + all_line
 
 
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
-    "Debater_pairings_by_role": debater_pairings_by_role,
-    # "Debater_pairings_by_person": debater_pairings_by_person,
-    "Debaters_by_final_probability": honest_and_dishonest_debater_by_final_probability,
-    "Judge_pairings": judge_pairings,
-    "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds,
     "Probability_correct_over_time": probability_correct_over_time,
     "Participant_by_current_workload": participant_by_current_workload,
     # "Participant_by_past_workload": participant_by_past_workload,
     "Evidence_by_rounds": evidence_by_rounds,
-    "Debates_completed_per_week": debates_completed_per_week
+    "Debates_completed_per_week": debates_completed_per_week,
+    "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds,
+    "Debaters_by_final_probability": honest_and_dishonest_debater_by_final_probability,
+    "Debater_pairings_by_role": debater_pairings_by_role,
+    # "Debater_pairings_by_person": debater_pairings_by_person,
+    "Judge_pairings": judge_pairings,
 }
 
 
