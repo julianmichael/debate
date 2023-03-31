@@ -16,6 +16,7 @@ import debate.util.Local
 import jjm.DotMap
 import japgolly.scalajs.react.feature.ReactFragment
 import jjm.ui.Rgba
+import japgolly.scalajs.react.Callback
 
 object LeaderboardPanel {
 
@@ -266,7 +267,11 @@ object LeaderboardPanel {
     Column.rating(showRatingsAsWinPercentage)
   )
 
-  def makeRatingsLeaderboard(debaters: Set[String], leaderboard: Leaderboard) = {
+  def makeRatingsLeaderboard(
+    debaters: Set[String],
+    leaderboard: Leaderboard,
+    refreshLeaderboard: Callback
+  ) = {
     val honestStats = List(LeaderboardCategory.HonestDebater)
       .flatMap(leaderboard.data.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
@@ -319,6 +324,7 @@ object LeaderboardPanel {
                 )
                 .when(showInfo.value),
               <.div(c"pb-2")(
+                <.a(c"card-link")(^.href := "#", "Refresh", ^.onClick --> refreshLeaderboard),
                 <.span(c"card-link")(
                   V.Checkbox(
                     showRatingsAsWinPercentage,
@@ -388,10 +394,10 @@ object LeaderboardPanel {
       }
     }
 
-  def apply(lobby: Lobby) = {
+  def apply(lobby: Lobby, refreshLeaderboard: Callback) = {
     def makeRatingsTab = TabNav.tab(
       <.div(c"card-body", S.spaceySubcontainer)(
-        makeRatingsLeaderboard(lobby.profiles.keySet, lobby.leaderboard)
+        makeRatingsLeaderboard(lobby.profiles.keySet, lobby.leaderboard, refreshLeaderboard)
       )
     )
     def makeRoleTab(category: LeaderboardCategory) = TabNav.tab(

@@ -324,6 +324,8 @@ case class Server(
                     removeRuleConfig(ruleConfigName)
                   case RemoveDebater(name) =>
                     removeDebater(name)
+                  case RefreshLeaderboard() =>
+                    officialDebates.refreshLeaderboard >> officialDebates.pushUpdateRef.get.flatten
                   case DeleteRoom(isOfficial, roomName) =>
                     if (isOfficial)
                       officialDebates.deleteDebate(roomName)

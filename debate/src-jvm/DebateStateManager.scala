@@ -256,7 +256,7 @@ case class DebateStateManager(
       }
     } yield ()
 
-  private def refreshLeaderboard = rooms
+  def refreshLeaderboard = rooms
     .get
     .flatMap { roomMap =>
       leaderboard.set(Leaderboard.fromDebates(roomMap.values.toList.map(_.debate.debate)))
