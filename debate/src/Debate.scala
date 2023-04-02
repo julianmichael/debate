@@ -39,7 +39,7 @@ case class Debate(
   /** Time of the first round of the debate (not the init time of the debate
     * setup).
     */
-  def startTime: Option[Long] = rounds.headOption.flatMap(_.timestamp(setup.numDebaters))
+  def startTime: Option[Long] = rounds.headOption.flatMap(_.maxTimestamp)
 
   def isOver: Boolean                        = result.nonEmpty
   def finalJudgement: Option[Vector[Double]] = result.flatMap(_.judgingInfo.map(_.finalJudgement))
@@ -67,11 +67,18 @@ case class Debate(
   /** Whose turn(s) it is, what they can do, and how to compute the results. */
   def stateInfo: (Option[DebateResult], DebateTransitionSet, Map[String, OfflineJudgment]) = {
 
+    val assignedDebaters = setup
+      .roles
+      .keySet
+      .collect { case Debater(i) =>
+        i
+      }
+
     // turn sequence is always nonempty
     val roundSequence = setup.rules.roundTypes
 
     def newRoundSpeeches(roundType: DebateRoundType, isLastTurn: Boolean) = {
-      val turn = roundType.getFirstTurn(numDebaters, isLastTurn)
+      val turn = roundType.getFirstTurn(numDebaters, assignedDebaters, isLastTurn)
       turn
         .currentRoles
         .map(role =>
@@ -206,7 +213,7 @@ case class Debate(
                 case LazyList() =>
                   Left("Too many rounds! Can't match to the debate structure")
                 case nextRoundType #:: futureRoundTypes =>
-                  nextRoundType.getTurn(nextRound, numDebaters) match {
+                  nextRoundType.getTurn(nextRound, numDebaters, assignedDebaters) match {
                     case DebateTurnTypeResult.Next =>
                       futureRoundTypes match {
                         case LazyList() => // time's up
@@ -214,6 +221,9 @@ case class Debate(
                             RoundAcc(
                               result = Some(
                                 DebateResult(
+                                  timestamp = previousRoundOpt
+                                    .flatMap(_.maxTimestamp)
+                                    .getOrElse(setup.creationTime),
                                   correctAnswerIndex = setup.correctAnswerIndex,
                                   endedBy = DebateEndReason.TimeUp,
                                   judgingInfo =
@@ -289,6 +299,13 @@ case class Debate(
                           RoundAcc(
                             result = Some(
                               DebateResult(
+                                timestamp = nextRound
+                                  .maxTimestamp
+                                  .getOrElse(
+                                    previousRoundOpt
+                                      .flatMap(_.maxTimestamp)
+                                      .getOrElse(setup.creationTime)
+                                  ),
                                 correctAnswerIndex = setup.correctAnswerIndex,
                                 endedBy = DebateEndReason.JudgeDecided,
                                 judgingInfo = Some(
@@ -316,6 +333,13 @@ case class Debate(
                           RoundAcc(
                             result = Some(
                               DebateResult(
+                                timestamp = nextRound
+                                  .maxTimestamp
+                                  .getOrElse(
+                                    previousRoundOpt
+                                      .flatMap(_.maxTimestamp)
+                                      .getOrElse(setup.creationTime)
+                                  ),
                                 correctAnswerIndex = setup.correctAnswerIndex,
                                 endedBy = DebateEndReason.MutualAgreement,
                                 judgingInfo = None

@@ -8,7 +8,6 @@ import cats.implicits._
 
 import japgolly.scalajs.react.AsyncCallback
 import japgolly.scalajs.react.Callback
-import japgolly.scalajs.react.CallbackTo
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
@@ -160,6 +159,9 @@ object DebatePanel {
   def visibleRounds(role: Role, debate: Debate) = debate
     .rounds
     .zip(
+      debate.setup.rules.roundTypes #::: LazyList.continually(DebateRoundType.OfflineJudgingRound)
+    )
+    .zip(
       debate
         .rounds
         .scanLeft(0) { case (n, round) =>
@@ -171,32 +173,58 @@ object DebatePanel {
           }
         }
     )
-    .filter { case (round, _) =>
-      role.canSeeIntermediateArguments || round.isComplete(debate.setup.numDebaters)
+    .filter { case ((round, roundType), _) =>
+      val debaters =
+        if (roundType.assignedDebatersOnly)
+          debate
+            .setup
+            .roles
+            .keySet
+            .collect { case Debater(i) =>
+              i
+            }
+        else
+          (0 until debate.setup.numDebaters).toSet
+      role.canSeeIntermediateArguments || round.isComplete(debaters)
     }
 
-  def debateSpansWithSpeaker(role: Role, numDebaters: Int, rounds: Vector[DebateRound]) = rounds
-    .flatMap { round =>
-      if (round.isComplete(numDebaters)) {
-        round
-          .allSpeeches
-          .view
-          .flatMap { case (role, speech) =>
-            speech.allQuotes.map(role -> _)
-          }
-          .toVector
-      } else {
-        round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
-      }
-    }
-
-  def getHighlights(
+  def debateSpansWithSpeaker(
     role: Role,
     numDebaters: Int,
-    rounds: Vector[DebateRound],
-    curMessageSpans: Set[ESpan]
-  ) =
-    debateSpansWithSpeaker(role, numDebaters, rounds).map { case (role, span) =>
+    assignedDebaters: Set[Int],
+    rounds: Vector[(DebateRoundType, DebateRound)]
+  ) = rounds.flatMap { case (roundType, round) =>
+    val debaters =
+      if (roundType.assignedDebatersOnly)
+        assignedDebaters
+      else
+        (0 until numDebaters).toSet
+    if (round.isComplete(debaters)) {
+      round
+        .allSpeeches
+        .view
+        .flatMap { case (role, speech) =>
+          speech.allQuotes.map(role -> _)
+        }
+        .toVector
+    } else {
+      round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
+    }
+  }
+
+  def getHighlights(role: Role, debate: Debate, curMessageSpans: Set[ESpan]) =
+    debateSpansWithSpeaker(
+      role,
+      debate.setup.numDebaters,
+      debate
+        .setup
+        .roles
+        .keySet
+        .collect { case Debater(i) =>
+          i
+        },
+      debate.rounds.zip(debate.setup.rules.roundTypes).map(_.swap)
+    ).map { case (role, span) =>
       span -> getSpanColorForRole(role)
     } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
 
@@ -222,7 +250,7 @@ object DebatePanel {
     anonymize: Boolean,
     sendToMainChannel: MainChannelRequest => Callback
   ) = {
-    import debate.value.{setup, rounds}
+    import debate.value.setup
 
     def scratchpad(debateRole: DebateRole) = debate.zoomStateL(
       Debate
@@ -286,7 +314,7 @@ object DebatePanel {
                 TabNav.tab(
                   StoryPanel(
                     setup.sourceMaterial.contents,
-                    getHighlights(role, setup.numDebaters, rounds, curMessageSpans),
+                    getHighlights(role, debate.value, curMessageSpans),
                     span => currentMessage.modState(_ + span2text(span))
                   )
                 )
@@ -296,7 +324,7 @@ object DebatePanel {
                 TabNav.tab(
                   ConsolidatedQuotesPanel(
                     setup.sourceMaterial.contents,
-                    getHighlights(role, setup.numDebaters, rounds, curMessageSpans)
+                    getHighlights(role, debate.value, curMessageSpans)
                   )
                 )
             ),
@@ -319,7 +347,7 @@ object DebatePanel {
               ),
             Option(
               "Feedback Survey" ->
-                TabNav.tab(
+                TabNav.tabWithBadge(Option("!").filter(_ => uploadedResponse.isEmpty))(
                   FeedbackSurvey(
                     setup,
                     profiles,
@@ -346,18 +374,30 @@ object DebatePanel {
                 ^.id := "speeches",
                 visibleRounds(role, debate.value)
                   .zipWithIndex
-                  .flatMap { case ((round, numPreviousContinues), roundIndex) =>
-                    Option(
-                      DebateRoundView.makeRoundHtml(
-                        source = setup.sourceMaterial.contents,
-                        userName = userName,
-                        role = role,
-                        anonymize = anonymize,
-                        debateStartTime = debate.value.startTime,
-                        numDebaters = setup.answers.size,
-                        numPreviousContinues = numPreviousContinues,
-                        getRewardForJudgment = getRewardForJudgment,
-                        round,
+                  .map { case (((round, roundType), numPreviousContinues), roundIndex) =>
+                    println(round)
+                    println(roundType)
+                    println(roundIndex)
+                    DebateRoundView.makeRoundHtml(
+                      source = setup.sourceMaterial.contents,
+                      userName = userName,
+                      role = role,
+                      anonymize = anonymize,
+                      debateStartTime = debate.value.startTime,
+                      numPreviousContinues = numPreviousContinues,
+                      getRewardForJudgment = getRewardForJudgment,
+                      debaters =
+                        if (roundType.assignedDebatersOnly)
+                          setup
+                            .roles
+                            .keySet
+                            .collect { case Debater(i) =>
+                              i
+                            }
+                        else
+                          (0 until setup.numDebaters).toSet,
+                      round = round,
+                      modifyRound =
                         roundOpt =>
                           debate
                             .zoomStateL(Debate.rounds)
@@ -369,8 +409,7 @@ object DebatePanel {
                                   rounds.updated(roundIndex, r)
                               }
                             )
-                      )(^.key := s"round-$roundIndex")
-                    )
+                    )(^.key := s"round-$roundIndex")
                   }
                   .toVdomArray,
                 DebateRoundView
@@ -414,14 +453,7 @@ object DebatePanel {
                     saveCallbackOpt = role
                       .asDebateRoleOpt
                       .map(debateRole =>
-                        CallbackTo {
-                          println("yo")
-                          println(currentMessageSpeechSegments)
-                          println(scratchpad(debateRole).value)
-                          println(scratchpad(debateRole).value :+ currentMessageSpeechSegments)
-                          scratchpad(debateRole).modState(_ :+ currentMessageSpeechSegments)
-                        }.flatten
-                      // currentMessage.setState("")
+                        scratchpad(debateRole).modState(_ :+ currentMessageSpeechSegments)
                       )
                   )
                 },

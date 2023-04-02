@@ -14,56 +14,84 @@ object DebateStats {
 
   implicit val debateStatsMonoid: Monoid[DebateStats] = cats.derived.semiauto.monoid[DebateStats]
 
-  def getUserStats(
-    result: JudgingResult,
-    role: DebateRole,
+  private def bool2int(b: Boolean) =
+    if (b)
+      1
+    else
+      0
+
+  def getDebaterStats(
+    dist: Vector[Double],
+    correctAnswerIndex: Int,
+    role: Debater,
     name: String
   ): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
-    def bool2int(b: Boolean) =
-      if (b)
-        1
-      else
-        0
+    val leaderboardCategory =
+      if (role.answerIndex == correctAnswerIndex) {
+        LeaderboardCategory.HonestDebater
+      } else
+        LeaderboardCategory.DishonestDebater
+    val winning = dist(role.answerIndex) > 0.5
+    val reward  = math.log(dist(role.answerIndex))
+    val stats = DebateStats(
+      Proportion.Stats(bool2int(winning), bool2int(!winning)),
+      Numbers(reward)
+    )
+    Chosen(Map(leaderboardCategory -> Chosen(Map(name -> stats))))
+  }
+
+  def getJudgeStats(
+    result: JudgingResult,
+    role: JudgeRole,
+    name: String
+  ): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
     val leaderboardCategory =
       role match {
-        case Debater(index) =>
-          if (index == result.correctAnswerIndex) {
-            LeaderboardCategory.HonestDebater
-          } else
-            LeaderboardCategory.DishonestDebater
         case Judge =>
           LeaderboardCategory.Judge
         case OfflineJudge =>
           LeaderboardCategory.OfflineJudge
       }
-    val userStats =
-      role match {
-        case Debater(index) =>
-          val correct = result.finalJudgement(index) > 0.5
-          val reward  = math.log(result.finalJudgement(index))
-          DebateStats(Proportion.Stats(bool2int(correct), bool2int(!correct)), Numbers(reward))
-        case Judge | OfflineJudge =>
-          val correct = result.finalJudgement(result.correctAnswerIndex) > 0.5
-          DebateStats(
-            Proportion.Stats(bool2int(correct), bool2int(!correct)),
-            Numbers(result.judgeReward)
-          )
-      }
-    Chosen(Map(leaderboardCategory -> Chosen(Map(name -> userStats))))
+    val correct = result.finalJudgement(result.correctAnswerIndex) > 0.5
+    val stats = DebateStats(
+      Proportion.Stats(bool2int(correct), bool2int(!correct)),
+      Numbers(result.judgeReward)
+    )
+    Chosen(Map(leaderboardCategory -> Chosen(Map(name -> stats))))
   }
 
   def fromDebate(d: Debate): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
-    val liveJudgingStats =
-      d.result.flatMap(_.judgingInfo) match {
-        case None =>
-          Chosen(Map.empty[LeaderboardCategory, Chosen[String, DebateStats]])
-        case Some(result) =>
-          d.setup
-            .roles
-            .toList
-            .foldMap { case (role, user) =>
-              getUserStats(result, role, user)
-            }
+    val liveParticipantStats = d
+      .setup
+      .roles
+      .toList
+      .foldMap {
+        case (Debater(i), user) =>
+          d.result
+            .flatMap(_.judgingInfo)
+            .map(_.finalJudgement: Vector[Double])
+            .orElse(
+              d.offlineJudgingResults
+                .values
+                .toList
+                .flatMap(_.result)
+                .toNel
+                .map(dists =>
+                  Utils.normalize(
+                    dists
+                      .map(_.distribution)
+                      .reduce((p1: Vector[Double], p2: Vector[Double]) =>
+                        p1.zip(p2)
+                          .map { case (x, y) =>
+                            x + y
+                          }
+                      )
+                  )
+                ): Option[Vector[Double]]
+            )
+            .foldMap(getDebaterStats(_, d.setup.correctAnswerIndex, Debater(i), user))
+        case (Judge, user) =>
+          d.result.flatMap(_.judgingInfo).foldMap(getJudgeStats(_, Judge, user))
       }
     val offlineJudgingStats = d
       .offlineJudgingResults
@@ -85,10 +113,10 @@ object DebateStats {
                   d.setup.correctAnswerIndex
                 )
             )
-            getUserStats(result, OfflineJudge, user)
+            getJudgeStats(result, OfflineJudge, user)
           }
       }
-    liveJudgingStats |+| offlineJudgingStats
+    liveParticipantStats |+| offlineJudgingStats
   }
 }
 
@@ -136,12 +164,29 @@ object LeaderboardCategory {
 }
 
 @JsonCodec
-case class Leaderboard(data: Map[LeaderboardCategory, Map[String, DebateStats]]) {
+case class Leaderboard(
+  data: Map[LeaderboardCategory, Map[String, DebateStats]],
+  ratings: Elo.Ratings,
+  oneWeekOldRatings: Elo.Ratings
+) {
   def allDebaters = data.unorderedFoldMap(_.keySet)
 }
 
 object Leaderboard {
-  def fromDebates[F[_]: Foldable](debates: F[Debate]) = Leaderboard(
-    debates.foldMap(DebateStats.fromDebate).data.view.mapValues(_.data).toMap
-  )
+  private val oneWeekMillis = 604800000L
+  def fromDebates[F[_]: Foldable](_debates: F[Debate]) = {
+    // filter out debates from pre-2023
+    val debates = _debates
+      .toList
+      .filter(_.setup.creationTime > timeBeforeWhichToIgnoreMissingFeedback)
+    val data     = debates.foldMap(DebateStats.fromDebate).data.view.mapValues(_.data).toMap
+    val debaters = debates.foldMap(_.setup.participants)
+    val ratings  = Elo.computeRatings(debates.toList.toVector, debaters)
+    val oneWeekOldRatings = Elo.computeRatings(
+      debates.toList.toVector,
+      debaters,
+      timeCutoff = Some(System.currentTimeMillis() - oneWeekMillis)
+    )
+    Leaderboard(data, ratings, oneWeekOldRatings)
+  }
 }

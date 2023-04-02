@@ -24,17 +24,15 @@ object TabNav {
 
   def tabWithNotifications(numNotifications: Int, mod: TagMod = c"badge-danger")(
     content: VdomElement
+  ) = tabWithBadge(Option(numNotifications).filter(_ > 0).map(_.toString), mod)(content)
+
+  def tabWithBadge(messageOpt: Option[String], mod: TagMod = c"badge-danger")(
+    content: VdomElement
   ) = TabInfo(
     content,
-    badge = Option(numNotifications)
-      .filter(_ > 0)
-      .map { numNotifs =>
-        <.span(c"badge badge-pill", mod)(
-          ^.marginLeft  := "0.5rem",
-          ^.marginRight := "-0.5rem",
-          numNotifs
-        )
-      }
+    badge = messageOpt.map { msg =>
+      <.span(c"badge badge-pill", mod)(^.marginLeft := "0.5rem", ^.marginRight := "-0.5rem", msg)
+    }
   )
 
   def tabIf(enabled: Boolean)(content: VdomElement) = TabInfo(content, enabled = enabled)
@@ -84,7 +82,10 @@ object TabNav {
                 .tabs
                 .zipWithIndex
                 .toVdomArray { case ((_, TabInfo(content, _, _)), index) =>
-                  <.div(^.key := index)(content, ^.display.none.when(index != tabIndex.value))
+                  <.div(^.overflowY.auto, ^.key := index)(
+                    content,
+                    ^.display.none.when(index != tabIndex.value)
+                  )
                 }
             )
           }

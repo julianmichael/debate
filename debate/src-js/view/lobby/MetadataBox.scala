@@ -64,6 +64,16 @@ object MetadataBox {
         c"text-muted"
     }
 
+  def getColorFromCorrectnessScore(correctnessScore: Double) = {
+    val opacity = math.abs(correctnessScore - 0.5)
+    val color =
+      if (correctnessScore > 0.5)
+        Rgba(0, 128, 0, opacity) // green
+      else
+        Rgba(220, 20, 60, opacity) // crimson
+    color
+  }
+
   def apply(
     storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
     presentDebaters: Set[String],
@@ -169,16 +179,6 @@ object MetadataBox {
             label
           }
 
-        def getColorFromCorrectnessScore(correctnessScore: Double) = {
-          val opacity = math.abs(correctnessScore - 0.5)
-          val color =
-            if (correctnessScore > 0.5)
-              Rgba(0, 128, 0, opacity) // green
-            else
-              Rgba(220, 20, 60, opacity) // crimson
-          color
-        }
-
         def getBgColorModFromJudgment(judgment: Vector[Double]) = {
           val correctConfidence = judgment(result.correctAnswerIndex) * 100
           val otherConfidences  = judgment.remove(result.correctAnswerIndex).sortBy(-_).map(_ * 100)
@@ -198,7 +198,7 @@ object MetadataBox {
         val style =
           result.judgingInfo match {
             case None =>
-              if (offlineJudgingResults.nonEmpty) {
+              if (offlineJudgingResults.flatMap(_._2.result).nonEmpty) {
                 val avgJudgment =
                   offlineJudgingResults
                     .flatMap(_._2.result)

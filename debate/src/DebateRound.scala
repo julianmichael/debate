@@ -13,13 +13,14 @@ import monocle.macros.Lenses
 sealed trait DebateRound {
   def allSpeeches: Map[Role, DebateSpeech]
 
-  def isComplete(numDebaters: Int): Boolean
-  final def timestamp(numDebaters: Int): Option[Long] =
-    if (!isComplete(numDebaters))
+  def isComplete(debaters: Set[Int]): Boolean
+  final def timestamp(debaters: Set[Int]): Option[Long] =
+    if (!isComplete(debaters))
       None
     else {
       allSpeeches.values.view.map(_.timestamp).maxOption
     }
+  final def maxTimestamp: Option[Long] = allSpeeches.values.view.map(_.timestamp).maxOption
 }
 
 @Lenses
@@ -27,7 +28,7 @@ sealed trait DebateRound {
 case class SimultaneousSpeeches(
   speeches: Map[Int, DebateSpeech] // map from answer index -> statement
 ) extends DebateRound {
-  def isComplete(numDebaters: Int) = speeches.size == numDebaters
+  def isComplete(debaters: Set[Int]): Boolean = debaters.forall(speeches.contains)
   def allSpeeches = speeches.map { case (idx, speech) =>
     Debater(idx) -> speech
   }
@@ -38,7 +39,7 @@ object SimultaneousSpeeches
 @Lenses
 @JsonCodec
 case class SequentialSpeeches(speeches: Map[Int, DebateSpeech]) extends DebateRound {
-  def isComplete(numDebaters: Int) = speeches.size == numDebaters
+  def isComplete(debaters: Set[Int]): Boolean = debaters.forall(speeches.contains)
   def allSpeeches = speeches.map { case (idx, speech) =>
     Debater(idx) -> speech
   }
@@ -53,23 +54,23 @@ case class JudgeFeedback(
   feedback: DebateSpeech,
   endDebate: Boolean
 ) extends DebateRound {
-  def isComplete(numDebaters: Int) = true
-  def allSpeeches                  = Map(Judge -> feedback)
+  def isComplete(debaters: Set[Int]): Boolean = true
+  def allSpeeches                             = Map(Judge -> feedback)
 }
 object JudgeFeedback
 
 @Lenses
 @JsonCodec
 case class NegotiateEnd(votes: Map[Int, Boolean]) extends DebateRound {
-  def isComplete(numDebaters: Int) = votes.size == numDebaters
-  def allSpeeches                  = Map()
+  def isComplete(debaters: Set[Int]): Boolean = debaters.forall(votes.contains)
+  def allSpeeches                             = Map()
 }
 object NegotiateEnd
 
 @Lenses
 @JsonCodec
 case class OfflineJudgments(judgments: Map[String, OfflineJudgment]) extends DebateRound {
-  def isComplete(numDebaters: Int) = judgments.values.forall(_.result.nonEmpty)
+  def isComplete(debaters: Set[Int]): Boolean = true
   def allSpeeches =
     judgments
       .toVector

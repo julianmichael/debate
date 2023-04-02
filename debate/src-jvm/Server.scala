@@ -247,6 +247,14 @@ case class Server(
         _           <- FileUtil.writeJson(ruleConfigsSavePath(saveDir))(ruleConfigs)
       } yield ()
 
+    def removeRuleConfig(ruleConfigName: String) =
+      for {
+        _           <- ruleConfigs.update(_ - ruleConfigName)
+        _           <- pushUpdate
+        ruleConfigs <- ruleConfigs.get
+        _           <- FileUtil.writeJson(ruleConfigsSavePath(saveDir))(ruleConfigs)
+      } yield ()
+
     def removeDebater(name: String) =
       for {
         _        <- profiles.update(_ - name)
@@ -261,7 +269,7 @@ case class Server(
         currentRuleConfigs <- ruleConfigs.get
         officialRooms      <- officialDebates.getRoomMetadata
         practiceRooms      <- practiceDebates.getRoomMetadata
-        leaderboard        <- officialDebates.getLeaderboard
+        leaderboard        <- officialDebates.leaderboard.get
         allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
         _           <- presence.update(_ |+| Map(profile -> 1))
         _           <- pushUpdate
@@ -312,8 +320,12 @@ case class Server(
                     registerDebater(profile)
                   case RegisterRuleConfig(ruleConfig) =>
                     registerRuleConfig(ruleConfig)
+                  case RemoveRuleConfig(ruleConfigName) =>
+                    removeRuleConfig(ruleConfigName)
                   case RemoveDebater(name) =>
                     removeDebater(name)
+                  case RefreshLeaderboard() =>
+                    officialDebates.refreshLeaderboard >> officialDebates.pushUpdateRef.get.flatten
                   case DeleteRoom(isOfficial, roomName) =>
                     if (isOfficial)
                       officialDebates.deleteDebate(roomName)
@@ -500,7 +512,7 @@ object Server {
       officialRooms <- officialDebates.getRoomMetadata
       practiceRooms <- practiceDebates.getRoomMetadata
       // channel to update all clients on the lobby state
-      leaderboard <- officialDebates.getLeaderboard
+      leaderboard <- officialDebates.leaderboard.get
       allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
       _ <- profilesRef
         .get
@@ -529,7 +541,7 @@ object Server {
           presence      <- presenceRef.get
           officialRooms <- officialDebates.getRoomMetadata
           practiceRooms <- practiceDebates.getRoomMetadata
-          leaderboard   <- officialDebates.getLeaderboard
+          leaderboard   <- officialDebates.leaderboard.get
           allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
           _ <- mainChannel.publish1(
             Lobby(

@@ -49,11 +49,11 @@ object DebateScheduler {
     s"""|Title:     ${setup.sourceMaterial.title}
         |Question:  ${setup.question}
         |Debaters:
-        |  A: ${setup.roles(Debater(0))}${if (setup.correctAnswerIndex == 0)
+        |  A: ${setup.roles.get(Debater(0)).getOrElse("<none>")}${if (setup.correctAnswerIndex == 0)
          " (H)"
        else
          ""}
-        |  B: ${setup.roles(Debater(1))}${if (setup.correctAnswerIndex == 1)
+        |  B: ${setup.roles.get(Debater(1)).getOrElse("<none>")}${if (setup.correctAnswerIndex == 1)
          " (H)"
        else
          ""}
@@ -73,7 +73,7 @@ object DebateScheduler {
   def sampleRules(schedule: Schedule, rand: Random) = {
     // silly?
     val allRuleConfigs = NonEmptyVector
-      .fromVector(schedule.desiredRules.probs.toSortedMap.toVector)
+      .fromVector(schedule.desiredRules.probs.toSortedMap.filter(_._2 > 0.0).toVector)
       .get
       .map(_._1)
     DenseDistribution
@@ -243,25 +243,31 @@ object DebateScheduler {
 
   def sampleCorrectAnswerIndex(
     schedule: Schedule,
-    honestDebater: String,
-    dishonestDebater: String,
+    honestDebaterOpt: Option[String],
+    dishonestDebaterOpt: Option[String],
     rand: Random
   ): Int = DenseDistribution
     .fromSoftmax[Int](
       NonEmptyVector.of(0, 1),
       i =>
         0.5 -
-          schedule
-            .orderLoad
-            .get(honestDebater)
-            .flatMap(SparseDistribution.fromMap[Int])
-            .map(_.prob(i))
+          honestDebaterOpt
+            .flatMap(honestDebater =>
+              schedule
+                .orderLoad
+                .get(honestDebater)
+                .flatMap(SparseDistribution.fromMap[Int])
+                .map(_.prob(i))
+            )
             .getOrElse(0.5) + 0.5 -
-          schedule
-            .orderLoad
-            .get(dishonestDebater)
-            .flatMap(SparseDistribution.fromMap[Int])
-            .map(_.prob(1 - i))
+          dishonestDebaterOpt
+            .flatMap(dishonestDebater =>
+              schedule
+                .orderLoad
+                .get(dishonestDebater)
+                .flatMap(SparseDistribution.fromMap[Int])
+                .map(_.prob(1 - i))
+            )
             .getOrElse(0.5)
     )
     .withTemperature(Params.samplingTemperature)
@@ -278,23 +284,44 @@ object DebateScheduler {
   ): Either[String, DebateSetup] = {
     val storyId    = SourceMaterialId.fromSourceMaterial(sourceMaterial)
     val ruleConfig = sampleRules(schedule, rand)
+    val shouldSampleHonest =
+      ruleConfig.numAssignedDebaters match {
+        case x if x > 1 =>
+          true
+        case 1 =>
+          rand.nextDouble() < 0.5
+        case 0 =>
+          false
+      }
+    val shouldSampleDishonest =
+      ruleConfig.numAssignedDebaters match {
+        case x if x > 1 =>
+          true
+        case 1 =>
+          !shouldSampleHonest
+        case 0 =>
+          false
+      }
     for {
-      honestDebater <- sampleDebater(schedule, storyId, debaters, None, qa.question, true, rand)
-        .toRight("Couldn't sample honest debater.")
-      dishonestDebater <- sampleDebater(
-        schedule,
-        storyId,
-        debaters,
-        Some(honestDebater),
-        qa.question,
-        false,
-        rand
-      ).toRight("Couldn't sample dishonest debater.")
+      honestDebaterOpt <-
+        if (shouldSampleHonest) {
+          sampleDebater(schedule, storyId, debaters, None, qa.question, true, rand)
+            .toRight("Couldn't sample honest debater.")
+            .map(_.some)
+        } else
+          Right(None)
+      dishonestDebaterOpt <-
+        if (shouldSampleDishonest) {
+          sampleDebater(schedule, storyId, debaters, honestDebaterOpt, qa.question, false, rand)
+            .toRight("Couldn't sample dishonest debater.")
+            .map(_.some)
+        } else
+          Right(None)
       judgeOpt <-
         if (ruleConfig.rules.hasJudge) {
           sampleJudge(
             schedule,
-            Set(honestDebater, dishonestDebater),
+            Set(honestDebaterOpt, dishonestDebaterOpt).flatten,
             storyId,
             judges,
             qa.question,
@@ -305,7 +332,7 @@ object DebateScheduler {
                  |Assignment number: ${schedule.novel.size}
                  |Story: $storyId 
                  |Judges: $judges
-                 |Debaters: ${Set(honestDebater, dishonestDebater)}
+                 |Debaters: ${Set(honestDebaterOpt, dishonestDebaterOpt).flatten}
                  |Debates for story: ${schedule.forStory(storyId).map(_.question)}"""
                 .stripMargin
                 .trim
@@ -335,7 +362,12 @@ object DebateScheduler {
         .run(judgeOpt.toSet)
         .map(_._2.toSet)
         .toRight("Couldn't sample offline judges.")
-      correctAnswerIndex = sampleCorrectAnswerIndex(schedule, honestDebater, dishonestDebater, rand)
+      correctAnswerIndex = sampleCorrectAnswerIndex(
+        schedule,
+        honestDebaterOpt,
+        dishonestDebaterOpt,
+        rand
+      )
     } yield DebateSetup(
       rules = ruleConfig.rules,
       sourceMaterial = sourceMaterial,
@@ -349,10 +381,10 @@ object DebateScheduler {
       },
       correctAnswerIndex = correctAnswerIndex,
       roles =
-        Map[LiveDebateRole, String](
-          Debater(correctAnswerIndex)     -> honestDebater,
-          Debater(1 - correctAnswerIndex) -> dishonestDebater
-        ) ++ judgeOpt.map(Judge -> _),
+        List[Option[(LiveDebateRole, String)]](
+          honestDebaterOpt.map(Debater(correctAnswerIndex) -> _),
+          dishonestDebaterOpt.map(Debater(1 - correctAnswerIndex) -> _)
+        ).flatten.toMap ++ judgeOpt.map(Judge -> _),
       offlineJudges = offlineJudges.map(_ -> None).toMap,
       creationTime = creationTime
     )
@@ -393,13 +425,13 @@ object DebateScheduler {
     val workload = startingSchedule.workload
     val debaterChoiceDist = DenseDistribution
       .fromSoftmax[String](
-        NonEmptyVector.fromVector(people.toVector).get,
+        NonEmptyVector.fromVector(people.toVector.filter(d => desiredWorkload.prob(d) > 0.0)).get,
         d => Params.workloadMultiplier * (desiredWorkload.prob(d) - workload.prob(d))
       )
       .withTemperature(Params.samplingTemperature)
 
     // sample debaters according to how far off they are from their desired workload
-    val attemptedSampledSchedules = (1 to 50) // number of different debater sets we try
+    val attemptedSampledSchedules = (1 to 15) // number of different debater sets we try
       .toVector
       .map { _ =>
         val chosenDebaters = debaterChoiceDist.sampleWithoutReplacement(numDebaters, rand).toSet

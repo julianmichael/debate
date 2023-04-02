@@ -30,7 +30,7 @@ case class DebateState(debate: Debate, participants: Map[String, Role]) {
     latestUpdateTime = debate
       .rounds
       .view
-      .flatMap(_.timestamp(debate.setup.numDebaters))
+      .flatMap(_.maxTimestamp)
       .lastOption
       .getOrElse(debate.setup.creationTime),
     peopleWhoHaveSpoken = debate.rounds.foldMap(_.allSpeeches.values.view.map(_.speaker).toSet),
