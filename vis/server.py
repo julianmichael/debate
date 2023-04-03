@@ -51,7 +51,7 @@ def read_data():
     turns['Room start time'] = pd.to_datetime(
         turns['Room start time'], unit='ms')
     turns = turns[turns['Room start time'] >
-                      pd.to_datetime('10/02/23', format='%d/%m/%y')]
+                  pd.to_datetime('10/02/23', format='%d/%m/%y')]
 
     print("Debates:")
     print(debates.dtypes)
@@ -73,16 +73,18 @@ def an_overview_of_counts():
     debates['Final probability correct (live + mean of offline)'] = debates.apply(
         lambda row: row['Final probability correct'] if row['Offline'] == False else row['Average offline probability correct'], axis=1)
     bins = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-    labels = ['0-10%', '10-20%', '20-30%', '30-40%', '40-50%', '50-60%', '60-70%', '70-80', '80-90%', '90-100%']
-    debates['Final probability correct bins'] = pd.cut(debates['Final probability correct (live + mean of offline)'], 
+    labels = ['0-10%', '10-20%', '20-30%', '30-40%', '40-50%',
+              '50-60%', '60-70%', '70-80', '80-90%', '90-100%']
+    debates['Final probability correct bins'] = pd.cut(debates['Final probability correct (live + mean of offline)'],
                                                        bins=bins, labels=labels)
     counts_bar = alt.Chart(debates).mark_bar().encode(
-        x=alt.X('count()',stack='zero'),
+        x=alt.X('count()', stack='zero'),
         y=alt.Y('Status:O', sort=alt.EncodingSortField(
             op='count', order='descending')),
-        color=alt.Color('Final probability correct bins:O', scale=alt.Scale(scheme='redyellowblue')),
-    
-    ).facet(facet = 'Offline:O', columns=1)
+        color=alt.Color('Final probability correct bins:O',
+                        scale=alt.Scale(scheme='redyellowblue')),
+
+    ).facet(facet='Offline:O', columns=1)
     # counts_text = alt.Chart(debates).mark_text(dx=-15, dy=3).encode(
     #     x=alt.X('count()',stack='zero'),
     #     y=alt.Y('Status:O', sort=alt.EncodingSortField(
@@ -93,8 +95,39 @@ def an_overview_of_counts():
     return counts_bar.properties(width=850, height=300)
     # return alt.layer(counts_bar, counts_text).resolve_scale(color='independent').properties(width=850, height=300)
 
+# stacked bar chart of completed debates by correct and incorrect, correct is Final probability correct > 0.5
+
+
+def debates_correct_per_week():
+    return alt.Chart(debates).mark_bar().encode(
+        x=alt.X('week(Start time):O', sort=alt.EncodingSortField(
+            field='week(Start time)',
+            op='count',
+            order='descending'
+        )
+        ),
+        y='count():Q',
+        color=alt.Color('Final probability correct:O')
+    ).transform_filter(
+        datum['Status'] == 'complete'
+    ).properties(width=850, height=300)
+
 
 # TRACK
+
+def debater_by_turns():  # TODO fix for offline judge
+    source = sessions.merge(debates, how='left', on='Room name')
+    source['Role'] = source['Role'].map(
+        lambda x: 'Debater' if x.startswith('Debater') else x)
+    return alt.Chart(source).mark_bar().encode(
+        x=alt.X('count()'),
+        y=alt.Y('Participant:O', sort=alt.EncodingSortField(
+            op='count', order='descending')),
+        color=alt.Color('Role:O'),
+        column=alt.Column('Role:O')
+    ).transform_filter(
+        datum['Status'] != 'complete' & datum['Is turn'] == True
+    ).properties(width=200)
 
 
 def debater_pairings_by_role():
@@ -154,7 +187,7 @@ def final_probability_by_honest_and_dishonest_debater():
 
 def evidence_by_roundss():
     evidence_line = alt.Chart(turns[turns[['Start time'] >
-                      pd.to_datetime('10/02/23', format='%d/%m/%y')]]).mark_area().encode(
+                                          pd.to_datetime('10/02/23', format='%d/%m/%y')]]).mark_area().encode(
         x='Num previous debating rounds:O',
         y='ci0(Quote length)',
         y2='ci1(Quote length)'
@@ -294,7 +327,7 @@ def debates_completed_per_week():
     #     color='Debater:N'
     # ).properties(width=750)
 
-    return all_bar # + all_line
+    return all_bar  # + all_line
 
 
 # Keys must be valid URL paths. I'm not URL-encoding them.
@@ -302,14 +335,14 @@ def debates_completed_per_week():
 all_graph_specifications = {
     "Main_results:_An_overview_of_counts": an_overview_of_counts,
     # "Main_results:_Offline_vs_live_debates": offline_vs_live_debates,
-    "Main_results:_Debates_right_over_time": probability_correct_over_time, ##
+    "Main_results:_Debates_right_over_time": debates_correct_per_week,
     "Results:_Evidence_by_rounds": evidence_by_rounds,
     "Results:_Probability_correct_by_num_rounds": probability_correct_by_num_rounds,
     "Results:_Final_probability_by_debaters": final_probability_by_honest_and_dishonest_debater,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
     "Track:_Participant_by_current_workload": participant_by_current_workload,
     # "Track:_Participant_by_past_workload": participant_by_past_workload,
-    # "Track:_Turns_to_complete_by_participant": turns_to_complete_by_participant,
+    "Track:_Turns_to_complete_by_participant": debater_by_turns,
     "Track:_Debater_pairings_by_role": debater_pairings_by_role,
     # "Track:_Debater_pairings_by_person": debater_pairings_by_person,
     "Track:_Judge_pairings": judge_pairings,
