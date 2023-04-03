@@ -38,7 +38,6 @@ def read_data():
         debates['Start time'], unit='ms')
     debates = debates[debates['Start time'] >
                       pd.to_datetime('10/02/23', format='%d/%m/%y')]
-    print(pd.to_datetime(1672531200000))
     debates['Final probability incorrect'] = (
         1 - debates['Final probability correct'])
     debates['End time'] = pd.to_datetime(
@@ -49,6 +48,10 @@ def read_data():
     turns = pd.read_csv(
         os.path.join(data_dir, 'official/summaries/turns.csv')
     )
+    turns['Room start time'] = pd.to_datetime(
+        turns['Room start time'], unit='ms')
+    turns = turns[turns['Room start time'] >
+                      pd.to_datetime('10/02/23', format='%d/%m/%y')]
 
     print("Debates:")
     print(debates.dtypes)
@@ -63,15 +66,35 @@ def read_data():
 
 read_data()
 
+# MAIN RESULTS
+
+
+def an_overview_of_counts():
+    debates['Final probability correct (live + mean of offline)'] = debates.apply(
+        lambda row: row['Final probability correct'] if row['Offline'] == False else row['Average offline probability correct'], axis=1)
+    bins = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+    labels = ['0-10%', '10-20%', '20-30%', '30-40%', '40-50%', '50-60%', '60-70%', '70-80', '80-90%', '90-100%']
+    debates['Final probability correct bins'] = pd.cut(debates['Final probability correct (live + mean of offline)'], 
+                                                       bins=bins, labels=labels)
+    counts_bar = alt.Chart(debates).mark_bar().encode(
+        x=alt.X('count()',stack='zero'),
+        y=alt.Y('Status:O', sort=alt.EncodingSortField(
+            op='count', order='descending')),
+        color=alt.Color('Final probability correct bins:O', scale=alt.Scale(scheme='redyellowblue')),
+    
+    ).facet(facet = 'Offline:O', columns=1)
+    # counts_text = alt.Chart(debates).mark_text(dx=-15, dy=3).encode(
+    #     x=alt.X('count()',stack='zero'),
+    #     y=alt.Y('Status:O', sort=alt.EncodingSortField(
+    #         op='count', order='descending')),
+    #     color=alt.Color('Final probability correct bins:O', scale=alt.Scale(range=['black'])),
+    #     text=alt.Text('count()')
+    # )
+    return counts_bar.properties(width=850, height=300)
+    # return alt.layer(counts_bar, counts_text).resolve_scale(color='independent').properties(width=850, height=300)
+
 
 # TRACK
-
-def speeches_by_time():
-    return alt.Chart(turns).mark_line().encode(
-        x='Time:Q',
-        y='mean(Quote length)',
-        column='Participant:N'
-    )
 
 
 def debater_pairings_by_role():
@@ -86,7 +109,7 @@ def debater_pairings_by_person():  # TODO Instead of having them in separate ite
     return
 
 
-def honest_and_dishonest_debater_by_final_probability():
+def final_probability_by_honest_and_dishonest_debater():
     honest_bar = alt.Chart(debates).mark_bar().encode(
         x=alt.X('Honest debater:O', sort=alt.EncodingSortField(
             field='Final probability correct',
@@ -130,14 +153,15 @@ def honest_and_dishonest_debater_by_final_probability():
 
 
 def evidence_by_roundss():
-    evidence_line = alt.Chart(turns).mark_area().encode(
+    evidence_line = alt.Chart(turns[turns[['Start time'] >
+                      pd.to_datetime('10/02/23', format='%d/%m/%y')]]).mark_area().encode(
         x='Num previous debating rounds:O',
         y='ci0(Quote length)',
         y2='ci1(Quote length)'
     ).facet(
         facet='Participant:N',
         columns=6
-    )
+    ).properties(width=850)
     # evidence_err = alt.Chart(debates).mark_errorbar().encode(
     #     x='Num previous debating rounds:O',
     #     y='ymin:Q',
@@ -151,7 +175,7 @@ def evidence_by_rounds():
         x='Num previous debating rounds:O',
         y='mean(Quote length)',
         color='Participant:N'
-    )
+    ).properties(width=850)
     # evidence_err = alt.Chart(debates).mark_errorbar().encode(
     #     x='Num previous debating rounds:O',
     #     y='ymin:Q',
@@ -214,16 +238,7 @@ def judge_pairings():
     )
 
 
-def probability_correct_vs_num_rounds():
-    return alt.Chart(debates).mark_circle(size=60).encode(
-        x='Num rounds:O',
-        y='Final probability correct:Q',
-        # color='Judge:N',
-        tooltip=['Room name']
-    ).properties(width=750)
-
-
-def probability_correct_vs_num_rounds():
+def probability_correct_by_num_rounds():
     return alt.Chart(debates).mark_circle(size=60).encode(
         x='Num rounds:O',
         y='Final probability correct:Q',
@@ -234,7 +249,7 @@ def probability_correct_vs_num_rounds():
 
 def probability_correct_over_time():
     return alt.Chart(debates).mark_bar().encode(
-        x='yearmonthdate(Start time):T',
+        x='yearmonthdate(End time):T',
         y='mean(Final probability correct):Q'
     ).properties(width=750)
 
@@ -272,29 +287,32 @@ def debates_completed_per_week():
         y='count():Q'
     ).properties(width=750)
 
-    all_line = alt.Chart(debates[debates["Is over"] == True].melt(id_vars=['Room name', 'End week label', 'End week'], value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_line().encode(
-        x=alt.X('End week label:O', sort=alt.EncodingSortField(
-            field='End week', order='ascending')),
-        y='count():Q',
-        color='Debater:N'
-    ).properties(width=750)
+    # all_line = alt.Chart(debates[debates["Is over"] == True].melt(id_vars=['Room name', 'End week label', 'End week'], value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_line().encode(
+    #     x=alt.X('End week label:O', sort=alt.EncodingSortField(
+    #         field='End week', order='ascending')),
+    #     y='count():Q',
+    #     color='Debater:N'
+    # ).properties(width=750)
 
-    return all_bar + all_line
+    return all_bar # + all_line
 
 
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
-    "Probability_correct_over_time": probability_correct_over_time,
-    "Participant_by_current_workload": participant_by_current_workload,
-    # "Participant_by_past_workload": participant_by_past_workload,
-    "Evidence_by_rounds": evidence_by_rounds,
-    "Debates_completed_per_week": debates_completed_per_week,
-    "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds,
-    "Debaters_by_final_probability": honest_and_dishonest_debater_by_final_probability,
-    "Debater_pairings_by_role": debater_pairings_by_role,
-    # "Debater_pairings_by_person": debater_pairings_by_person,
-    "Judge_pairings": judge_pairings,
+    "Main_results:_An_overview_of_counts": an_overview_of_counts,
+    # "Main_results:_Offline_vs_live_debates": offline_vs_live_debates,
+    "Main_results:_Debates_right_over_time": probability_correct_over_time, ##
+    "Results:_Evidence_by_rounds": evidence_by_rounds,
+    "Results:_Probability_correct_by_num_rounds": probability_correct_by_num_rounds,
+    "Results:_Final_probability_by_debaters": final_probability_by_honest_and_dishonest_debater,
+    "Track:_Debates_completed_per_week": debates_completed_per_week,
+    "Track:_Participant_by_current_workload": participant_by_current_workload,
+    # "Track:_Participant_by_past_workload": participant_by_past_workload,
+    # "Track:_Turns_to_complete_by_participant": turns_to_complete_by_participant,
+    "Track:_Debater_pairings_by_role": debater_pairings_by_role,
+    # "Track:_Debater_pairings_by_person": debater_pairings_by_person,
+    "Track:_Judge_pairings": judge_pairings,
 }
 
 

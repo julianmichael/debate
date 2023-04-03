@@ -8,7 +8,6 @@ import cats.implicits._
 
 import com.github.tototoshi.csv._
 import jjm.metrics.Numbers
-import jjm.DotPair
 
 object DataSummarizer {
 
@@ -17,6 +16,8 @@ object DataSummarizer {
     def name: String
 
     def fields: List[(String, A => String)]
+
+    // def surveyFields: A => List[(String, String)]
 
     def writeToPath(items: List[A], path: NIOPath): IO[Unit] = IO {
       val headerRow = fields.map(_._1)
@@ -260,15 +261,14 @@ object DataSummarizer {
     roomName: String,
     debate: Debate,
     role: DebateRole,
-    participant: String,
-    survey: DotPair[Feedback.Question, Feedback.Key]
+    participant: String
   )
 
   val sessionsCSV =
     new CSVSpec[DebateSessionInfo] {
       def name = "sessions"
 
-      def normalFields: List[(String, DebateSessionInfo => String)] = List(
+      def fields: List[(String, DebateSessionInfo => String)] = List(
         "Room name" -> { info =>
           info.roomName
         },
@@ -281,39 +281,41 @@ object DataSummarizer {
         "Role" -> { info =>
           info.role.toString
         },
-        "Role2" -> { info =>
-          info.role.toString
+        "Is turn" -> { info => 
+          info.debate.stateInfo._2.currentSpeakers.contains(info.role).toString
         },
-        
-        // "Feedback" -> { info: DebateSessionInfo =>
-        //   info.debate.feedback.get(info.participant).collect {
-        //         case Feedback.SurveyResponse.Debater(answers)      => answers.
-        //         case Feedback.SurveyResponse.Judge(answers)        => answers.
-        //         case Feedback.SurveyResponse.OfflineJudge(answers) => answers.
-        //         case _ => List.empty[String]
-        //   }.getOrElse(List.empty[String])
-        // }: _*
-        
+        "Is over" -> { info =>
+          info.debate.isOver.toString
+        },
+
 
         // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
         // But there might be cases where times overlap.. let's decide def first?
       )
       
-      def surveyFields: List[(DebateSessionInfo => String, DebateSessionInfo => String)] = List(
-        { info: DebateSessionInfo => info.debate.feedback.get(info.participant).collect {
-                case Feedback.SurveyResponse.Debater(answers)      => answers.keySet.toString
-                case Feedback.SurveyResponse.Judge(answers)        => answers.keySet.toString
-                case Feedback.SurveyResponse.OfflineJudge(answers) => answers.keySet.toString
-                case _ => List.empty[String]
-          }.getOrElse(List.empty[String]).toString } -> { info: DebateSessionInfo => info.survey.toString}
-      )
-
-      // def surveyFields(info: DebateSessionInfo): List[(String, String)] = {
-      //   val surveyResponses = info.debate.feedback.get(info.participant)
-      //   val 
+      // def surveyFields: DebateSessionInfo => List[(String, String)] = { info =>
+      //   def stringToKey(str: String): Option[Feedback.Key] = {
+      //     Feedback.questions.keySet.find(_.toString == str)
+      //   }
+      //   val surveyQuestions = info.debate.feedback.get(info.participant).collect {
+      //     case Feedback.SurveyResponse.Debater(answers)      => answers.keySet
+      //     case Feedback.SurveyResponse.Judge(answers)        => answers.keySet
+      //     case Feedback.SurveyResponse.OfflineJudge(answers) => answers.keySet
+      //     case _ => ""
+      //     }.getOrElse("").asInstanceOf[Set[String]].toList
+      //   val surveyAnswers = surveyQuestions.map { question =>
+      //     info.debate.feedback.get(info.participant).collect {
+      //       case Feedback.SurveyResponse.Debater(answers)      => stringToKey(question).flatMap(key => answers.get(key).map(_.toString)).getOrElse("")
+      //       case Feedback.SurveyResponse.Judge(answers)        => stringToKey(question).flatMap(key => answers.get(key).map(_.toString)).getOrElse("")
+      //       case Feedback.SurveyResponse.OfflineJudge(answers) => stringToKey(question).flatMap(key => answers.get(key).map(_.toString)).getOrElse("")
+      //       case _ => ""
+      //     }.getOrElse("")
+      //   }
+      //   surveyQuestions.zip(surveyAnswers)
       // }
         
-      def fields = (normalFields ::: surveyFields.map { case (k, v) => (k.toString, v) })
+      // // Combine normal fields and survey fields
+      // def fields: List[(String, String)] = normalFields ::: surveyFields
 
 
     }
@@ -357,8 +359,7 @@ object DataSummarizer {
           (role, participant) <-
             debate.setup.roles.toSet ++ debate.setup.offlineJudges.keySet.map(OfflineJudge -> _) ++
               debate.offlineJudgingResults.keySet.map(OfflineJudge -> _)
-          survey <- Feedback.survey
-        } yield DebateSessionInfo(roomName, debate, role, participant, survey)
+        } yield DebateSessionInfo(roomName, debate, role, participant)
 
       sessionsCSV.writeToPath(sessionInfos, summaryDir)
     }
