@@ -268,7 +268,7 @@ object DataSummarizer {
     new CSVSpec[DebateSessionInfo] {
       def name = "sessions"
 
-      def fields: List[(String, DebateSessionInfo => String)] = List(
+      def normalFields: List[(String, DebateSessionInfo => String)] = List(
         "Room name" -> { info =>
           info.roomName
         },
@@ -293,29 +293,51 @@ object DataSummarizer {
         // But there might be cases where times overlap.. let's decide def first?
       )
       
-      // def surveyFields: DebateSessionInfo => List[(String, String)] = { info =>
-      //   def stringToKey(str: String): Option[Feedback.Key] = {
-      //     Feedback.questions.keySet.find(_.toString == str)
-      //   }
-      //   val surveyQuestions = info.debate.feedback.get(info.participant).collect {
-      //     case Feedback.SurveyResponse.Debater(answers)      => answers.keySet
-      //     case Feedback.SurveyResponse.Judge(answers)        => answers.keySet
-      //     case Feedback.SurveyResponse.OfflineJudge(answers) => answers.keySet
-      //     case _ => ""
-      //     }.getOrElse("").asInstanceOf[Set[String]].toList
-      //   val surveyAnswers = surveyQuestions.map { question =>
-      //     info.debate.feedback.get(info.participant).collect {
-      //       case Feedback.SurveyResponse.Debater(answers)      => stringToKey(question).flatMap(key => answers.get(key).map(_.toString)).getOrElse("")
-      //       case Feedback.SurveyResponse.Judge(answers)        => stringToKey(question).flatMap(key => answers.get(key).map(_.toString)).getOrElse("")
-      //       case Feedback.SurveyResponse.OfflineJudge(answers) => stringToKey(question).flatMap(key => answers.get(key).map(_.toString)).getOrElse("")
-      //       case _ => ""
-      //     }.getOrElse("")
-      //   }
-      //   surveyQuestions.zip(surveyAnswers)
-      // }
+      def surveyFields: List[(String, DebateSessionInfo => String)] = { 
+        val surveyQuestions = Feedback.questions.keySet.toList
+        surveyQuestions.flatMap { 
+          // Separate columns for comparative likert answers first and second
+          case key @ Feedback.Key.ComparativeLikert(keyname) => 
+            List(
+              keyname + "_1" -> { info: DebateSessionInfo => 
+                info.debate.feedback.get(info.participant).flatMap(_.answers.get(key).collectFirst {
+                  case Feedback.ComparativeJudgment(first, _) if first > -1 => first.toString
+                }).getOrElse("")
+              },
+              keyname + "_2" -> { info: DebateSessionInfo => 
+                info.debate.feedback.get(info.participant).flatMap(_.answers.get(key).collectFirst {
+                  case Feedback.ComparativeJudgment(_, second) if second > -1 => second.toString
+                }).getOrElse("")
+              }
+            )
+          case key @ Feedback.Key.Likert(keyname) => 
+            List(
+              keyname -> { info: DebateSessionInfo => 
+                info.debate.feedback.get(info.participant).flatMap(_.answers.get(key).map(_.toString)).getOrElse("")
+              }
+            )
+          case key @ Feedback.Key.FreeText(keyname) => 
+            List(
+              keyname -> { info: DebateSessionInfo => 
+                info.debate.feedback.get(info.participant).flatMap(_.answers.get(key).map(_.toString)).getOrElse("")
+              }
+            )
+          // case key @ Feedback.Key.RoleSelect(keyname) => 
+          //   List(
+          //     LiveDebateRole.toList.flatMap { role =>
+          //       List(
+          //         s"$keyname.${role.toString.toLowerCase}" -> { info: DebateSessionInfo =>
+          //           info.debate.feedback.get(info.participant).flatMap(_.answers.get(key)).flatMap(_.get(role)).getOrElse("")
+          //         }
+          //       )
+          //     }
+          //   )
+          case _ => List.empty[(String, DebateSessionInfo => String)]
+          }
+      }
         
-      // // Combine normal fields and survey fields
-      // def fields: List[(String, String)] = normalFields ::: surveyFields
+      // Combine normal fields and survey fields
+      def fields: List[(String, DebateSessionInfo => String)] = normalFields ::: surveyFields
 
 
     }
