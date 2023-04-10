@@ -115,6 +115,22 @@ def debates_correct_per_week():
 
 # TRACK
 
+
+def anonymity():
+    source = sessions.merge(
+        debates[['Room name', 'Debater A', 'Debater B', 'Judge']], how='left', on='Room name')
+    source["Guesses"] = source.apply(
+        lambda row: sum([row[col] == row['identity guesses.' + col]
+                         for col in ['Debater A', 'Debater B', 'Judge']]), axis=1)
+    print(source['Guesses'].value_counts)
+    return alt.Chart(source).mark_bar().encode(
+        x=alt.X('count(Guesses)'),
+        y=alt.Y('Participant:O', sort=alt.EncodingSortField(
+            op='count', order='descending')),
+        color=alt.Color('Guesses:O')
+    )
+
+
 def debater_by_turns():  # TODO fix for offline judge
     source = sessions.merge(debates, how='left', on='Room name')
     source['Role'] = source['Role'].map(
@@ -255,7 +271,7 @@ def participant_by_past_workloads():
 
 def judge_by_final_probability():
     return alt.Chart(debates).mark_bar().encode(
-        x=alt.X('Live judge:O', sort='-y'),
+        x=alt.X('Judge:O', sort='-y'),
         y='Average_final_probability:Q'
     ).transform_aggregate(
         Average_final_probability='mean(Final probability correct)',
@@ -264,8 +280,8 @@ def judge_by_final_probability():
 
 
 def judge_pairings():
-    return alt.Chart(debates.melt(id_vars='Live judge', value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_rect().encode(
-        x='Live judge:O',
+    return alt.Chart(debates.melt(id_vars='Judge', value_vars=('Honest debater', 'Dishonest debater'), value_name='Debater')).mark_rect().encode(
+        x='Judge:O',
         y=alt.Y('Debater:O', scale=alt.Scale(reverse=True)),
         color='count():Q'
     )
@@ -339,6 +355,7 @@ all_graph_specifications = {
     "Results:_Evidence_by_rounds": evidence_by_rounds,
     "Results:_Probability_correct_by_num_rounds": probability_correct_by_num_rounds,
     "Results:_Final_probability_by_debaters": final_probability_by_honest_and_dishonest_debater,
+    "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
     "Track:_Participant_by_current_workload": participant_by_current_workload,
     # "Track:_Participant_by_past_workload": participant_by_past_workload,

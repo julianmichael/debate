@@ -73,7 +73,7 @@ object DataSummarizer {
         // TO maybe DO: more than one judge?
         // Q: Can offline be re-used here? so depending on offline / not, def judge or final probability correct changes?
         // We'd have less columns?
-        "Live judge" -> { info =>
+        "Judge" -> { info =>
           info.debate.setup.roles.get(Judge).map(_.toString).getOrElse("")
         },
         "Num offline judges" -> { info =>
@@ -124,14 +124,7 @@ object DataSummarizer {
         // TODO: conditional/option for whether or not debate.isOver for "End time"
         // currently is last time debated instead?
         "End time" -> { info =>
-          info
-            .debate
-            .rounds
-            .view
-            .flatMap(_.maxTimestamp)
-            .lastOption
-            .map(_.toString)
-            .getOrElse("")
+          info.debate.rounds.view.flatMap(_.maxTimestamp).lastOption.map(_.toString).getOrElse("")
         }
 
         // TODO: anything else missing for overall debate room info?
@@ -281,64 +274,99 @@ object DataSummarizer {
         "Role" -> { info =>
           info.role.toString
         },
-        "Is turn" -> { info => 
+        "Is turn" -> { info =>
           info.debate.stateInfo._2.currentSpeakers.contains(info.role).toString
         },
         "Is over" -> { info =>
           info.debate.isOver.toString
-        },
-
+        }
 
         // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
         // But there might be cases where times overlap.. let's decide def first?
       )
-      
-      def surveyFields: List[(String, DebateSessionInfo => String)] = { 
+
+      def surveyFields: List[(String, DebateSessionInfo => String)] = {
         val surveyQuestions = Feedback.questions.keySet.toList
-        surveyQuestions.flatMap { 
+        surveyQuestions.flatMap {
           // Separate columns for comparative likert answers first and second
-          case key @ Feedback.Key.ComparativeLikert(keyname) => 
+          case key @ Feedback.Key.ComparativeLikert(keyname) =>
             List(
-              keyname + "_1" -> { info: DebateSessionInfo => 
-                info.debate.feedback.get(info.participant).flatMap(_.answers.get(key).collectFirst {
-                  case Feedback.ComparativeJudgment(first, _) if first > -1 => first.toString
-                }).getOrElse("")
+              keyname + ".1" -> { info: DebateSessionInfo =>
+                info
+                  .debate
+                  .feedback
+                  .get(info.participant)
+                  .flatMap(
+                    _.answers
+                      .get(key)
+                      .collectFirst {
+                        case Feedback.ComparativeJudgment(first, _) if first > -1 =>
+                          first.toString
+                      }
+                  )
+                  .getOrElse("")
               },
-              keyname + "_2" -> { info: DebateSessionInfo => 
-                info.debate.feedback.get(info.participant).flatMap(_.answers.get(key).collectFirst {
-                  case Feedback.ComparativeJudgment(_, second) if second > -1 => second.toString
-                }).getOrElse("")
+              keyname + ".2" -> { info: DebateSessionInfo =>
+                info
+                  .debate
+                  .feedback
+                  .get(info.participant)
+                  .flatMap(
+                    _.answers
+                      .get(key)
+                      .collectFirst {
+                        case Feedback.ComparativeJudgment(_, second) if second > -1 =>
+                          second.toString
+                      }
+                  )
+                  .getOrElse("")
               }
             )
-          case key @ Feedback.Key.Likert(keyname) => 
+          case key @ Feedback.Key.Likert(keyname) =>
             List(
-              keyname -> { info: DebateSessionInfo => 
-                info.debate.feedback.get(info.participant).flatMap(_.answers.get(key).map(_.toString)).getOrElse("")
+              keyname -> { info: DebateSessionInfo =>
+                info
+                  .debate
+                  .feedback
+                  .get(info.participant)
+                  .flatMap(_.answers.get(key).map(_.toString))
+                  .getOrElse("")
               }
             )
-          case key @ Feedback.Key.FreeText(keyname) => 
+          case key @ Feedback.Key.FreeText(keyname) =>
             List(
-              keyname -> { info: DebateSessionInfo => 
-                info.debate.feedback.get(info.participant).flatMap(_.answers.get(key).map(_.toString)).getOrElse("")
+              keyname -> { info: DebateSessionInfo =>
+                info
+                  .debate
+                  .feedback
+                  .get(info.participant)
+                  .flatMap(_.answers.get(key).map(_.toString))
+                  .getOrElse("")
               }
             )
-          // case key @ Feedback.Key.RoleSelect(keyname) => 
-          //   List(
-          //     LiveDebateRole.toList.flatMap { role =>
-          //       List(
-          //         s"$keyname.${role.toString.toLowerCase}" -> { info: DebateSessionInfo =>
-          //           info.debate.feedback.get(info.participant).flatMap(_.answers.get(key)).flatMap(_.get(role)).getOrElse("")
-          //         }
-          //       )
-          //     }
-          //   )
-          case _ => List.empty[(String, DebateSessionInfo => String)]
-          }
+          case key @ Feedback.Key.RoleSelect(keyname) =>
+            LiveDebateRole
+              .allRoles(numDebaters = 2)
+              .flatMap { role =>
+                List(
+                  s"$keyname.${role.toString}" -> { info: DebateSessionInfo =>
+                    info
+                      .debate
+                      .feedback
+                      .get(info.participant)
+                      .flatMap(_.answers.get(key))
+                      .flatMap(_.get(role))
+                      .getOrElse("")
+                  }
+                )
+              }
+          case _ =>
+            List.empty[(String, DebateSessionInfo => String)]
+        }
       }
-        
+
       // Combine normal fields and survey fields
       def fields: List[(String, DebateSessionInfo => String)] = normalFields ::: surveyFields
-
 
     }
 
