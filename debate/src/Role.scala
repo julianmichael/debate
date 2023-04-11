@@ -84,7 +84,7 @@ sealed trait DebateRole extends Role
 @JsonCodec
 sealed trait JudgeRole extends DebateRole
 case object OfflineJudge extends DebateRole with JudgeRole {
-  override def toString = "Offline Judge (Timed)"
+  override def toString = "Offline Judge"
 }
 @JsonCodec
 sealed trait LiveDebateRole extends DebateRole

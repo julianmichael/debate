@@ -32,14 +32,40 @@ object OfflineJudgingMode {
 }
 
 @Lenses
-@JsonCodec
 case class OfflineJudgment(
   mode: OfflineJudgingMode,
   startTimeMillis: Long,
-  numContinues: Int,
-  result: Option[OfflineJudgingResult]
-)
-object OfflineJudgment
+  judgments: Vector[JudgeFeedback]
+) {
+  def result: Option[JudgeFeedback] = judgments.lastOption.filter(_.endDebate)
+}
+object OfflineJudgment {
+  implicit val offlineJudgmentEncoder: Encoder[OfflineJudgment] = {
+    import io.circe.generic.semiauto._
+    deriveEncoder[OfflineJudgment]
+  }
+  implicit val offlineJudgmentDecoder: Decoder[OfflineJudgment] = {
+    import io.circe.generic.semiauto._
+    deriveDecoder[OfflineJudgment].or(
+      Decoder.forProduct3("mode", "startTimeMillis", "result")(
+        (mode: OfflineJudgingMode, startTimeMillis: Long, result: Option[OfflineJudgingResult]) =>
+          OfflineJudgment(
+            mode,
+            startTimeMillis,
+            result
+              .map(res =>
+                JudgeFeedback(
+                  res.distribution,
+                  DebateSpeech("", res.timestamp, Vector(SpeechSegment.Text(res.explanation))),
+                  true
+                )
+              )
+              .toVector
+          )
+      )
+    )
+  }
+}
 
 @JsonCodec
 case class OfflineJudgingResult(distribution: Vector[Double], explanation: String, timestamp: Long)

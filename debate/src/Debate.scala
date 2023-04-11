@@ -53,6 +53,13 @@ case class Debate(
       0
   }
 
+  def numDebateRounds = rounds.foldMap {
+    case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
+      1
+    case _ =>
+      0
+  }
+
   def result: Option[DebateResult]            = stateInfo._1
   def currentTransitions: DebateTransitionSet = stateInfo._2
   def offlineJudgingResults = currentTransitions
@@ -393,7 +400,22 @@ case class Debate(
         x
     }
 
-    this.copy(rounds = clampProbs(rounds))
+    val fillOutOfflineSpeakers = Optics
+      .each[Vector[DebateRound], DebateRound]
+      .composePrism(DebateRound.offlineJudgments)
+      .composeLens(OfflineJudgments.judgments)
+      .modify {
+        _.transform { case (judge, judgment) =>
+          OfflineJudgment
+            .judgments
+            .composeTraversal(Optics.each)
+            .composeLens(JudgeFeedback.feedback)
+            .composeLens(DebateSpeech.speaker)
+            .set(judge)(judgment)
+        }
+      }
+
+    this.copy(rounds = fillOutOfflineSpeakers(clampProbs(rounds)))
   }
 }
 object Debate {

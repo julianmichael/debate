@@ -102,13 +102,13 @@ object DebateStats {
           .foldMap { offlineResult =>
             val result = JudgingResult(
               d.setup.correctAnswerIndex,
-              offlineJudgment.numContinues,
+              offlineJudgment.judgments.size,
               offlineResult.distribution,
               d.setup
                 .rules
                 .scoringFunction
                 .eval(
-                  offlineJudgment.numContinues,
+                  offlineJudgment.judgments.size,
                   offlineResult.distribution,
                   d.setup.correctAnswerIndex
                 )

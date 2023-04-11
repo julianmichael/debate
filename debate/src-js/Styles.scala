@@ -253,6 +253,13 @@ object Styles extends jjm.ui.View.Styles {
     borderRadius(0.5 rem)
   )
 
+  val inRoundProbabilityBar = style(
+    addClassNames("mt-1"),
+    height(1.5 rem),
+    fontSize(1 rem),
+    borderRadius(commonBorderRadius)
+  )
+
   val attentionBackground = style(backgroundColor(rgba(255, 255, 0, 0.25)))
 
   val profileListContainer = style(
@@ -557,11 +564,8 @@ object Styles extends jjm.ui.View.Styles {
   val correct   = style(color(correctColor))
   val incorrect = style(color(incorrectColor))
 
-  val correctBg   = style(backgroundColor(correctColor))
-  val incorrectBg = style(backgroundColor(incorrectColor))
-
-  val correctBgText   = style(color(white))
-  val incorrectBgText = style(color(white))
+  val correctBg   = style(backgroundColor(correctColor), color(white))
+  val incorrectBg = style(backgroundColor(incorrectColor), color(white))
 
   val timestampFooter = style(
     marginTop(-.75 rem),

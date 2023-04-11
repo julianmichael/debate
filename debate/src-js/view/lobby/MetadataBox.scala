@@ -218,21 +218,22 @@ object MetadataBox {
           val judgmentElements = offlineJudgingResults
             .toVector
             .flatMap(p => p._2.result.map(p._1 -> _))
-            .sortBy(_._2.timestamp)
+            .sortBy(_._2.feedback.timestamp)
             .map { case (judge, offlineResult) =>
-              val pctCorrect         = offlineResult.distribution(result.correctAnswerIndex) * 100.0
-              val pctCorrectString   = f"$pctCorrect%.0f%%"
-              val pctIncorrect       = 100.0 - pctCorrect
-              val pctIncorrectString = f"$pctIncorrect%.0f%%"
               judge ->
                 <.div(
                   ^.key := s"offline-judgment-$judge",
-                  <.div(S.judgmentBar)(
-                    <.div(S.correctBg, ^.width := pctCorrectString)(
-                      <.span(S.correctBgText, c"ml-1")(pctCorrectString)
-                    ),
-                    <.div(S.incorrectBg, ^.width := pctIncorrectString)(
-                      <.span(S.incorrectBgText, c"ml-1")(pctIncorrectString)
+                  Utils.probabilityBar(
+                    TagMod.empty,
+                    Vector(
+                      Utils.ProbabilityBarItem(
+                        offlineResult.distribution(result.correctAnswerIndex),
+                        S.correctBg
+                      ),
+                      Utils.ProbabilityBarItem(
+                        1.0 - offlineResult.distribution(result.correctAnswerIndex),
+                        S.incorrectBg
+                      )
                     )
                   )
                 )

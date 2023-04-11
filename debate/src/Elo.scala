@@ -140,7 +140,7 @@ object Elo {
       case class OfflineResult(
         debate: Debate,
         judge: String,
-        offlineJudgment: OfflineJudgingResult,
+        offlineJudgment: JudgeFeedback,
         index: Int
       ) {
         val probCorrect  = offlineJudgment.distribution(debate.setup.correctAnswerIndex)
@@ -155,7 +155,7 @@ object Elo {
             .flatMap { case (judge, judgment) =>
               judgment
                 .result
-                .filter(r => timeCutoff.forall(r.timestamp <= _))
+                .filter(r => timeCutoff.forall(r.feedback.timestamp <= _))
                 .map(result => OfflineResult(debate, judge, result, index))
             }
         }

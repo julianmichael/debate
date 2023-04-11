@@ -3,9 +3,11 @@ package debate
 import cats.implicits._
 
 import io.circe.generic.JsonCodec
+import monocle.macros.Lenses
 
 import jjm.ling.ESpan
 
+@Lenses
 @JsonCodec
 case class DebateSpeech(speaker: String, timestamp: Long, content: Vector[SpeechSegment]) {
   def allQuotes = content.collect { case SpeechSegment.Quote(span) =>

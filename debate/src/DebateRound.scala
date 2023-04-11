@@ -78,9 +78,8 @@ case class OfflineJudgments(judgments: Map[String, OfflineJudgment]) extends Deb
       .flatMap { case (judge, judgment) =>
         judgment
           .result
-          .map { case OfflineJudgingResult(_, explanation, timestamp) =>
-            (OfflineJudge: Role) ->
-              DebateSpeech(judge, timestamp, Vector(SpeechSegment.Text(explanation)))
+          .map { case JudgeFeedback(_, speech, timestamp) =>
+            (OfflineJudge: Role) -> speech
           }
       }
       .toMap
