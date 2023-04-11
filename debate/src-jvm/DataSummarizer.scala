@@ -39,7 +39,7 @@ object DataSummarizer {
           info.debate.startTime.map(_.toString).getOrElse("")
         },
         "Room name" -> (_.roomName),
-        "Offline" -> { info =>
+        "Is offline" -> { info =>
           (!info.debate.setup.rules.hasJudge).toString
         },
 

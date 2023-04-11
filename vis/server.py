@@ -203,22 +203,27 @@ def debates_completed_per_week():
 
 
 def num_rounds_per_debate():
-    num_rounds = alt.Chart(debates).mark_bar().encode(
-        x=alt.X('Number of debate rounds:O'),
-        y='count():Q',
-        # color='Judge:N',
-        # tooltip=['Room name']
-    )
-    avg = alt.Chart(debates).mark_rule(color='red').encode(
-        x='mean(Number of debate rounds):Q',
-        size=alt.value(5),
-        tooltip=['mean(Number of debate rounds):Q']
-        # color='Judge:N',
+    base = alt.Chart(debates) .transform_filter(
+        'datum["Is over"] == true'
+    ).transform_joinaggregate(
+        groupby=['Is offline'],
+        mean_numrounds='mean(Number of debate rounds):Q',
+        total='count():Q',
+    ).transform_calculate(
+        proportion='1 / datum.total'
     )
 
-    return (num_rounds).transform_filter(
-        'datum["Is over"] == true'
+    num_rounds = base.mark_bar().encode(
+        x=alt.X('Number of debate rounds:O',
+                axis=alt.Axis(title='# debate rounds')),
+        y=alt.Y('sum(proportion):Q', axis=alt.Axis(
+            format='%', title='% of debates')),
+        column='Is offline:N',
+        # color='Judge:N',
+        tooltip=['count()', 'sum(proportion):Q', 'mean_numrounds:Q']
     )
+
+    return (num_rounds)
 
 
 # Keys must be valid URL paths. I'm not URL-encoding them.
