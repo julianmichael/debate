@@ -173,9 +173,9 @@ def judge_pairings():
     )
 
 
-def probability_correct_vs_num_rounds():
+def probability_correct_vs_num_judge_rounds():
     return alt.Chart(debates).mark_circle(size=60).encode(
-        x='Number of rounds:O',
+        x='Number of continues:O',
         y='Final probability correct:Q',
         # color='Judge:N',
         tooltip=['Room name']
@@ -202,6 +202,25 @@ def debates_completed_per_week():
     )
 
 
+def num_rounds_per_debate():
+    num_rounds = alt.Chart(debates).mark_bar().encode(
+        x=alt.X('Number of debate rounds:O'),
+        y='count():Q',
+        # color='Judge:N',
+        # tooltip=['Room name']
+    )
+    avg = alt.Chart(debates).mark_rule(color='red').encode(
+        x='mean(Number of debate rounds):Q',
+        size=alt.value(5),
+        tooltip=['mean(Number of debate rounds):Q']
+        # color='Judge:N',
+    )
+
+    return (num_rounds).transform_filter(
+        'datum["Is over"] == true'
+    )
+
+
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
@@ -209,12 +228,15 @@ all_graph_specifications = {
     # "Debater_pairings_by_person": debater_pairings_by_person,
     "Debaters_by_final_probability": honest_and_dishonest_debater_by_final_probability,
     "Judge_pairings": judge_pairings,
-    "Probability_correct_vs_num_rounds": probability_correct_vs_num_rounds,
+    "Probability_correct_vs_num_judge_rounds": probability_correct_vs_num_judge_rounds,
     "Probability_correct_over_time": probability_correct_over_time,
     "Participant_by_current_workload": participant_by_current_workload,
     # "Participant_by_past_workload": participant_by_past_workload,
     "Evidence_by_rounds": evidence_by_rounds,
-    "Debates_completed_per_week": debates_completed_per_week
+    "Debates_completed_per_week": debates_completed_per_week,
+    "Num_rounds_per_debate": num_rounds_per_debate
+
+
 }
 
 

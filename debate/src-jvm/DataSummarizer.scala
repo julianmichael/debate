@@ -39,10 +39,8 @@ object DataSummarizer {
           info.debate.startTime.map(_.toString).getOrElse("")
         },
         "Room name" -> (_.roomName),
-
-        // info.debate.setup.isOfficial ?? redundant?
         "Offline" -> { info =>
-          (!info.debate.setup.rules.hasJudge && info.debate.setup.offlineJudges.nonEmpty).toString
+          (!info.debate.setup.rules.hasJudge).toString
         },
 
         // TODO: Ask J, best for merge w/ questsion metadata here or in .py
@@ -59,8 +57,6 @@ object DataSummarizer {
         "Dishonest debater" -> { info =>
           info.debate.setup.roles(Debater(1 - info.debate.setup.correctAnswerIndex))
         },
-
-        // Possibly redundant/not needed?
         "Debater A" -> { info =>
           info.debate.setup.roles(Debater(0))
         },
@@ -103,7 +99,20 @@ object DataSummarizer {
             )
             .getOrElse("")
         },
-        "Number of rounds" -> { info =>
+        "Number of debate rounds" -> { info =>
+          info
+            .debate
+            .rounds
+            .collect {
+              case SimultaneousSpeeches(_) =>
+                ()
+              case SequentialSpeeches(_) =>
+                ()
+            }
+            .size
+            .toString
+        },
+        "Number of continues" -> { info =>
           info.debate.numContinues.toString
         },
         "Status" -> { info =>
@@ -122,14 +131,7 @@ object DataSummarizer {
         // TODO: conditional/option for whether or not debate.isOver for "End time"
         // currently is last time debated instead?
         "End time" -> { info =>
-          info
-            .debate
-            .rounds
-            .view
-            .flatMap(_.maxTimestamp)
-            .lastOption
-            .map(_.toString)
-            .getOrElse("")
+          info.debate.rounds.view.flatMap(_.maxTimestamp).lastOption.map(_.toString).getOrElse("")
         }
 
         // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
