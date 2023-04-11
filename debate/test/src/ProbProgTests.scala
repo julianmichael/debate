@@ -209,4 +209,57 @@ class ProbProgTests extends CatsEffectSuite {
     assert(true)
 
   }
+
+  test("Uncommon sense accuracy model") {
+    val numQuestions = 200
+    // expert accuracy
+    // val consistency         = Beta(1, 1).latent
+    // val questionConsistency = Binomial(consistency).latentVec(numQuestions)
+
+    // non-expert accuracy
+    val questionEaseMean = Uniform(0.5, 0.7).latent
+    // not sure why the MAP bunches up against the upper bound, but it does.
+    // Anyway, 4.0 gets us reasonable looking statistics over samples.
+    val questionEasePrecision = Uniform(0.5, 4.0).latent
+    val questionEase = Beta
+      .meanAndPrecision(questionEaseMean, questionEasePrecision)
+      .latentVec(numQuestions)
+
+    val numAnnotators = 3
+
+    val numCorrectCounts = Map(0 -> 0.15, 1 -> 0.2, 2 -> 0.35, 3 -> 0.3)
+      .mapVals(x => (x * 200).toInt)
+
+    val instances =
+      numCorrectCounts
+        .view
+        .flatMap { case (numCorrect, count) =>
+          Vector.fill(count)(numCorrect.toLong)
+        }
+        .zip(questionEase.toVector)
+        .toVector
+
+    val model = Model
+      .observe(instances.map(_._1), Vec.from(instances.map(_._2)).map(Binomial(_, numAnnotators)))
+
+    val mapEstimate = model.optimize((questionEaseMean, questionEasePrecision, questionEase))
+
+    // val posterior = model.posterior((easeMean, easeVariance, questionEase))
+
+    println(s"""
+               |MAP estimates:
+               |Ease mean: ${mapEstimate._1}
+               |Ease precision: ${mapEstimate._2}
+               |Question ease: ${mapEstimate._3.map("\n\t" + _)}
+               |""".stripMargin.trim)
+
+    val questionDist = Beta.meanAndPrecision(mapEstimate._1, mapEstimate._2)
+    val question     = questionDist.latent
+    // val question = Beta(2.4, 1.6).latent
+
+    val numCorrectAnnotations = Generator(Binomial(question, 3))
+    val preds                 = Model.sample(numCorrectAnnotations).take(1000)
+    println(s"Question prior: $questionDist")
+    println(preds.counts.mapVals(_.toDouble / 1000).toVector.sortBy(_._1).mkString("\n"))
+  }
 }

@@ -41,10 +41,8 @@ object DataSummarizer {
           info.debate.startTime.map(_.toString).getOrElse("")
         },
         "Room name" -> (_.roomName),
-
-        // info.debate.setup.isOfficial ?? redundant?
-        "Offline" -> { info =>
-          (!info.debate.setup.rules.hasJudge && info.debate.setup.offlineJudges.nonEmpty).toString
+        "Is offline" -> { info =>
+          (!info.debate.setup.rules.hasJudge).toString
         },
 
         // TODO: Ask J, best for merge w/ questsion metadata here or in .py
@@ -61,8 +59,6 @@ object DataSummarizer {
         "Dishonest debater" -> { info =>
           info.debate.setup.roles(Debater(1 - info.debate.setup.correctAnswerIndex))
         },
-
-        // Possibly redundant/not needed?
         "Debater A" -> { info =>
           info.debate.setup.roles(Debater(0))
         },
@@ -105,7 +101,20 @@ object DataSummarizer {
             )
             .getOrElse("")
         },
-        "Num rounds" -> { info =>
+        "Number of debate rounds" -> { info =>
+          info
+            .debate
+            .rounds
+            .collect {
+              case SimultaneousSpeeches(_) =>
+                ()
+              case SequentialSpeeches(_) =>
+                ()
+            }
+            .size
+            .toString
+        },
+        "Number of continues" -> { info =>
           info.debate.numContinues.toString
         },
         "Status" -> { info =>

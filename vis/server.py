@@ -287,9 +287,9 @@ def judge_pairings():
     )
 
 
-def probability_correct_by_num_rounds():
+def probability_correct_vs_num_judge_rounds():
     return alt.Chart(debates).mark_circle(size=60).encode(
-        x='Num rounds:O',
+        x='Number of continues:O',
         y='Final probability correct:Q',
         # color='Judge:N',
         tooltip=['Room name']
@@ -346,6 +346,30 @@ def debates_completed_per_week():
     return all_bar  # + all_line
 
 
+def num_rounds_per_debate():
+    base = alt.Chart(debates) .transform_filter(
+        'datum["Is over"] == true'
+    ).transform_joinaggregate(
+        groupby=['Is offline'],
+        mean_numrounds='mean(Number of debate rounds):Q',
+        total='count():Q',
+    ).transform_calculate(
+        proportion='1 / datum.total'
+    )
+
+    num_rounds = base.mark_bar().encode(
+        x=alt.X('Number of debate rounds:O',
+                axis=alt.Axis(title='# debate rounds')),
+        y=alt.Y('sum(proportion):Q', axis=alt.Axis(
+            format='%', title='% of debates')),
+        column='Is offline:N',
+        # color='Judge:N',
+        tooltip=['count()', 'sum(proportion):Q', 'mean_numrounds:Q']
+    )
+
+    return (num_rounds)
+
+
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
@@ -353,7 +377,7 @@ all_graph_specifications = {
     # "Main_results:_Offline_vs_live_debates": offline_vs_live_debates,
     "Main_results:_Debates_right_over_time": debates_correct_per_week,
     "Results:_Evidence_by_rounds": evidence_by_rounds,
-    "Results:_Probability_correct_by_num_rounds": probability_correct_by_num_rounds,
+    "Results:_Probability_correct_by_num_judge_rounds": probability_correct_vs_num_judge_rounds,
     "Results:_Final_probability_by_debaters": final_probability_by_honest_and_dishonest_debater,
     "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
@@ -363,6 +387,9 @@ all_graph_specifications = {
     "Track:_Debater_pairings_by_role": debater_pairings_by_role,
     # "Track:_Debater_pairings_by_person": debater_pairings_by_person,
     "Track:_Judge_pairings": judge_pairings,
+    "Num_rounds_per_debate": num_rounds_per_debate
+
+
 }
 
 
