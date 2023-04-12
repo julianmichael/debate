@@ -205,11 +205,15 @@ object DebatePanel {
       .filter { case VisibleRound(round, roundType, numPrevDebateRounds, _) =>
         // number of feedback rounds the current user has given so far as offline judge.
         // The user can only see this round if they have given feedback on all previous rounds where the live judge did.
-        val continuationLimitOpt = debate
-          .offlineJudgingResults
-          .get(userName)
-          .filter(_.result.isEmpty)
-          .map(_.judgments.size)
+        val continuationLimitOpt =
+          debate.offlineJudgingResults.get(userName) match {
+            case Some(result) if result.result.isEmpty =>
+              Some(result.judgments.size)
+            case None if role == OfflineJudge =>
+              Some(0)
+            case _ =>
+              None
+          }
         val debaters =
           if (roundType.assignedDebatersOnly)
             debate
@@ -226,45 +230,20 @@ object DebatePanel {
       }
   }
 
-  def debateSpansWithSpeaker(
-    role: Role,
-    numDebaters: Int,
-    assignedDebaters: Set[Int],
-    rounds: Vector[(DebateRoundType, DebateRound)]
-  ) = rounds.flatMap { case (roundType, round) =>
-    val debaters =
-      if (roundType.assignedDebatersOnly)
-        assignedDebaters
-      else
-        (0 until numDebaters).toSet
-    if (round.isComplete(debaters)) {
-      round
-        .allSpeeches
-        .view
-        .flatMap { case (role, speech) =>
-          speech.allQuotes.map(role -> _)
-        }
-        .toVector
-    } else {
-      round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
-    }
-  }
-
-  def getHighlights(role: Role, debate: Debate, curMessageSpans: Set[ESpan]) =
-    debateSpansWithSpeaker(
-      role,
-      debate.setup.numDebaters,
-      debate
-        .setup
-        .roles
-        .keySet
-        .collect { case Debater(i) =>
-          i
-        },
-      debate.rounds.zip(debate.setup.rules.roundTypes).map(_.swap)
-    ).map { case (role, span) =>
-      span -> getSpanColorForRole(role)
-    } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
+  def getHighlights(visibleRounds: Vector[VisibleRound], curMessageSpans: Set[ESpan]) =
+    visibleRounds
+      .map(_.round)
+      .flatMap(
+        _.allSpeeches
+          .view
+          .flatMap { case (role, speech) =>
+            speech.allQuotes.map(role -> _)
+          }
+          .toVector
+      )
+      .map { case (role, span) =>
+        span -> getSpanColorForRole(role)
+      } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
 
   def getInProgressSpeechStyle(role: Role) =
     role match {
@@ -344,6 +323,7 @@ object DebatePanel {
           )
         }
         .getOrElse(Feedback.initAnswers(setup, role))
+      val theseVisibleRounds = visibleRounds(userName, role, debate.value)
       Local[DotMap[Option, Feedback.Key]].make(workingAnswers) { surveyAnswers =>
         val leftPanelTabs =
           Vector(
@@ -352,7 +332,7 @@ object DebatePanel {
                 TabNav.tab(
                   StoryPanel(
                     setup.sourceMaterial.contents,
-                    getHighlights(role, debate.value, curMessageSpans),
+                    getHighlights(theseVisibleRounds, curMessageSpans),
                     span => currentMessage.modState(_ + span2text(span))
                   )
                 )
@@ -362,7 +342,7 @@ object DebatePanel {
                 TabNav.tab(
                   ConsolidatedQuotesPanel(
                     setup.sourceMaterial.contents,
-                    getHighlights(role, debate.value, curMessageSpans)
+                    getHighlights(theseVisibleRounds, curMessageSpans)
                   )
                 )
             ),
@@ -410,7 +390,7 @@ object DebatePanel {
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
                 ^.id := "speeches",
-                visibleRounds(userName, role, debate.value)
+                theseVisibleRounds
                   .zipWithIndex
                   .flatMap {
                     case (
