@@ -13,6 +13,7 @@ import jjm.DotKleisli
 
 import debate.quality.QuALITYStory
 import debate.util.SparseDistribution
+import debate.scheduler.DebateScheduler
 
 @JsonCodec
 case class QuALITYStoryMetadata(
@@ -40,6 +41,12 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
     numDebatesPerQuestion: Int
   ): F[Option[Vector[DebateSetup]]]
 
+  def sampleOfflineJudging(
+    excludes: Set[String],
+    maxNumJudgesForOnline: Int,
+    maxNumJudgesForOffline: Int
+  ): F[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]
+
   import AjaxService.Request
   def apply(req: Request): F[req.Out] = {
     val res =
@@ -53,6 +60,9 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
         case Request
               .SampleSchedule(workload, ruleDist, articleId, questionIds, numDebatesPerQuestion) =>
           sampleSchedule(workload, ruleDist, articleId, questionIds, numDebatesPerQuestion)
+        case Request
+              .SampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline) =>
+          sampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline)
       }
     res.asInstanceOf[F[req.Out]]
   }
@@ -76,6 +86,14 @@ object AjaxService {
       ): F[Option[Vector[DebateSetup]]] = f(
         Request
           .SampleSchedule(workloadDist, ruleDist, articleId, questionIds, numDebatesPerQuestion)
+      )
+
+      def sampleOfflineJudging(
+        excludes: Set[String],
+        maxNumJudgesForOnline: Int,
+        maxNumJudgesForOffline: Int
+      ): F[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]] = f(
+        Request.SampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline)
       )
     }
 
@@ -102,6 +120,15 @@ object AjaxService {
     ) extends Request {
       type Out = Option[Vector[DebateSetup]]
     }
+    case class SampleOfflineJudging(
+      excludes: Set[String],
+      maxNumJudgesForOnline: Int,
+      maxNumJudgesForOffline: Int
+    ) extends Request {
+      type Out = Either[String, DebateScheduler.OfflineJudgeSchedulingResult]
+    }
+
+    import io.circe.disjunctionCodecs._
 
     implicit val ajaxServiceRequestDotEncoder =
       new DotEncoder[Request] {
@@ -116,6 +143,8 @@ object AjaxService {
                 implicitly[Encoder[(QuALITYStory, Set[String])]]
               case SampleSchedule(_, _, _, _, _) =>
                 implicitly[Encoder[Option[Vector[DebateSetup]]]]
+              case SampleOfflineJudging(_, _, _) =>
+                implicitly[Encoder[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]]
             }
           res.asInstanceOf[Encoder[req.Out]]
         }
@@ -133,6 +162,8 @@ object AjaxService {
                 implicitly[Decoder[(QuALITYStory, Set[String])]]
               case SampleSchedule(_, _, _, _, _) =>
                 implicitly[Decoder[Option[Vector[DebateSetup]]]]
+              case SampleOfflineJudging(_, _, _) =>
+                implicitly[Decoder[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]]
             }
           res.asInstanceOf[Decoder[req.Out]]
         }

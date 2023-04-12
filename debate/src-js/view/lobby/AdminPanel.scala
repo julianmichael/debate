@@ -61,6 +61,12 @@ object AdminPanel {
                 DebateSchedulingPanel(lobby, sendToMainChannel)
               )
             ),
+          "Schedule Extra Judging" ->
+            TabNav.tab(
+              <.div(c"card-body", S.spaceySubcontainer)(
+                JudgingSchedulingPanel(lobby, sendToMainChannel)
+              )
+            ),
           "Create Debate" ->
             TabNav.tab(
               <.div(c"card-body", S.spaceySubcontainer)(

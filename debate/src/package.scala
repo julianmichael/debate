@@ -16,6 +16,9 @@ import jjm.ling.ESpan
 import cats.Monoid
 import monocle.Iso
 import jjm.ling.Span
+import cats.Order
+import cats.data.NonEmptySet
+import scala.collection.immutable.SortedSet
 
 package object debate extends PackagePlatformExtensions {
 
@@ -131,6 +134,10 @@ package object debate extends PackagePlatformExtensions {
 
   implicit class RichBoolean(a: Boolean) {
     def -->(b: => Boolean) = !a || b
+  }
+
+  implicit class RichSet[A](as: Set[A]) {
+    def toNes(implicit o: Order[A]): Option[NonEmptySet[A]] = NonEmptySet.fromSet(as.to(SortedSet))
   }
 
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {

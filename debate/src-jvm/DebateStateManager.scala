@@ -176,6 +176,25 @@ case class DebateStateManager(
       }
   }
 
+  def scheduleOfflineJudges(assignments: Vector[(String, String)]): IO[Unit] =
+    assignments.traverse_ { case (roomName, judgeName) =>
+      for {
+        curRooms <- rooms.get
+        room <-
+          curRooms
+            .get(roomName)
+            .fold(IO.raiseError[DebateRoom](new Exception(s"Room $roomName not found")))(IO.pure)
+        newRoom =
+          DebateRoom
+            .debate
+            .composeLens(DebateState.debate)
+            .composeLens(Debate.setup)
+            .composeLens(DebateSetup.offlineJudges)
+            .modify(_ + (judgeName -> Some(OfflineJudgingMode.Stepped)))(room)
+        _ <- rooms.update(_ + (roomName -> newRoom))
+      } yield ()
+    } >> pushUpdate
+
   def createDebate(roomName: String, setupSpec: DebateSetupSpec): IO[Unit] = initializeDebate(
     setupSpec
   ).flatMap(createDebate(roomName, _))
