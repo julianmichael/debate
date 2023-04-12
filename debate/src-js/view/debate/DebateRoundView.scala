@@ -13,6 +13,7 @@ import scalacss.ScalaCssReact._
 import jjm.ling.ESpan
 import japgolly.scalajs.react.Callback
 import japgolly.scalajs.react.feature.ReactFragment
+import scala.annotation.nowarn
 
 object DebateRoundView {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -51,6 +52,7 @@ object DebateRoundView {
     )
   }
 
+  @nowarn("cat=unused")
   def speechHeaderHTML(
     role: Role,
     speech: DebateSpeech,
@@ -60,17 +62,29 @@ object DebateRoundView {
     anonymize: Boolean
   ) =
     <.div(S.speechHeader)(
-      DebatePage.renderDebateParticipant(anonymize, userRole, userName, role, speech.speaker),
-      " ",
-      startTimeOpt.whenDefined(startTime =>
-        timestampHTML(startTime, speech.timestamp).when(userRole.canSeeIntermediateArguments)
-      )
+      DebatePage.renderDebateParticipant(anonymize, userRole, userName, role, speech.speaker)
+      // " ",
+      // startTimeOpt.whenDefined(startTime =>
+      //   timestampHTML(startTime, speech.timestamp).when(userRole.canSeeIntermediateArguments)
+      // )
     )
 
   def quoteToHTML(source: Vector[String], span: ESpan) = <.span(
     <.span(S.quoteText)(breakNewlines(Utils.renderSpan(source, span))),
     <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
   )
+
+  def makeSpeechContentHtml(source: Vector[String], content: Vector[SpeechSegment]) = content
+    .map {
+      case SpeechSegment.Text(text) =>
+        <.span(breakNewlines(text))
+      case SpeechSegment.Quote(span) =>
+        quoteToHTML(source, span)
+    }
+    .zipWithIndex
+    .toVdomArray { case (el, i) =>
+      el(^.key := s"text-$i")
+    }
 
   def makeSimultaneousSpeechesHtml(
     source: Vector[String],
@@ -86,7 +100,8 @@ object DebateRoundView {
         .sortBy(_._1)
         .toVdomArray { case (debaterIndex, speech) =>
           <.div(S.speechBox, S.answerBg(debaterIndex))(
-            ^.key := s"speech-$debaterIndex",
+            ^.width := s"${100 / speeches.size}%",
+            ^.key   := s"speech-$debaterIndex",
             speechHeaderHTML(
               Debater(debaterIndex),
               speech,
@@ -95,33 +110,10 @@ object DebateRoundView {
               userName,
               anonymize
             ),
-            speech
-              .content
-              .map {
-                case SpeechSegment.Text(text) =>
-                  <.span(breakNewlines(text))
-                case SpeechSegment.Quote(span) =>
-                  quoteToHTML(source, span)
-              }
-              .zipWithIndex
-              .toVdomArray { case (el, i) =>
-                el(^.key := s"text-$i")
-              }
+            makeSpeechContentHtml(source, speech.content)
           )
         }
     )
-
-  def makeSpeechContentHtml(source: Vector[String], content: Vector[SpeechSegment]) = content
-    .map {
-      case SpeechSegment.Text(text) =>
-        <.span(breakNewlines(text))
-      case SpeechSegment.Quote(span) =>
-        quoteToHTML(source, span)
-    }
-    .zipWithIndex
-    .toVdomArray { case (el, i) =>
-      el(^.key := s"text-$i")
-    }
 
   def makeSpeechHtml(
     source: Vector[String],
@@ -161,13 +153,13 @@ object DebateRoundView {
     round: DebateRound,
     modifyRound: Option[DebateRound] => Callback
   ) = {
-    <.div(
-      round
-        .timestamp(debaters)
-        .whenDefined(roundTime =>
-          debateStartTime.whenDefined(startTime => timestampHTML(startTime, roundTime))
-        )
-        .when(role.seesRoundTimestamp),
+    <.div(S.col)(
+      // round
+      //   .timestamp(debaters)
+      //   .whenDefined(roundTime =>
+      //     debateStartTime.whenDefined(startTime => timestampHTML(startTime, roundTime))
+      //   )
+      //   .when(role.seesRoundTimestamp),
       round match {
         case SimultaneousSpeeches(speeches) =>
           if (speeches.size < debaters.size) {
