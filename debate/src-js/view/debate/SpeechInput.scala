@@ -311,7 +311,11 @@ object SpeechInput {
               giveSpeech(userName -> OfflineJudgment(mode, System.currentTimeMillis(), Vector()))
             )
         )
-        .when(debate.value.setup.offlineJudges.get(userName).flatten.forall(_ == mode))
+        .when(
+          mode ==
+            OfflineJudgingMode.Stepped
+            // debate.value.setup.offlineJudges.get(userName).flatten.forall(_ == mode)
+        )
 
       turnType.existingJudgments.get(userName) match {
         case None =>
