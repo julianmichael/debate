@@ -127,7 +127,7 @@ object JudgingSchedulingPanel {
                             result
                               .newAssignments
                               .toVdomArray { case (roomName, userName) =>
-                                <.div(c"p-3")(s"$roomName: $userName")
+                                <.div(s"$roomName: $userName")
                               }
                           )
                       },

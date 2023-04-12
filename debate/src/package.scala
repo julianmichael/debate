@@ -29,8 +29,8 @@ package object debate extends PackagePlatformExtensions {
 
   val adminUsername = "Admin"
 
-  // you're only allowed to judge the same story twice
-  val numJudgingsAllowedPerStory = 2
+  // you're only allowed to judge the same story once
+  val numJudgingsAllowedPerStory = 1
 
   val timeBeforeWhichToIgnoreMissingFeedback = 1672531200000L
 

@@ -14,6 +14,8 @@ import debate.util.SparseDistribution
 import cats.kernel.Monoid
 import io.circe.generic.JsonCodec
 
+import jjm.implicits._
+
 object DebateScheduler {
 
   object Params {
@@ -197,7 +199,7 @@ object DebateScheduler {
                       name -> numJudgingsAllowedPerStory // DQ if you've judged the question before
                     case (Judge, name) =>
                       name -> 1
-                  }
+                  } |+| setup.offlineJudges.mapVals(_ => 1)
               )
               .collect {
                 case (name, i)
@@ -207,7 +209,7 @@ object DebateScheduler {
               .toSet
         ).toVector
       )
-      .map(candidates =>
+      .map { candidates =>
         DenseDistribution
           .fromSoftmax[String](
             candidates,
@@ -242,7 +244,7 @@ object DebateScheduler {
           )
           .withTemperature(Params.samplingTemperature)
           .sample(rand)
-      )
+      }
   }
 
   def sampleCorrectAnswerIndex(
@@ -503,55 +505,63 @@ object DebateScheduler {
   }
 
   def sampleOfflineJudges(
-    debates: Map[String, DebateSetup],
-    people: Set[String],
-    judges: NonEmptySet[String],
+    debates: Map[String, Debate],
+    people: NonEmptySet[String],
+    judges: Set[String],
     maxNumJudgesForOnline: Int,
     maxNumJudgesForOffline: Int,
     rand: Random
   ): OfflineJudgeSchedulingResult = {
     def sampleJudgeCumulative(
       assignments: OfflineJudgeSchedulingResult,
-      remainingDebates: List[(String, DebateSetup)],
-      finishedDebates: List[DebateSetup]
-    ): (List[DebateSetup], OfflineJudgeSchedulingResult) =
+      remainingDebates: List[(String, Debate)],
+      finishedDebates: List[Debate]
+    ): (List[Debate], OfflineJudgeSchedulingResult) =
       remainingDebates match {
         case Nil =>
           finishedDebates -> assignments
         case (roomName, debate) :: rest =>
-          val judgeOpt = debate.roles.get(Judge)
+          val judgeOpt = debate.setup.roles.get(Judge)
           val maxNumJudges =
             if (judgeOpt.nonEmpty)
               maxNumJudgesForOnline
             else
               maxNumJudgesForOffline
-          val numJudges = (judgeOpt.size + debate.offlineJudges.size).toInt
-          val newJudgesOpt = (0 until (maxNumJudges - numJudges))
+          val offlineJudges =
+            debate.setup.offlineJudges.keySet ++ debate.offlineJudgingResults.keySet
+          val allJudges = offlineJudges ++ judgeOpt
+          val newJudgesOpt = (0 until (maxNumJudges - allJudges.size.toInt))
             .toVector
-            .traverse(_ =>
+            .traverse { _ =>
+              // println(s"sampling judges for $roomName")
+              // println(s"  current judges: ${judgeOpt.toSet ++ debate.offlineJudges.keySet}")
+              // println(s"  candidates: $judges")
               for {
                 curJudges <- StateT.get[Option, Set[String]]
+                // _ = println(s"  cur judges: $curJudges")
                 newJudge <- StateT.liftF(
                   sampleJudge(
                     Schedule(
-                      SparseDistribution.uniform(judges),
+                      SparseDistribution.uniform(people),
                       SparseDistribution.uniform(NonEmptySet.of(RuleConfig.default)),
-                      complete = finishedDebates.toVector ++ remainingDebates.map(_._2),
+                      complete =
+                        finishedDebates.toVector.map(_.setup) ++ remainingDebates.map(_._2.setup),
                       incomplete = Vector(),
                       novel = Vector()
                     ),
-                    people,
-                    SourceMaterialId.fromSourceMaterial(debate.sourceMaterial),
-                    judges.toSortedSet -- curJudges,
-                    debate.question,
+                    Set(),
+                    SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
+                    judges -- curJudges,
+                    debate.setup.question,
                     false,
                     rand
                   )
                 )
+                // _ = println(s"  new judge: $newJudge")
                 _ <- StateT.modify[Option, Set[String]](_ + newJudge)
               } yield newJudge
-            )
-            .run(judgeOpt.toSet)
+            }
+            .run(allJudges)
             .map(_._2.toSet)
 
           (newJudgesOpt: Option[Set[String]]) match {
@@ -560,12 +570,16 @@ object DebateScheduler {
               sampleJudgeCumulative(newResult |+| assignments, rest, debate :: finishedDebates)
             case Some(newJudges) =>
               val newResult = OfflineJudgeSchedulingResult(
-                Set(roomName),
+                Set(),
                 newJudges.toVector.map(roomName -> _)
               )
-              val newDebate = debate.copy(offlineJudges =
-                debate.offlineJudges ++ newJudges.map(_ -> Some(OfflineJudgingMode.Stepped)).toMap
-              )
+              val newDebate =
+                Debate
+                  .setup
+                  .composeLens(DebateSetup.offlineJudges)
+                  .modify(offlineJudges =>
+                    offlineJudges ++ newJudges.map(_ -> Some(OfflineJudgingMode.Stepped)).toMap
+                  )(debate)
               sampleJudgeCumulative(newResult |+| assignments, rest, newDebate :: finishedDebates)
           }
       }

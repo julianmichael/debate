@@ -149,15 +149,15 @@ case class Server(
           // roomMetadata <- officialDebates.getRoomMetadata
           // storyRecord = RoomMetadata.constructStoryRecord(roomMetadata)
           rand <- IO(new scala.util.Random)
-        } yield judges.toNes match {
+        } yield profiles.keySet.toNes match {
           case None =>
             Left("No possible judges remaining to assign.")
-          case Some(judgesNonEmpty) =>
+          case Some(peopleNonEmpty) =>
             Right(
               DebateScheduler.sampleOfflineJudges(
-                rooms.mapVals(_.debate.debate.setup),
-                profiles.keySet,
-                judgesNonEmpty,
+                rooms.mapVals(_.debate.debate),
+                peopleNonEmpty,
+                judges,
                 maxNumJudgesForOnline,
                 maxNumJudgesForOffline,
                 rand
