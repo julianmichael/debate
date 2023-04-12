@@ -30,6 +30,8 @@ case class SetConfig[A: Order](show: A => String) {
     ReactFragment(
       items
         .value
+        .toVector
+        .sorted
         .map { case item =>
           val context = new Context(item, minItems, items)
           val leftSideButtons =
@@ -57,7 +59,7 @@ case class SetConfig[A: Order](show: A => String) {
         //   <.div(sideButtonStyle, c"btn-primary")(<.div(^.margin.auto, <.i(c"bi bi-plus")))
         // ),
         NewItemSelect(
-          choices = choices,
+          choices = choices -- items.value,
           curChoice = None,
           setChoice = _.foldMap(c => items.modState(_ + c))
         )
