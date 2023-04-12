@@ -415,7 +415,24 @@ case class Debate(
         }
       }
 
-    this.copy(rounds = fillOutOfflineSpeakers(clampProbs(rounds)))
+    val fillInOfflineJudgeAssignments =
+      (debate: Debate) =>
+        Debate
+          .setup
+          .composeLens(DebateSetup.offlineJudges)
+          .modify { assignedJudges =>
+            val newJudgeAssignments = debate
+              .offlineJudgingResults
+              .filterNot { case (judge, _) =>
+                assignedJudges.contains(judge)
+              }
+              .map { case (judge, res) =>
+                judge -> Some(res.mode)
+              }
+            assignedJudges ++ newJudgeAssignments
+          }(debate)
+
+    fillInOfflineJudgeAssignments(this.copy(rounds = fillOutOfflineSpeakers(clampProbs(rounds))))
   }
 }
 object Debate {
