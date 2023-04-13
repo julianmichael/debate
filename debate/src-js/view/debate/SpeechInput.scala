@@ -12,7 +12,6 @@ import scalacss.ScalaCssReact._
 
 import jjm.DotPair
 
-import debate.OfflineJudgingResult
 import debate.util.Local
 
 object SpeechInput {
@@ -161,6 +160,7 @@ object SpeechInput {
                 ^.onClick --> submit
               ),
               continueOpt.map { continue =>
+                // TODO: calculate full penalty based on number of debate rounds in between
                 <.button(S.grow)(
                   f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
                   ^.disabled := speechIsTooLong,
@@ -308,36 +308,30 @@ object SpeechInput {
           s"Judge ($mode)",
           ^.onClick -->
             debate.setState(
-              giveSpeech(
-                userName ->
-                  OfflineJudgment(mode, System.currentTimeMillis(), debate.value.numContinues, None)
-              )
+              giveSpeech(userName -> OfflineJudgment(mode, System.currentTimeMillis(), Vector()))
             )
         )
-        .when(debate.value.setup.offlineJudges.get(userName).flatten.forall(_ == mode))
+        .when(
+          mode ==
+            OfflineJudgingMode.Stepped
+            // debate.value.setup.offlineJudges.get(userName).flatten.forall(_ == mode)
+        )
 
       turnType.existingJudgments.get(userName) match {
         case None =>
           <.div(S.spaceyContainer)(
-            startJudgingButton(OfflineJudgingMode.Timed)
-            // TODO: add in stepped judging mode
-            // startJudgingButton(OfflineJudgingMode.Stepped)
+            startJudgingButton(OfflineJudgingMode.Timed),
+            startJudgingButton(OfflineJudgingMode.Stepped)
           )
-        case Some(OfflineJudgment(_, _, _, Some(_))) =>
+        case Some(j @ OfflineJudgment(_, _, _)) if j.result.nonEmpty =>
           EmptyVdom
-        case Some(OfflineJudgment(mode, startTimeMillis, numContinues, None)) =>
-          val numTurns =
-            debate
-              .value
-              .rounds
-              .collect { case JudgeFeedback(_, _, _) =>
-                1
-              }
-              .sum
+        case Some(OfflineJudgment(mode, startTimeMillis, judgments)) =>
+          val numContinues = judgments.size // we know result is nonempty, so all are continues
+          val numTurns     = debate.value.numDebateRounds
 
           Local[Vector[Double]].make(Vector.fill(setup.answers.size)(1.0 / setup.answers.size)) {
             probs =>
-              def submit =
+              def submit(endDebate: Boolean) =
                 if (speechIsTooLong)
                   Callback.empty
                 else
@@ -348,35 +342,32 @@ object SpeechInput {
                           OfflineJudgment(
                             mode,
                             startTimeMillis = startTimeMillis,
-                            numContinues = numContinues,
-                            result = Some(
-                              OfflineJudgingResult(
-                                distribution = probs.value,
-                                explanation = SpeechSegments
-                                  .getString(currentMessageSpeechSegments),
-                                timestamp = time
-                              )
-                            )
+                            judgments =
+                              judgments :+
+                                JudgeFeedback(
+                                  distribution = probs.value,
+                                  feedback = DebateSpeech(
+                                    speaker = userName,
+                                    timestamp = time,
+                                    content = currentMessageSpeechSegments
+                                  ),
+                                  endDebate = endDebate
+                                )
                           )
                       )
                     )
                   ) >> currentMessage.setState("")
 
-              def continue = debate.setState(
-                giveSpeech(
-                  userName ->
-                    OfflineJudgment(
-                      mode,
-                      startTimeMillis = startTimeMillis,
-                      numContinues = numContinues + 1,
-                      result = None
-                    )
-                )
+              val continueOpt = Option(submit(endDebate = false))
+                .filter(_ => numContinues < numTurns)
+
+              judgingInputPanel(
+                probs,
+                numContinues,
+                submit(endDebate = true),
+                continueOpt,
+                saveOpt = None
               )
-
-              val continueOpt = Option(continue).filter(_ => numContinues < numTurns - 1)
-
-              judgingInputPanel(probs, numContinues, submit, continueOpt, saveOpt = None)
           }
       }
     }

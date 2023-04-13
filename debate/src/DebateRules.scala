@@ -18,6 +18,7 @@ case class RuleConfig(
 )
 object RuleConfig {
   implicit def ruleConfigOrder = Order.by[RuleConfig, String](_.name)
+  def default                  = RuleConfig("default", DebateRules.default, 2, 2)
 }
 
 @Lenses

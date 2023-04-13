@@ -6,6 +6,7 @@ import jjm.implicits._
 import com.stripe.rainier.core._
 import com.stripe.rainier.compute._
 import io.circe.generic.JsonCodec
+import cats.data.State
 
 object Elo {
 
@@ -62,20 +63,69 @@ object Elo {
         }
     }
 
+  implicit def zip7toGen[A, B, C, D, E, F, G, Z, Y, X, W, V, U, T](
+    implicit az: ToGenerator[A, Z],
+    by: ToGenerator[B, Y],
+    cx: ToGenerator[C, X],
+    dw: ToGenerator[D, W],
+    ev: ToGenerator[E, V],
+    fu: ToGenerator[F, U],
+    gt: ToGenerator[G, T]
+  ): ToGenerator[(A, B, C, D, E, F, G), (Z, Y, X, W, V, U, T)] =
+    new ToGenerator[(A, B, C, D, E, F, G), (Z, Y, X, W, V, U, T)] {
+      def apply(t: (A, B, C, D, E, F, G)) = az(t._1)
+        .zip(by(t._2))
+        .zip(cx(t._3))
+        .zip(dw(t._4))
+        .zip(ev(t._5))
+        .zip(fu(t._6))
+        .zip(gt(t._7))
+        .map { case ((((((z, y), x), w), v), u), t) =>
+          (z, y, x, w, v, u, t)
+        }
+    }
+
+  implicit def zip8toGen[A, B, C, D, E, F, G, H, Z, Y, X, W, V, U, T, S](
+    implicit az: ToGenerator[A, Z],
+    by: ToGenerator[B, Y],
+    cx: ToGenerator[C, X],
+    dw: ToGenerator[D, W],
+    ev: ToGenerator[E, V],
+    fu: ToGenerator[F, U],
+    gt: ToGenerator[G, T],
+    hs: ToGenerator[H, S]
+  ): ToGenerator[(A, B, C, D, E, F, G, H), (Z, Y, X, W, V, U, T, S)] =
+    new ToGenerator[(A, B, C, D, E, F, G, H), (Z, Y, X, W, V, U, T, S)] {
+      def apply(t: (A, B, C, D, E, F, G, H)) = az(t._1)
+        .zip(by(t._2))
+        .zip(cx(t._3))
+        .zip(dw(t._4))
+        .zip(ev(t._5))
+        .zip(fu(t._6))
+        .zip(gt(t._7))
+        .zip(hs(t._8))
+        .map { case (((((((z, y), x), w), v), u), t), s) =>
+          (z, y, x, w, v, u, t, s)
+        }
+    }
+
   @JsonCodec
   case class Ratings(
     globalBias: Double,
-    offlineAdjustment: Double,
+    noLiveJudgeAdjustment: Double,
+    noOpponentAdjustment: Double,
     questionEase: Vector[(QuestionId, Double)],
     honestSkills: Map[String, Double],
     dishonestSkills: Map[String, Double],
-    judgeSkills: Map[String, Double]
+    judgeLeadingSkills: Map[String, Double],
+    judgeJudgingSkills: Map[String, Double]
   ) {
-    def averageSkills = ((honestSkills |+| dishonestSkills).mapVals(_ / 2) |+| judgeSkills)
-      .mapVals(_ / 2)
+    def averageSkills = List(honestSkills, dishonestSkills, judgeLeadingSkills, judgeJudgingSkills)
+      .combineAll
+      .mapVals(_ / 4)
   }
   object Ratings {
-    def empty = Ratings(0.0, 0.0, Vector(), Map(), Map(), Map())
+    def empty = Ratings(0.0, 0.0, 0.0, Vector(), Map(), Map(), Map(), Map())
   }
 
   def computeRatings(
@@ -87,124 +137,152 @@ object Elo {
     val debaters  = debaterSet.toVector
 
     // val data         = loadDebateData.unsafeRunSync()
-    val globalBias     = Normal(0, 1).latent
-    val questionEase   = Normal(0, 1).latentVec(questions.size)
-    val honestSkill    = Normal(0, 1).latentVec(debaters.size)
-    val dishonestSkill = Normal(0, 1).latentVec(debaters.size)
-    val judgeSkill     = Normal(0, 1).latentVec(debaters.size)
+    val globalBias            = Normal(0, 1).latent
+    val noOpponentAdjustment  = Normal(0, 1).latent
+    val noLiveJudgeAdjustment = Normal(0, 1).latent
+    val questionEase          = Normal(0, 1).latentVec(questions.size)
+    val honestSkill           = Normal(0, 1).latentVec(debaters.size)
+    val dishonestSkill        = Normal(0, 1).latentVec(debaters.size)
+    val judgeLeadingSkill     = Normal(0, 1).latentVec(debaters.size)
+    val judgeJudgingSkill     = Normal(0, 1).latentVec(debaters.size)
     // val debateVariance = Gamma(0.5, 100).latent
-    val offlineAdjustment = Normal(0, 1).latent
 
     val personIndex   = debaters.zipWithIndex.toMap
     val questionIndex = questions.zipWithIndex.toMap
 
-    val onlineModelOpt = {
-      case class OnlineResult(debate: Debate, judging: JudgingResult, index: Int) {
-        val probCorrect  = judging.finalJudgement(judging.correctAnswerIndex)
-        def logitCorrect = math.log(probCorrect / (1 - probCorrect)) / math.log(2.0)
-      }
-      val onlineResults = debates
-        .zipWithIndex
-        .flatMap { case (debate, index) =>
-          debate
-            .result
-            .filter(r => timeCutoff.forall(r.timestamp <= _))
-            .flatMap(_.judgingInfo)
-            .map { judgingInfo =>
-              OnlineResult(debate, judgingInfo, index)
-            }
-        }
-        .filter(_.debate.setup.roles.size == 3)
-      val onlineResultLogits = onlineResults.map(_.logitCorrect)
-      val onlineResultModels = onlineResults.map { case OnlineResult(debate, _, _) =>
-        val setup            = debate.setup
-        val roles            = setup.roles
-        val thisQuestionEase = questionEase(questionIndex(QuestionId.fromDebate(debate)))
-        val thisHonestSkill  = honestSkill(personIndex(roles(Debater(setup.correctAnswerIndex))))
-        val thisDishonestSkill = dishonestSkill(
-          personIndex(roles(Debater(1 - setup.correctAnswerIndex)))
-        )
-        val thisJudgeSkill = judgeSkill(personIndex(roles(Judge)))
-        val logit =
-          globalBias + thisQuestionEase + thisHonestSkill - thisDishonestSkill + thisJudgeSkill
-        logit
-      }
-      if (onlineResultLogits.isEmpty)
-        None
-      else
-        Some(Model.observe(onlineResultLogits, Vec.from(onlineResultModels).map(Normal(_, 1.0))))
-    }
-
-    val offlineModelOpt = {
-      // same as online model, but looking at offlineJudgments for each debate
-      case class OfflineResult(
+    val fullModelOpt = {
+      case class DebateResult(
         debate: Debate,
         judge: String,
-        offlineJudgment: OfflineJudgingResult,
-        index: Int
+        judgment: Vector[Double],
+        numDebateRounds: Int
       ) {
-        val probCorrect  = offlineJudgment.distribution(debate.setup.correctAnswerIndex)
+        val probCorrect  = judgment(debate.setup.correctAnswerIndex)
         def logitCorrect = math.log(probCorrect / (1 - probCorrect)) / math.log(2.0)
-      }
-      val offlineResults = debates
-        .zipWithIndex
-        .flatMap { case (debate, index) =>
+        val adjustedProbCorrect = math.pow(
+          2,
           debate
-            .offlineJudgingResults
-            .toVector
-            .flatMap { case (judge, judgment) =>
-              judgment
-                .result
-                .filter(r => timeCutoff.forall(r.timestamp <= _))
-                .map(result => OfflineResult(debate, judge, result, index))
-            }
-        }
-        .filter(r => (r.debate.setup.roles - Judge).size == 2)
-      val offlineResultLogits = offlineResults.map(_.logitCorrect)
-      val offlineResultModels = offlineResults.map { case OfflineResult(debate, judge, _, _) =>
-        val setup            = debate.setup
-        val roles            = setup.roles
-        val thisQuestionEase = questionEase(questionIndex(QuestionId.fromDebate(debate)))
-        val thisHonestSkill  = honestSkill(personIndex(roles(Debater(setup.correctAnswerIndex))))
-        val thisDishonestSkill = dishonestSkill(
-          personIndex(roles(Debater(1 - setup.correctAnswerIndex)))
+            .setup
+            .rules
+            .scoringFunction
+            .eval(numDebateRounds, judgment, debate.setup.correctAnswerIndex)
         )
-        val thisJudgeSkill = judgeSkill(personIndex(judge))
-        val logit =
-          globalBias + thisQuestionEase + thisHonestSkill - thisDishonestSkill + thisJudgeSkill +
-            offlineAdjustment
-        logit
+        val adjustedLogitCorrect =
+          math.log(adjustedProbCorrect / (1 - adjustedProbCorrect)) / math.log(2.0)
       }
 
-      if (offlineResultLogits.isEmpty)
+      val results: Vector[DebateResult] = debates
+        .flatMap(d => d.result.map(d -> _))
+        .filter { case (_, r) =>
+          timeCutoff.forall(r.timestamp <= _)
+        }
+        .flatMap { case (debate, result) =>
+          val liveResultOpt = result
+            .judgingInfo
+            .map(info =>
+              DebateResult(
+                debate,
+                debate.setup.roles.get(Judge).get,
+                info.finalJudgement,
+                debate.numDebateRounds
+              )
+            )
+          val offlineResults = debate
+            .offlineJudgingResults
+            .toList
+            .map { case (judge, judgment) =>
+              judgment
+                .result
+                .map { result =>
+                  val numContinues =
+                    judgment.mode match {
+                      case OfflineJudgingMode.Timed =>
+                        debate.numDebateRounds
+                      case OfflineJudgingMode.Stepped =>
+                        judgment.judgments.size
+                    }
+                  DebateResult(debate, judge, result.distribution, numContinues)
+                }
+            }
+          (liveResultOpt :: offlineResults).flatten
+        }
+
+      // adjust the logit? Tempted not to.
+      val resultLogits = results.map(_.logitCorrect)
+      val resultModels = results.map { case DebateResult(debate, judge, _, _) =>
+        val setup                           = debate.setup
+        val roles                           = setup.roles
+        def add(x: Real): State[Real, Unit] = State.modify(_ + x)
+        def addOpt(xOpt: Option[Real]): State[Real, Unit] =
+          xOpt.fold(State.pure[Real, Unit](()))(x => State.modify(_ + x))
+        val makeLogit =
+          for {
+            _ <- add(questionEase(questionIndex(QuestionId.fromDebate(debate))))
+            _ <- addOpt(
+              roles
+                .get(Debater(setup.correctAnswerIndex))
+                .map(debater => honestSkill(personIndex(debater)))
+            )
+            _ <- addOpt(
+              roles
+                .get(Debater(1 - setup.correctAnswerIndex))
+                .map(debater => -dishonestSkill(personIndex(debater)))
+            )
+            _ <- addOpt(
+              Option(noOpponentAdjustment).filter(_ => roles.keySet.filter(_.isDebater).size == 1)
+            )
+            _ <- add(
+              roles
+                .get(Judge)
+                .fold(noLiveJudgeAdjustment)(judge => judgeLeadingSkill(personIndex(judge)))
+            )
+            _     <- add(judgeJudgingSkill(personIndex(judge)))
+            logit <- State.get[Real]
+          } yield logit
+
+        makeLogit.runS(globalBias).value
+      }
+
+      if (resultLogits.isEmpty)
         None
       else
-        Some(Model.observe(offlineResultLogits, Vec.from(offlineResultModels).map(Normal(_, 1.0))))
+        Some(Model.observe(resultLogits, Vec.from(resultModels).map(Normal(_, 1.0))))
     }
 
     val allVariablesModel = Model.track(
-      Set(globalBias, offlineAdjustment) ++ questionEase.toVector ++ honestSkill.toVector ++
-        dishonestSkill.toVector ++ judgeSkill.toVector
+      Set(globalBias, noLiveJudgeAdjustment, noOpponentAdjustment) ++ questionEase.toVector ++
+        honestSkill.toVector ++ dishonestSkill.toVector ++ judgeLeadingSkill.toVector ++
+        judgeJudgingSkill.toVector
     )
 
-    if (onlineModelOpt.isEmpty && offlineModelOpt.isEmpty)
+    if (fullModelOpt.isEmpty)
       return Ratings.empty
     else {
 
-      val fullModel = (List(onlineModelOpt, offlineModelOpt).flatten ++ List(allVariablesModel))
-        .reduce(_ merge _)
+      val fullModel = (List(fullModelOpt).flatten ++ List(allVariablesModel)).reduce(_ merge _)
 
       val mapEstimate = fullModel.optimize(
-        (globalBias, offlineAdjustment, questionEase, honestSkill, dishonestSkill, judgeSkill)
+        (
+          globalBias,
+          noLiveJudgeAdjustment,
+          noOpponentAdjustment,
+          questionEase,
+          honestSkill,
+          dishonestSkill,
+          judgeLeadingSkill,
+          judgeJudgingSkill
+        )
       )
 
       Ratings(
-        mapEstimate._1,
-        mapEstimate._2,
-        questions.zip(mapEstimate._3),
-        debaters.zip(mapEstimate._4).toMap,
-        debaters.zip(mapEstimate._5).toMap,
-        debaters.zip(mapEstimate._6).toMap
+        globalBias = mapEstimate._1,
+        noLiveJudgeAdjustment = mapEstimate._2,
+        noOpponentAdjustment = mapEstimate._3,
+        questionEase = questions.zip(mapEstimate._4),
+        honestSkills = debaters.zip(mapEstimate._5).toMap,
+        dishonestSkills = debaters.zip(mapEstimate._6).toMap,
+        judgeLeadingSkills = debaters.zip(mapEstimate._7).toMap,
+        judgeJudgingSkills = debaters.zip(mapEstimate._8).toMap
       )
     }
 

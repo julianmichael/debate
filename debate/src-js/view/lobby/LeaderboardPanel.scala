@@ -104,12 +104,18 @@ object LeaderboardPanel {
       showRating(useWinPercentage)
     )
     val dishonestN = Column.withStringShow[Int]("#D", true, _.toString)
-    def judgeRating(useWinPercentage: Boolean) = Column[Double](
+    def judgeLeadRating(useWinPercentage: Boolean) = Column[Double](
+      "Steer",
+      true,
+      showRating(useWinPercentage)
+    )
+    val judgeLedN = Column.withStringShow[Int]("#S", true, _.toString)
+    def judgeJudgeRating(useWinPercentage: Boolean) = Column[Double](
       "Judge",
       true,
       showRating(useWinPercentage)
     )
-    val judgedN = Column.withStringShow[Int]("#J", true, _.toString)
+    val judgeJudgedN = Column.withStringShow[Int]("#J", true, _.toString)
     def rating(useWinPercentage: Boolean) = Column[Double](
       "Avg Rating",
       true,
@@ -129,8 +135,10 @@ object LeaderboardPanel {
       honestN,
       dishonestRating(useWinPercentage),
       dishonestN,
-      judgeRating(useWinPercentage),
-      judgedN,
+      judgeLeadRating(useWinPercentage),
+      judgeLedN,
+      judgeJudgeRating(useWinPercentage),
+      judgeJudgedN,
       rating(useWinPercentage),
       ratingDelta(useWinPercentage)
     )
@@ -171,29 +179,28 @@ object LeaderboardPanel {
     name: String,
     honestStats: DebateStats,
     dishonestStats: DebateStats,
-    judgingStats: DebateStats,
+    liveJudgingStats: DebateStats,
+    allJudgingStats: DebateStats,
     ratings: Elo.Ratings,
     oneWeekOldRatings: Elo.Ratings,
     showRatingsAsWinPercentage: Boolean
   ) = {
-    val rating =
-      ((ratings.honestSkills(name) + ratings.dishonestSkills(name)) / 2 +
-        ratings.judgeSkills(name)) / 2
-    val oldRating =
-      ((oneWeekOldRatings.honestSkills(name) + oneWeekOldRatings.dishonestSkills(name)) / 2 +
-        oneWeekOldRatings.judgeSkills(name)) / 2
+    val rating    = ratings.averageSkills(name)
+    val oldRating = oneWeekOldRatings.averageSkills(name)
     DotMap
       .empty[Id, Column]
       .put(Column.name)(name)
       .put(Column.count)(
-        dishonestStats.wins.total + honestStats.wins.total + judgingStats.wins.total
+        dishonestStats.wins.total + honestStats.wins.total + allJudgingStats.wins.total
       )
       .put(Column.honestRating(showRatingsAsWinPercentage))(ratings.honestSkills(name))
       .put(Column.honestN)(honestStats.wins.total)
       .put(Column.dishonestRating(showRatingsAsWinPercentage))(ratings.dishonestSkills(name))
       .put(Column.dishonestN)(dishonestStats.wins.total)
-      .put(Column.judgeRating(showRatingsAsWinPercentage))(ratings.judgeSkills(name))
-      .put(Column.judgedN)(judgingStats.wins.total)
+      .put(Column.judgeLeadRating(showRatingsAsWinPercentage))(ratings.judgeLeadingSkills(name))
+      .put(Column.judgeLedN)(liveJudgingStats.wins.total)
+      .put(Column.judgeJudgeRating(showRatingsAsWinPercentage))(ratings.judgeJudgingSkills(name))
+      .put(Column.judgeJudgedN)(allJudgingStats.wins.total)
       .put(Column.rating(showRatingsAsWinPercentage))(rating)
       .put(Column.ratingDelta(showRatingsAsWinPercentage))(rating - oldRating)
   }
@@ -280,7 +287,11 @@ object LeaderboardPanel {
       .flatMap(leaderboard.data.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
 
-    val judgingStats = List(LeaderboardCategory.Judge, LeaderboardCategory.OfflineJudge)
+    val liveJudgingStats = List(LeaderboardCategory.Judge)
+      .flatMap(leaderboard.data.get)
+      .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
+
+    val allJudgingStats = List(LeaderboardCategory.Judge, LeaderboardCategory.OfflineJudge)
       .flatMap(leaderboard.data.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
 
@@ -339,7 +350,13 @@ object LeaderboardPanel {
                 <.span(c"card-link")(
                   f"Offline judging adjustment: ",
                   Column.showRating(showRatingsAsWinPercentage.value)(
-                    leaderboard.ratings.offlineAdjustment
+                    leaderboard.ratings.noLiveJudgeAdjustment
+                  )
+                ),
+                <.span(c"card-link")(
+                  f"No opponent adjustment: ",
+                  Column.showRating(showRatingsAsWinPercentage.value)(
+                    leaderboard.ratings.noOpponentAdjustment
                   )
                 )
               ),
@@ -351,7 +368,8 @@ object LeaderboardPanel {
                       debater,
                       honestStats(debater),
                       dishonestStats(debater),
-                      judgingStats(debater),
+                      liveJudgingStats(debater),
+                      allJudgingStats(debater),
                       leaderboard.ratings,
                       leaderboard.oneWeekOldRatings,
                       showRatingsAsWinPercentage.value

@@ -111,12 +111,12 @@ object DebatePanel {
         case DebateTurnType.OfflineJudgingTurn(offlineJudgments) =>
           role match {
             case OfflineJudge =>
-              offlineJudgments.get(userName) match {
+              offlineJudgments.get(userName).map(j => j.mode -> j.result) match {
                 case None =>
                   <.span("You are preparing to judge this debate offline.")
-                case Some(OfflineJudgment(mode, _, _, None)) =>
+                case Some((mode, None)) =>
                   <.span(s"You are judging this debate offline ($mode).")
-                case Some(OfflineJudgment(mode, _, _, Some(_))) =>
+                case Some((mode, Some(_))) =>
                   <.span(f"The debate is over. You judged it offline ($mode).")
               }
             case _ =>
@@ -156,77 +156,94 @@ object DebatePanel {
     )
   }
 
-  def visibleRounds(role: Role, debate: Debate) = debate
-    .rounds
-    .zip(
-      debate.setup.rules.roundTypes #::: LazyList.continually(DebateRoundType.OfflineJudgingRound)
-    )
-    .zip(
-      debate
-        .rounds
-        .scanLeft(0) { case (n, round) =>
-          round match {
-            case JudgeFeedback(_, _, false) =>
-              n + 1
-            case _ =>
-              n
-          }
-        }
-    )
-    .filter { case ((round, roundType), _) =>
-      val debaters =
-        if (roundType.assignedDebatersOnly)
-          debate
-            .setup
-            .roles
-            .keySet
-            .collect { case Debater(i) =>
-              i
-            }
-        else
-          (0 until debate.setup.numDebaters).toSet
-      role.canSeeIntermediateArguments || round.isComplete(debaters)
-    }
+  case class VisibleRound(
+    round: DebateRound,
+    roundType: DebateRoundType,
+    numPreviousDebateRounds: Int,
+    offlineJudgmentsForRound: Set[JudgeFeedback]
+  )
 
-  def debateSpansWithSpeaker(
-    role: Role,
-    numDebaters: Int,
-    assignedDebaters: Set[Int],
-    rounds: Vector[(DebateRoundType, DebateRound)]
-  ) = rounds.flatMap { case (roundType, round) =>
-    val debaters =
-      if (roundType.assignedDebatersOnly)
-        assignedDebaters
-      else
-        (0 until numDebaters).toSet
-    if (round.isComplete(debaters)) {
-      round
-        .allSpeeches
-        .view
-        .flatMap { case (role, speech) =>
-          speech.allQuotes.map(role -> _)
+  def visibleRounds(userName: String, role: Role, debate: Debate) = {
+    val judgmentsForEachRound = {
+      val allJudgmentGroups = debate
+        .offlineJudgingResults
+        .values
+        .toVector
+        .filter(_.mode == OfflineJudgingMode.Stepped)
+        .map(_.judgments)
+      val maxNumJudgments = allJudgmentGroups.map(_.size).maximumOption.getOrElse(0)
+      (0 until maxNumJudgments)
+        .map { n =>
+          allJudgmentGroups.flatMap(_.lift(n)).toSet
         }
         .toVector
-    } else {
-      round.allSpeeches.get(role).toVector.flatMap(_.allQuotes.map(role -> _))
     }
+    debate
+      .rounds
+      .zip(
+        debate.setup.rules.roundTypes #::: LazyList.continually(DebateRoundType.OfflineJudgingRound)
+      )
+      .zip(
+        debate
+          .rounds
+          .scanLeft(0 -> judgmentsForEachRound.lift(0).combineAll) { case ((n, _), round) =>
+            round match {
+              case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
+                (n + 1) -> judgmentsForEachRound.lift(n + 1).combineAll
+              case _ =>
+                n -> Set()
+              // case JudgeFeedback(_, _, false) =>
+              //   n + 1
+              // case _ =>
+              //   n
+            }
+          }
+      )
+      .map { case ((round, roundType), (numPrevDebateRounds, judgmentsForRound)) =>
+        VisibleRound(round, roundType, numPrevDebateRounds, judgmentsForRound)
+      }
+      .filter { case VisibleRound(round, roundType, numPrevDebateRounds, _) =>
+        // number of feedback rounds the current user has given so far as offline judge.
+        // The user can only see this round if they have given feedback on all previous rounds where the live judge did.
+        val continuationLimitOpt =
+          debate.offlineJudgingResults.get(userName) match {
+            case Some(result) if result.result.isEmpty =>
+              Some(result.judgments.size)
+            case None if role == OfflineJudge =>
+              Some(0)
+            case _ =>
+              None
+          }
+        val debaters =
+          if (roundType.assignedDebatersOnly)
+            debate
+              .setup
+              .roles
+              .keySet
+              .collect { case Debater(i) =>
+                i
+              }
+          else
+            (0 until debate.setup.numDebaters).toSet
+        continuationLimitOpt.forall(_ > numPrevDebateRounds) &&
+        (role.canSeeIntermediateArguments || round.isComplete(debaters))
+      }
   }
 
-  def getHighlights(role: Role, debate: Debate, curMessageSpans: Set[ESpan]) =
-    debateSpansWithSpeaker(
-      role,
-      debate.setup.numDebaters,
-      debate
-        .setup
-        .roles
-        .keySet
-        .collect { case Debater(i) =>
-          i
-        },
-      debate.rounds.zip(debate.setup.rules.roundTypes).map(_.swap)
-    ).map { case (role, span) =>
-      span -> getSpanColorForRole(role)
-    } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
+  def getHighlights(visibleRounds: Vector[VisibleRound], curMessageSpans: Set[ESpan]) =
+    visibleRounds
+      .map(_.round)
+      .flatMap(
+        _.allSpeeches
+          .view
+          .flatMap { case (role, speech) =>
+            speech.allQuotes.map(role -> _)
+          }
+          .toVector
+      )
+      .map { case (role, span) =>
+        span -> getSpanColorForRole(role)
+      } ++ curMessageSpans.toVector.map(_ -> curHighlightColor)
 
   def getInProgressSpeechStyle(role: Role) =
     role match {
@@ -306,6 +323,7 @@ object DebatePanel {
           )
         }
         .getOrElse(Feedback.initAnswers(setup, role))
+      val theseVisibleRounds = visibleRounds(userName, role, debate.value)
       Local[DotMap[Option, Feedback.Key]].make(workingAnswers) { surveyAnswers =>
         val leftPanelTabs =
           Vector(
@@ -314,7 +332,7 @@ object DebatePanel {
                 TabNav.tab(
                   StoryPanel(
                     setup.sourceMaterial.contents,
-                    getHighlights(role, debate.value, curMessageSpans),
+                    getHighlights(theseVisibleRounds, curMessageSpans),
                     span => currentMessage.modState(_ + span2text(span))
                   )
                 )
@@ -324,7 +342,7 @@ object DebatePanel {
                 TabNav.tab(
                   ConsolidatedQuotesPanel(
                     setup.sourceMaterial.contents,
-                    getHighlights(role, debate.value, curMessageSpans)
+                    getHighlights(theseVisibleRounds, curMessageSpans)
                   )
                 )
             ),
@@ -372,44 +390,68 @@ object DebatePanel {
           <.div(S.debateSubpanel)(
             <.div(S.speechesSubpanel)(
                 ^.id := "speeches",
-                visibleRounds(role, debate.value)
+                theseVisibleRounds
                   .zipWithIndex
-                  .map { case (((round, roundType), numPreviousContinues), roundIndex) =>
-                    println(round)
-                    println(roundType)
-                    println(roundIndex)
-                    DebateRoundView.makeRoundHtml(
-                      source = setup.sourceMaterial.contents,
-                      userName = userName,
-                      role = role,
-                      anonymize = anonymize,
-                      debateStartTime = debate.value.startTime,
-                      numPreviousContinues = numPreviousContinues,
-                      getRewardForJudgment = getRewardForJudgment,
-                      debaters =
-                        if (roundType.assignedDebatersOnly)
-                          setup
-                            .roles
-                            .keySet
-                            .collect { case Debater(i) =>
-                              i
-                            }
-                        else
-                          (0 until setup.numDebaters).toSet,
-                      round = round,
-                      modifyRound =
-                        roundOpt =>
-                          debate
-                            .zoomStateL(Debate.rounds)
-                            .modState(rounds =>
-                              roundOpt match {
-                                case None =>
-                                  rounds.remove(roundIndex)
-                                case Some(r) =>
-                                  rounds.updated(roundIndex, r)
-                              }
-                            )
-                    )(^.key := s"round-$roundIndex")
+                  .flatMap {
+                    case (
+                          VisibleRound(
+                            thisRound,
+                            thisRoundType,
+                            numPreviousDebateRounds,
+                            offlineJudgmentsForRound
+                          ),
+                          roundIndex
+                        ) =>
+                      def renderRound(round: DebateRound, roundType: DebateRoundType) =
+                        DebateRoundView.makeRoundHtml(
+                          source = setup.sourceMaterial.contents,
+                          userName = userName,
+                          role = role,
+                          anonymize = anonymize,
+                          debateStartTime = debate.value.startTime,
+                          numPreviousDebateRounds = numPreviousDebateRounds,
+                          getRewardForJudgment = getRewardForJudgment,
+                          debaters =
+                            if (roundType.assignedDebatersOnly)
+                              setup
+                                .roles
+                                .keySet
+                                .collect { case Debater(i) =>
+                                  i
+                                }
+                            else
+                              (0 until setup.numDebaters).toSet,
+                          round = round,
+                          modifyRound =
+                            roundOpt =>
+                              debate
+                                .zoomStateL(Debate.rounds)
+                                .modState(rounds =>
+                                  roundOpt match {
+                                    case None =>
+                                      rounds.remove(roundIndex)
+                                    case Some(r) =>
+                                      rounds.updated(roundIndex, r)
+                                  }
+                                )
+                        )
+
+                      offlineJudgmentsForRound
+                        .toVector
+                        .sortBy(_.feedback.timestamp)
+                        .map { j =>
+                          DebateRoundView.makeSpeechHtml(
+                            Vector(),
+                            OfflineJudge,
+                            j.feedback,
+                            Some(j.distribution),
+                            debate.value.startTime,
+                            role,
+                            userName,
+                            anonymize,
+                            TagMod(S.offlineJudgeBg, S.judgeDecision.when(j.endDebate))
+                          )(^.key := s"round-$roundIndex-feedback-${j.feedback.speaker}")
+                        } :+ renderRound(thisRound, thisRoundType)(^.key := s"round-$roundIndex")
                   }
                   .toVdomArray,
                 DebateRoundView
@@ -420,6 +462,7 @@ object DebatePanel {
                       Vector(),
                     role,
                     DebateSpeech(userName, -1L, currentMessageSpeechSegments),
+                    None,
                     debate.value.startTime,
                     role,
                     userName,

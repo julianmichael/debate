@@ -67,7 +67,9 @@ case class Schedule(
     )
     stories |+| debates
   }
-  lazy val workload = SparseDistribution.fromMap(workloadCounts).get
+  lazy val workload = SparseDistribution
+    .fromMap(workloadCounts)
+    .getOrElse(SparseDistribution.uniform(allPeople.toNes.get))
 
   // assign the right amount of debating to the right people
   def workloadImbalance = distance(workload, desiredWorkload)

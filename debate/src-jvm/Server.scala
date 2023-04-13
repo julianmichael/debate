@@ -136,6 +136,34 @@ case class Server(
             .map(sample => DenseDistribution.fromSoftmax[Schedule](sample, -_.cost))
           schedule <- IO(scheduleDistOpt.map(_.sample(rand)))
         } yield schedule.map(_.novel)
+
+      def sampleOfflineJudging(
+        excludes: Set[String],
+        maxNumJudgesForOnline: Int,
+        maxNumJudgesForOffline: Int
+      ): IO[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]] =
+        for {
+          profiles <- profiles.get
+          judges = profiles.keySet -- excludes
+          rooms <- officialDebates.rooms.get
+          // roomMetadata <- officialDebates.getRoomMetadata
+          // storyRecord = RoomMetadata.constructStoryRecord(roomMetadata)
+          rand <- IO(new scala.util.Random)
+        } yield profiles.keySet.toNes match {
+          case None =>
+            Left("No possible judges remaining to assign.")
+          case Some(peopleNonEmpty) =>
+            Right(
+              DebateScheduler.sampleOfflineJudges(
+                rooms.mapVals(_.debate.debate),
+                peopleNonEmpty,
+                judges,
+                maxNumJudgesForOnline,
+                maxNumJudgesForOffline,
+                rand
+              )
+            )
+        }
     }
   )
 
@@ -341,6 +369,11 @@ case class Server(
                       officialDebates.createDebates(setups)
                     else
                       practiceDebates.createDebates(setups)
+                  case ScheduleOfflineJudges(isOfficial, assignments) =>
+                    if (isOfficial)
+                      officialDebates.scheduleOfflineJudges(assignments)
+                    else
+                      practiceDebates.scheduleOfflineJudges(assignments)
                 },
           onClose = presence.update(p => (p |+| Map(profile -> -1)).filter(_._2 > 0)) >> pushUpdate
         )

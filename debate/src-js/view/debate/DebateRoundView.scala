@@ -13,6 +13,7 @@ import scalacss.ScalaCssReact._
 import jjm.ling.ESpan
 import japgolly.scalajs.react.Callback
 import japgolly.scalajs.react.feature.ReactFragment
+import scala.annotation.nowarn
 
 object DebateRoundView {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -51,6 +52,7 @@ object DebateRoundView {
     )
   }
 
+  @nowarn("cat=unused")
   def speechHeaderHTML(
     role: Role,
     speech: DebateSpeech,
@@ -60,17 +62,29 @@ object DebateRoundView {
     anonymize: Boolean
   ) =
     <.div(S.speechHeader)(
-      DebatePage.renderDebateParticipant(anonymize, userRole, userName, role, speech.speaker),
-      " ",
-      startTimeOpt.whenDefined(startTime =>
-        timestampHTML(startTime, speech.timestamp).when(userRole.canSeeIntermediateArguments)
-      )
+      DebatePage.renderDebateParticipant(anonymize, userRole, userName, role, speech.speaker)
+      // " ",
+      // startTimeOpt.whenDefined(startTime =>
+      //   timestampHTML(startTime, speech.timestamp).when(userRole.canSeeIntermediateArguments)
+      // )
     )
 
   def quoteToHTML(source: Vector[String], span: ESpan) = <.span(
     <.span(S.quoteText)(breakNewlines(Utils.renderSpan(source, span))),
     <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
   )
+
+  def makeSpeechContentHtml(source: Vector[String], content: Vector[SpeechSegment]) = content
+    .map {
+      case SpeechSegment.Text(text) =>
+        <.span(breakNewlines(text))
+      case SpeechSegment.Quote(span) =>
+        quoteToHTML(source, span)
+    }
+    .zipWithIndex
+    .toVdomArray { case (el, i) =>
+      el(^.key := s"text-$i")
+    }
 
   def makeSimultaneousSpeechesHtml(
     source: Vector[String],
@@ -86,7 +100,8 @@ object DebateRoundView {
         .sortBy(_._1)
         .toVdomArray { case (debaterIndex, speech) =>
           <.div(S.speechBox, S.answerBg(debaterIndex))(
-            ^.key := s"speech-$debaterIndex",
+            ^.width := s"${100 / speeches.size}%",
+            ^.key   := s"speech-$debaterIndex",
             speechHeaderHTML(
               Debater(debaterIndex),
               speech,
@@ -95,38 +110,16 @@ object DebateRoundView {
               userName,
               anonymize
             ),
-            speech
-              .content
-              .map {
-                case SpeechSegment.Text(text) =>
-                  <.span(breakNewlines(text))
-                case SpeechSegment.Quote(span) =>
-                  quoteToHTML(source, span)
-              }
-              .zipWithIndex
-              .toVdomArray { case (el, i) =>
-                el(^.key := s"text-$i")
-              }
+            makeSpeechContentHtml(source, speech.content)
           )
         }
     )
-
-  def makeSpeechContentHtml(source: Vector[String], content: Vector[SpeechSegment]) = content
-    .map {
-      case SpeechSegment.Text(text) =>
-        <.span(breakNewlines(text))
-      case SpeechSegment.Quote(span) =>
-        quoteToHTML(source, span)
-    }
-    .zipWithIndex
-    .toVdomArray { case (el, i) =>
-      el(^.key := s"text-$i")
-    }
 
   def makeSpeechHtml(
     source: Vector[String],
     role: Role,
     speech: DebateSpeech,
+    distribution: Option[Vector[Double]],
     startTimeOpt: Option[Long],
     userRole: Role,
     userName: String,
@@ -135,7 +128,17 @@ object DebateRoundView {
   ) =
     <.div(S.speechBox, style)(
       speechHeaderHTML(role, speech, startTimeOpt, userRole, userName, anonymize),
-      makeSpeechContentHtml(source, speech.content)
+      makeSpeechContentHtml(source, speech.content),
+      distribution.map(dist =>
+        Utils.probabilityBar(
+          S.inRoundProbabilityBar,
+          dist
+            .zipWithIndex
+            .map { case (prob, answerIndex) =>
+              Utils.ProbabilityBarItem(prob, S.answerBg(answerIndex))
+            }
+        )
+      )
     )
 
   def makeRoundHtml(
@@ -144,19 +147,19 @@ object DebateRoundView {
     role: Role,
     anonymize: Boolean,
     debateStartTime: Option[Long],
-    numPreviousContinues: Int,
+    numPreviousDebateRounds: Int,
     getRewardForJudgment: (Int, Vector[Double]) => Option[Double],
     debaters: Set[Int],
     round: DebateRound,
     modifyRound: Option[DebateRound] => Callback
   ) = {
-    <.div(
-      round
-        .timestamp(debaters)
-        .whenDefined(roundTime =>
-          debateStartTime.whenDefined(startTime => timestampHTML(startTime, roundTime))
-        )
-        .when(role.seesRoundTimestamp),
+    <.div(S.col)(
+      // round
+      //   .timestamp(debaters)
+      //   .whenDefined(roundTime =>
+      //     debateStartTime.whenDefined(startTime => timestampHTML(startTime, roundTime))
+      //   )
+      //   .when(role.seesRoundTimestamp),
       round match {
         case SimultaneousSpeeches(speeches) =>
           if (speeches.size < debaters.size) {
@@ -175,6 +178,7 @@ object DebateRoundView {
                   source,
                   Debater(index),
                   speech,
+                  None,
                   debateStartTime,
                   role,
                   userName,
@@ -217,6 +221,7 @@ object DebateRoundView {
                 source,
                 Debater(debaterIndex),
                 speech,
+                None,
                 debateStartTime,
                 role,
                 userName,
@@ -232,6 +237,7 @@ object DebateRoundView {
                 Vector(),
                 Judge,
                 speech,
+                Some(probabilities).filter(_.size > 1),
                 debateStartTime,
                 role,
                 userName,
@@ -239,25 +245,6 @@ object DebateRoundView {
                 speechStyle
               )
             ),
-            Option(
-              <.div(
-                ^.display       := "flex",
-                ^.flexDirection := "row",
-                probabilities
-                  .zipWithIndex
-                  .toVdomArray { case (prob, index) =>
-                    val pct = f"${prob * 100.0}%.0f%%"
-                    <.div(
-                      ^.key := s"prob-$index",
-                      S.answerBg(index),
-                      ^.width      := pct,
-                      ^.color      := "white",
-                      ^.fontWeight := "bold",
-                      ^.flexGrow   := "1"
-                    )(pct)
-                  }
-              )
-            ).filter(_ => probabilities.size > 1),
             Option {
               val continueOrEnd =
                 if (endsDebate)
@@ -266,7 +253,7 @@ object DebateRoundView {
                   "continue"
               <.div(s"The judge decided to ", <.strong(continueOrEnd), " the debate.")
             },
-            getRewardForJudgment(numPreviousContinues, probabilities).map { reward =>
+            getRewardForJudgment(numPreviousDebateRounds, probabilities).map { reward =>
               <.div(f"Reward: $reward%.3f")
             }
           ).flatten
@@ -327,29 +314,30 @@ object DebateRoundView {
 
           // TODO: display info about num continues and time taken to judge
           // TODO: display info about people currently judging? (maybe facilitator only)
-          val speechStyle = TagMod(S.offlineJudgeBg)
+
+          // judgments shown here are always the last
+          val speechStyle = TagMod(S.offlineJudgeBg, S.judgeDecision)
 
           TagMod(
             judgments
               .toVector
+              .filter(_._2.mode == OfflineJudgingMode.Timed)
               .sortBy(_._2.result.isEmpty)
               .filter { case (judge, _) =>
                 judge == userName || canSeeOfflineJudgingResults
               }
               .flatMap {
-                case (judge, OfflineJudgment(_, startTimeMillis, numContinues, resultOpt)) =>
+                case (judge, judgment @ OfflineJudgment(mode, startTimeMillis, judgments)) =>
                   Vector(
                     Option(
-                      resultOpt
+                      judgment
+                        .result
                         .map(result =>
                           makeSpeechHtml(
                             Vector(),
                             OfflineJudge,
-                            DebateSpeech(
-                              judge,
-                              result.timestamp,
-                              Vector(SpeechSegment.Text(result.explanation))
-                            ),
+                            result.feedback,
+                            Some(result.distribution).filter(_.size > 1),
                             debateStartTime,
                             role,
                             userName,
@@ -367,44 +355,38 @@ object DebateRoundView {
                                 startTimeMillis,
                                 Vector(SpeechSegment.Text("<pending>"))
                               ),
+                              None,
                               debateStartTime,
                               role,
                               userName,
                               anonymize,
                               speechStyle
                             ),
-                            <.div(
-                              <.a(c"text-danger")("Click to delete the judgment above"),
-                              ^.onClick --> modifyRound(None)
+                            Option(
+                              <.div(
+                                <.a(c"text-danger")("Click to delete the judgment above"),
+                                ^.onClick --> modifyRound(None)
+                              )
                             )
+                            // TODO XXX: remove this button after testing is done
+                            // .filter(_ => userName == adminUsername)
                           )
                         )
                     ),
-                    resultOpt
-                      .filter(_.distribution.size > 1)
-                      .map(result =>
-                        <.div(
-                          ^.display       := "flex",
-                          ^.flexDirection := "row",
-                          result
-                            .distribution
-                            .zipWithIndex
-                            .toVdomArray { case (prob, index) =>
-                              val pct = f"${prob * 100.0}%.0f%%"
-                              <.div(
-                                ^.key := s"prob-$index",
-                                S.answerBg(index),
-                                ^.width      := pct,
-                                ^.color      := "white",
-                                ^.fontWeight := "bold",
-                                ^.flexGrow   := "1"
-                              )(pct)
-                            }
-                        )
-                      ),
-                    resultOpt
+                    judgment
+                      .result
                       .map(_.distribution)
-                      .flatMap(getRewardForJudgment(numContinues, _))
+                      .flatMap(
+                        getRewardForJudgment(
+                          mode match {
+                            case OfflineJudgingMode.Stepped =>
+                              judgments.size
+                            case OfflineJudgingMode.Timed =>
+                              numPreviousDebateRounds
+                          },
+                          _
+                        )
+                      )
                       .map { reward =>
                         <.div(f"Reward: $reward%.3f")
                       }

@@ -15,5 +15,7 @@ case class RefreshLeaderboard()                                extends MainChann
 case class CreateRoom(isOfficial: Boolean, roomName: String, setupSpec: DebateSetupSpec)
     extends MainChannelRequest
 case class CreateRooms(isOfficial: Boolean, setups: Vector[DebateSetup]) extends MainChannelRequest
+case class ScheduleOfflineJudges(isOfficial: Boolean, assignments: Vector[(String, String)])
+    extends MainChannelRequest
 
 case class DeleteRoom(isOfficial: Boolean, roomName: String) extends MainChannelRequest

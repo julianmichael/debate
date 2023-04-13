@@ -3,6 +3,7 @@ package scheduler
 
 import scala.util.Random
 
+import cats.data.NonEmptySet
 import cats.data.NonEmptyVector
 import cats.data.StateT
 import cats.implicits._
@@ -10,6 +11,10 @@ import cats.implicits._
 import debate.quality.QuALITYStory
 import debate.util.DenseDistribution
 import debate.util.SparseDistribution
+import cats.kernel.Monoid
+import io.circe.generic.JsonCodec
+
+import jjm.implicits._
 
 object DebateScheduler {
 
@@ -191,19 +196,20 @@ object DebateScheduler {
                     case (Debater(_), name) =>
                       name -> numJudgingsAllowedPerStory // debaters DQ'd
                     case (Judge, name) if setup.question == question =>
-                      name -> numJudgingsAllowedPerStory
+                      name -> numJudgingsAllowedPerStory // DQ if you've judged the question before
                     case (Judge, name) =>
                       name -> 1
-                  }
+                  } |+| setup.offlineJudges.mapVals(_ => 1)
               )
               .collect {
-                case (name, i) if i >= numJudgingsAllowedPerStory =>
+                case (name, i)
+                    if i >= numJudgingsAllowedPerStory => // DQ'd if you've judged too many times
                   name
               }
               .toSet
         ).toVector
       )
-      .map(candidates =>
+      .map { candidates =>
         DenseDistribution
           .fromSoftmax[String](
             candidates,
@@ -238,7 +244,7 @@ object DebateScheduler {
           )
           .withTemperature(Params.samplingTemperature)
           .sample(rand)
-      )
+      }
   }
 
   def sampleCorrectAnswerIndex(
@@ -484,5 +490,100 @@ object DebateScheduler {
     }
 
     NonEmptyVector.fromVector(sampledSchedules).toRight("No valid schedules produced.")
+  }
+
+  @JsonCodec
+  case class OfflineJudgeSchedulingResult(
+    debatesWithoutNewAssignments: Set[String],
+    newAssignments: Vector[(String, String)]
+  )
+  object OfflineJudgeSchedulingResult {
+    implicit val offlineJudgeSchedulingResultMonoid = cats
+      .derived
+      .semiauto
+      .monoid[OfflineJudgeSchedulingResult]
+  }
+
+  def sampleOfflineJudges(
+    debates: Map[String, Debate],
+    people: NonEmptySet[String],
+    judges: Set[String],
+    maxNumJudgesForOnline: Int,
+    maxNumJudgesForOffline: Int,
+    rand: Random
+  ): OfflineJudgeSchedulingResult = {
+    def sampleJudgeCumulative(
+      assignments: OfflineJudgeSchedulingResult,
+      remainingDebates: List[(String, Debate)],
+      finishedDebates: List[Debate]
+    ): (List[Debate], OfflineJudgeSchedulingResult) =
+      remainingDebates match {
+        case Nil =>
+          finishedDebates -> assignments
+        case (roomName, debate) :: rest =>
+          val judgeOpt = debate.setup.roles.get(Judge)
+          val maxNumJudges =
+            if (judgeOpt.nonEmpty)
+              maxNumJudgesForOnline
+            else
+              maxNumJudgesForOffline
+          val offlineJudges =
+            debate.setup.offlineJudges.keySet ++ debate.offlineJudgingResults.keySet
+          val allJudges = offlineJudges ++ judgeOpt
+          val newJudgesOpt = (0 until (maxNumJudges - allJudges.size.toInt))
+            .toVector
+            .traverse { _ =>
+              // println(s"sampling judges for $roomName")
+              // println(s"  current judges: ${judgeOpt.toSet ++ debate.offlineJudges.keySet}")
+              // println(s"  candidates: $judges")
+              for {
+                curJudges <- StateT.get[Option, Set[String]]
+                // _ = println(s"  cur judges: $curJudges")
+                newJudge <- StateT.liftF(
+                  sampleJudge(
+                    Schedule(
+                      SparseDistribution.uniform(people),
+                      SparseDistribution.uniform(NonEmptySet.of(RuleConfig.default)),
+                      complete =
+                        finishedDebates.toVector.map(_.setup) ++ remainingDebates.map(_._2.setup),
+                      incomplete = Vector(),
+                      novel = Vector()
+                    ),
+                    Set(),
+                    SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
+                    judges -- curJudges,
+                    debate.setup.question,
+                    false,
+                    rand
+                  )
+                )
+                // _ = println(s"  new judge: $newJudge")
+                _ <- StateT.modify[Option, Set[String]](_ + newJudge)
+              } yield newJudge
+            }
+            .run(allJudges)
+            .map(_._2.toSet)
+
+          (newJudgesOpt: Option[Set[String]]) match {
+            case None =>
+              val newResult = OfflineJudgeSchedulingResult(Set(roomName), Vector())
+              sampleJudgeCumulative(newResult |+| assignments, rest, debate :: finishedDebates)
+            case Some(newJudges) =>
+              val newResult = OfflineJudgeSchedulingResult(
+                Set(),
+                newJudges.toVector.map(roomName -> _)
+              )
+              val newDebate =
+                Debate
+                  .setup
+                  .composeLens(DebateSetup.offlineJudges)
+                  .modify(offlineJudges =>
+                    offlineJudges ++ newJudges.map(_ -> Some(OfflineJudgingMode.Stepped)).toMap
+                  )(debate)
+              sampleJudgeCumulative(newResult |+| assignments, rest, newDebate :: finishedDebates)
+          }
+      }
+
+    sampleJudgeCumulative(Monoid[OfflineJudgeSchedulingResult].empty, debates.toList, Nil)._2
   }
 }
