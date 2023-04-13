@@ -103,7 +103,7 @@ case class Server(
         articleId: String,
         questionIds: Set[String],
         numDebatesPerQuestion: Int
-      ): IO[Option[Vector[DebateSetup]]] =
+      ): IO[Either[String, Vector[DebateSetup]]] =
         for {
           rooms <- officialDebates.rooms.get
           allDebates = rooms.values.view.map(_.debate.debate).toVector
@@ -113,28 +113,25 @@ case class Server(
           qas = DebateScheduler.getQAsForStory(story)
           rand         <- IO(new scala.util.Random)
           creationTime <- IO(System.currentTimeMillis())
-          schedulesOpt =
-            DebateScheduler
-              .efficientlySampleSchedules(
-                desiredWorkload = workloadDist,
-                rules = ruleDist,
-                complete = complete,
-                incomplete = incomplete,
-                sourceMaterial = QuALITYSourceMaterial(
-                  articleId = story.articleId,
-                  title = story.title,
-                  contents = tokenizeStory(story.article)
-                ),
-                qas = qas.filter(qa => questionIds.contains(qa.questionId)),
-                numDebatesPerQuestion = numDebatesPerQuestion,
-                // debaters = Map(), // people.mapVals(_ => DebaterLoadConstraint(None, None)),
-                creationTime = creationTime,
-                rand
-              )
-              .toOption
-          scheduleDistOpt = schedulesOpt
+          schedules = DebateScheduler.efficientlySampleSchedules(
+            desiredWorkload = workloadDist,
+            rules = ruleDist,
+            complete = complete,
+            incomplete = incomplete,
+            sourceMaterial = QuALITYSourceMaterial(
+              articleId = story.articleId,
+              title = story.title,
+              contents = tokenizeStory(story.article)
+            ),
+            qas = qas.filter(qa => questionIds.contains(qa.questionId)),
+            numDebatesPerQuestion = numDebatesPerQuestion,
+            // debaters = Map(), // people.mapVals(_ => DebaterLoadConstraint(None, None)),
+            creationTime = creationTime,
+            rand
+          )
+          scheduleDist = schedules
             .map(sample => DenseDistribution.fromSoftmax[Schedule](sample, -_.cost))
-          schedule <- IO(scheduleDistOpt.map(_.sample(rand)))
+          schedule <- IO(scheduleDist.map(_.sample(rand)))
         } yield schedule.map(_.novel)
 
       def sampleOfflineJudging(
