@@ -142,6 +142,34 @@ def accuracy_distribution_live_vs_offline_debates():  # TODO: un-average offline
     )
     return bars.properties(width=750, height=300)
 
+
+def accuracy_by_judge_experience():  # TODO: add other judge setups
+    debates.sort_values(by=['End time'], inplace=True)
+    bins = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+    labels = ['0-10%', '10-20%', '20-30%', '30-40%', '40-50%',
+              '50-60%', '60-70%', '70-80%', '80-90%', '90-100%']
+    debates['Final probability correct bins'] = pd.cut(debates['Final probability correct'],
+                                                       bins=bins, labels=labels)
+    debates['Judge experience'] = debates.groupby(  # averaging without more context doesn't seem informative enough... question difficulty as well..
+        'Judge')['End time'].transform('cumcount')
+    source = debates[debates['Status'] == 'complete']
+    judge_ex_averaged = alt.Chart(debates).mark_line().encode(
+        x=alt.X('Judge experience:Q', title='Number of debates judged'),
+        y=alt.Y('mean(Final probability correct):Q',
+                title='Average final probability correct'),
+    ).transform_filter(
+        datum['Final probability correct'] != None
+    )
+    # judge_ex = alt.Chart(source[source.groupby('Judge').Judge.transform('count') > 1]).mark_line(strokeWidth=1).encode(
+    #     x=alt.X('Judge experience:Q', title='Number of debates judged'),
+    #     y=alt.Y('mean(Final probability correct):Q',
+    #             title='Average final probability correct'),
+    # ).transform_filter(
+    #     datum['Final probability correct'] != None
+    # )
+    # .facet(facet='Judge:N', columns=4, spacing=0)
+    return judge_ex_averaged  # | judge_ex.properties(width=200, height=200)
+
 # For later when we have accuracy by round, will probably need to change to probability correct each round instead of final
 # def accuracy_by_round_live_vs_offline_debates(): # TODO: un-average offline
 #     debates['Final probability correct (live + mean of offline)'] = debates.apply(
@@ -325,6 +353,33 @@ def debater_by_turns():  # TODO fix for offline judge
     ).properties(width=200)
 
 
+def debater_by_turns_weeks():
+    debates['End week'] = debates['End time'].apply(
+        lambda x: x.week
+    )
+
+    def convert_time(x):
+        start_date = datetime.datetime.strptime(
+            f'{x.year}-{x.week}-1', "%Y-%W-%w"
+        )
+        end_date = start_date + pd.Timedelta(days=6)
+        return f'{start_date.strftime("%b%d")}|{end_date.strftime("%b%d")}'
+    debates['End week label'] = debates['End time'].apply(
+        convert_time
+    )
+    source = sessions.merge(debates, how='left', on='Room name')
+    source['Role'] = source['Role'].map(
+        lambda x: 'Debater' if x.startswith('Debater') else x)
+    return alt.Chart(source).mark_bar().encode(
+        x=alt.X('End week label:O', sort=alt.EncodingSortField(
+            field='End week', order='ascending')),
+        y=alt.Y('count()'),
+        color=alt.Color('Role:O')
+    ).transform_filter(
+        datum['Status'] != 'complete' & datum['Is turn'] == True & datum['Judge'] != None
+    ).properties(width=200).facet(facet='Judge:N', columns=4, spacing=0)
+
+
 def debater_pairings_by_role():
     return alt.Chart(debates).mark_rect().encode(
         x='Honest debater:O',
@@ -394,7 +449,7 @@ def debates_completed_per_week():
             f'{x.year}-{x.week}-1', "%Y-%W-%w"
         )
         end_date = start_date + pd.Timedelta(days=6)
-        return f'{start_date.strftime("%b %d")} - {end_date.strftime("%b %d")}'
+        return f'{start_date.strftime("%b%d")}|{end_date.strftime("%b%d")}'
     debates['End week label'] = debates['End time'].apply(
         convert_time
         # lambda x: datetime.datetime.strptime(
@@ -431,11 +486,13 @@ all_graph_specifications = {
     # meh, might want to use Final prob title below
     "Results:_Accuracy_distribution,_live_vs_offline_debates": accuracy_distribution_live_vs_offline_debates,
     # "Results:_Live_debates_accuracy_by_date": live_debates_accuracy_by_date,
+    "Results:_Accuracy_by_judge_experience": accuracy_by_judge_experience,
     "Results:_Evidence_by_rounds": evidence_by_rounds,
     "Results:_Probability_correct_by_num_judge_rounds": probability_correct_vs_num_judge_rounds,
     "Results:_Final_probability_by_debaters": final_probability_by_honest_and_dishonest_debater,
     "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
+    "Track:_Debater_by_turns_weeks": debater_by_turns_weeks,
     "Track:_Participant_by_current_workload": participant_by_current_workload,
     # "Track:_Participant_by_past_workload": participant_by_past_workload,
     "Track:_Turns_to_complete_by_participant": debater_by_turns,
