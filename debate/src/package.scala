@@ -18,6 +18,7 @@ import monocle.Iso
 import jjm.ling.Span
 import cats.Order
 import cats.data.NonEmptySet
+import cats.data.NonEmptyVector
 import scala.collection.immutable.SortedSet
 
 package object debate extends PackagePlatformExtensions {
@@ -138,6 +139,10 @@ package object debate extends PackagePlatformExtensions {
 
   implicit class RichSet[A](as: Set[A]) {
     def toNes(implicit o: Order[A]): Option[NonEmptySet[A]] = NonEmptySet.fromSet(as.to(SortedSet))
+  }
+
+  implicit class RichVector[A](as: Vector[A]) {
+    def toNev: Option[NonEmptyVector[A]] = NonEmptyVector.fromVector(as)
   }
 
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {

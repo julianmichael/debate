@@ -136,7 +136,6 @@ object Elo {
     val questions = debates.map(QuestionId.fromDebate)
     val debaters  = debaterSet.toVector
 
-    // val data         = loadDebateData.unsafeRunSync()
     val globalBias            = Normal(0, 1).latent
     val noOpponentAdjustment  = Normal(0, 1).latent
     val noLiveJudgeAdjustment = Normal(0, 1).latent
@@ -145,7 +144,6 @@ object Elo {
     val dishonestSkill        = Normal(0, 1).latentVec(debaters.size)
     val judgeLeadingSkill     = Normal(0, 1).latentVec(debaters.size)
     val judgeJudgingSkill     = Normal(0, 1).latentVec(debaters.size)
-    // val debateVariance = Gamma(0.5, 100).latent
 
     val personIndex   = debaters.zipWithIndex.toMap
     val questionIndex = questions.zipWithIndex.toMap

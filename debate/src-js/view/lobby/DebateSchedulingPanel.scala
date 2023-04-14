@@ -403,17 +403,8 @@ object DebateSchedulingPanel {
                                 schedulingSpec.value.numDebatesPerQuestion
                               )
                               .completeWith {
-                                case Success(Some(schedule)) =>
-                                  scheduleAttemptOpt.setState(Some(Right(schedule)))
-                                case Success(None) =>
-                                  scheduleAttemptOpt.setState(
-                                    Some(
-                                      Left(s"""Could not sample a valid schedule. There may be too
-                                              |many questions to be judged
-                                              |$numJudgingsAllowedPerStory or fewer times by
-                                              |everyone.""".stripMargin.trim)
-                                    )
-                                  )
+                                case Success(scheduleEither) =>
+                                  scheduleAttemptOpt.setState(Some(scheduleEither))
                                 case Failure(err) =>
                                   scheduleAttemptOpt.setState(Some(Left(err.getMessage())))
                               }

@@ -324,12 +324,15 @@ object LeaderboardPanel {
                     " the difficulty of arguing for an incorrect answer, the difficulty of particular questions, ",
                     " and the difficulty of offline versus online judging. ",
                     " For example, a debater with a skill rating of 2.0 gets a 2x higher probability assigned to their answer ",
-                    " than their opponent in the average case. "
+                    " than their opponent in the average case. Your judging skill is split into two scores: \"Steer\" ",
+                    " measures how effectively you steer the debate as a live judge, and \"Judge\" measures how well you judge ",
+                    " the correct answer given a debate's contents. "
                   ),
                   <.p(c"mb-0")(
                     "1wk Δ (one week delta) is the change in rating (multiplicative) over the past week. ",
                     <.strong(
-                      "The person with the most improvement gets to choose the food order for the following week :)."
+                      "Each meeting, we will choose the best NYU debater in one of the categories, and they will get to choose ",
+                      "the food order for the following week :)."
                     )
                   )
                 )

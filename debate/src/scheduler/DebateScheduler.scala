@@ -333,17 +333,7 @@ object DebateScheduler {
             qa.question,
             true,
             rand
-          ).toRight(
-              s"""\nCouldn't sample judge.
-                 |Assignment number: ${schedule.novel.size}
-                 |Story: $storyId 
-                 |Judges: $judges
-                 |Debaters: ${Set(honestDebaterOpt, dishonestDebaterOpt).flatten}
-                 |Debates for story: ${schedule.forStory(storyId).map(_.question)}"""
-                .stripMargin
-                .trim
-            )
-            .map(Some(_))
+          ).toRight("Couldn't sample judge.").map(_.some)
         } else
           Right(None)
       offlineJudges <- (1 to ruleConfig.numOfflineJudgesPerDebate)
@@ -481,15 +471,25 @@ object DebateScheduler {
           )
       }
 
-    val sampledSchedules = attemptedSampledSchedules.flatMap {
-      case Right(sched) =>
-        Some(sched)
-      case Left(_) =>
-        // System.err.println(msg)
-        None
-    }
+    val errorsStr = attemptedSampledSchedules
+      .flatMap(_.left.toOption)
+      .counts
+      .toVector
+      .sortBy(-_._2)
+      .toNev
+      .map(
+        _.map { case (err, count) =>
+            s"($count) $err"
+          }
+          .toVector
+          .mkString("; ")
+      )
+      .foldMap(x => s"Errors: $x")
 
-    NonEmptyVector.fromVector(sampledSchedules).toRight("No valid schedules produced.")
+    attemptedSampledSchedules
+      .flatMap(_.toOption)
+      .toNev
+      .toRight(s"No valid schedules produced. $errorsStr")
   }
 
   @JsonCodec
@@ -533,12 +533,8 @@ object DebateScheduler {
           val newJudgesOpt = (0 until (maxNumJudges - allJudges.size.toInt))
             .toVector
             .traverse { _ =>
-              // println(s"sampling judges for $roomName")
-              // println(s"  current judges: ${judgeOpt.toSet ++ debate.offlineJudges.keySet}")
-              // println(s"  candidates: $judges")
               for {
                 curJudges <- StateT.get[Option, Set[String]]
-                // _ = println(s"  cur judges: $curJudges")
                 newJudge <- StateT.liftF(
                   sampleJudge(
                     Schedule(
@@ -557,7 +553,6 @@ object DebateScheduler {
                     rand
                   )
                 )
-                // _ = println(s"  new judge: $newJudge")
                 _ <- StateT.modify[Option, Set[String]](_ + newJudge)
               } yield newJudge
             }
