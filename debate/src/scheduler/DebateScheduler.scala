@@ -409,7 +409,7 @@ object DebateScheduler {
 
     // val numDebates       = qas.size * numDebatesPerQuestion
 
-    val people = desiredWorkload.probs.toSortedMap.keySet
+    val people = desiredWorkload.probs.toSortedMap.filter(_._2 > 0.0).keySet
 
     val startingSchedule = Schedule(
       desiredWorkload = desiredWorkload,
@@ -421,7 +421,7 @@ object DebateScheduler {
     val workload = startingSchedule.workload
     val debaterChoiceDist = DenseDistribution
       .fromSoftmax[String](
-        NonEmptyVector.fromVector(people.toVector.filter(d => desiredWorkload.prob(d) > 0.0)).get,
+        NonEmptyVector.fromVector(people.toVector).get,
         d => Params.workloadMultiplier * (desiredWorkload.prob(d) - workload.prob(d))
       )
       .withTemperature(Params.samplingTemperature)
