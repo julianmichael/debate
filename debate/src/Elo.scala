@@ -7,6 +7,7 @@ import com.stripe.rainier.core._
 import com.stripe.rainier.compute._
 import io.circe.generic.JsonCodec
 import cats.data.State
+import com.stripe.rainier.sampler.EHMC
 
 object Elo {
 
@@ -259,29 +260,72 @@ object Elo {
 
       val fullModel = (List(fullModelOpt).flatten ++ List(allVariablesModel)).reduce(_ merge _)
 
-      val mapEstimate = fullModel.optimize(
-        (
-          globalBias,
-          noLiveJudgeAdjustment,
-          noOpponentAdjustment,
-          questionEase,
-          honestSkill,
-          dishonestSkill,
-          judgeLeadingSkill,
-          judgeJudgingSkill
-        )
-      )
+      // MAP estimate versus expected values of marginals. they seem to give basically the same result,
+      // but MAP is faster / more reliable I think.
+      // it's also possible I'm confused and these amount the same thing? but I don't think so
+      val useMapEstimate = true
+      if (useMapEstimate) {
 
-      Ratings(
-        globalBias = mapEstimate._1,
-        noLiveJudgeAdjustment = mapEstimate._2,
-        noOpponentAdjustment = mapEstimate._3,
-        questionEase = questions.zip(mapEstimate._4),
-        honestSkills = debaters.zip(mapEstimate._5).toMap,
-        dishonestSkills = debaters.zip(mapEstimate._6).toMap,
-        judgeLeadingSkills = debaters.zip(mapEstimate._7).toMap,
-        judgeJudgingSkills = debaters.zip(mapEstimate._8).toMap
-      )
+        val mapEstimate = fullModel.optimize(
+          (
+            globalBias,
+            noLiveJudgeAdjustment,
+            noOpponentAdjustment,
+            questionEase,
+            honestSkill,
+            dishonestSkill,
+            judgeLeadingSkill,
+            judgeJudgingSkill
+          )
+        )
+
+        Ratings(
+          globalBias = mapEstimate._1,
+          noLiveJudgeAdjustment = mapEstimate._2,
+          noOpponentAdjustment = mapEstimate._3,
+          questionEase = questions.zip(mapEstimate._4),
+          honestSkills = debaters.zip(mapEstimate._5).toMap,
+          dishonestSkills = debaters.zip(mapEstimate._6).toMap,
+          judgeLeadingSkills = debaters.zip(mapEstimate._7).toMap,
+          judgeJudgingSkills = debaters.zip(mapEstimate._8).toMap
+        )
+      } else {
+        // expected values of marginals
+        val sampler = EHMC(50, 100)
+        val trace   = fullModel.sample(sampler)
+        println("ELO Diagnostics:")
+        println(trace.diagnostics.mkString("\n"))
+        val sample =
+          trace
+            .predict(
+              (
+                globalBias,
+                noLiveJudgeAdjustment,
+                noOpponentAdjustment,
+                questionEase,
+                honestSkill,
+                dishonestSkill,
+                judgeLeadingSkill,
+                judgeJudgingSkill
+              )
+            )
+            .toNel
+            .get
+
+        Ratings(
+          globalBias = sample.map(_._1).mean,
+          noLiveJudgeAdjustment = sample.map(_._2).mean,
+          noOpponentAdjustment = sample.map(_._3).mean,
+          questionEase = questions.zip(sample.map(_._4).toList.transpose.map(_.meanOpt.get)),
+          honestSkills = debaters.zip(sample.map(_._5).toList.transpose.map(_.meanOpt.get)).toMap,
+          dishonestSkills =
+            debaters.zip(sample.map(_._6).toList.transpose.map(_.meanOpt.get)).toMap,
+          judgeLeadingSkills =
+            debaters.zip(sample.map(_._7).toList.transpose.map(_.meanOpt.get)).toMap,
+          judgeJudgingSkills =
+            debaters.zip(sample.map(_._8).toList.transpose.map(_.meanOpt.get)).toMap
+        )
+      }
     }
 
   }

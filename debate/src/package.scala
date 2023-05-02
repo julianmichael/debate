@@ -156,6 +156,11 @@ package object debate extends PackagePlatformExtensions {
     // version of reduceLeftM which takes advantage of Monad.pure
     def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] =
       fa.reduceLeftTo(Monad[G].pure)((ga, a) => Monad[G].flatMap(ga)(g(_, a)))
+
+    def mean(implicit N: Numeric[A]): Double = {
+      val (sum, count) = fa.reduceMap(x => (N.toDouble(x), 1))
+      sum / count
+    }
   }
 
   implicit class RichESpan(span: ESpan) {
