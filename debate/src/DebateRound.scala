@@ -13,6 +13,8 @@ import monocle.macros.Lenses
 sealed trait DebateRound {
   def allSpeeches: Map[Role, DebateSpeech]
 
+  def visibleSpeechesForRole(role: Role, debaters: Set[Int]): Map[Role, DebateSpeech] = allSpeeches
+
   def isComplete(debaters: Set[Int]): Boolean
   final def timestamp(debaters: Set[Int]): Option[Long] =
     if (!isComplete(debaters))
@@ -32,6 +34,11 @@ case class SimultaneousSpeeches(
   def allSpeeches = speeches.map { case (idx, speech) =>
     Debater(idx) -> speech
   }
+  override def visibleSpeechesForRole(role: Role, debaters: Set[Int]): Map[Role, DebateSpeech] =
+    if (isComplete(debaters))
+      allSpeeches
+    else
+      allSpeeches.get(role).map(role -> _).toMap
 
 }
 object SimultaneousSpeeches
