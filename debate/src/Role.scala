@@ -96,6 +96,10 @@ case object Judge extends LiveDebateRole with JudgeRole {
   override def toString = "Judge"
 }
 object LiveDebateRole {
+
+  def allRoles(numDebaters: Int): List[LiveDebateRole] =
+    Judge :: (0 until numDebaters).map(Debater(_)).toList
+
   object DebaterIndex {
     def unapply(x: String) =
       if (x.length == 1 && x.charAt(0).isLetter) {

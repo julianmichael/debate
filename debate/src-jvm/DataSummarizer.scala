@@ -64,16 +64,13 @@ object DataSummarizer {
           info.debate.setup.roles(Debater(1))
         },
 
-        // TO maybe DO: more than one judge?
-        // Q: Can offline be re-used here? so depending on offline / not, def judge or final probability correct changes?
-        // We'd have less columns?
-        "Live judge" -> { info =>
+        // TO maybe DO: more than one judge? => for now num offline judges and their average probability correct
+        "Judge" -> { info =>
           info.debate.setup.roles.get(Judge).map(_.toString).getOrElse("")
         },
         "Num offline judges" -> { info =>
           info.debate.setup.offlineJudges.keySet.size.toString
         },
-        // also, can offline judge be re-used here
         "Final probability correct" -> { info =>
           info
             .debate
@@ -128,14 +125,11 @@ object DataSummarizer {
         "Is over" -> { info =>
           info.debate.isOver.toString
         },
-        // TODO: conditional/option for whether or not debate.isOver for "End time"
+        // TO maybe DO: conditional/option for whether or not debate.isOver for "End time"
         // currently is last time debated instead?
         "End time" -> { info =>
           info.debate.rounds.view.flatMap(_.maxTimestamp).lastOption.map(_.toString).getOrElse("")
         }
-
-        // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
-        // But there might be cases where times overlap.. let's decide def first?
 
         // TODO: anything else missing for overall debate room info?
       )
@@ -173,7 +167,7 @@ object DataSummarizer {
         "Round index" -> { info =>
           info.roundIndex.toString
         },
-        "Judging Rounds So Far" -> { info =>
+        "Num previous judging rounds" -> { info =>
           info
             .debate
             .rounds
@@ -184,7 +178,7 @@ object DataSummarizer {
             .size
             .toString
         },
-        "Debating Rounds So Far" -> { info =>
+        "Num previous debating rounds" -> { info =>
           info
             .debate
             .rounds
@@ -198,7 +192,7 @@ object DataSummarizer {
             .size
             .toString
         },
-        // TODO: ask, should we have one whole speech text instead?
+        // TODO: ask, should we have one whole speech text instead? Should we separate with something other than <<quote>> / [[input text]]?
         "Participant text" -> { info =>
           info
             .round
@@ -219,8 +213,6 @@ object DataSummarizer {
             }
             .mkString(" [[input text]] ")
         },
-
-        // Q: length redundant here? Could just count in Py
         "Text length" -> { info =>
           info
             .round
@@ -244,7 +236,7 @@ object DataSummarizer {
             .toString
         },
         // Q: saw you had a function for this but wasnt sure how or if I should use it
-        // "Textlength" -> { info => info.round.allSpeeches(info.role).content.flatMap(_.getSpeechLength).toString },
+        // "Textlength" -> { info => info.round.allSpeeches(info.role).content.flatMap(_.getSpeechLength).toString }, ??
 
         "Probability correct" -> { info =>
           info.round match {
@@ -271,20 +263,113 @@ object DataSummarizer {
     new CSVSpec[DebateSessionInfo] {
       def name = "sessions"
 
-      def fields: List[(String, DebateSessionInfo => String)] = List(
+      def normalFields: List[(String, DebateSessionInfo => String)] = List(
         "Room name" -> { info =>
           info.roomName
+        },
+        "Room start time" -> { info =>
+          info.debate.setup.creationTime.toString
         },
         "Participant" -> { info =>
           info.participant
         },
         "Role" -> { info =>
           info.role.toString
+        },
+        "Is turn" -> { info =>
+          info.debate.stateInfo._2.currentSpeakers.contains(info.role).toString
+        },
+        "Is over" -> { info =>
+          info.debate.isOver.toString
         }
-        // "Feedback test" -> { info =>
-        //   info.debate.feedback
-        // }
+
+        // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
+        // But there might be cases where times overlap.. let's decide def first?
       )
+
+      def surveyFields: List[(String, DebateSessionInfo => String)] = {
+        val surveyQuestions = Feedback.questions.keySet.toList
+        surveyQuestions.flatMap {
+          // Separate columns for comparative likert answers first and second
+          case key @ Feedback.Key.ComparativeLikert(keyname) =>
+            List(
+              keyname + ".1" -> { info: DebateSessionInfo =>
+                info
+                  .debate
+                  .feedback
+                  .get(info.participant)
+                  .flatMap(
+                    _.answers
+                      .get(key)
+                      .collectFirst {
+                        case Feedback.ComparativeJudgment(first, _) if first > -1 =>
+                          first.toString
+                      }
+                  )
+                  .getOrElse("")
+              },
+              keyname + ".2" -> { info: DebateSessionInfo =>
+                info
+                  .debate
+                  .feedback
+                  .get(info.participant)
+                  .flatMap(
+                    _.answers
+                      .get(key)
+                      .collectFirst {
+                        case Feedback.ComparativeJudgment(_, second) if second > -1 =>
+                          second.toString
+                      }
+                  )
+                  .getOrElse("")
+              }
+            )
+          case key @ Feedback.Key.Likert(keyname) =>
+            List(
+              keyname -> { info: DebateSessionInfo =>
+                info
+                  .debate
+                  .feedback
+                  .get(info.participant)
+                  .flatMap(_.answers.get(key).map(_.toString))
+                  .getOrElse("")
+              }
+            )
+          case key @ Feedback.Key.FreeText(keyname) =>
+            List(
+              keyname -> { info: DebateSessionInfo =>
+                info
+                  .debate
+                  .feedback
+                  .get(info.participant)
+                  .flatMap(_.answers.get(key).map(_.toString))
+                  .getOrElse("")
+              }
+            )
+          case key @ Feedback.Key.RoleSelect(keyname) =>
+            LiveDebateRole
+              .allRoles(numDebaters = 2)
+              .flatMap { role =>
+                List(
+                  s"$keyname.${role.toString}" -> { info: DebateSessionInfo =>
+                    info
+                      .debate
+                      .feedback
+                      .get(info.participant)
+                      .flatMap(_.answers.get(key))
+                      .flatMap(_.get(role))
+                      .getOrElse("")
+                  }
+                )
+              }
+          case _ =>
+            List.empty[(String, DebateSessionInfo => String)]
+        }
+      }
+
+      // Combine normal fields and survey fields
+      def fields: List[(String, DebateSessionInfo => String)] = normalFields ::: surveyFields
+
     }
 
   def writeSummaries(debates: Map[String, Debate], summaryDir: NIOPath) =
