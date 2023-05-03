@@ -84,10 +84,18 @@ object RoomHeading {
           !offlineJudging.get(user).exists(_.result.nonEmpty)
         ) {
           AssignedForOfflineJudging
-        } else if (
-          offlineJudging.get(user).exists(_.result.nonEmpty) || stats.hasReadStory ||
-          !stats.canJudgeMore || user == adminUsername
-        ) {
+        } else if (offlineJudging.get(user).exists(_.result.nonEmpty)) {
+          if (feedbackProviders.contains(user)) {
+            Complete
+          } else {
+            // NOTE: only ask for feedback for debates created as of 2023.
+            // Not gonna bother importing the old feedback results.
+            if (metadata.creationTime < timeBeforeWhichToIgnoreMissingFeedback) {
+              Complete
+            } else
+              AwaitingFeedback
+          }
+        } else if (stats.hasReadStory || !stats.canJudgeMore || user == adminUsername) {
           Complete
         } else
           EligibleForOfflineJudging
