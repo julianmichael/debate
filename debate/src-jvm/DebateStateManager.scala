@@ -48,7 +48,8 @@ case class DebateStateManager(
   leaderboard: Ref[IO, Leaderboard],
   saveDir: NIOPath,
   pushUpdateRef: Ref[IO, IO[Unit]],
-  slackClientOpt: Option[Slack.Service[IO]]
+  slackClientOpt: Option[Slack.Service[IO]],
+  dataSummarizer: DataSummarizer
 )(implicit c: Concurrent[IO]) {
 
   val summariesDir = saveDir.resolve("summaries")
@@ -57,7 +58,7 @@ case class DebateStateManager(
       rooms
         .get
         .map(_.mapVals(_.debate.debate))
-        .flatMap(roomsVec => DataSummarizer.writeSummaries(roomsVec, summariesDir))
+        .flatMap(roomsVec => dataSummarizer.writeSummaries(roomsVec, summariesDir))
 
   // val blockingEC = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(5))
 
@@ -450,7 +451,8 @@ object DebateStateManager {
     saveDir: NIOPath,
     profilesRef: Ref[IO, Map[String, Profile]],
     pushUpdateRef: Ref[IO, IO[Unit]],
-    slackClientOpt: Option[Slack.Service[IO]]
+    slackClientOpt: Option[Slack.Service[IO]],
+    dataSummarizer: DataSummarizer
   )(implicit c: Concurrent[IO]) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
@@ -486,7 +488,8 @@ object DebateStateManager {
       leaderboardRef,
       saveDir,
       pushUpdateRef,
-      slackClientOpt
+      slackClientOpt,
+      dataSummarizer
     )
   }
 }

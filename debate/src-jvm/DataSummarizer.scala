@@ -7,9 +7,12 @@ import cats.effect.IO
 import cats.implicits._
 
 import com.github.tototoshi.csv._
+
 import jjm.metrics.Numbers
 
-object DataSummarizer {
+import debate.quality.QuALITYStory
+
+class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
 
   sealed trait CSVSpec[A] {
 
@@ -44,12 +47,40 @@ object DataSummarizer {
         },
 
         // TODO: Ask J, best for merge w/ questsion metadata here or in .py
+        // re: IDK if this is the best way
+        "Article ID" -> { info =>
+          info.debate.setup.sourceMaterial match {
+            case QuALITYSourceMaterial(articleId, _, _) =>
+              Some(articleId).getOrElse("")
+
+            case _ =>
+              None.getOrElse("")
+          }
+        },
         "Question" -> { info =>
           info.debate.setup.question
         },
+        "Speed annotator accuracy" -> { info =>
+          info.debate.setup.sourceMaterial match {
+            case QuALITYSourceMaterial(articleId, _, _) =>
+              val story = qualityDataset(articleId)
+              story
+                .questions
+                .find(_._2.question == info.debate.setup.question)
+                .map(_._2)
+                .flatMap(_.annotations)
+                .map(_.speedAccuracyAgainstGold.toString)
+                .getOrElse("")
+            case _ =>
+              ""
+          }
+        },
         // TO maybe DO: more setup parameters? But we've stuck to the same scoring rule & char limit etc for this semester right...
-        "Wrong answer" -> { info =>
+        "Correct answer" -> { info =>
           info.debate.setup.answers(info.debate.setup.correctAnswerIndex)
+        },
+        "Wrong answer" -> { info =>
+          info.debate.setup.answers(1 - info.debate.setup.correctAnswerIndex)
         },
         "Honest debater" -> { info =>
           info.debate.setup.roles(Debater(info.debate.setup.correctAnswerIndex))
@@ -130,9 +161,8 @@ object DataSummarizer {
         "End time" -> { info =>
           info.debate.rounds.view.flatMap(_.maxTimestamp).lastOption.map(_.toString).getOrElse("")
         }
-
-        // TODO: anything else missing for overall debate room info?
       )
+      // TODO: anything else missing for overall debate room info?
     }
 
   case class DebateTurnInfo(
