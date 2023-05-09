@@ -51,10 +51,10 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         "Article ID" -> { info =>
           info.debate.setup.sourceMaterial match {
             case QuALITYSourceMaterial(articleId, _, _) =>
-              Some(articleId).getOrElse("")
+              articleId
 
             case _ =>
-              None.getOrElse("")
+              ""
           }
         },
         "Question" -> { info =>
