@@ -525,19 +525,22 @@ object Server {
         .attempt
         .map(_.toOption)
         .map(_.map(token => Slack.Service.fullHttpClient(httpClient, token)))
+      dataSummarizer = new DataSummarizer(qualityDataset)
       officialDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
         officialRoomsDir(saveDir),
         profilesRef,
         pushUpdateRef,
-        slackClientOpt
+        slackClientOpt,
+        dataSummarizer
       )
       practiceDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
         practiceRoomsDir(saveDir),
         profilesRef,
         pushUpdateRef,
-        None // don't send slack notifications for practice rooms
+        None, // don't send slack notifications for practice rooms
+        dataSummarizer
       )
       officialRooms <- officialDebates.getRoomMetadata
       practiceRooms <- practiceDebates.getRoomMetadata
