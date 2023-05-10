@@ -48,61 +48,77 @@ object OpenEndedFeedbackPanel {
           feedback.zoomStateL(OpenEndedFeedback.sections),
           OpenEndedFeedbackSection("", Vector()),
           0
-        ) { case ListConfig.Context(item, _) =>
+        ) { case ListConfig.Context(section, _) =>
           ReactFragment(
             <.div(c"card-header")(
-              V.LiveTextField.String(item.zoomStateL(OpenEndedFeedbackSection.name))
+              V.LiveTextField.String(section.zoomStateL(OpenEndedFeedbackSection.name))
             ),
-            <.div(c"card-body")(
-              ListConfig[OpenEndedFeedbackQuestion].nice(
-                item.zoomStateL(OpenEndedFeedbackSection.questions),
-                OpenEndedFeedbackQuestion("", Map()),
-                0
-              ) { case ListConfig.Context(question, _) =>
-                def makeVoteDiv(vote: Boolean) =
-                  <.div(c"mt-1")(
-                    <.button(c"mx-1")(
-                      c"btn",
-                      if (question.value.responses.get(userName).exists(_ == vote))
-                        if (vote)
-                          c"btn-success"
-                        else
-                          c"btn-danger"
-                      else if (vote)
-                        c"btn-outline-success"
-                      else
-                        c"btn-outline-danger"
-                    )(
-                      if (vote)
-                        <.i(c"bi bi-hand-thumbs-up")
-                      else
-                        <.i(c"bi bi-hand-thumbs-down"),
-                      ^.onClick -->
-                        question.modState(
-                          OpenEndedFeedbackQuestion
-                            .responses
-                            .composeLens(Optics.at(userName))
-                            .modify {
-                              case Some(`vote`) =>
-                                None
-                              case _ =>
-                                Some(vote)
-                            }
-                        )
+            <.div(c"card-body", ^.backgroundColor := "lightcyan")(
+              <.div(c"mx-1 mt-1")(
+                ListConfig[OpenEndedFeedbackQuestion].nice(
+                  section.zoomStateL(OpenEndedFeedbackSection.questions),
+                  OpenEndedFeedbackQuestion("", Vector()),
+                  0
+                ) { case ListConfig.Context(question, _) =>
+                  ReactFragment(
+                    <.div(c"card-header")(
+                      V.LiveTextField
+                        .String(question.zoomStateL(OpenEndedFeedbackQuestion.question))
                     ),
-                    Utils
-                      .delimitedSpans(
-                        question.value.responses.filter(_._2 == vote).keySet.toVector.sorted
-                      )
-                      .toVdomArray
-                  )
+                    <.div(c"mx-1 mt-1")(
+                      ListConfig[OpenEndedFeedbackAnswer].nice(
+                        question.zoomStateL(OpenEndedFeedbackQuestion.answers),
+                        OpenEndedFeedbackAnswer("", Map()),
+                        0
+                      ) { case ListConfig.Context(answer, _) =>
+                        def makeVoteDiv(vote: Boolean) =
+                          <.div(c"mt-1")(
+                            <.button(c"mx-1")(
+                              c"btn",
+                              if (answer.value.responses.get(userName).exists(_ == vote))
+                                if (vote)
+                                  c"btn-success"
+                                else
+                                  c"btn-danger"
+                              else if (vote)
+                                c"btn-outline-success"
+                              else
+                                c"btn-outline-danger"
+                            )(
+                              if (vote)
+                                <.i(c"bi bi-hand-thumbs-up")
+                              else
+                                <.i(c"bi bi-hand-thumbs-down"),
+                              ^.onClick -->
+                                answer.modState(
+                                  OpenEndedFeedbackAnswer
+                                    .responses
+                                    .composeLens(Optics.at(userName))
+                                    .modify {
+                                      case Some(`vote`) =>
+                                        None
+                                      case _ =>
+                                        Some(vote)
+                                    }
+                                )
+                            ),
+                            Utils
+                              .delimitedSpans(
+                                answer.value.responses.filter(_._2 == vote).keySet.toVector.sorted
+                              )
+                              .toVdomArray
+                          )
 
-                <.div(c"pb-1")(
-                  V.LiveTextField.String(question.zoomStateL(OpenEndedFeedbackQuestion.question)),
-                  makeVoteDiv(true),
-                  makeVoteDiv(false)
-                )
-              }
+                        <.div(c"pb-1")(
+                          V.LiveTextField.String(answer.zoomStateL(OpenEndedFeedbackAnswer.answer)),
+                          makeVoteDiv(true),
+                          makeVoteDiv(false)
+                        )
+                      }
+                    )
+                  )
+                }
+              )
             )
           )
         }
