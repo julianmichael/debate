@@ -36,7 +36,7 @@ object OpenEndedFeedbackPanel {
 //   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
 
   def editableText(text: StateSnapshot[String]) =
-    Local[Option[String]].make(None) { localTextOpt =>
+    Local[Option[String]].make(Option(text.value).filter(_.isEmpty)) { localTextOpt =>
       localTextOpt.value match {
         case None =>
           <.span(text.value, ^.onClick --> localTextOpt.setState(Some(text.value)))
