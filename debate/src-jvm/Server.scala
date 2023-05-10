@@ -378,10 +378,6 @@ case class Server(
         )
       } yield res
 
-    def updateOpenEndedFeedback(feedback: OpenEndedFeedback) =
-      openEndedFeedback.set(feedback) >>
-        FileUtil.writeJson(openEndedFeedbackSavePath(saveDir))(feedback) >> IO.pure(feedback)
-
     def createOpenEndedFeedbackWebsocket =
       for {
         feedback <- openEndedFeedback.get
@@ -398,11 +394,8 @@ case class Server(
           send = outStream,
           receive =
             x =>
-              openEndedFeedbackChannel.publish(
-                filterCloseFrames(x)
-                  .map(unpickleFromWSFrame[OpenEndedFeedback])
-                  .evalMap(updateOpenEndedFeedback(_))
-              ),
+              openEndedFeedbackChannel
+                .publish(filterCloseFrames(x).map(unpickleFromWSFrame[OpenEndedFeedback])),
           onClose = IO.unit
         )
       } yield res
@@ -511,7 +504,8 @@ object Server {
   }
 
   def create(dataPath: NIOPath, saveDir: NIOPath, blocker: Blocker)(
-    implicit cs: ContextShift[IO]
+    implicit cs: ContextShift[IO],
+    timer: Timer[IO]
   ) = {
 
     val httpClient = JavaNetClientBuilder[IO](blocker).create
@@ -608,6 +602,18 @@ object Server {
         )
       openEndedFeedbackChannel <- Topic[IO, OpenEndedFeedback](openEndedFeedback)
       openEndedFeedbackRef     <- Ref[IO].of(openEndedFeedback)
+      _ <-
+        openEndedFeedbackChannel
+          .subscribe(100)
+          .debounce(10.seconds)
+          .evalMap(feedback =>
+            openEndedFeedbackRef
+              .set(feedback) >> FileUtil.writeJson(openEndedFeedbackSavePath(saveDir))(feedback) >>
+              IO(println("Saved open-ended feedback."))
+          )
+          .compile
+          .drain
+          .start
       pushUpdate = {
         for {
           profiles      <- profilesRef.get
