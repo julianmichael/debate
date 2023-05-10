@@ -66,7 +66,8 @@ object OpenEndedFeedbackPanel {
         ListConfig[OpenEndedFeedbackSection].nice(
           feedback.zoomStateL(OpenEndedFeedback.sections),
           OpenEndedFeedbackSection("", Vector()),
-          0
+          0,
+          hideDeleteButtons = true
         ) { case ListConfig.Context(section, _) =>
           ReactFragment(
             <.div(c"card-header")(editableText(section.zoomStateL(OpenEndedFeedbackSection.name))),
@@ -75,7 +76,8 @@ object OpenEndedFeedbackPanel {
                 ListConfig[OpenEndedFeedbackQuestion].nice(
                   section.zoomStateL(OpenEndedFeedbackSection.questions),
                   OpenEndedFeedbackQuestion("", Vector()),
-                  0
+                  0,
+                  hideDeleteButtons = true
                 ) { case ListConfig.Context(question, _) =>
                   ReactFragment(
                     <.div(c"card-header")(
@@ -85,7 +87,8 @@ object OpenEndedFeedbackPanel {
                       ListConfig[OpenEndedFeedbackAnswer].nice(
                         question.zoomStateL(OpenEndedFeedbackQuestion.answers),
                         OpenEndedFeedbackAnswer("", Map()),
-                        0
+                        0,
+                        hideDeleteButtons = true
                       ) { case ListConfig.Context(answer, _) =>
                         def makeVoteDiv(vote: Boolean) =
                           <.div(c"mt-1")(

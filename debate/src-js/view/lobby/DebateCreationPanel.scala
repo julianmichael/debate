@@ -648,6 +648,7 @@ object DebateCreationPanel {
               defaultItem = "",
               minItems = 1,
               includeAddButton = true,
+              hideDeleteButtons = false,
               rearrange = rearrangeAnswers
             ) { case ListConfig.Context(answer, index) =>
               <.div(c"card-body", S.row)(

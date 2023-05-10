@@ -31,9 +31,17 @@ class ListConfig[A] {
     items: StateSnapshot[Vector[A]],
     defaultItem: A,
     minItems: Int,
-    includeAddButton: Boolean = true
+    includeAddButton: Boolean = true,
+    hideDeleteButtons: Boolean = false
   )(renderItem: Context[A] => VdomElement): VdomElement =
-    nice(items, defaultItem, minItems, includeAddButton, f => items.modState(f[A]))(renderItem)
+    nice(
+      items,
+      defaultItem,
+      minItems,
+      includeAddButton,
+      hideDeleteButtons,
+      f => items.modState(f[A])
+    )(renderItem)
 
   def nice(
     items: StateSnapshot[Vector[A]],
@@ -41,6 +49,7 @@ class ListConfig[A] {
     minItems: Int,
     // allow for rearrangements to rearrange other stuff too
     includeAddButton: Boolean,
+    hideDeleteButtons: Boolean,
     rearrange: Vector ~> Vector => Callback
   )(renderItem: Context[A] => VdomElement): VdomElement = ReactFragment(
     apply(items, minItems)(rearrange) { case context @ Context(_, index) =>
@@ -58,10 +67,11 @@ class ListConfig[A] {
           context
             .remove
             .map(remove =>
-              <.div(sideButtonStyle, c"btn-outline-danger")(
-                <.div(^.margin.auto, <.i(c"bi bi-x")),
-                ^.onClick --> remove
-              )
+              <.div(
+                sideButtonStyle,
+                c"btn-outline-danger",
+                ^.visibility.hidden.when(hideDeleteButtons)
+              )(<.div(^.margin.auto, <.i(c"bi bi-x")), ^.onClick --> remove)
             ),
           context
             .swapDown
