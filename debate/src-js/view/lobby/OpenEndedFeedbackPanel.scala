@@ -70,7 +70,9 @@ object OpenEndedFeedbackPanel {
           hideDeleteButtons = true
         ) { case ListConfig.Context(section, _) =>
           ReactFragment(
-            <.div(c"card-header")(editableText(section.zoomStateL(OpenEndedFeedbackSection.name))),
+            <.div(c"card-header")(
+              <.strong(editableText(section.zoomStateL(OpenEndedFeedbackSection.name)))
+            ),
             <.div(c"card-body", ^.backgroundColor := "lightcyan")(
               <.div(c"mx-1 mt-1")(
                 ListConfig[OpenEndedFeedbackQuestion].nice(
@@ -78,10 +80,13 @@ object OpenEndedFeedbackPanel {
                   OpenEndedFeedbackQuestion("", Vector()),
                   0,
                   hideDeleteButtons = true
-                ) { case ListConfig.Context(question, _) =>
+                ) { case ListConfig.Context(question, questionIndex) =>
                   ReactFragment(
                     <.div(c"card-header")(
-                      editableText(question.zoomStateL(OpenEndedFeedbackQuestion.question))
+                      <.strong(
+                        s"${section.value.name.take(1).toUpperCase}${questionIndex + 1}. ",
+                        editableText(question.zoomStateL(OpenEndedFeedbackQuestion.question))
+                      )
                     ),
                     <.div(c"mx-1 mt-1")(
                       ListConfig[OpenEndedFeedbackAnswer].nice(
