@@ -14,6 +14,7 @@ import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
 import jjm.implicits._
+import japgolly.scalajs.react.AsyncCallback
 
 /** HOC middleman for easily rendering a config panel for a list of things.
   * Gives add/remove buttons and list format while letting the caller render the
@@ -67,11 +68,30 @@ class ListConfig[A] {
           context
             .remove
             .map(remove =>
-              <.div(
-                sideButtonStyle,
-                c"btn-outline-danger",
-                ^.visibility.hidden.when(hideDeleteButtons)
-              )(<.div(^.margin.auto, <.i(c"bi bi-x")), ^.onClick --> remove)
+              Local[Boolean].make(hideDeleteButtons) { isHidden =>
+                <.div(S.grow, S.col)(
+                  (
+                    ^.onClick -->
+                      AsyncCallback
+                        .unit
+                        .delayMs(500)
+                        .completeWith(_ =>
+                          isHidden.setState(
+                            false,
+                            AsyncCallback
+                              .unit
+                              .delayMs(2000)
+                              .completeWith(_ => isHidden.setState(true))
+                          )
+                        )
+                  ).when(isHidden.value),
+                  <.div(
+                    sideButtonStyle,
+                    c"btn-outline-danger",
+                    ^.visibility.hidden.when(isHidden.value)
+                  )(<.div(^.margin.auto, <.i(c"bi bi-x")), ^.onClick --> remove)
+                )
+              }
             ),
           context
             .swapDown
