@@ -74,7 +74,7 @@ object LobbyPage {
                   refreshLeaderboard = sendToMainChannel(RefreshLeaderboard())
                 )
               ),
-            "Analytics" -> TabNav.tab(AnalyticsPanel()),
+            "Analytics" -> TabNav.tab(AnalyticsPanel(userName)),
             "Admin" ->
               TabNav.tab(
                 AdminPanel(

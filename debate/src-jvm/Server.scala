@@ -54,7 +54,9 @@ case class Server(
   slackClientOpt: Option[Slack.Service[IO]],
   officialDebates: DebateStateManager,
   practiceDebates: DebateStateManager,
-  mainChannel: Topic[IO, Lobby]
+  mainChannel: Topic[IO, Lobby],
+  openEndedFeedback: Ref[IO, OpenEndedFeedback],
+  openEndedFeedbackChannel: Topic[IO, OpenEndedFeedback]
 ) {
 
   import Server._
@@ -376,6 +378,35 @@ case class Server(
         )
       } yield res
 
+    def updateOpenEndedFeedback(feedback: OpenEndedFeedback) =
+      openEndedFeedback.set(feedback) >>
+        FileUtil.writeJson(openEndedFeedbackSavePath(saveDir))(feedback) >> IO.pure(feedback)
+
+    def createOpenEndedFeedbackWebsocket =
+      for {
+        feedback <- openEndedFeedback.get
+        outStream = Stream
+          .emit[IO, Option[OpenEndedFeedback]](Some(feedback))
+          .merge(
+            openEndedFeedbackChannel.subscribe(100).map(Some(_))
+          )                                                        // and subscribe to the channel
+          .merge(Stream.awakeEvery[IO](30.seconds).map(_ => None)) // send a heartbeat every 30s
+          .map(pickleToWSFrame(_))
+          .through(filterCloseFrames) // I'm not entirely sure why I remove the close frames.
+
+        res <- WebSocketBuilder[IO].build(
+          send = outStream,
+          receive =
+            x =>
+              openEndedFeedbackChannel.publish(
+                filterCloseFrames(x)
+                  .map(unpickleFromWSFrame[OpenEndedFeedback])
+                  .evalMap(updateOpenEndedFeedback(_))
+              ),
+          onClose = IO.unit
+        )
+      } yield res
+
     // _root_ prefix because fs2 imports "io"
     // import _root_.io.circe.syntax._
     // import org.http4s.circe._ // for json encoder, per https://http4s.org/v0.19/json/
@@ -424,14 +455,16 @@ case class Server(
         officialDebates.createWebsocket(roomName, participantName)
       case GET -> Root / "practice-ws" / roomName :? NameParam(participantName) =>
         practiceDebates.createWebsocket(roomName, participantName)
-
+      case GET -> Root / "feedback-ws" =>
+        createOpenEndedFeedbackWebsocket
     }
   }
 }
 object Server {
 
-  def profilesSavePath(saveDir: NIOPath)    = saveDir.resolve("profiles.json")
-  def ruleConfigsSavePath(saveDir: NIOPath) = saveDir.resolve("rules.json")
+  def openEndedFeedbackSavePath(saveDir: NIOPath) = saveDir.resolve("open-feedback.json")
+  def profilesSavePath(saveDir: NIOPath)          = saveDir.resolve("profiles.json")
+  def ruleConfigsSavePath(saveDir: NIOPath)       = saveDir.resolve("rules.json")
   // TODO delete this
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
   def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
@@ -567,6 +600,14 @@ object Server {
           ruleConfigs
         )
       )
+      openEndedFeedback <- FileUtil
+        .readJson[OpenEndedFeedback](openEndedFeedbackSavePath(saveDir))
+        .recoverWith(_ =>
+          IO(println("No open-ended feedback found. Initializing emptily."))
+            .as(OpenEndedFeedback(Vector()))
+        )
+      openEndedFeedbackChannel <- Topic[IO, OpenEndedFeedback](openEndedFeedback)
+      openEndedFeedbackRef     <- Ref[IO].of(openEndedFeedback)
       pushUpdate = {
         for {
           profiles      <- profilesRef.get
@@ -605,7 +646,9 @@ object Server {
       slackClientOpt = slackClientOpt,
       officialDebates = officialDebates,
       practiceDebates = practiceDebates,
-      mainChannel = mainChannel
+      mainChannel = mainChannel,
+      openEndedFeedback = openEndedFeedbackRef,
+      openEndedFeedbackChannel = openEndedFeedbackChannel
     )
   }
 }
