@@ -14,6 +14,7 @@ import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
 import jjm.implicits._
+import japgolly.scalajs.react.AsyncCallback
 
 /** HOC middleman for easily rendering a config panel for a list of things.
   * Gives add/remove buttons and list format while letting the caller render the
@@ -27,15 +28,29 @@ class ListConfig[A] {
 
   import Utils.ClassSetInterpolator
 
-  def nice(items: StateSnapshot[Vector[A]], defaultItem: A, minItems: Int)(
-    renderItem: Context[A] => VdomElement
-  ): VdomElement = nice(items, defaultItem, minItems, f => items.modState(f[A]))(renderItem)
+  def nice(
+    items: StateSnapshot[Vector[A]],
+    defaultItem: A,
+    minItems: Int,
+    includeAddButton: Boolean = true,
+    hideDeleteButtons: Boolean = false
+  )(renderItem: Context[A] => VdomElement): VdomElement =
+    nice(
+      items,
+      defaultItem,
+      minItems,
+      includeAddButton,
+      hideDeleteButtons,
+      f => items.modState(f[A])
+    )(renderItem)
 
   def nice(
     items: StateSnapshot[Vector[A]],
     defaultItem: A,
     minItems: Int,
     // allow for rearrangements to rearrange other stuff too
+    includeAddButton: Boolean,
+    hideDeleteButtons: Boolean,
     rearrange: Vector ~> Vector => Callback
   )(renderItem: Context[A] => VdomElement): VdomElement = ReactFragment(
     apply(items, minItems)(rearrange) { case context @ Context(_, index) =>
@@ -53,10 +68,30 @@ class ListConfig[A] {
           context
             .remove
             .map(remove =>
-              <.div(sideButtonStyle, c"btn-outline-danger")(
-                <.div(^.margin.auto, <.i(c"bi bi-x")),
-                ^.onClick --> remove
-              )
+              Local[Boolean].make(hideDeleteButtons) { isHidden =>
+                <.div(S.grow, S.col)(
+                  (
+                    ^.onClick -->
+                      AsyncCallback
+                        .unit
+                        .delayMs(500)
+                        .completeWith(_ =>
+                          isHidden.setState(
+                            false,
+                            AsyncCallback
+                              .unit
+                              .delayMs(2000)
+                              .completeWith(_ => isHidden.setState(true))
+                          )
+                        )
+                  ).when(isHidden.value),
+                  <.div(
+                    sideButtonStyle,
+                    c"btn-outline-danger",
+                    ^.visibility.hidden.when(isHidden.value)
+                  )(<.div(^.margin.auto, <.i(c"bi bi-x")), ^.onClick --> remove)
+                )
+              }
             ),
           context
             .swapDown
@@ -67,7 +102,7 @@ class ListConfig[A] {
               )
             ),
           Option(index)
-            .filter(_ == items.value.size - 1)
+            .filter(_ == items.value.size - 1 && includeAddButton)
             .map(_ =>
               <.div(sideButtonStyle, c"btn-outline-primary")(
                 <.div(^.margin.auto, <.i(c"bi bi-plus")),
@@ -83,7 +118,7 @@ class ListConfig[A] {
       )
     }.toVdomArray,
     Option(items.value.size)
-      .filter(_ == 0)
+      .filter(_ == 0 && includeAddButton)
       .map(_ =>
         <.button(c"btn btn-block btn-outline-primary")(
           <.div(^.margin.auto, <.i(c"bi bi-plus")),

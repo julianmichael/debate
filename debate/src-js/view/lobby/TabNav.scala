@@ -11,14 +11,28 @@ import debate.util.Local
 
 object TabNav {
 
-  case class TabInfo(content: VdomElement, enabled: Boolean = true, numNotifications: Int = 0)
+  case class TabInfo(
+    content: VdomElement,
+    enabled: Boolean = true,
+    badge: Option[VdomElement] = None
+  )
   object TabInfo
 
   def tab(content: VdomElement) = TabInfo(content)
 
-  def tabWithNotifications(numNotifications: Int)(content: VdomElement) = TabInfo(
+  def tabWithBadge(badge: VdomElement)(content: VdomElement) = TabInfo(content, badge = Some(badge))
+
+  def tabWithNotifications(numNotifications: Int, mod: TagMod = c"badge-danger")(
+    content: VdomElement
+  ) = tabWithBadge(Option(numNotifications).filter(_ > 0).map(_.toString), mod)(content)
+
+  def tabWithBadge(messageOpt: Option[String], mod: TagMod = c"badge-danger")(
+    content: VdomElement
+  ) = TabInfo(
     content,
-    numNotifications = numNotifications
+    badge = messageOpt.map { msg =>
+      <.span(c"badge badge-pill", mod)(^.marginLeft := "0.5rem", ^.marginRight := "-0.5rem", msg)
+    }
   )
 
   def tabIf(enabled: Boolean)(content: VdomElement) = TabInfo(content, enabled = enabled)
@@ -57,16 +71,8 @@ object TabNav {
                         )(
                           ^.href := "#",
                           (^.onClick --> tabIndex.setState(index)).when(tabInfo.enabled),
-                          tab.toString,
-                          Option(tabInfo.numNotifications)
-                            .filter(_ > 0)
-                            .map { numNotifs =>
-                              <.span(c"badge badge-danger badge-pill")(
-                                ^.marginLeft  := "0.5rem",
-                                ^.marginRight := "-0.5rem",
-                                numNotifs
-                              )
-                            }
+                          tab,
+                          tabInfo.badge
                         )
                       )
                     }
@@ -75,11 +81,12 @@ object TabNav {
               props
                 .tabs
                 .zipWithIndex
-                .find(_._2 == tabIndex.value)
-                .map(_._1._2)
-                .filter(_.enabled)
-                .map(_.content)
-                .getOrElse(<.div("Tab nav error. Click a tab above to make things good again."))
+                .toVdomArray { case ((_, TabInfo(content, _, _)), index) =>
+                  <.div(^.overflowY.auto, ^.key := index)(
+                    content,
+                    ^.display.none.when(index != tabIndex.value)
+                  )
+                }
             )
           }
       }

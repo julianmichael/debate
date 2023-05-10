@@ -32,6 +32,10 @@ object StoryPanel {
     highlights: Vector[(ESpan, Rgba)],
     addSpan: ESpan => Callback
   )
+  object Props {
+    implicit val propsReuse =
+      Reusability.by[Props, Vector[(ESpan, Rgba)]](_.highlights)(Reusability.by_==)
+  }
 
   val minimumSegmentLength = 100
 
@@ -111,5 +115,6 @@ object StoryPanel {
             }: _*
         )
       }
+      .configure(Reusability.shouldComponentUpdate)
       .build
 }

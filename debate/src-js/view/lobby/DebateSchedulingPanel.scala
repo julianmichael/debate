@@ -28,6 +28,8 @@ import debate.util.Local
 import debate.util.NumberField2
 import debate.util.ProbabilitySliders2
 import debate.util.SparseDistribution
+import io.circe.generic.JsonCodec
+import io.circe.disjunctionCodecs._
 
 object DebateSchedulingPanel {
   val S = Styles
@@ -79,6 +81,7 @@ object DebateSchedulingPanel {
 //     )
 
   @Lenses
+  @JsonCodec
   case class SchedulingSpec(
     workloadDist: SparseDistribution[String],
     ruleDist: SparseDistribution[RuleConfig],
@@ -101,6 +104,7 @@ object DebateSchedulingPanel {
   }
 
   @Lenses
+  @JsonCodec
   case class SourceFilters(
     gutenberg: Boolean = true,
     nonGutenberg: Boolean = false,
@@ -170,275 +174,266 @@ object DebateSchedulingPanel {
               "There need to be saved rulesets in order to auto-schedule debates. Set them in the Create Debates tab."
             )
           case Some(ruleConfigs) =>
-            Local[SchedulingSpec].make(SchedulingSpec.init(people, ruleConfigs, 2)) {
-              schedulingSpec =>
-                Local[Option[Either[String, Vector[DebateSetup]]]].make(None) {
-                  scheduleAttemptOpt =>
-                    ReactFragment(
-                      <.h3("Auto-Schedule Debates"),
-                      <.div(c"card")(
-                        <.div(c"card-body")(
-                          <.h4(c"card-title")("Rules"),
-                          ProbabilitySliders2[RuleConfig](
-                            schedulingSpec.zoomStateL(SchedulingSpec.ruleDist)
-                          ) { case ProbabilitySliders2.Context(item, _, prob, setProb) =>
-                            <.div(S.row)(
-                              <.span(S.genericProbSliderLabel)(item.name),
-                              <.span(S.genericProbSliderProbLabel)(f"${prob * 100.0}%.0f%%"),
-                              <.input(S.genericProbSlider)(
-                                ^.`type` := "range",
-                                ^.min    := 0.00,
-                                ^.max    := 1.00,
-                                ^.step   := 0.01,
-                                ^.value  := prob,
-                                ^.onChange ==>
-                                  ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
-                              )
-                            )
-                          },
-                          <.div(S.row, c"mt-1")(
-                            NumberField2.apply(
-                              schedulingSpec.zoomStateL(SchedulingSpec.numDebatesPerQuestion),
-                              Some("Number of debates per question")
+            Local[SchedulingSpec].syncedWithLocalStorage(
+              "scheduling-specification",
+              SchedulingSpec.init(people, ruleConfigs, 2)
+            ) { schedulingSpec =>
+              Local[Option[Either[String, Vector[DebateSetup]]]]
+                .syncedWithSessionStorage("candidate-schedule", None) { scheduleAttemptOpt =>
+                  ReactFragment(
+                    <.h3("Auto-Schedule Debates"),
+                    <.div(c"card")(
+                      <.div(c"card-body")(
+                        <.h4(c"card-title")("Rules"),
+                        ProbabilitySliders2[RuleConfig](
+                          schedulingSpec.zoomStateL(SchedulingSpec.ruleDist)
+                        ) { case ProbabilitySliders2.Context(item, _, prob, setProb) =>
+                          <.div(S.row)(
+                            <.span(S.genericProbSliderLabel)(item.name),
+                            <.span(S.genericProbSliderProbLabel)(f"${prob * 100.0}%.0f%%"),
+                            <.input(S.genericProbSlider)(
+                              ^.`type` := "range",
+                              ^.min    := 0.00,
+                              ^.max    := 1.00,
+                              ^.step   := 0.01,
+                              ^.value  := prob,
+                              ^.onChange ==>
+                                ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
                             )
                           )
-                        )
-                      ),
-                      <.div(c"card")(
-                        <.div(c"card-body")(
-                          <.h4(c"card-title")("Participants"),
-                          ProbabilitySliders2[String](
-                            schedulingSpec.zoomStateL(SchedulingSpec.workloadDist)
-                          ) { case ProbabilitySliders2.Context(item, _, prob, setProb) =>
-                            <.div(S.row)(
-                              <.span(S.genericProbSliderLabel)(item),
-                              <.span(S.genericProbSliderProbLabel)(f"${prob * 100.0}%.0f%%"),
-                              <.input(S.genericProbSlider)( // TODO styling
-                                ^.`type` := "range",
-                                ^.min    := 0.00,
-                                ^.max    := 1.00,
-                                ^.step   := 0.01,
-                                ^.value  := prob,
-                                ^.onChange ==>
-                                  ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
-                              )
-                            )
-                          }
-                        )
-                      ),
-                      <.div(c"card")(
-                        <.div(c"card-body")(
-                          <.h4(c"card-title")("Questions"),
-                          IndexFetch.make(
-                            (),
-                            _ => OrWrapped.wrapped(ajaxService.getSourceMaterialIndex)
-                          ) {
-                            case IndexFetch.Loading =>
-                              <.div("Loading QuALITY index...")
-                            case IndexFetch.Loaded(index) =>
-                              Local[SourceFilters].make(SourceFilters()) { sourceFilters =>
-                                ReactFragment(
-                                  <.div(S.rowWithGap)(
-                                    <.div(S.col)(
-                                      <.div("Story already debated"),
-                                      Checkbox2(
-                                        sourceFilters.zoomStateL(SourceFilters.debatedStories),
-                                        Some("Yes")
-                                      ),
-                                      Checkbox2(
-                                        sourceFilters.zoomStateL(SourceFilters.nonDebatedStories),
-                                        Some("No")
-                                      )
-                                    ),
-                                    <.div(S.col)(
-                                      <.div("Story overlaps w/single-turn debate"),
-                                      Checkbox2(
-                                        sourceFilters.zoomStateL(SourceFilters.storiesWithOverlap),
-                                        Some("Yes")
-                                      ),
-                                      Checkbox2(
-                                        sourceFilters
-                                          .zoomStateL(SourceFilters.storiesWithNoOverlap),
-                                        Some("No")
-                                      )
-                                    ),
-                                    <.div(S.col)(
-                                      <.div("Story from Gutenberg"),
-                                      Checkbox2(
-                                        sourceFilters.zoomStateL(SourceFilters.gutenberg),
-                                        Some("Yes")
-                                      ),
-                                      Checkbox2(
-                                        sourceFilters.zoomStateL(SourceFilters.nonGutenberg),
-                                        Some("No")
-                                      )
-                                    ),
-                                    <.div(S.col)(
-                                      <.div("Question is from single-turn debate"),
-                                      Checkbox2(
-                                        sourceFilters
-                                          .zoomStateL(SourceFilters.overlappingQuestions),
-                                        Some("Yes")
-                                      ),
-                                      Checkbox2(
-                                        sourceFilters
-                                          .zoomStateL(SourceFilters.nonOverlappingQuestions),
-                                        Some("No")
-                                      )
-                                    ),
-                                    <.div(S.col)(
-                                      <.div("Question gold labels"),
-                                      Checkbox2(
-                                        sourceFilters.zoomStateL(SourceFilters.noLabels),
-                                        Some("None")
-                                      ),
-                                      Checkbox2(
-                                        sourceFilters
-                                          .zoomStateL(SourceFilters.writerLabelAgreesWithGoldLabel),
-                                        Some("Writer = Gold")
-                                      ),
-                                      Checkbox2(
-                                        sourceFilters.zoomStateL(
-                                          SourceFilters.writerLabelDoesntAgreeWithGoldLabel
-                                        ),
-                                        Some("Writer != Gold")
-                                      )
-                                    )
-                                  ),
-                                  <.div(
-                                    V.Slider(
-                                      sourceFilters
-                                        .zoomStateL(SourceFilters.minUntimedAccuracyAgainstGold),
-                                      0.0,
-                                      1.0,
-                                      Some("Min untimed accuracy")
-                                    )
-                                  ),
-                                  <.div(
-                                    V.Slider(
-                                      sourceFilters
-                                        .zoomStateL(SourceFilters.maxSpeedAccuracyAgainstGold),
-                                      0.0,
-                                      1.0,
-                                      Some("Max speed accuracy")
-                                    )
-                                  ),
-                                  StoryOptSelect(
-                                    choices = index
-                                      .values
-                                      .toSet
-                                      .filter(sourceFilters.value.admitsStory),
-                                    curChoice = schedulingSpec.value.articleMetadataOpt,
-                                    setChoice =
-                                      metadataOpt =>
-                                        schedulingSpec.modState(
-                                          SchedulingSpec
-                                            .articleMetadataOpt
-                                            .set(metadataOpt)
-                                            .andThen(SchedulingSpec.questionIds.set(Set()))
-                                        )
-                                  ),
-                                  schedulingSpec
-                                    .value
-                                    .articleMetadataOpt
-                                    .map { curArticleMetadata =>
-                                      StoryAndMatchesFetch.make(
-                                        curArticleMetadata.articleId,
-                                        articleId =>
-                                          OrWrapped
-                                            .wrapped(ajaxService.getStoryAndMatches(articleId))
-                                      ) {
-                                        case StoryAndMatchesFetch.Loading =>
-                                          <.div("Loading QuALITY story information...")
-                                        case StoryAndMatchesFetch
-                                              .Loaded((story, matchingQuestionIds)) =>
-                                          val visibleQuestions = story
-                                            .questions
-                                            .values
-                                            .toVector
-                                            .filter(q =>
-                                              sourceFilters
-                                                .value
-                                                .admitsQuestion(q, matchingQuestionIds)
-                                            )
-                                          ReactFragment(
-                                            visibleQuestions.toVdomArray { question =>
-                                              Checkbox2(
-                                                schedulingSpec.zoomStateL(
-                                                  SchedulingSpec
-                                                    .questionIds
-                                                    .composeLens(
-                                                      Optics.at(question.questionUniqueId)
-                                                    )
-                                                ),
-                                                Some(question.question)
-                                              )
-                                            }
-                                          )
-                                      }
-                                    }
-                                )
-                              }
-                          }
-                        )
-                      ),
-                      <.button(c"btn btn-primary")(
-                        "Auto-schedule",
-                        schedulingSpec
-                          .value
-                          .articleMetadataOpt
-                          .map(_.articleId)
-                          .map(articleId =>
-                            ^.onClick -->
-                              ajaxService
-                                .sampleSchedule(
-                                  schedulingSpec.value.workloadDist,
-                                  schedulingSpec.value.ruleDist,
-                                  articleId,
-                                  schedulingSpec.value.questionIds,
-                                  schedulingSpec.value.numDebatesPerQuestion
-                                )
-                                .completeWith {
-                                  case Success(Some(schedule)) =>
-                                    scheduleAttemptOpt.setState(Some(Right(schedule)))
-                                  case Success(None) =>
-                                    scheduleAttemptOpt.setState(
-                                      Some(
-                                        Left(s"""Could not sample a valid schedule. There may be too
-                                                |many questions to be judged
-                                                |$numJudgingsAllowedPerStory or fewer times by
-                                                |everyone.""".stripMargin.trim)
-                                      )
-                                    )
-                                  case Failure(err) =>
-                                    scheduleAttemptOpt.setState(Some(Left(err.getMessage())))
-                                }
-                          )
-                          .whenDefined(x => x)
-                      ),
-                      scheduleAttemptOpt
-                        .value
-                        .map {
-                          case Left(err) =>
-                            <.div(c"alert alert-danger")(
-                              <.h5(c"text-danger")("Error"),
-                              <.p(c"text-danger")(err)
-                            )
-                          case Right(newSetups) =>
-                            newSetups.toVdomArray(setup =>
-                              <.div(c"p-3")(<.pre(DebateScheduler.renderAssignmentText(setup)))
-                            )
                         },
-                      scheduleAttemptOpt
-                        .value
-                        .flatMap(_.toOption)
-                        .map { newSetups =>
-                          <.button(c"btn btn-primary")(
-                            "Commit",
-                            ^.onClick --> createRooms(CreateRooms(true, newSetups))
+                        <.div(S.row, c"mt-1")(
+                          NumberField2.apply(
+                            schedulingSpec.zoomStateL(SchedulingSpec.numDebatesPerQuestion),
+                            Some("Number of debates per question")
+                          )
+                        )
+                      )
+                    ),
+                    <.div(c"card")(
+                      <.div(c"card-body")(
+                        <.h4(c"card-title")("Participants"),
+                        ProbabilitySliders2[String](
+                          schedulingSpec.zoomStateL(SchedulingSpec.workloadDist)
+                        ) { case ProbabilitySliders2.Context(item, _, prob, setProb) =>
+                          <.div(S.row)(
+                            <.span(S.genericProbSliderLabel)(item),
+                            <.span(S.genericProbSliderProbLabel)(f"${prob * 100.0}%.0f%%"),
+                            <.input(S.genericProbSlider)( // TODO styling
+                              ^.`type` := "range",
+                              ^.min    := 0.00,
+                              ^.max    := 1.00,
+                              ^.step   := 0.01,
+                              ^.value  := prob,
+                              ^.onChange ==>
+                                ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
+                            )
                           )
                         }
-                    )
+                      )
+                    ),
+                    <.div(c"card")(
+                      <.div(c"card-body")(
+                        <.h4(c"card-title")("Questions"),
+                        IndexFetch.make(
+                          (),
+                          _ => OrWrapped.wrapped(ajaxService.getSourceMaterialIndex)
+                        ) {
+                          case IndexFetch.Loading =>
+                            <.div("Loading QuALITY index...")
+                          case IndexFetch.Loaded(index) =>
+                            Local[SourceFilters].syncedWithSessionStorage(
+                              "source-filters",
+                              SourceFilters()
+                            ) { sourceFilters =>
+                              ReactFragment(
+                                <.div(S.rowWithGap)(
+                                  <.div(S.col)(
+                                    <.div("Story already debated"),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.debatedStories),
+                                      Some("Yes")
+                                    ),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.nonDebatedStories),
+                                      Some("No")
+                                    )
+                                  ),
+                                  <.div(S.col)(
+                                    <.div("Story overlaps w/single-turn debate"),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.storiesWithOverlap),
+                                      Some("Yes")
+                                    ),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.storiesWithNoOverlap),
+                                      Some("No")
+                                    )
+                                  ),
+                                  <.div(S.col)(
+                                    <.div("Story from Gutenberg"),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.gutenberg),
+                                      Some("Yes")
+                                    ),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.nonGutenberg),
+                                      Some("No")
+                                    )
+                                  ),
+                                  <.div(S.col)(
+                                    <.div("Question is from single-turn debate"),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.overlappingQuestions),
+                                      Some("Yes")
+                                    ),
+                                    Checkbox2(
+                                      sourceFilters
+                                        .zoomStateL(SourceFilters.nonOverlappingQuestions),
+                                      Some("No")
+                                    )
+                                  ),
+                                  <.div(S.col)(
+                                    <.div("Question gold labels"),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.noLabels),
+                                      Some("None")
+                                    ),
+                                    Checkbox2(
+                                      sourceFilters
+                                        .zoomStateL(SourceFilters.writerLabelAgreesWithGoldLabel),
+                                      Some("Writer = Gold")
+                                    ),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(
+                                        SourceFilters.writerLabelDoesntAgreeWithGoldLabel
+                                      ),
+                                      Some("Writer != Gold")
+                                    )
+                                  )
+                                ),
+                                <.div(
+                                  V.Slider(
+                                    sourceFilters
+                                      .zoomStateL(SourceFilters.minUntimedAccuracyAgainstGold),
+                                    0.0,
+                                    1.0,
+                                    Some("Min untimed accuracy")
+                                  )
+                                ),
+                                <.div(
+                                  V.Slider(
+                                    sourceFilters
+                                      .zoomStateL(SourceFilters.maxSpeedAccuracyAgainstGold),
+                                    0.0,
+                                    1.0,
+                                    Some("Max speed accuracy")
+                                  )
+                                ),
+                                StoryOptSelect(
+                                  choices = index
+                                    .values
+                                    .toSet
+                                    .filter(sourceFilters.value.admitsStory),
+                                  curChoice = schedulingSpec.value.articleMetadataOpt,
+                                  setChoice =
+                                    metadataOpt =>
+                                      schedulingSpec.modState(
+                                        SchedulingSpec
+                                          .articleMetadataOpt
+                                          .set(metadataOpt)
+                                          .andThen(SchedulingSpec.questionIds.set(Set()))
+                                      )
+                                ),
+                                schedulingSpec
+                                  .value
+                                  .articleMetadataOpt
+                                  .map { curArticleMetadata =>
+                                    StoryAndMatchesFetch.make(
+                                      curArticleMetadata.articleId,
+                                      articleId =>
+                                        OrWrapped.wrapped(ajaxService.getStoryAndMatches(articleId))
+                                    ) {
+                                      case StoryAndMatchesFetch.Loading =>
+                                        <.div("Loading QuALITY story information...")
+                                      case StoryAndMatchesFetch
+                                            .Loaded((story, matchingQuestionIds)) =>
+                                        val visibleQuestions = story
+                                          .questions
+                                          .values
+                                          .toVector
+                                          .filter(q =>
+                                            sourceFilters
+                                              .value
+                                              .admitsQuestion(q, matchingQuestionIds)
+                                          )
+                                        ReactFragment(
+                                          visibleQuestions.toVdomArray { question =>
+                                            Checkbox2(
+                                              schedulingSpec.zoomStateL(
+                                                SchedulingSpec
+                                                  .questionIds
+                                                  .composeLens(Optics.at(question.questionUniqueId))
+                                              ),
+                                              Some(question.question)
+                                            )
+                                          }
+                                        )
+                                    }
+                                  }
+                              )
+                            }
+                        }
+                      )
+                    ),
+                    <.button(c"btn btn-primary")(
+                      "Auto-schedule",
+                      schedulingSpec
+                        .value
+                        .articleMetadataOpt
+                        .map(_.articleId)
+                        .map(articleId =>
+                          ^.onClick -->
+                            ajaxService
+                              .sampleSchedule(
+                                schedulingSpec.value.workloadDist,
+                                schedulingSpec.value.ruleDist,
+                                articleId,
+                                schedulingSpec.value.questionIds,
+                                schedulingSpec.value.numDebatesPerQuestion
+                              )
+                              .completeWith {
+                                case Success(scheduleEither) =>
+                                  scheduleAttemptOpt.setState(Some(scheduleEither))
+                                case Failure(err) =>
+                                  scheduleAttemptOpt.setState(Some(Left(err.getMessage())))
+                              }
+                        )
+                        .whenDefined(x => x)
+                    ),
+                    scheduleAttemptOpt
+                      .value
+                      .map {
+                        case Left(err) =>
+                          <.div(c"alert alert-danger")(
+                            <.h5(c"text-danger")("Error"),
+                            <.p(c"text-danger")(err)
+                          )
+                        case Right(newSetups) =>
+                          newSetups.toVdomArray(setup =>
+                            <.div(c"p-3")(<.pre(DebateScheduler.renderAssignmentText(setup)))
+                          )
+                      },
+                    scheduleAttemptOpt
+                      .value
+                      .flatMap(_.toOption)
+                      .map { newSetups =>
+                        <.button(c"btn btn-primary")(
+                          "Commit",
+                          ^.onClick --> createRooms(CreateRooms(true, newSetups))
+                        )
+                      }
+                  )
                 }
             }
         }

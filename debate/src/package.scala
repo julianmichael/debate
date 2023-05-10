@@ -13,19 +13,39 @@ import monocle.Lens
 import monocle.macros.Lenses
 
 import jjm.ling.ESpan
+import cats.Monoid
+import monocle.Iso
+import jjm.ling.Span
+import cats.Order
+import cats.data.NonEmptySet
+import cats.data.NonEmptyVector
+import scala.collection.immutable.SortedSet
 
 package object debate extends PackagePlatformExtensions {
 
+  def tapPrint[A](a: A): A = {
+    println(a)
+    a
+  }
+
   val adminUsername = "Admin"
 
-  // you're only allowed to judge the same story twice
-  val numJudgingsAllowedPerStory = 2
+  // you're only allowed to judge the same story once
+  val numJudgingsAllowedPerStory = 1
 
   val timeBeforeWhichToIgnoreMissingFeedback = 1672531200000L
 
   val appDivId = "app"
 
   type Constant[C, A] = C
+
+  def optionIsoWithEmpty[A: Monoid] =
+    Iso[Option[A], A](_.combineAll)(a =>
+      if (a == Monoid[A].empty)
+        None
+      else
+        Some(a)
+    )
 
   @JsonCodec
   sealed trait DebateEndReason
@@ -48,6 +68,7 @@ package object debate extends PackagePlatformExtensions {
   @Lenses
   @JsonCodec
   case class DebateResult(
+    timestamp: Long,
     correctAnswerIndex: Int,
     endedBy: DebateEndReason,
     judgingInfo: Option[JudgingResult]
@@ -116,6 +137,14 @@ package object debate extends PackagePlatformExtensions {
     def -->(b: => Boolean) = !a || b
   }
 
+  implicit class RichSet[A](as: Set[A]) {
+    def toNes(implicit o: Order[A]): Option[NonEmptySet[A]] = NonEmptySet.fromSet(as.to(SortedSet))
+  }
+
+  implicit class RichVector[A](as: Vector[A]) {
+    def toNev: Option[NonEmptyVector[A]] = NonEmptyVector.fromVector(as)
+  }
+
   implicit class RichUnorderedFoldable[F[_]: UnorderedFoldable, A](fa: F[A]) {
     def existsAs(p: PartialFunction[A, Boolean]): Boolean =
       fa.unorderedFoldMap(a => Eval.later(p.lift(a).getOrElse(false)))(orEvalMonoid).value
@@ -127,5 +156,16 @@ package object debate extends PackagePlatformExtensions {
     // version of reduceLeftM which takes advantage of Monad.pure
     def reduceLeftMonadic[G[_]: Monad](g: (A, A) => G[A]): G[A] =
       fa.reduceLeftTo(Monad[G].pure)((ga, a) => Monad[G].flatMap(ga)(g(_, a)))
+
+    def mean(implicit N: Numeric[A]): Double = {
+      val (sum, count) = fa.reduceMap(x => (N.toDouble(x), 1))
+      sum / count
+    }
+  }
+
+  implicit class RichESpan(span: ESpan) {
+    def contains(other: Span) = span.begin <= other.begin && span.endExclusive >= other.endExclusive
+    def +(offset: Int)        = span.translate(offset)
+    def -(offset: Int)        = span.translate(-offset)
   }
 }

@@ -44,6 +44,8 @@ case class DebateSetup(
   offlineJudges: Map[String, Option[OfflineJudgingMode]],
   creationTime: Long
 ) {
+  def participants = roles.values.toSet ++ offlineJudges.keySet
+
   def numDebaters = answers.size
 
   def areAllRolesAssigned =

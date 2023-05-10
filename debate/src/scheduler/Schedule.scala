@@ -67,7 +67,9 @@ case class Schedule(
     )
     stories |+| debates
   }
-  lazy val workload = SparseDistribution.fromMap(workloadCounts).get
+  lazy val workload = SparseDistribution
+    .fromMap(workloadCounts)
+    .getOrElse(SparseDistribution.uniform(allPeople.toNes.get))
 
   // assign the right amount of debating to the right people
   def workloadImbalance = distance(workload, desiredWorkload)
@@ -103,21 +105,37 @@ case class Schedule(
 
   // minimize imbalance of honesty/dishonesty
   def honestyLoad = all.foldMap(assignment =>
-    Map(assignment.honestDebater      -> Map("honest" -> 1.0)) |+|
-      Map(assignment.dishonestDebater -> Map("dishonest" -> 1.0))
+    assignment
+      .honestDebaterOpt
+      .foldMap(honestDebater => Map(honestDebater -> Map("honest" -> 1.0))) |+|
+      assignment
+        .dishonestDebaterOpt
+        .foldMap(dishonestDebater => Map(dishonestDebater -> Map("dishonest" -> 1.0)))
   )
   def honestyImbalance = computeImbalance(honestyLoad)
 
   def orderLoad = all.foldMap(assignment =>
-    Map(assignment.honestDebater      -> Map(assignment.correctAnswerIndex -> 1.0)) |+|
-      Map(assignment.dishonestDebater -> Map((1 - assignment.correctAnswerIndex) -> 1.0))
+    assignment
+      .honestDebaterOpt
+      .foldMap(honestDebater => Map(honestDebater -> Map(assignment.correctAnswerIndex -> 1.0))) |+|
+      assignment
+        .dishonestDebaterOpt
+        .foldMap(dishonestDebater =>
+          Map(dishonestDebater -> Map((1 - assignment.correctAnswerIndex) -> 1.0))
+        )
   )
+
   def orderImbalance = computeImbalance(orderLoad)
 
   // maximize debater spread:
   def opponentLoad = all.foldMap(assignment =>
-    Map(assignment.honestDebater      -> Map(assignment.dishonestDebater -> 1.0)) |+|
-      Map(assignment.dishonestDebater -> Map(assignment.honestDebater -> 1.0))
+    // rewritten to account for honestDebaterOpt and dishonestDebaterOpt
+    (assignment.honestDebaterOpt, assignment.dishonestDebaterOpt)
+      .mapN { (honestDebater, dishonestDebater) =>
+        Map(honestDebater      -> Map(dishonestDebater -> 1.0)) |+|
+          Map(dishonestDebater -> Map(honestDebater -> 1.0))
+      }
+      .combineAll
   )
   def opponentImbalance = computeImbalanceFromUniform(opponentLoad)
 
@@ -188,15 +206,15 @@ case class Schedule(
 }
 object Schedule {
   implicit class DebateSetupExtensions(val setup: DebateSetup) {
-    def storyId: SourceMaterialId = SourceMaterialId.fromSourceMaterial(setup.sourceMaterial)
-    def honestDebater: String     = setup.roles(Debater(setup.correctAnswerIndex))
-    def dishonestDebater: String  = setup.roles(Debater(1 - setup.correctAnswerIndex))
-    def judge: Option[String]     = setup.roles.get(Judge)
+    def storyId: SourceMaterialId        = SourceMaterialId.fromSourceMaterial(setup.sourceMaterial)
+    def honestDebaterOpt: Option[String] = setup.roles.get(Debater(setup.correctAnswerIndex))
+    def dishonestDebaterOpt: Option[String] = setup.roles.get(Debater(1 - setup.correctAnswerIndex))
+    def judge: Option[String]               = setup.roles.get(Judge)
     // def offlineJudges: Set[String],
 
-    def debaters        = Set(dishonestDebater, honestDebater)
-    def judges          = setup.offlineJudges.keySet ++ judge
-    def allParticipants = debaters ++ judges
+    def debaters: Set[String] = Set(dishonestDebaterOpt, honestDebaterOpt).flatten
+    def judges                = setup.offlineJudges.keySet ++ judge
+    def allParticipants       = debaters ++ judges
 
     def isAssigned(debater: String): Boolean = allParticipants.contains(debater)
   }

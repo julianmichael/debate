@@ -81,8 +81,10 @@ case object Peeper extends Role {
 }
 @JsonCodec
 sealed trait DebateRole extends Role
-case object OfflineJudge extends DebateRole {
-  override def toString = "Offline Judge (Timed)"
+@JsonCodec
+sealed trait JudgeRole extends DebateRole
+case object OfflineJudge extends DebateRole with JudgeRole {
+  override def toString = "Offline Judge"
 }
 @JsonCodec
 sealed trait LiveDebateRole extends DebateRole
@@ -90,10 +92,14 @@ sealed trait LiveDebateRole extends DebateRole
 case class Debater(answerIndex: Int) extends LiveDebateRole {
   override def toString = s"Debater ${answerLetter(answerIndex)}"
 }
-case object Judge extends LiveDebateRole {
+case object Judge extends LiveDebateRole with JudgeRole {
   override def toString = "Judge"
 }
 object LiveDebateRole {
+
+  def allRoles(numDebaters: Int): List[LiveDebateRole] =
+    Judge :: (0 until numDebaters).map(Debater(_)).toList
+
   object DebaterIndex {
     def unapply(x: String) =
       if (x.length == 1 && x.charAt(0).isLetter) {
@@ -130,6 +136,16 @@ object DebateRole {
     case Debater(i) =>
       i
   }
+
+  def fromString(x: String): Option[DebateRole] =
+    x match {
+      case "Offline Judge" =>
+        Some(OfflineJudge)
+      case x =>
+        LiveDebateRole.fromString(x)
+    }
+  implicit val debateRoleKeyEncoder = KeyEncoder.instance[DebateRole](_.toString)
+  implicit val debateRoleKeyDecoder = KeyDecoder.instance[DebateRole](fromString)
 }
 object Role {
   def debateRole     = GenPrism[Role, DebateRole]
@@ -141,12 +157,10 @@ object Role {
         Some(Observer)
       case "Facilitator" =>
         Some(Facilitator)
-      case "Offline Judge" =>
-        Some(OfflineJudge)
       case "Peeper" =>
         Some(Peeper)
       case x =>
-        LiveDebateRole.fromString(x)
+        DebateRole.fromString(x)
     }
   implicit val roleKeyEncoder = KeyEncoder.instance[Role](_.toString)
   implicit val roleKeyDecoder = KeyDecoder.instance[Role](fromString)

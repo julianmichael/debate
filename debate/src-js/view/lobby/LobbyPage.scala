@@ -67,8 +67,14 @@ object LobbyPage {
                   sendToMainChannel = sendToMainChannel
                 )
               ),
-            "Leaderboard" -> TabNav.tab(LeaderboardPanel(lobby)),
-            "Analytics"   -> TabNav.tab(AnalyticsPanel()),
+            "Leaderboard" ->
+              TabNav.tab(
+                LeaderboardPanel(
+                  lobby,
+                  refreshLeaderboard = sendToMainChannel(RefreshLeaderboard())
+                )
+              ),
+            "Analytics" -> TabNav.tab(AnalyticsPanel(userName)),
             "Admin" ->
               TabNav.tab(
                 AdminPanel(

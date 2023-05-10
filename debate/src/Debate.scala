@@ -2,12 +2,12 @@ package debate
 
 import cats.implicits._
 
-import io.circe.generic.JsonCodec
 import monocle.function.{all => Optics}
 import monocle.macros.Lenses
 
 import jjm.DotPair
 import jjm.implicits._
+import io.circe.Decoder
 
 /** The state of a debate. Persists when people leave; this is the saveable data
   * object.
@@ -18,18 +18,28 @@ import jjm.implicits._
   *   the sequence of arguments, feedback or other info exchanged in the debate.
   */
 @Lenses
-@JsonCodec
 case class Debate(
   setup: DebateSetup,
   rounds: Vector[DebateRound],
-  feedback: Map[String, Feedback.SurveyResponse]
+  feedback: Map[String, Feedback.SurveyResponse],
+  scratchpads: Map[DebateRole, Vector[Vector[SpeechSegment]]] = Map()
+  // TODO premoves
 ) {
   import Debate.DebateTransitionSet
+
+  def status: RoomStatus = result
+    .map(result => RoomStatus.Complete(result, offlineJudgingResults, feedback.keySet))
+    .getOrElse(
+      if (rounds.isEmpty)
+        RoomStatus.WaitingToBegin
+      else
+        RoomStatus.InProgress
+    )
 
   /** Time of the first round of the debate (not the init time of the debate
     * setup).
     */
-  def startTime: Option[Long] = rounds.headOption.flatMap(_.timestamp(setup.numDebaters))
+  def startTime: Option[Long] = rounds.headOption.flatMap(_.maxTimestamp)
 
   def isOver: Boolean                        = result.nonEmpty
   def finalJudgement: Option[Vector[Double]] = result.flatMap(_.judgingInfo.map(_.finalJudgement))
@@ -38,6 +48,13 @@ case class Debate(
 
   def numContinues = rounds.foldMap {
     case JudgeFeedback(_, _, false) =>
+      1
+    case _ =>
+      0
+  }
+
+  def numDebateRounds = rounds.foldMap {
+    case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
       1
     case _ =>
       0
@@ -57,11 +74,18 @@ case class Debate(
   /** Whose turn(s) it is, what they can do, and how to compute the results. */
   def stateInfo: (Option[DebateResult], DebateTransitionSet, Map[String, OfflineJudgment]) = {
 
+    val assignedDebaters = setup
+      .roles
+      .keySet
+      .collect { case Debater(i) =>
+        i
+      }
+
     // turn sequence is always nonempty
     val roundSequence = setup.rules.roundTypes
 
     def newRoundSpeeches(roundType: DebateRoundType, isLastTurn: Boolean) = {
-      val turn = roundType.getFirstTurn(numDebaters, isLastTurn)
+      val turn = roundType.getFirstTurn(numDebaters, assignedDebaters, isLastTurn)
       turn
         .currentRoles
         .map(role =>
@@ -196,7 +220,7 @@ case class Debate(
                 case LazyList() =>
                   Left("Too many rounds! Can't match to the debate structure")
                 case nextRoundType #:: futureRoundTypes =>
-                  nextRoundType.getTurn(nextRound, numDebaters) match {
+                  nextRoundType.getTurn(nextRound, numDebaters, assignedDebaters) match {
                     case DebateTurnTypeResult.Next =>
                       futureRoundTypes match {
                         case LazyList() => // time's up
@@ -204,6 +228,9 @@ case class Debate(
                             RoundAcc(
                               result = Some(
                                 DebateResult(
+                                  timestamp = previousRoundOpt
+                                    .flatMap(_.maxTimestamp)
+                                    .getOrElse(setup.creationTime),
                                   correctAnswerIndex = setup.correctAnswerIndex,
                                   endedBy = DebateEndReason.TimeUp,
                                   judgingInfo =
@@ -279,6 +306,13 @@ case class Debate(
                           RoundAcc(
                             result = Some(
                               DebateResult(
+                                timestamp = nextRound
+                                  .maxTimestamp
+                                  .getOrElse(
+                                    previousRoundOpt
+                                      .flatMap(_.maxTimestamp)
+                                      .getOrElse(setup.creationTime)
+                                  ),
                                 correctAnswerIndex = setup.correctAnswerIndex,
                                 endedBy = DebateEndReason.JudgeDecided,
                                 judgingInfo = Some(
@@ -306,6 +340,13 @@ case class Debate(
                           RoundAcc(
                             result = Some(
                               DebateResult(
+                                timestamp = nextRound
+                                  .maxTimestamp
+                                  .getOrElse(
+                                    previousRoundOpt
+                                      .flatMap(_.maxTimestamp)
+                                      .getOrElse(setup.creationTime)
+                                  ),
                                 correctAnswerIndex = setup.correctAnswerIndex,
                                 endedBy = DebateEndReason.MutualAgreement,
                                 judgingInfo = None
@@ -359,10 +400,65 @@ case class Debate(
         x
     }
 
-    this.copy(rounds = clampProbs(rounds))
+    val fillOutOfflineSpeakers = Optics
+      .each[Vector[DebateRound], DebateRound]
+      .composePrism(DebateRound.offlineJudgments)
+      .composeLens(OfflineJudgments.judgments)
+      .modify {
+        _.transform { case (judge, judgment) =>
+          OfflineJudgment
+            .judgments
+            .composeTraversal(Optics.each)
+            .composeLens(JudgeFeedback.feedback)
+            .composeLens(DebateSpeech.speaker)
+            .set(judge)(judgment)
+        }
+      }
+
+    val fillInOfflineJudgeAssignments =
+      (debate: Debate) =>
+        Debate
+          .setup
+          .composeLens(DebateSetup.offlineJudges)
+          .modify { assignedJudges =>
+            val newJudgeAssignments = debate
+              .offlineJudgingResults
+              .filterNot { case (judge, _) =>
+                assignedJudges.contains(judge)
+              }
+              .map { case (judge, res) =>
+                judge -> Some(res.mode)
+              }
+            assignedJudges ++ newJudgeAssignments
+          }(debate)
+
+    fillInOfflineJudgeAssignments(this.copy(rounds = fillOutOfflineSpeakers(clampProbs(rounds))))
   }
 }
 object Debate {
+
+  implicit val debateEncoder = {
+    import io.circe.generic.semiauto._
+    deriveEncoder[Debate]
+  }
+
+  implicit val debateDecoder =
+    // import io.circe.generic.semiauto._
+    // deriveDecoder[Debate]
+    Decoder.instance { c =>
+      for {
+        setup    <- c.downField("setup").as[DebateSetup]
+        rounds   <- c.downField("rounds").as[Vector[DebateRound]]
+        feedback <- c.downField("feedback").as[Map[String, Feedback.SurveyResponse]]
+        scratchpads =
+          c.downField("scratchpads").as[Map[DebateRole, Vector[Vector[SpeechSegment]]]] match {
+            case Right(scratchpads) =>
+              scratchpads
+            case Left(err) =>
+              Map.empty[DebateRole, Vector[Vector[SpeechSegment]]]
+          }
+      } yield Debate(setup, rounds, feedback, scratchpads)
+    }
 
   /** Set of operations available to a particular role. */
   case class DebateTransitionSet(

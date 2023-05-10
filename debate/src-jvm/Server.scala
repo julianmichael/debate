@@ -54,7 +54,9 @@ case class Server(
   slackClientOpt: Option[Slack.Service[IO]],
   officialDebates: DebateStateManager,
   practiceDebates: DebateStateManager,
-  mainChannel: Topic[IO, Lobby]
+  mainChannel: Topic[IO, Lobby],
+  openEndedFeedback: Ref[IO, OpenEndedFeedback],
+  openEndedFeedbackChannel: Topic[IO, OpenEndedFeedback]
 ) {
 
   import Server._
@@ -103,7 +105,7 @@ case class Server(
         articleId: String,
         questionIds: Set[String],
         numDebatesPerQuestion: Int
-      ): IO[Option[Vector[DebateSetup]]] =
+      ): IO[Either[String, Vector[DebateSetup]]] =
         for {
           rooms <- officialDebates.rooms.get
           allDebates = rooms.values.view.map(_.debate.debate).toVector
@@ -113,29 +115,54 @@ case class Server(
           qas = DebateScheduler.getQAsForStory(story)
           rand         <- IO(new scala.util.Random)
           creationTime <- IO(System.currentTimeMillis())
-          schedulesOpt =
-            DebateScheduler
-              .efficientlySampleSchedules(
-                desiredWorkload = workloadDist,
-                rules = ruleDist,
-                complete = complete,
-                incomplete = incomplete,
-                sourceMaterial = QuALITYSourceMaterial(
-                  articleId = story.articleId,
-                  title = story.title,
-                  contents = tokenizeStory(story.article)
-                ),
-                qas = qas.filter(qa => questionIds.contains(qa.questionId)),
-                numDebatesPerQuestion = numDebatesPerQuestion,
-                // debaters = Map(), // people.mapVals(_ => DebaterLoadConstraint(None, None)),
-                creationTime = creationTime,
+          schedules = DebateScheduler.efficientlySampleSchedules(
+            desiredWorkload = workloadDist,
+            rules = ruleDist,
+            complete = complete,
+            incomplete = incomplete,
+            sourceMaterial = QuALITYSourceMaterial(
+              articleId = story.articleId,
+              title = story.title,
+              contents = tokenizeStory(story.article)
+            ),
+            qas = qas.filter(qa => questionIds.contains(qa.questionId)),
+            numDebatesPerQuestion = numDebatesPerQuestion,
+            // debaters = Map(), // people.mapVals(_ => DebaterLoadConstraint(None, None)),
+            creationTime = creationTime,
+            rand
+          )
+          scheduleDist = schedules
+            .map(sample => DenseDistribution.fromSoftmax[Schedule](sample, -_.cost))
+          schedule <- IO(scheduleDist.map(_.sample(rand)))
+        } yield schedule.map(_.novel)
+
+      def sampleOfflineJudging(
+        excludes: Set[String],
+        maxNumJudgesForOnline: Int,
+        maxNumJudgesForOffline: Int
+      ): IO[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]] =
+        for {
+          profiles <- profiles.get
+          judges = profiles.keySet -- excludes
+          rooms <- officialDebates.rooms.get
+          // roomMetadata <- officialDebates.getRoomMetadata
+          // storyRecord = RoomMetadata.constructStoryRecord(roomMetadata)
+          rand <- IO(new scala.util.Random)
+        } yield profiles.keySet.toNes match {
+          case None =>
+            Left("No possible judges remaining to assign.")
+          case Some(peopleNonEmpty) =>
+            Right(
+              DebateScheduler.sampleOfflineJudges(
+                rooms.mapVals(_.debate.debate),
+                peopleNonEmpty,
+                judges,
+                maxNumJudgesForOnline,
+                maxNumJudgesForOffline,
                 rand
               )
-              .toOption
-          scheduleDistOpt = schedulesOpt
-            .map(sample => DenseDistribution.fromSoftmax[Schedule](sample, -_.cost))
-          schedule <- IO(scheduleDistOpt.map(_.sample(rand)))
-        } yield schedule.map(_.novel)
+            )
+        }
     }
   )
 
@@ -247,6 +274,14 @@ case class Server(
         _           <- FileUtil.writeJson(ruleConfigsSavePath(saveDir))(ruleConfigs)
       } yield ()
 
+    def removeRuleConfig(ruleConfigName: String) =
+      for {
+        _           <- ruleConfigs.update(_ - ruleConfigName)
+        _           <- pushUpdate
+        ruleConfigs <- ruleConfigs.get
+        _           <- FileUtil.writeJson(ruleConfigsSavePath(saveDir))(ruleConfigs)
+      } yield ()
+
     def removeDebater(name: String) =
       for {
         _        <- profiles.update(_ - name)
@@ -261,7 +296,7 @@ case class Server(
         currentRuleConfigs <- ruleConfigs.get
         officialRooms      <- officialDebates.getRoomMetadata
         practiceRooms      <- practiceDebates.getRoomMetadata
-        leaderboard        <- officialDebates.getLeaderboard
+        leaderboard        <- officialDebates.leaderboard.get
         allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
         _           <- presence.update(_ |+| Map(profile -> 1))
         _           <- pushUpdate
@@ -312,8 +347,12 @@ case class Server(
                     registerDebater(profile)
                   case RegisterRuleConfig(ruleConfig) =>
                     registerRuleConfig(ruleConfig)
+                  case RemoveRuleConfig(ruleConfigName) =>
+                    removeRuleConfig(ruleConfigName)
                   case RemoveDebater(name) =>
                     removeDebater(name)
+                  case RefreshLeaderboard() =>
+                    officialDebates.refreshLeaderboard >> officialDebates.pushUpdateRef.get.flatten
                   case DeleteRoom(isOfficial, roomName) =>
                     if (isOfficial)
                       officialDebates.deleteDebate(roomName)
@@ -329,8 +368,35 @@ case class Server(
                       officialDebates.createDebates(setups)
                     else
                       practiceDebates.createDebates(setups)
+                  case ScheduleOfflineJudges(isOfficial, assignments) =>
+                    if (isOfficial)
+                      officialDebates.scheduleOfflineJudges(assignments)
+                    else
+                      practiceDebates.scheduleOfflineJudges(assignments)
                 },
           onClose = presence.update(p => (p |+| Map(profile -> -1)).filter(_._2 > 0)) >> pushUpdate
+        )
+      } yield res
+
+    def createOpenEndedFeedbackWebsocket =
+      for {
+        feedback <- openEndedFeedback.get
+        outStream = Stream
+          .emit[IO, Option[OpenEndedFeedback]](Some(feedback))
+          .merge(
+            openEndedFeedbackChannel.subscribe(100).map(Some(_))
+          )                                                        // and subscribe to the channel
+          .merge(Stream.awakeEvery[IO](30.seconds).map(_ => None)) // send a heartbeat every 30s
+          .map(pickleToWSFrame(_))
+          .through(filterCloseFrames) // I'm not entirely sure why I remove the close frames.
+
+        res <- WebSocketBuilder[IO].build(
+          send = outStream,
+          receive =
+            x =>
+              openEndedFeedbackChannel
+                .publish(filterCloseFrames(x).map(unpickleFromWSFrame[OpenEndedFeedback])),
+          onClose = IO.unit
         )
       } yield res
 
@@ -382,14 +448,16 @@ case class Server(
         officialDebates.createWebsocket(roomName, participantName)
       case GET -> Root / "practice-ws" / roomName :? NameParam(participantName) =>
         practiceDebates.createWebsocket(roomName, participantName)
-
+      case GET -> Root / "feedback-ws" =>
+        createOpenEndedFeedbackWebsocket
     }
   }
 }
 object Server {
 
-  def profilesSavePath(saveDir: NIOPath)    = saveDir.resolve("profiles.json")
-  def ruleConfigsSavePath(saveDir: NIOPath) = saveDir.resolve("rules.json")
+  def openEndedFeedbackSavePath(saveDir: NIOPath) = saveDir.resolve("open-feedback.json")
+  def profilesSavePath(saveDir: NIOPath)          = saveDir.resolve("profiles.json")
+  def ruleConfigsSavePath(saveDir: NIOPath)       = saveDir.resolve("rules.json")
   // TODO delete this
   def debatersSavePath(saveDir: NIOPath) = saveDir.resolve("debaters.json")
   def practiceRoomsDir(saveDir: NIOPath) = saveDir.resolve("practice")
@@ -436,7 +504,8 @@ object Server {
   }
 
   def create(dataPath: NIOPath, saveDir: NIOPath, blocker: Blocker)(
-    implicit cs: ContextShift[IO]
+    implicit cs: ContextShift[IO],
+    timer: Timer[IO]
   ) = {
 
     val httpClient = JavaNetClientBuilder[IO](blocker).create
@@ -483,24 +552,27 @@ object Server {
         .attempt
         .map(_.toOption)
         .map(_.map(token => Slack.Service.fullHttpClient(httpClient, token)))
+      dataSummarizer = new DataSummarizer(qualityDataset)
       officialDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
         officialRoomsDir(saveDir),
         profilesRef,
         pushUpdateRef,
-        slackClientOpt
+        slackClientOpt,
+        dataSummarizer
       )
       practiceDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
         practiceRoomsDir(saveDir),
         profilesRef,
         pushUpdateRef,
-        None // don't send slack notifications for practice rooms
+        None, // don't send slack notifications for practice rooms
+        dataSummarizer
       )
       officialRooms <- officialDebates.getRoomMetadata
       practiceRooms <- practiceDebates.getRoomMetadata
       // channel to update all clients on the lobby state
-      leaderboard <- officialDebates.getLeaderboard
+      leaderboard <- officialDebates.leaderboard.get
       allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
       _ <- profilesRef
         .get
@@ -522,6 +594,26 @@ object Server {
           ruleConfigs
         )
       )
+      openEndedFeedback <- FileUtil
+        .readJson[OpenEndedFeedback](openEndedFeedbackSavePath(saveDir))
+        .recoverWith(_ =>
+          IO(println("No open-ended feedback found. Initializing emptily."))
+            .as(OpenEndedFeedback(Vector()))
+        )
+      openEndedFeedbackChannel <- Topic[IO, OpenEndedFeedback](openEndedFeedback)
+      openEndedFeedbackRef     <- Ref[IO].of(openEndedFeedback)
+      _ <-
+        openEndedFeedbackChannel
+          .subscribe(100)
+          .debounce(10.seconds)
+          .evalMap(feedback =>
+            openEndedFeedbackRef
+              .set(feedback) >> FileUtil.writeJson(openEndedFeedbackSavePath(saveDir))(feedback) >>
+              IO(println("Saved open-ended feedback."))
+          )
+          .compile
+          .drain
+          .start
       pushUpdate = {
         for {
           profiles      <- profilesRef.get
@@ -529,7 +621,7 @@ object Server {
           presence      <- presenceRef.get
           officialRooms <- officialDebates.getRoomMetadata
           practiceRooms <- practiceDebates.getRoomMetadata
-          leaderboard   <- officialDebates.getLeaderboard
+          leaderboard   <- officialDebates.leaderboard.get
           allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
           _ <- mainChannel.publish1(
             Lobby(
@@ -560,7 +652,9 @@ object Server {
       slackClientOpt = slackClientOpt,
       officialDebates = officialDebates,
       practiceDebates = practiceDebates,
-      mainChannel = mainChannel
+      mainChannel = mainChannel,
+      openEndedFeedback = openEndedFeedbackRef,
+      openEndedFeedbackChannel = openEndedFeedbackChannel
     )
   }
 }

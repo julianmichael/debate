@@ -45,9 +45,11 @@ case class DebateStateManager(
   initializeDebate: DebateSetupSpec => IO[DebateSetup],
   profilesRef: Ref[IO, Map[String, Profile]],
   rooms: Ref[IO, Map[String, DebateRoom]],
+  leaderboard: Ref[IO, Leaderboard],
   saveDir: NIOPath,
   pushUpdateRef: Ref[IO, IO[Unit]],
-  slackClientOpt: Option[Slack.Service[IO]]
+  slackClientOpt: Option[Slack.Service[IO]],
+  dataSummarizer: DataSummarizer
 )(implicit c: Concurrent[IO]) {
 
   val summariesDir = saveDir.resolve("summaries")
@@ -56,7 +58,7 @@ case class DebateStateManager(
       rooms
         .get
         .map(_.mapVals(_.debate.debate))
-        .flatMap(roomsVec => DataSummarizer.writeSummaries(roomsVec, summariesDir))
+        .flatMap(roomsVec => dataSummarizer.writeSummaries(roomsVec, summariesDir))
 
   // val blockingEC = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(5))
 
@@ -175,6 +177,25 @@ case class DebateStateManager(
       }
   }
 
+  def scheduleOfflineJudges(assignments: Vector[(String, String)]): IO[Unit] =
+    assignments.traverse_ { case (roomName, judgeName) =>
+      for {
+        curRooms <- rooms.get
+        room <-
+          curRooms
+            .get(roomName)
+            .fold(IO.raiseError[DebateRoom](new Exception(s"Room $roomName not found")))(IO.pure)
+        newRoom =
+          DebateRoom
+            .debate
+            .composeLens(DebateState.debate)
+            .composeLens(Debate.setup)
+            .composeLens(DebateSetup.offlineJudges)
+            .modify(_ + (judgeName -> Some(OfflineJudgingMode.Stepped)))(room)
+        _ <- rooms.update(_ + (roomName -> newRoom))
+      } yield ()
+    } >> pushUpdate
+
   def createDebate(roomName: String, setupSpec: DebateSetupSpec): IO[Unit] = initializeDebate(
     setupSpec
   ).flatMap(createDebate(roomName, _))
@@ -255,6 +276,12 @@ case class DebateStateManager(
       }
     } yield ()
 
+  def refreshLeaderboard = rooms
+    .get
+    .flatMap { roomMap =>
+      leaderboard.set(Leaderboard.fromDebates(roomMap.values.toList.map(_.debate.debate)))
+    }
+
   def processUpdate(roomName: String, request: DebateStateUpdateRequest) = {
     val updateState =
       request match {
@@ -267,6 +294,11 @@ case class DebateStateManager(
       _           <- updateState
       debateState <- rooms.get.map(_.apply(roomName).debate)
       profiles    <- profilesRef.get
+      _ <- IO(
+        (debateState.debate.isOver && !priorState.debate.isOver) ||
+          debateState.debate.offlineJudgingResults.values.flatMap(_.result).toSet !=
+          priorState.debate.offlineJudgingResults.values.flatMap(_.result).toSet
+      ).ifM(ifTrue = refreshLeaderboard, ifFalse = IO.unit)
       _ <- slackClientOpt.traverse_ { slack =>
         for {
           _ <- {
@@ -315,7 +347,7 @@ case class DebateStateManager(
             .filter(_ => !priorState.debate.isOver)
             .flatMap(_.judgingInfo)
             .traverse_ { result =>
-              val winners = result.finalJudgement.zipWithIndex.maximaBy(_._1)
+              val winners = result.finalJudgement.zipWithIndex.maximaBy(_._1).map(_._2)
               val notifyWinners =
                 if (winners.size > 1) { // no clear winner
                   debateState
@@ -409,20 +441,6 @@ case class DebateStateManager(
         onClose = removeParticipant(roomName, participantName)
       )
     } yield res
-
-  def getLeaderboard = rooms
-    .get
-    .map { roomMap =>
-      Leaderboard.fromDebates(
-        roomMap
-          .values
-          .toList
-          .map(_.debate.debate)
-          // filter out debates from pre-2023
-          .filter(_.setup.creationTime > timeBeforeWhichToIgnoreMissingFeedback)
-      )
-    }
-
 }
 object DebateStateManager {
 
@@ -433,7 +451,8 @@ object DebateStateManager {
     saveDir: NIOPath,
     profilesRef: Ref[IO, Map[String, Profile]],
     pushUpdateRef: Ref[IO, IO[Unit]],
-    slackClientOpt: Option[Slack.Service[IO]]
+    slackClientOpt: Option[Slack.Service[IO]],
+    dataSummarizer: DataSummarizer
   )(implicit c: Concurrent[IO]) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
@@ -460,13 +479,17 @@ object DebateStateManager {
         )
         .map(_.toMap)
       roomsRef <- Ref[IO].of(rooms)
+      leaderboardRef <- Ref[IO]
+        .of(Leaderboard.fromDebates(rooms.values.map(_.debate.debate).toList))
     } yield DebateStateManager(
       initializeDebate,
       profilesRef,
       roomsRef,
+      leaderboardRef,
       saveDir,
       pushUpdateRef,
-      slackClientOpt
+      slackClientOpt,
+      dataSummarizer
     )
   }
 }

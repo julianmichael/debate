@@ -61,6 +61,12 @@ object AdminPanel {
                 DebateSchedulingPanel(lobby, sendToMainChannel)
               )
             ),
+          "Schedule Extra Judging" ->
+            TabNav.tab(
+              <.div(c"card-body", S.spaceySubcontainer)(
+                JudgingSchedulingPanel(lobby, sendToMainChannel)
+              )
+            ),
           "Create Debate" ->
             TabNav.tab(
               <.div(c"card-body", S.spaceySubcontainer)(
@@ -68,6 +74,7 @@ object AdminPanel {
                   lobby = lobby,
                   qualityService = qualityService,
                   registerRuleConfig = sendToMainChannel,
+                  removeRuleConfig = sendToMainChannel,
                   joinDebate = joinRoomOpt,
                   initDebate = sendToMainChannel
                 )

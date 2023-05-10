@@ -8,6 +8,7 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.Callback
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
+import scalacss.ScalaCssReact._
 import org.scalajs.dom
 
 // mish mash of stuff to be organized later when there's enough to warrant it.
@@ -126,4 +127,18 @@ trait UtilsPlatformExtensions {
         None
     }
   )
+
+  case class ProbabilityBarItem(probability: Double, barMod: TagMod)
+  def probabilityBar(mod: TagMod, items: Vector[ProbabilityBarItem]) =
+    <.div(mod, S.judgmentBar)(
+      items
+        .zipWithIndex
+        .map { case (ProbabilityBarItem(prob, bar), index) =>
+          val pct       = prob * 100.0
+          val pctString = f"$pct%.0f%%"
+          <.div(bar, ^.width := pctString, ^.key := s"dist-$index")(<.span(c"ml-1")(pctString))
+        }
+        .toVdomArray
+    )
+
 }
