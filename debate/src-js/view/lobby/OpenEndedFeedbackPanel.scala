@@ -1,6 +1,8 @@
 package debate
 package view.lobby
 
+import cats.implicits._
+
 import japgolly.scalajs.react.AsyncCallback
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.vdom.html_<^._
@@ -13,6 +15,8 @@ import jjm.ui.Mounting
 import debate.util.ListConfig
 import debate.util.SyncedState
 import japgolly.scalajs.react.feature.ReactFragment
+import japgolly.scalajs.react.extra.StateSnapshot
+import debate.util.Local
 
 object OpenEndedFeedbackPanel {
   val S = Styles
@@ -30,6 +34,21 @@ object OpenEndedFeedbackPanel {
   import Utils.ClassSetInterpolator
 
 //   import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
+
+  def editableText(text: StateSnapshot[String]) =
+    Local[Option[String]].make(None) { localTextOpt =>
+      localTextOpt.value match {
+        case None =>
+          <.span(text.value, ^.onClick --> localTextOpt.setState(Some(text.value)))
+        case Some(localText) =>
+          V.TextField
+            .String(
+              StateSnapshot[String](localText)((xOpt: Option[String], cb) =>
+                xOpt.foldMap(x => text.setState(x, localTextOpt.setState(None, cb)))
+              )
+            )
+      }
+    }
 
   def apply(userName: String) =
     SyncedFeedback.make(websocketURI = openEndedFeedbackUri) {
@@ -50,9 +69,7 @@ object OpenEndedFeedbackPanel {
           0
         ) { case ListConfig.Context(section, _) =>
           ReactFragment(
-            <.div(c"card-header")(
-              V.LiveTextField.String(section.zoomStateL(OpenEndedFeedbackSection.name))
-            ),
+            <.div(c"card-header")(editableText(section.zoomStateL(OpenEndedFeedbackSection.name))),
             <.div(c"card-body", ^.backgroundColor := "lightcyan")(
               <.div(c"mx-1 mt-1")(
                 ListConfig[OpenEndedFeedbackQuestion].nice(
@@ -62,8 +79,7 @@ object OpenEndedFeedbackPanel {
                 ) { case ListConfig.Context(question, _) =>
                   ReactFragment(
                     <.div(c"card-header")(
-                      V.LiveTextField
-                        .String(question.zoomStateL(OpenEndedFeedbackQuestion.question))
+                      editableText(question.zoomStateL(OpenEndedFeedbackQuestion.question))
                     ),
                     <.div(c"mx-1 mt-1")(
                       ListConfig[OpenEndedFeedbackAnswer].nice(
@@ -110,7 +126,9 @@ object OpenEndedFeedbackPanel {
                           )
 
                         <.div(c"pb-1")(
-                          V.LiveTextField.String(answer.zoomStateL(OpenEndedFeedbackAnswer.answer)),
+                          <.div(c"card-header")(
+                            editableText(answer.zoomStateL(OpenEndedFeedbackAnswer.answer))
+                          ),
                           makeVoteDiv(true),
                           makeVoteDiv(false)
                         )
