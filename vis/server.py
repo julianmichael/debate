@@ -575,6 +575,25 @@ def final_probability_correct_by_question_sub():
     )
 
 
+def final_probability_correct_by_speed_annotator_accuracy():
+    return (
+        alt.Chart(debates)
+        .mark_circle(size=60)
+        .encode(
+            x="Speed annotator accuracy:Q",
+            y="Final probability correct:Q",
+            tooltip="Room name",
+            color=alt.Color(
+                "Number of continues:O",
+                scale=alt.Scale(
+                    range=["red", "orange", "yellow", "green", "blue", "purple"]
+                ),
+            ),
+        )  # nanti komenkan)
+        .properties(width=fullWidth)
+    )
+
+
 # def final_probability_correct_over_time(): # TODO: confident mistakes over time?
 #     return (
 #         alt.Chart(debates)
@@ -868,6 +887,7 @@ all_graph_specifications = {
     "Results:_Final_probability_correct_by_num_judge_rounds": final_probability_correct_by_num_judge_rounds,
     "Results:_Final_probability_correct_by_z(feedback)_question_subjectivity": final_probability_correct_by_question_sub,
     "Results:_Final_probability_correct_by_z(feedback)_information_progress": final_probability_correct_by_information_progress,
+    "Results:_Final_probability_correct_by_z(metadata)_speed_annotator_accuracy": final_probability_correct_by_speed_annotator_accuracy,
     # "Results:_Live_debates_accuracy_by_date": live_debates_accuracy_by_date,
     "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
