@@ -654,11 +654,7 @@ def anonymity():
 
 
 def debater_by_turns():
-    filtered = sessions[sessions["Role"] != "Offline Judge"]
-    blacklist = filtered[
-        ~filtered["Participant"].isin(["Emmanuel Makinde", "Max Layden"])
-    ]
-    source = blacklist.merge(debates, how="left", on="Room name")
+    source = sessions.merge(debates, how="left", on="Room name")
     source["Role"] = source["Role"].map(
         lambda x: "Debater" if x.startswith("Debater") else x
     )
