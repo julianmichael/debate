@@ -283,8 +283,11 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             case JudgeFeedback(distribution, _, _) =>
               assert(info.role == Judge)
               distribution(info.debate.setup.correctAnswerIndex).toString
-            // case OfflineJudgments(judgments) =>
-            //   judgments.get(info.round.allSpeeches(info.role).speaker).flatMap(_.result.flatMap()).toString
+            case OfflineJudgments(judgments) =>
+              judgments
+                .get(info.round.allSpeeches(info.role).speaker)
+                .flatMap(_.result.map(_.distribution(info.debate.setup.correctAnswerIndex)))
+                .toString
             case _ =>
               ""
           }
@@ -324,22 +327,25 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         "Is over" -> { info =>
           info.debate.isOver.toString
         },
-        "Final probability correct live" -> { info =>
-          info
-            .debate
-            .finalJudgement
-            .map(_.apply(info.debate.setup.correctAnswerIndex).toString)
-            .getOrElse("")
-        },
-        // Final probability correct offline
-        "Final probability correct offline" -> { info =>
-          info
-            .debate
-            .offlineJudgingResults
-            .get(info.participant)
-            .flatMap(_.result)
-            .map(res => res.distribution(info.debate.setup.correctAnswerIndex).toString)
-            .getOrElse("")
+        "Final probability correct" -> { info =>
+          info.role match {
+            case Judge =>
+              info
+                .debate
+                .finalJudgement
+                .map(_.apply(info.debate.setup.correctAnswerIndex).toString)
+                .getOrElse("")
+            case OfflineJudge =>
+              info
+                .debate
+                .offlineJudgingResults
+                .get(info.participant)
+                .flatMap(_.result)
+                .map(res => res.distribution(info.debate.setup.correctAnswerIndex).toString)
+                .getOrElse("")
+            case _ =>
+              ""
+          }
         }
 
         // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
@@ -450,12 +456,11 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             (round, role) match {
               case (JudgeFeedback(_, speech, _), Judge) =>
                 Some(DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
-              // TODO: ask J, why does it ask for Option[?] here...
-              // case (OfflineJudgments(speeches), OfflineJudge) =>
-              //   speeches
-              //     .get(round.allSpeeches(role).speaker)
-              //     .flatMap(_.result.flatMap(_.feedback))
-              //     .map(speech => DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
+              case (OfflineJudgments(speeches), OfflineJudge) =>
+                speeches
+                  .get(round.allSpeeches(role).speaker)
+                  .flatMap(_.result.map(_.feedback))
+                  .map(speech => DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
               case (SimultaneousSpeeches(speeches), Debater(i)) =>
                 speeches
                   .get(i)
