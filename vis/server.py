@@ -167,7 +167,7 @@ def final_probability_correct_distribution_live_vs_offline_debates():  # TODO: u
             x=alt.X(
                 "Final probability correct (live and mean of offline):Q",
                 title="Final probability correct",
-                bin=alt.Bin(extent=[0, 1], step=0.05),
+                bin=alt.Bin(step=0.05)
             ),
             y=alt.Y("count()", stack=None, title="Number of debates"),
             color=alt.Color(
@@ -201,30 +201,34 @@ def final_probability_correct_distribution_live_vs_offline_debates():  # TODO: u
 def evidence_by_rounds():
     evidence_average = (
         alt.Chart(turns)
+        .transform_filter(datum["Role (honest/dishonest)"] == "Honest debater" or datum["Role (honest/dishonest)"] == "Dishonest debater")
         .mark_line(color=aggColor)
         .encode(x="Num previous debating rounds:O", y="mean(Quote length)")
     ).properties(width=fullWidth / 2, height=fullHeight)
-    source = turns.merge(
-        debates[["Room name", "Honest debater", "Dishonest debater"]],
-        how="left",
-        on="Room name",
+
+    evidence_average_band = evidence_average.mark_errorband(extent='ci').encode(
+        y=alt.Y('Quote length')
     )
-    source["As honest debater"] = source["Participant"] == source["Honest debater"]
     evidence_honest_dishonest = (
-        alt.Chart(source)
+        alt.Chart(turns)
         .mark_line()
         .encode(
             x="Num previous debating rounds:O",
             y="mean(Quote length)",
             color=alt.Color(
-                "As honest debater:N",
+                "Role (honest/dishonest):N",
                 scale=alt.Scale(
-                    domain=[True, False], range=[correctColor, incorrectColor]
+                    domain=['Honest debater', 'Dishonest debater'], range=[correctColor, incorrectColor]
                 ),
             ),
         )
     ).properties(width=fullWidth / 2, height=fullHeight)
-    return (evidence_average | evidence_honest_dishonest).configure_axis(labelAngle=0)
+
+    evidence_honest_dishonest_band = evidence_honest_dishonest.mark_errorband(extent='ci').encode(
+        y=alt.Y('Quote length')
+    )
+
+    return ((evidence_average + evidence_average_band) | (evidence_honest_dishonest + evidence_honest_dishonest_band)).configure_axis(labelAngle=0)
 
 
 def evidence_by_rounds_and_participant():
@@ -672,12 +676,8 @@ def anonymity():
     )
 
 
-def debater_by_turns():
-    filtered = sessions[sessions["Role"] != "Offline Judge"]
-    blacklist = filtered[
-        ~filtered["Participant"].isin(["Emmanuel Makinde", "Max Layden"])
-    ]
-    source = blacklist.merge(debates, how="left", on="Room name")
+def turns_to_complete_by_participant():
+    source = sessions.merge(debates, how="left", on="Room name")
     source["Role"] = source["Role"].map(
         lambda x: "Debater" if x.startswith("Debater") else x
     )
@@ -698,7 +698,7 @@ def debater_by_turns():
     )
 
 
-def debater_by_turns_weeks():
+def debater_turns_by_week():
     debates["End week"] = debates["End time"].apply(lambda x: x.week)
 
     def convert_time(x):
@@ -731,7 +731,7 @@ def debater_by_turns_weeks():
             != None
         )
         .properties(width=200)
-        .facet(facet="Judge:N", columns=4, spacing=0)
+        .facet(facet="Judge:N", columns=4, spacing=10)
     )
 
 
@@ -891,10 +891,10 @@ all_graph_specifications = {
     # "Results:_Live_debates_accuracy_by_date": live_debates_accuracy_by_date,
     "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
-    "Track:_Debater_by_turns_weeks": debater_by_turns_weeks,
+    "Track:_Debater_turns_by_week": debater_turns_by_week,
     "Track:_Participant_by_current_workload": participant_by_current_workload,
     # "Track:_Participant_by_past_workload": participant_by_past_workload,
-    "Track:_Turns_to_complete_by_participant": debater_by_turns,
+    "Track:_Turns_to_complete_by_participant": turns_to_complete_by_participant,
     "Track:_Debater_pairings_by_role": debater_pairings_by_role,
     # "Track:_Debater_pairings_by_person": debater_pairings_by_person,
     "Track:_Judge_pairings": judge_pairings,
