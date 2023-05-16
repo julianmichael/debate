@@ -115,12 +115,10 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             .offlineJudgingResults
             .values
             .toList
+            .flatMap(_.result)
             .toNel
             .map(
-              _.reduceMap(j =>
-                  j.result
-                    .foldMap(res => Numbers(res.distribution(info.debate.setup.correctAnswerIndex)))
-                )
+              _.reduceMap(res => Numbers(res.distribution(info.debate.setup.correctAnswerIndex)))
                 .stats
                 .mean
                 .toString
