@@ -653,7 +653,7 @@ def anonymity():
     )
 
 
-def debater_by_turns():
+def turns_to_complete_by_participant():
     source = sessions.merge(debates, how="left", on="Room name")
     source["Role"] = source["Role"].map(
         lambda x: "Debater" if x.startswith("Debater") else x
@@ -675,7 +675,7 @@ def debater_by_turns():
     )
 
 
-def debater_by_turns_weeks():
+def debater_turns_by_week():
     debates["End week"] = debates["End time"].apply(lambda x: x.week)
 
     def convert_time(x):
@@ -708,7 +708,7 @@ def debater_by_turns_weeks():
             != None
         )
         .properties(width=200)
-        .facet(facet="Judge:N", columns=4, spacing=0)
+        .facet(facet="Judge:N", columns=4, spacing=10)
     )
 
 
@@ -867,10 +867,10 @@ all_graph_specifications = {
     # "Results:_Live_debates_accuracy_by_date": live_debates_accuracy_by_date,
     "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
-    "Track:_Debater_by_turns_weeks": debater_by_turns_weeks,
+    "Track:_Debater_turns_by_week": debater_turns_by_week,
     "Track:_Participant_by_current_workload": participant_by_current_workload,
     # "Track:_Participant_by_past_workload": participant_by_past_workload,
-    "Track:_Turns_to_complete_by_participant": debater_by_turns,
+    "Track:_Turns_to_complete_by_participant": turns_to_complete_by_participant,
     "Track:_Debater_pairings_by_role": debater_pairings_by_role,
     # "Track:_Debater_pairings_by_person": debater_pairings_by_person,
     "Track:_Judge_pairings": judge_pairings,
