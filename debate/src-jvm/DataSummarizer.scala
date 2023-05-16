@@ -184,10 +184,10 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
           info.debate.setup.creationTime.toString
         },
         "Speech time" -> { info =>
-          info.round.allSpeeches(info.role).timestamp.toString
+          info.speech.timestamp.toString
         },
         "Participant" -> { info =>
-          info.round.allSpeeches(info.role).speaker
+          info.speech.speaker
         },
         "Role" -> { info =>
           info.role.toString
@@ -235,8 +235,7 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         // TODO: ask, should we have one whole speech text instead? Should we separate with something other than <<quote>> / [[input text]]?
         "Participant text" -> { info =>
           info
-            .round
-            .allSpeeches(info.role)
+            .speech
             .content
             .collect { case SpeechSegment.Text(text) =>
               text
@@ -245,8 +244,7 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         },
         "Participant quote" -> { info =>
           info
-            .round
-            .allSpeeches(info.role)
+            .speech
             .content
             .collect { case SpeechSegment.Quote(span) =>
               Utils.renderSpan(info.debate.setup.sourceMaterial.contents, span)
@@ -255,8 +253,7 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         },
         "Text length" -> { info =>
           info
-            .round
-            .allSpeeches(info.role)
+            .speech
             .content
             .collect { case SpeechSegment.Text(text) =>
               text
@@ -266,8 +263,7 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         },
         "Quote length" -> { info =>
           info
-            .round
-            .allSpeeches(info.role)
+            .speech
             .content
             .collect { case SpeechSegment.Quote(span) =>
               Utils.renderSpan(info.debate.setup.sourceMaterial.contents, span)
@@ -285,9 +281,10 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
               distribution(info.debate.setup.correctAnswerIndex).toString
             case OfflineJudgments(judgments) =>
               judgments
-                .get(info.round.allSpeeches(info.role).speaker)
-                .flatMap(_.result.map(_.distribution(info.debate.setup.correctAnswerIndex)))
-                .toString
+                .get(info.speech.speaker)
+                .flatMap(_.judgments.find(_.feedback == info.speech))
+                .map(_.distribution(info.debate.setup.correctAnswerIndex))
+                .foldMap(_.toString)
             case _ =>
               ""
           }
@@ -326,6 +323,22 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         },
         "Is over" -> { info =>
           info.debate.isOver.toString
+        },
+        "Number of judge continues" -> { info =>
+          info.role match {
+            case Judge =>
+              info.debate.numContinues.toString
+            case OfflineJudge =>
+              info
+                .debate
+                .offlineJudgingResults
+                .get(info.participant)
+                .filter(_.result.isDefined)
+                .map(_.judgments.size - 1)
+                .foldMap(_.toString)
+            case _ =>
+              ""
+          }
         },
         "Final probability correct" -> { info =>
           info.role match {
@@ -455,22 +468,39 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
           turn <-
             (round, role) match {
               case (JudgeFeedback(_, speech, _), Judge) =>
-                Some(DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
+                List(DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
               case (OfflineJudgments(speeches), OfflineJudge) =>
                 speeches
-                  .get(round.allSpeeches(role).speaker)
-                  .flatMap(_.result.map(_.feedback))
-                  .map(speech => DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
+                  .values
+                  .toList
+                  .flatMap { judgment =>
+                    val debateRoundIndices =
+                      debate
+                        .rounds
+                        .zipWithIndex
+                        .collect { case (SimultaneousSpeeches(_) | SequentialSpeeches(_), i) =>
+                          i
+                        }
+                        .toList
+                    val offlineJudgeRounds = judgment
+                      .judgments
+                      .zip(0 :: debateRoundIndices.map(_ + 1))
+                    offlineJudgeRounds.map { case (judgment, roundIndex) =>
+                      DebateTurnInfo(roomName, debate, round, roundIndex, role, judgment.feedback)
+                    }
+                  }
               case (SimultaneousSpeeches(speeches), Debater(i)) =>
                 speeches
                   .get(i)
+                  .toList
                   .map(speech => DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
               case (SequentialSpeeches(speeches), Debater(i)) =>
                 speeches
                   .get(i)
+                  .toList
                   .map(speech => DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
               case _ =>
-                None
+                List()
             }
         } yield turn
       turnsCSV.writeToPath(turnInfos, summaryDir)

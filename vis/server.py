@@ -41,15 +41,15 @@ def read_data():
     global debates
     global sessions
     global turns
-    debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"))
+    debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
     debates["Start time"] = pd.to_datetime(debates["Start time"], unit="ms")
     debates = debates[
         debates["Start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y")
     ]
     debates["Final probability incorrect"] = 1 - debates["Final probability correct"]
     debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
-    sessions = pd.read_csv(os.path.join(data_dir, "official/summaries/sessions.csv"))
-    turns = pd.read_csv(os.path.join(data_dir, "official/summaries/turns.csv"))
+    sessions = pd.read_csv(os.path.join(data_dir, "official/summaries/sessions.csv"), keep_default_na=True)
+    turns = pd.read_csv(os.path.join(data_dir, "official/summaries/turns.csv"), keep_default_na=True)
     turns["Room start time"] = pd.to_datetime(turns["Room start time"], unit="ms")
     turns = turns[
         turns["Room start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y")
@@ -502,7 +502,7 @@ def final_probability_correct_by_num_judge_rounds():
         .encode(
             x="Number of continues:Q",
             y="Final probability correct:Q",
-            # tooltip=["Room name"],
+            tooltip=["Room name"],
         )
         .properties(width=fullWidth)
         # .transform_filter(datum["Number of continues"])
@@ -536,10 +536,118 @@ def final_probability_correct_by_num_judge_rounds():
         base
         + err
         + mean
-        # + base.transform_regression(
-        #     "Number of continues", "Final probability correct"
-        # ).mark_line()
     )
+
+def final_probability_correct_by_num_judge_continues():
+    source = sessions.merge(
+        debates[
+            [
+                "Room name",
+                "Final probability correct"
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+    base = (
+        alt.Chart(source)
+        .mark_circle(size=60, color=aggColor)
+        .encode(
+            x="Number of judge continues:Q",
+            y="Final probability correct:Q",
+            tooltip=["Room name"],
+        )
+        .properties(width=fullWidth)
+    )
+    mean = (
+        alt.Chart(source)
+        .mark_line()
+        .transform_aggregate(
+            mean_prob="mean(Final probability correct)", groupby=["Number of judge continues"]
+        )
+        .encode(
+            x=alt.X("Number of judge continues:Q", axis=alt.Axis(values=[0, 1, 2, 3, 4, 5, 6])),
+            y="mean_prob:Q",
+            color=alt.value(aggColor),
+        )
+        .properties(width=fullWidth)
+    )
+    err = (
+        alt.Chart(turns)
+        .mark_errorband(extent="ci")
+        .encode(
+            x="Number of judge continues:Q",
+            y="Final probability correct:Q",
+            color=alt.value(aggColor),
+        )
+        .properties(width=fullWidth)
+    )
+    return (
+        base
+        + err
+        + mean
+    )
+
+def intermediate_probability_correct_by_num_debate_rounds():
+    source = turns.merge(
+        debates[
+            [
+                "Room name",
+                "Is offline"
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+    print(source)
+    base = (
+        alt.Chart(source)
+        .transform_filter((datum['Role'] == 'Judge') | (datum['Role'] == 'Offline Judge'))
+        .transform_calculate(roleWithOffline = "datum['Role'] + ' ' + (datum['Is offline'] ? '(no live judge)' : '')")
+        .encode(
+            x=alt.X("Num previous debating rounds:Q", axis = alt.Axis(tickMinStep=1), title="Num previous debating rounds"),
+            color=alt.Color('roleWithOffline:N', legend=alt.Legend(title="Role", orient="bottom")),
+        )
+        .properties(width=fullWidth)
+    )
+    points = (
+        base
+        .mark_circle(size=60, color=aggColor, opacity=0.3)
+        .encode(
+            y="Probability correct:Q",
+            x=alt.X("newX:Q"),
+            tooltip=["Room name", 'Participant'],
+        )
+        .transform_calculate(
+            # Generate Gaussian jitter with a Box-Muller transform
+            jitter='sqrt(-2*log(random()))*cos(2*PI*random())/15'
+        )
+        .transform_calculate(
+            # Generate Gaussian jitter with a Box-Muller transform
+            newX='min(6, max(0, datum["Num previous debating rounds"] + datum["jitter"]))'
+        )
+    )
+    mean = (
+        base
+        .mark_line()
+        .encode(
+            y="mean(Probability correct):Q",
+        )
+    )
+    err = (
+        base
+        .transform_joinaggregate(
+            count_at_num="count()", groupby=["Num previous debating rounds", "roleWithOffline"]
+        )
+        .transform_filter(
+            datum['count_at_num'] > 1
+        )
+        .mark_errorband(extent="ci", opacity=0.2)
+        .encode(
+            y="Probability correct:Q",
+        )
+    )
+    return (points + err + mean)
 
 
 def final_probability_correct_by_information_progress():
@@ -566,23 +674,66 @@ def final_probability_correct_by_information_progress():
     )
 
 
-def final_probability_correct_by_question_sub():
+def final_probability_correct_by_question_subjectivity():
     source = sessions.merge(
         debates[
-            ["Room name", "Judge", "Number of continues", "Final probability correct"]
+            ["Room name", "Final probability correct"]
         ],
         how="left",
         on="Room name",
     )
-    print(source.dtypes)
-    print(source.groupby(["Room name"]).mean())
-    source = source[source["Role"].str.startswith("Debater")]
+    source = source[source["subjective correctness"].notnull()] 
+    source = source[source["Final probability correct"].notnull()] 
     source = source.groupby("Room name").mean().reset_index()
-    return (
-        alt.Chart(source)
-        .mark_circle(size=60)
-        .encode(x="subjective correctness:O", y="Final probability correct:Q")
-        .properties(width=fullWidth)
+
+    point_color = 'orange'
+
+    points = alt.Chart(source).mark_circle(size=30).encode(
+        y='Final probability correct:Q',
+        tooltip=['Room name', 'Final probability correct', 'subjective correctness']
+    )
+
+    means = alt.Chart(source).mark_point(shape='square', filled=True, size=60, color=point_color).encode(
+        y='mean(Final probability correct):Q',
+    )
+    error_bars = alt.Chart(source).mark_errorbar(extent='ci', color=point_color).encode(
+        alt.Y('Final probability correct')
+    )
+
+    violin = alt.Chart(source).transform_density(
+            'Final probability correct',
+            as_=['Final probability correct', 'density'],
+            extent=[0, 1],
+            groupby=['subjective correctness']
+        ).mark_area(orient='horizontal', color='lightgrey').encode(
+            y='Final probability correct:Q',
+            # color='subjective correctness:O',
+            x=alt.X(
+                'density:Q',
+                stack='left',
+                impute=None,
+                title=None,
+                axis=alt.Axis(labels=False, values=[0],grid=False, ticks=True),
+            ),
+        ).properties(
+            width=100
+        )
+
+    chart = (violin + points + error_bars + means).facet(
+        column=alt.Column(
+            'subjective correctness:O',
+            header=alt.Header(
+                titleOrient='bottom',
+                labelOrient='bottom',
+                labelPadding=0,
+            ),
+        )
+    )
+
+    return chart.configure_facet(
+        spacing=0
+    ).configure_view(
+        stroke=None
     )
 
 
@@ -935,9 +1086,11 @@ all_graph_specifications = {
     "Results:_Final_probability_correct_by_judge_experience": final_probability_correct_by_judge_experience,
     "Results:_Final_probability_correct_by_judge_experience_and_participant": final_probability_correct_by_judge_experience_and_participant,
     "Results:_Final_probability_correct_by_num_judge_rounds": final_probability_correct_by_num_judge_rounds,
-    "Results:_Final_probability_correct_by_z(feedback)_question_subjectivity": final_probability_correct_by_question_sub,
-    "Results:_Final_probability_correct_by_z(feedback)_information_progress": final_probability_correct_by_information_progress,
-    "Results:_Final_probability_correct_by_z(metadata)_speed_annotator_accuracy": final_probability_correct_by_speed_annotator_accuracy,
+    "Results:_Final_probability_correct_by_num_judge_continues": final_probability_correct_by_num_judge_continues,
+    "Results:_Intermediate_probability_correct_by_num_debate_rounds": intermediate_probability_correct_by_num_debate_rounds,
+    "Results_(Metadata):_Final_probability_correct_by_speed_annotator_accuracy": final_probability_correct_by_speed_annotator_accuracy,
+    "Results_(Feedback):_Final_probability_correct_by_question_subjectivity": final_probability_correct_by_question_subjectivity,
+    "Results_(Feedback):_Final_probability_correct_by_information_progress": final_probability_correct_by_information_progress,
     # "Results:_Live_debates_accuracy_by_date": live_debates_accuracy_by_date,
     "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
