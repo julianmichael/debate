@@ -167,7 +167,7 @@ def final_probability_correct_distribution_live_vs_offline_debates():  # TODO: u
             x=alt.X(
                 "Final probability correct (live and mean of offline):Q",
                 title="Final probability correct",
-                bin=alt.Bin(step=0.05)
+                bin=alt.Bin(step=0.05),
             ),
             y=alt.Y("count()", stack=None, title="Number of debates"),
             color=alt.Color(
@@ -201,13 +201,16 @@ def final_probability_correct_distribution_live_vs_offline_debates():  # TODO: u
 def evidence_by_rounds():
     evidence_average = (
         alt.Chart(turns)
-        .transform_filter(datum["Role (honest/dishonest)"] == "Honest debater" or datum["Role (honest/dishonest)"] == "Dishonest debater")
+        .transform_filter(
+            datum["Role (honest/dishonest)"] == "Honest debater"
+            or datum["Role (honest/dishonest)"] == "Dishonest debater"
+        )
         .mark_line(color=aggColor)
         .encode(x="Num previous debating rounds:O", y="mean(Quote length)")
     ).properties(width=fullWidth / 2, height=fullHeight)
 
-    evidence_average_band = evidence_average.mark_errorband(extent='ci').encode(
-        y=alt.Y('Quote length')
+    evidence_average_band = evidence_average.mark_errorband(extent="ci").encode(
+        y=alt.Y("Quote length")
     )
     evidence_honest_dishonest = (
         alt.Chart(turns)
@@ -218,17 +221,21 @@ def evidence_by_rounds():
             color=alt.Color(
                 "Role (honest/dishonest):N",
                 scale=alt.Scale(
-                    domain=['Honest debater', 'Dishonest debater'], range=[correctColor, incorrectColor]
+                    domain=["Honest debater", "Dishonest debater"],
+                    range=[correctColor, incorrectColor],
                 ),
             ),
         )
     ).properties(width=fullWidth / 2, height=fullHeight)
 
-    evidence_honest_dishonest_band = evidence_honest_dishonest.mark_errorband(extent='ci').encode(
-        y=alt.Y('Quote length')
-    )
+    evidence_honest_dishonest_band = evidence_honest_dishonest.mark_errorband(
+        extent="ci"
+    ).encode(y=alt.Y("Quote length"))
 
-    return ((evidence_average + evidence_average_band) | (evidence_honest_dishonest + evidence_honest_dishonest_band)).configure_axis(labelAngle=0)
+    return (
+        (evidence_average + evidence_average_band)
+        | (evidence_honest_dishonest + evidence_honest_dishonest_band)
+    ).configure_axis(labelAngle=0)
 
 
 def evidence_by_rounds_and_participant():
@@ -567,7 +574,7 @@ def final_probability_correct_by_question_sub():
         how="left",
         on="Room name",
     )
-    print(source.describe())
+    print(source.dtypes)
     print(source.groupby(["Room name"]).mean())
     source = source[source["Role"].str.startswith("Debater")]
     source = source.groupby("Room name").mean().reset_index()
@@ -576,6 +583,68 @@ def final_probability_correct_by_question_sub():
         .mark_circle(size=60)
         .encode(x="subjective correctness:O", y="Final probability correct:Q")
         .properties(width=fullWidth)
+    )
+
+
+def final_probability_correct_by_speed_annotator_accuracy():
+    # source["Speed bins"] = pd.cut(
+    #     source["Speed annotator accuracy"],
+    #     bins=[0, 0.1, 0.2, 0.3, 0.4],
+    #     labels=["0-10%", "10-20%", "20-30%", "30-40%"],
+    # )
+    print(debates["Speed annotator accuracy"].isnull().sum())
+    # print(source["Speed annotator accuracy"].isnull().sum())
+    speed = (
+        alt.Chart(debates)
+        .transform_density(
+            "Final probability correct",
+            as_=["Final probability correct", "density"],
+            extent=[0, 1],
+            groupby=["Speed annotator accuracy"],
+        )
+        .mark_area(orient="horizontal")
+        .encode(
+            y=alt.Y("Final probability correct:Q"),
+            color=alt.Color("Speed annotator accuracy:N"),
+            x=alt.X(
+                "density:Q",
+                stack="center",
+                title=None,
+                impute=None,
+                axis=alt.Axis(labels=False, values=[0], grid=False, ticks=True),
+            ),
+            # column=alt.Column(
+            #     "Speed annotator accuracy:N",
+            #     header=alt.Header(
+            #         titleOrient="bottom", labelOrient="bottom", labelPadding=0
+            #     ),
+            # ),
+        )
+        .properties(width=fullWidth / 6)
+    )
+    # speed_lines = (
+    #     alt.Chart(debates)
+    #     .transform_aggregate(
+    #         mean_probability="mean(Final probability correct)",
+    #         groupby=["Speed annotator accuracy"],
+    #     )
+    #     .mark_line(orient="horizontal")
+    #     .encode(
+    #         y=alt.Y("mean_probability:Q"),
+    #         x=alt.X("Speed annotator accuracy:N"),
+    #     )
+    #     .properties(width=fullWidth / 6)
+    # )
+    return (
+        (speed)
+        .facet(
+            "Speed annotator accuracy:N",
+            header=alt.Header(
+                labelOrient="bottom", titleOrient="bottom"
+            ),  # not working
+        )
+        .configure_facet(spacing=0)
+        .configure_view(stroke=None)
     )
 
 
@@ -868,6 +937,7 @@ all_graph_specifications = {
     "Results:_Final_probability_correct_by_num_judge_rounds": final_probability_correct_by_num_judge_rounds,
     "Results:_Final_probability_correct_by_z(feedback)_question_subjectivity": final_probability_correct_by_question_sub,
     "Results:_Final_probability_correct_by_z(feedback)_information_progress": final_probability_correct_by_information_progress,
+    "Results:_Final_probability_correct_by_z(metadata)_speed_annotator_accuracy": final_probability_correct_by_speed_annotator_accuracy,
     # "Results:_Live_debates_accuracy_by_date": live_debates_accuracy_by_date,
     "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,

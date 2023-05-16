@@ -283,6 +283,11 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             case JudgeFeedback(distribution, _, _) =>
               assert(info.role == Judge)
               distribution(info.debate.setup.correctAnswerIndex).toString
+            case OfflineJudgments(judgments) =>
+              judgments
+                .get(info.round.allSpeeches(info.role).speaker)
+                .flatMap(_.result.map(_.distribution(info.debate.setup.correctAnswerIndex)))
+                .toString
             case _ =>
               ""
           }
@@ -321,6 +326,26 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         },
         "Is over" -> { info =>
           info.debate.isOver.toString
+        },
+        "Final probability correct" -> { info =>
+          info.role match {
+            case Judge =>
+              info
+                .debate
+                .finalJudgement
+                .map(_.apply(info.debate.setup.correctAnswerIndex).toString)
+                .getOrElse("")
+            case OfflineJudge =>
+              info
+                .debate
+                .offlineJudgingResults
+                .get(info.participant)
+                .flatMap(_.result)
+                .map(res => res.distribution(info.debate.setup.correctAnswerIndex).toString)
+                .getOrElse("")
+            case _ =>
+              ""
+          }
         }
 
         // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
@@ -424,13 +449,18 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
       val turnInfos =
         for {
           (roomName, debate) <- debates.toList
-          roles = Judge :: (0 until debate.numDebaters).map(Debater(_)).toList
+          roles = OfflineJudge :: Judge :: (0 until debate.numDebaters).map(Debater(_)).toList
           (round, roundIndex) <- debate.rounds.zipWithIndex
           role                <- roles
           turn <-
             (round, role) match {
               case (JudgeFeedback(_, speech, _), Judge) =>
                 Some(DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
+              case (OfflineJudgments(speeches), OfflineJudge) =>
+                speeches
+                  .get(round.allSpeeches(role).speaker)
+                  .flatMap(_.result.map(_.feedback))
+                  .map(speech => DebateTurnInfo(roomName, debate, round, roundIndex, role, speech))
               case (SimultaneousSpeeches(speeches), Debater(i)) =>
                 speeches
                   .get(i)
