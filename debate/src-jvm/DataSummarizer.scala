@@ -482,9 +482,13 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
                           i
                         }
                         .toList
-                    val offlineJudgeRounds = judgment
-                      .judgments
-                      .zip(0 :: debateRoundIndices.map(_ + 1))
+                    val offlineJudgeRounds =
+                      judgment.mode match {
+                        case OfflineJudgingMode.Stepped =>
+                          judgment.judgments.zip(0 :: debateRoundIndices.map(_ + 1))
+                        case OfflineJudgingMode.Timed =>
+                          judgment.judgments.lastOption.map(_ -> roundIndex).toVector
+                      }
                     offlineJudgeRounds.map { case (judgment, roundIndex) =>
                       DebateTurnInfo(roomName, debate, round, roundIndex, role, judgment.feedback)
                     }
