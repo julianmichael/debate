@@ -588,6 +588,52 @@ def final_probability_correct_by_num_judge_continues():
         + mean
     )
 
+def make_mean_lines_with_scatter(
+        base_chart,
+        x,
+        y,
+        series,
+        tooltip
+):
+    points = (
+        base_chart
+        .mark_circle(size=60, color=aggColor, opacity=0.3)
+        .encode(
+            y=f"{y}:Q",
+            x=alt.X("newX:Q"),
+            tooltip=["Room name", 'Participant'],
+        )
+        .transform_calculate(
+            # Generate Gaussian jitter with a Box-Muller transform
+            jitter='sqrt(-2*log(random()))*cos(2*PI*random())/15'
+        )
+        .transform_calculate(
+            # Generate Gaussian jitter with a Box-Muller transform
+            newX=f'min(6, max(0, datum["{x}"] + datum["jitter"]))'
+        )
+    )
+    mean = (
+        base_chart
+        .mark_line()
+        .encode(
+            y=f"mean({y}):Q",
+        )
+    )
+    err = (
+        base_chart
+        .transform_joinaggregate(
+            count_at_num="count()", groupby=([x, series] if series is not None else [x])
+        )
+        .transform_filter(
+            datum['count_at_num'] > 1
+        )
+        .mark_errorband(extent="ci", opacity=0.2)
+        .encode(
+            y=f"{y}:Q",
+        )
+    )
+    return (points + err + mean)
+
 def intermediate_probability_correct_by_num_debate_rounds():
     source = turns.merge(
         debates[
@@ -599,7 +645,6 @@ def intermediate_probability_correct_by_num_debate_rounds():
         how="left",
         on="Room name",
     )
-    print(source)
     base = (
         alt.Chart(source)
         .transform_filter((datum['Role'] == 'Judge') | (datum['Role'] == 'Offline Judge'))
@@ -610,130 +655,53 @@ def intermediate_probability_correct_by_num_debate_rounds():
         )
         .properties(width=fullWidth)
     )
-    points = (
-        base
-        .mark_circle(size=60, color=aggColor, opacity=0.3)
-        .encode(
-            y="Probability correct:Q",
-            x=alt.X("newX:Q"),
-            tooltip=["Room name", 'Participant'],
-        )
-        .transform_calculate(
-            # Generate Gaussian jitter with a Box-Muller transform
-            jitter='sqrt(-2*log(random()))*cos(2*PI*random())/15'
-        )
-        .transform_calculate(
-            # Generate Gaussian jitter with a Box-Muller transform
-            newX='min(6, max(0, datum["Num previous debating rounds"] + datum["jitter"]))'
-        )
+    return make_mean_lines_with_scatter(
+        base,
+        x = "Num previous debating rounds",
+        y = "Probability correct",
+        series = 'roleWithOffline',
+        tooltip = ["Room name", 'Participant']
     )
-    mean = (
-        base
-        .mark_line()
-        .encode(
-            y="mean(Probability correct):Q",
-        )
-    )
-    err = (
-        base
-        .transform_joinaggregate(
-            count_at_num="count()", groupby=["Num previous debating rounds", "roleWithOffline"]
-        )
-        .transform_filter(
-            datum['count_at_num'] > 1
-        )
-        .mark_errorband(extent="ci", opacity=0.2)
-        .encode(
-            y="Probability correct:Q",
-        )
-    )
-    return (points + err + mean)
-
 
 def final_probability_correct_by_information_progress():
-    source = sessions.merge(
-        debates[
-            ["Room name", "Judge", "Number of continues", "Final probability correct"]
-        ],
-        how="left",
-        on="Room name",
-    )
-    print(source.describe())
-    print(source.groupby(["Room name"]).mean())
-    source = source[source["Role"].str.startswith("Judge")]
-    source = source.groupby("Room name").mean().reset_index()
-    return (
-        alt.Chart(source)
-        .mark_circle(size=60)
+    base = (
+        alt.Chart(sessions)
         .encode(
-            x="factual informativeness (total):O",
-            y="Final probability correct:Q",
-            tooltip=["subjective correctness"],
+            x=alt.X("factual informativeness (total):Q", axis = alt.Axis(tickMinStep=1), title="Factual informativeness"),
         )
         .properties(width=fullWidth)
     )
 
+    return make_mean_lines_with_scatter(
+        base,
+        x = "factual informativeness (total)",
+        y = "Final probability correct",
+        series = None,
+        tooltip = ["Room name", 'Participant']
+    )
+
 
 def final_probability_correct_by_question_subjectivity():
-    source = sessions.merge(
-        debates[
-            ["Room name", "Final probability correct"]
-        ],
-        how="left",
-        on="Room name",
-    )
-    source = source[source["subjective correctness"].notnull()] 
-    source = source[source["Final probability correct"].notnull()] 
-    source = source.groupby("Room name").mean().reset_index()
+    source = sessions
 
-    point_color = 'orange'
-
-    points = alt.Chart(source).mark_circle(size=30).encode(
-        y='Final probability correct:Q',
-        tooltip=['Room name', 'Final probability correct', 'subjective correctness']
-    )
-
-    means = alt.Chart(source).mark_point(shape='square', filled=True, size=60, color=point_color).encode(
-        y='mean(Final probability correct):Q',
-    )
-    error_bars = alt.Chart(source).mark_errorbar(extent='ci', color=point_color).encode(
-        alt.Y('Final probability correct')
-    )
-
-    violin = alt.Chart(source).transform_density(
-            'Final probability correct',
-            as_=['Final probability correct', 'density'],
-            extent=[0, 1],
-            groupby=['subjective correctness']
-        ).mark_area(orient='horizontal', color='lightgrey').encode(
-            y='Final probability correct:Q',
-            # color='subjective correctness:O',
-            x=alt.X(
-                'density:Q',
-                stack='left',
-                impute=None,
-                title=None,
-                axis=alt.Axis(labels=False, values=[0],grid=False, ticks=True),
-            ),
-        ).properties(
-            width=100
+    base = (
+        alt.Chart(source)
+        .transform_joinaggregate(
+            avg_subjective_correctness="mean(subjective correctness)", groupby=["Room name"]
         )
-
-    chart = (violin + points + error_bars + means).facet(
-        column=alt.Column(
-            'subjective correctness:O',
-            header=alt.Header(
-                titleOrient='bottom',
-                labelOrient='bottom',
-                labelPadding=0,
-            ),
+        .transform_filter((datum['Role'] == 'Judge') | (datum['Role'] == 'Offline Judge'))
+        .encode(
+            x=alt.X("avg_subjective_correctness:Q", axis = alt.Axis(tickMinStep=1), title="Subjective correctness"),
         )
+        .properties(width=fullWidth)
     )
 
-    return chart.configure_facet(
-        spacing=0
-    ).configure_view(
-        stroke=None
+    return make_mean_lines_with_scatter(
+        base,
+        x = "avg_subjective_correctness",
+        y = "Final probability correct",
+        series = None,
+        tooltip = ["Room name", "Participant"]
     )
 
 
