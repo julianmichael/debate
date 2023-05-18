@@ -179,6 +179,7 @@ def outcomes_by_field(source, rowEncoding = None):
         color = alt.Color(
             'Final probability correct (with imputation):Q',
             scale=alt.Scale(scheme='redblue', domain=[0.0, 1.0]),
+            title='Final probability correct'
         ),
         order=alt.Order(
             'Final probability correct (dist from half):Q',
