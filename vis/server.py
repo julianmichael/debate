@@ -87,43 +87,45 @@ read_data()
 
 
 def an_overview_of_counts():  # TODO: un-average offline
-    debates["Final probability correct (live and mean of offline)"] = debates.apply(
-        lambda row: row["Final probability correct"]
-        if row["Is offline"] == False
-        else row["Average offline probability correct"],
-        axis=1,
-    )
+    # debates["Final probability correct (live and mean of offline)"] = debates.apply(
+    #     lambda row: row["Final probability correct"]
+    #     if row["Is offline"] == False
+    #     else row["Average offline probability correct"],
+    #     axis=1,
+    # )
     bins = [0, 0.491, 0.509, 1]
     labels = ["0-49%", "0.5", "51-100%"]
-    debates["Final probability correct bins"] = pd.cut(
-        debates["Final probability correct (live and mean of offline)"],
+    sessions["Final probability correct bins"] = pd.cut(
+        sessions["Final probability correct"],
         bins=bins,
         labels=labels,
     )
     counts_bar = (
-        alt.Chart(debates)
+        alt.Chart(sessions).transform_filter(
+            alt.FieldOneOfPredicate(field='Role', oneOf=["Judge", "Offline Judge"])
+        )
         .mark_bar()
         .encode(
-            x=alt.X("count()", stack="zero", title="Number of debates"),
-            y=alt.Y("Status:O", title=None),
+            x=alt.X("count()", stack="zero", title="Number of judgements"),
+            y=alt.Y("Is over:O"),
             color=alt.Color(
                 "Final probability correct bins:O",
                 sort="descending",
-                scale=alt.Scale(range=[correctColor, incorrectColor, nullColor]),
+                scale=alt.Scale(range=[correctColor, "white", incorrectColor, nullColor]),
             ),
             row=alt.Row(
-                "Is offline:N",
-                header=alt.Header(
-                    title="Debates categorized by correctness, setup, and status",
-                    titleFontSize=18,
-                    titleFontWeight="bold",
-                    titleOrient="top",
-                    labelExpr='datum.value ? "Offline (averaged)" : "Live"',
-                    labelOrient="top",
-                    labelAnchor="start",
-                    labelFontSize=14,
-                    labelFontWeight="bold",
-                ),
+                "Role:N",
+                # header=alt.Header(
+                #     title="Debates categorized by correctness, setup, and status",
+                #     titleFontSize=18,
+                #     titleFontWeight="bold",
+                #     titleOrient="top",
+                #     labelExpr='datum.value ? "Offline (averaged)" : "Live"',
+                #     labelOrient="top",
+                #     labelAnchor="start",
+                #     labelFontSize=14,
+                #     labelFontWeight="bold",
+                # ),
             ),
             tooltip=["count()", "Status:O", "Final probability correct bins:O"],
         )
@@ -207,7 +209,7 @@ def evidence_by_rounds():
         )
         .mark_line(color=aggColor)
         .encode(x="Num previous debating rounds:O", y="mean(Quote length)")
-    ).properties(width=fullWidth / 2, height=fullHeight)
+    ).properties(width=fullWidth / 3, height=fullHeight - 100)
 
     evidence_average_band = evidence_average.mark_errorband(extent="ci").encode(
         y=alt.Y("Quote length")
@@ -226,7 +228,7 @@ def evidence_by_rounds():
                 ),
             ),
         )
-    ).properties(width=fullWidth / 2, height=fullHeight)
+    ).properties(width=fullWidth / 3, height=fullHeight - 100)
 
     evidence_honest_dishonest_band = evidence_honest_dishonest.mark_errorband(
         extent="ci"
@@ -238,7 +240,7 @@ def evidence_by_rounds():
     ).configure_axis(labelAngle=0)
 
 
-def evidence_by_rounds_and_participant():
+def evidence_by_rounds_and_participant(): #TO maybe DO add error bars
     evidence_line = (
         alt.Chart(turns)
         .mark_line()
@@ -364,7 +366,7 @@ def final_probability_by_debaters():  # I feel like there should be a shorter wa
     )
 
 
-def final_probability_correct_by_judge():
+def final_probability_correct_by_judge(): # TODO remove null
     judge_avg = (
         alt.Chart(debates)
         .mark_circle(color=nullColor)
@@ -440,7 +442,7 @@ def final_probability_correct_by_judge_experience():  # TODO: add other judge se
     )
 
 
-def final_probability_correct_by_judge_experience_and_participant():  # TODO: add other judge setups # TODO categorize judge patterns
+def final_probability_correct_by_judge_experience_and_participant():  # TODO: add other judge setups # TO maybe DO categorize judge patterns # TODO fix "tooltip"
     debates.sort_values(by=["End time"], inplace=True)
     debates["Judge experience"] = debates.groupby("Judge")["End time"].transform(
         "cumcount"
@@ -588,7 +590,7 @@ def final_probability_correct_by_num_judge_continues():
         + mean
     )
 
-def make_mean_lines_with_scatter(
+def make_mean_lines_with_scatter( # TODO: add question text...
         base_chart,
         x,
         y,
