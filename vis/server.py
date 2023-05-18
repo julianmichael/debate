@@ -297,10 +297,6 @@ def accuracy_by_judge_setting():
         else row['Role'],
         axis=1,
     )
-    # source['Role'] + source['Is offline'].map({True: ' (no live judge)', False: ''})
-
-    # print('==========')
-    # print(source[source['roleWithOffline'] == 'Judge (no live judge)'])
 
     rowEncoding = alt.Row(field ='roleWithOffline', type='N', title='Role')
     yEncoding = alt.Y(field ='roleWithOffline', type='N', title='Role')
@@ -322,6 +318,34 @@ def accuracy_by_judge_setting():
         ).properties(title="Accuracy by Judge Setting"),
         accuracy_by_field(accuracy_source).properties(
             title="Aggregate Accuracy (All Settings)"
+        )
+    ).resolve_scale(x = 'independent')
+
+def accuracy_by_judge():
+
+    source = sessions
+    source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+
+    rowEncoding = alt.Row(field ='Participant', type='N', title='Participant')
+    yEncoding = alt.Y(field ='Participant', type='N', title='Participant')
+
+    # outcomes_source = source
+    accuracy_source = source[source['Final probability correct'].notna()]
+
+    return alt.vconcat(
+        # outcomes_by_field(
+        #     outcomes_source,
+        #     rowEncoding = rowEncoding
+        # ).properties(title="Outcomes by Judge Setting"),
+        # outcomes_by_field(outcomes_source).properties(
+        #     title="Aggregate Outcomes (All Settings)"
+        # ),
+        accuracy_by_field(
+            accuracy_source,
+            yEncoding = yEncoding
+        ).properties(title="Accuracy by Judge"),
+        accuracy_by_field(accuracy_source).properties(
+            title="Aggregate Accuracy (All Judges)"
         )
     ).resolve_scale(x = 'independent')
 
@@ -1221,6 +1245,7 @@ def debates_completed_per_week():
 all_graph_specifications = {
     "Main_results:_An_overview_of_counts": an_overview_of_counts,
     "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
+    "Results:_Accuracy_by_judge": accuracy_by_judge,
     "Results:_Distribution_of_final_probability_correct,_live_vs_offline_debates": final_probability_correct_distribution_live_vs_offline_debates,
     "Results:_Evidence_by_rounds": evidence_by_rounds,
     "Results:_Evidence_by_rounds_and_participant": evidence_by_rounds_and_participant,
