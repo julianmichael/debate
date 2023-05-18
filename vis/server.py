@@ -107,7 +107,7 @@ def an_overview_of_counts():  # TODO: un-average offline
         .mark_bar()
         .encode(
             x=alt.X("count()", stack="zero", title="Number of judgements"),
-            y=alt.Y("Is over:O"),
+            y=alt.Y("Final probability correct bins:O"),
             color=alt.Color(
                 "Final probability correct bins:O",
                 sort="descending",
@@ -127,7 +127,7 @@ def an_overview_of_counts():  # TODO: un-average offline
                 #     labelFontWeight="bold",
                 # ),
             ),
-            tooltip=["count()", "Status:O", "Final probability correct bins:O"],
+            tooltip=["count()", "Final probability correct bins:O"],
         )
     )
     return counts_bar.properties(width=fullWidth - 100, height=fullHeight / 4)
