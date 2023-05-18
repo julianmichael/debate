@@ -18,6 +18,8 @@ from collections import namedtuple
 
 import os
 
+import math
+
 from altair import datum
 
 app = Flask(__name__)
@@ -133,26 +135,194 @@ def an_overview_of_counts():  # TODO: un-average offline
     )
     return counts_bar.properties(width=fullWidth - 100, height=fullHeight / 4)
 
+def outcomes_by_field(source, rowEncoding = None):
 
-# # if we want to see the confidence in detail (more bins)
-# def an_overview_of_counts(): # TODO: un-average offline
-#     debates['Final probability correct (live + mean of offline)'] = debates.apply(
-#         lambda row: row['Final probability correct'] if row['Is offline'] == False else row['Average offline probability correct'], axis=1)
-#     bins = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-#     labels = ['0-10%', '10-20%', '20-30%', '30-40%', '40-50%',
-#               '50-60%', '60-70%', '70-80%', '80-90%', '90-100%']
-#     debates['Final probability correct bins'] = pd.cut(debates['Final probability correct (live + mean of offline)'],
-#                                                        bins=bins, labels=labels)
-#     counts_bar = alt.Chart(debates).mark_bar().encode(
-#         x=alt.X('count()', stack='zero'),
-#         y=alt.Y('Status:O'),
-#         color=alt.condition(alt.datum['Final probability correct bins'] == None, alt.value('grey'),
-#                             alt.Color('Final probability correct bins:O', sort='descending',
-#                                       scale=alt.Scale(scheme='purpleorange'),
-#                                       legend=alt.Legend(title='Final probability correct', values=labels))),
-#         tooltip=['count()', 'Status:O', 'Final probability correct bins:O']
-#     ).facet(facet='Is offline:O', columns=1)
-#     return counts_bar.properties(width=fullWidth, height=fullHeight)
+    source['outcome'] = source.apply(
+        lambda row: "incomplete" if math.isnan(row['Final probability correct'])
+        else "tie" if row['Final probability correct'] == 0.5
+        else "correct" if row['Final probability correct'] > 0.5
+        else "incorrect",
+        axis=1
+    )
+
+    source['Final probability correct (with imputation)'] = source.apply(
+        lambda row: 0.5 if math.isnan(row['Final probability correct'])
+        else row['Final probability correct'],
+        axis=1
+    )
+
+    source['Final probability correct (dist from half)'] = source.apply(
+        lambda row: 0.0 if math.isnan(row['Final probability correct'])
+        else abs(row['Final probability correct'] - 0.5),
+        axis=1
+    )
+
+    if rowEncoding is None:
+        groups = ['outcome']
+    else:
+        groups = ['outcome', rowEncoding.field]
+
+    base = alt.Chart(
+        source
+    ).transform_joinaggregate(
+        groupby=groups,
+        group_count='count()'
+    ).encode(
+        y=alt.Y('outcome:N', scale=alt.Scale(domain=['correct', 'incorrect', 'tie', 'incomplete']))
+    )
+
+    if rowEncoding is not None:
+        base = base.encode(row=rowEncoding)
+
+    main_bar = base.mark_bar().encode(
+        x=alt.X('count():Q'),
+        color = alt.Color(
+            'Final probability correct (with imputation):Q',
+            scale=alt.Scale(scheme='redblue', domain=[0.0, 1.0]),
+        ),
+        order=alt.Order(
+            'Final probability correct (dist from half):Q',
+            sort='ascending'
+        ),
+        tooltip = [
+            'outcome:N',
+            alt.Tooltip('group_count:Q', title="Judgments"),
+            alt.Tooltip('count():Q', title = 'Judgments with this probability'),
+            'Final probability correct:Q'
+        ]
+    ).properties(width=fullWidth - 200)
+
+    return main_bar
+
+def accuracy_by_field(source, yEncoding = None):
+
+    if yEncoding is None:
+        groups = []
+    else:
+        groups = [yEncoding.field]
+
+    base = alt.Chart(source).transform_joinaggregate(
+        total = "count()",
+        groupby = groups
+    ).transform_calculate(
+        proportion = '1 / datum.total'
+    )
+
+    if yEncoding is not None:
+        base = base.encode(y=yEncoding)
+
+    main_bar = base.mark_bar().encode(
+        x=alt.X('sum(proportion):Q',
+            axis=alt.Axis(
+                title=None,
+                format='.0%',
+                labelExpr="(datum.value * 5) % 1 ? null : datum.label",
+            ),
+            scale=alt.Scale(domain=[0.0, 1.0])
+        ),
+        color=alt.Color('Final probability correct:Q', scale=alt.Scale(scheme='redblue', domain=[0.0, 1.0])),
+        order=alt.Order(
+            f'Final probability correct:Q',
+            sort='descending'
+        ),
+        tooltip = [
+            'count():Q',
+            'total:Q',
+            'sum(proportion):Q',
+            'Final probability correct:Q'
+        ]
+    ).properties(width=fullWidth - 200)
+
+    prop_color = 'green'
+    # rule_thickness = 1.0
+    # err_thickness = 1.0
+    point_size = 25.0
+
+    gold_err = (base
+    ).transform_calculate(
+        is_correct = 'datum["Final probability correct"] > 0.5 ? 1 : 0'
+    ).mark_errorbar(
+        extent='ci',
+        color=prop_color,
+    ).encode(
+        x=alt.X(f'is_correct:Q',
+                scale=alt.Scale(zero=False)),
+        tooltip=[]
+    )
+    gold_mean = base.mark_point(
+        # thickness=2.0
+        color=prop_color, size=point_size, filled=True
+    ).transform_filter(
+        datum['Final probability correct'] > 0.5
+    ).encode(
+        x=alt.X(f'sum(proportion):Q',
+            scale=alt.Scale(zero=False)),
+    )
+
+    gold_mean_num = base.mark_text(
+        color=prop_color,
+        align='left',
+        baseline='bottom',
+        fontWeight='bold',
+        dx=4,
+        dy=-4
+    ).transform_filter(
+        datum['Final probability correct'] > 0.5
+    ).encode(
+        text=alt.Text(f'sum(proportion):Q', format='.0%'),
+        x=alt.X(f'sum(proportion):Q',
+            scale=alt.Scale(zero=False)),
+    )
+
+    return main_bar + gold_err + gold_mean + gold_mean_num
+
+
+def accuracy_by_judge_setting():
+    source = sessions.merge(
+        debates[
+            [
+                "Room name",
+                "Is offline"
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+
+    source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+    source['roleWithOffline'] = source.apply(
+        lambda row: row['Role'] + ' (no live judge)'
+        if row['Is offline']
+        else row['Role'],
+        axis=1,
+    )
+    # source['Role'] + source['Is offline'].map({True: ' (no live judge)', False: ''})
+
+    # print('==========')
+    # print(source[source['roleWithOffline'] == 'Judge (no live judge)'])
+
+    rowEncoding = alt.Row(field ='roleWithOffline', type='N', title='Role')
+    yEncoding = alt.Y(field ='roleWithOffline', type='N', title='Role')
+
+    outcomes_source = source
+    accuracy_source = source[source['Final probability correct'].notna()]
+
+    return alt.vconcat(
+        outcomes_by_field(
+            outcomes_source,
+            rowEncoding = rowEncoding
+        ).properties(title="Outcomes by Judge Setting"),
+        outcomes_by_field(outcomes_source).properties(
+            title="Aggregate Outcomes (All Settings)"
+        ),
+        accuracy_by_field(
+            accuracy_source,
+            yEncoding = yEncoding
+        ).properties(title="Accuracy by Judge Setting"),
+        accuracy_by_field(accuracy_source).properties(
+            title="Aggregate Accuracy (All Settings)"
+        )
+    ).resolve_scale(x = 'independent')
 
 
 # RESULTS
@@ -1049,6 +1219,7 @@ def debates_completed_per_week():
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
     "Main_results:_An_overview_of_counts": an_overview_of_counts,
+    "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
     "Results:_Distribution_of_final_probability_correct,_live_vs_offline_debates": final_probability_correct_distribution_live_vs_offline_debates,
     "Results:_Evidence_by_rounds": evidence_by_rounds,
     "Results:_Evidence_by_rounds_and_participant": evidence_by_rounds_and_participant,
