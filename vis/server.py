@@ -43,17 +43,20 @@ def read_data():
     global turns
     debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
     debates["Start time"] = pd.to_datetime(debates["Start time"], unit="ms")
+    # only include debates after the given time
     debates = debates[
         debates["Start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y")
     ]
     debates["Final probability incorrect"] = 1 - debates["Final probability correct"]
     debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
     sessions = pd.read_csv(os.path.join(data_dir, "official/summaries/sessions.csv"), keep_default_na=True)
+    # filter sessions to only the included debates
+    sessions = sessions.merge(debates[["Room name"]], how="inner", on="Room name")
+
     turns = pd.read_csv(os.path.join(data_dir, "official/summaries/turns.csv"), keep_default_na=True)
     turns["Room start time"] = pd.to_datetime(turns["Room start time"], unit="ms")
-    turns = turns[
-        turns["Room start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y")
-    ]
+    # filter turns to only the included debates
+    turns = turns.merge(debates[["Room name"]], how="inner", on="Room name")
 
     print("Debates:")
     print(debates.dtypes)
