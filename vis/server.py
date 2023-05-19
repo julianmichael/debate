@@ -31,7 +31,7 @@ data_dir = os.environ.get("DATA_DIR", default="save")
 # set graphic parameters
 correctColor = "green"
 incorrectColor = "crimson"
-nullColor = "grey"
+nullColor = "lightgrey"
 onlineColor = "orange"
 offlineColor = "blue"
 aggColor = "black"
@@ -180,7 +180,7 @@ def outcomes_by_field(source, rowEncoding = None):
         x=alt.X('count():Q'),
         color = alt.Color(
             'Final probability correct (with imputation):Q',
-            scale=alt.Scale(scheme='redblue', domain=[0.0, 1.0]),
+            scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0]),
             title='Final probability correct'
         ),
         order=alt.Order(
@@ -226,7 +226,7 @@ def accuracy_by_field(source, yEncoding = None, invert = False):
             ),
             scale=alt.Scale(domain=[0.0, 1.0])
         ),
-        color=alt.Color('Final probability correct:Q', scale=alt.Scale(scheme='redblue', domain=[0.0, 1.0])),
+        color=alt.Color('Final probability correct:Q', scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0])),
         order=alt.Order(
             f'Final probability correct:Q',
             sort='descending' if not invert else 'ascending'
@@ -240,7 +240,7 @@ def accuracy_by_field(source, yEncoding = None, invert = False):
         ]
     ).properties(width=fullWidth - 200)
 
-    prop_color = 'green'
+    prop_color = aggColor
     # rule_thickness = 1.0
     # err_thickness = 1.0
     point_size = 25.0
