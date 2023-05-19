@@ -195,7 +195,7 @@ def outcomes_by_field(source, rowEncoding = None):
 
     return main_bar
 
-def accuracy_by_field(source, yEncoding = None):
+def accuracy_by_field(source, yEncoding = None, invert = False):
 
     if yEncoding is None:
         groups = []
@@ -208,7 +208,8 @@ def accuracy_by_field(source, yEncoding = None):
     ).transform_calculate(
         proportion = '1 / datum.total'
     ).transform_calculate(
-        is_correct = 'datum["Final probability correct"] > 0.5 ? 1 : 0'
+        is_correct = 'datum["Final probability correct"] > 0.5 ? 1 : 0',
+        is_not_correct = 'datum["Final probability correct"] <= 0.5 ? 1 : 0'
     )
 
     if yEncoding is not None:
@@ -226,13 +227,14 @@ def accuracy_by_field(source, yEncoding = None):
         color=alt.Color('Final probability correct:Q', scale=alt.Scale(scheme='redblue', domain=[0.0, 1.0])),
         order=alt.Order(
             f'Final probability correct:Q',
-            sort='descending'
+            sort='descending' if not invert else 'ascending'
         ),
         tooltip = [
             'count():Q',
             'total:Q',
             'sum(proportion):Q',
-            'Final probability correct:Q'
+            'Final probability correct:Q',
+            'Room name:N'
         ]
     ).properties(width=fullWidth - 200)
 
@@ -240,14 +242,15 @@ def accuracy_by_field(source, yEncoding = None):
     # rule_thickness = 1.0
     # err_thickness = 1.0
     point_size = 25.0
+    mean_field = 'is_correct' if not invert else 'is_not_correct'
 
     gold_err = (base
     ).mark_rule(
         # extent='ci',
         color=prop_color,
     ).encode(
-        x=f'ci0(is_correct):Q',
-        x2=f'ci1(is_correct):Q',
+        x=f'ci0({mean_field}):Q',
+        x2=f'ci1({mean_field}):Q',
         # scale=alt.Scale(zero=False)
         tooltip=[]
     )
@@ -255,7 +258,7 @@ def accuracy_by_field(source, yEncoding = None):
         # thickness=2.0
         color=prop_color, size=point_size, filled=True
     ).encode(
-        x=alt.X(f'mean(is_correct):Q',
+        x=alt.X(f'mean({mean_field}):Q',
             scale=alt.Scale(zero=False)),
     )
 
@@ -267,8 +270,8 @@ def accuracy_by_field(source, yEncoding = None):
         dx=4,
         dy=-4
     ).encode(
-        text=alt.Text(f'mean(is_correct):Q', format='.0%'),
-        x=alt.X(f'mean(is_correct):Q',
+        text=alt.Text(f'mean({mean_field}):Q', format='.0%'),
+        x=alt.X(f'mean({mean_field}):Q',
             scale=alt.Scale(zero=False)),
     )
 
@@ -318,29 +321,55 @@ def accuracy_by_judge_setting():
         )
     ).resolve_scale(x = 'independent')
 
-def accuracy_by_judge():
+def win_rates_by_participant():
 
-    source = sessions
+    source = sessions.merge(
+        debates[
+            [
+                "Room name",
+                "Honest debater",
+                "Dishonest debater",
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+
     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
     source['Log final probability correct'] = source.apply(
         lambda row: np.log(row['Final probability correct']),
         axis=1
     )
 
-    yEncoding = alt.Y(field ='Participant', type='N', title='Participant',
+    judgeY = alt.Y(field ='Participant', type='N', title='Participant',
         sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='descending')
+    )
+    honestY = alt.Y(field ='Honest debater', type='N', title='Honest debater',
+        sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='descending')
+    )
+    dishonestY = alt.Y(field ='Dishonest debater', type='N', title='Dishonest debater',
+        sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
     )
 
     accuracy_source = source[source['Final probability correct'].notna()]
 
     return alt.vconcat(
+        accuracy_by_field(accuracy_source).properties(
+            title="Aggregate Accuracy"
+        ),
         accuracy_by_field(
             accuracy_source,
-            yEncoding = yEncoding
+            yEncoding = judgeY
         ).properties(title="Accuracy by Judge (sorted by mean log prob)"),
-        accuracy_by_field(accuracy_source).properties(
-            title="Aggregate Accuracy (All Judges)"
-        )
+        accuracy_by_field(
+            accuracy_source,
+            yEncoding = honestY
+        ).properties(title="Win Rate by Honest Debater (sorted by mean log prob)"),
+        accuracy_by_field(
+            accuracy_source,
+            yEncoding = dishonestY,
+            invert=True
+        ).properties(title="Win Rate by Dishonest Debater (sorted by mean log prob)"),
     ).resolve_scale(x = 'independent')
 
 
@@ -1239,7 +1268,7 @@ def debates_completed_per_week():
 all_graph_specifications = {
     "Main_results:_An_overview_of_counts": an_overview_of_counts,
     "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
-    "Results:_Accuracy_by_judge": accuracy_by_judge,
+    "Results:_Win_rates_by_participant": win_rates_by_participant,
     "Results:_Distribution_of_final_probability_correct,_live_vs_offline_debates": final_probability_correct_distribution_live_vs_offline_debates,
     "Results:_Evidence_by_rounds": evidence_by_rounds,
     "Results:_Evidence_by_rounds_and_participant": evidence_by_rounds_and_participant,
