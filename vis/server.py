@@ -207,6 +207,8 @@ def accuracy_by_field(source, yEncoding = None):
         groupby = groups
     ).transform_calculate(
         proportion = '1 / datum.total'
+    ).transform_calculate(
+        is_correct = 'datum["Final probability correct"] > 0.5 ? 1 : 0'
     )
 
     if yEncoding is not None:
@@ -240,23 +242,20 @@ def accuracy_by_field(source, yEncoding = None):
     point_size = 25.0
 
     gold_err = (base
-    ).transform_calculate(
-        is_correct = 'datum["Final probability correct"] > 0.5 ? 1 : 0'
-    ).mark_errorbar(
-        extent='ci',
+    ).mark_rule(
+        # extent='ci',
         color=prop_color,
     ).encode(
-        x=alt.X(f'is_correct:Q',
-                scale=alt.Scale(zero=False)),
+        x=f'ci0(is_correct):Q',
+        x2=f'ci1(is_correct):Q',
+        # scale=alt.Scale(zero=False)
         tooltip=[]
     )
     gold_mean = base.mark_point(
         # thickness=2.0
         color=prop_color, size=point_size, filled=True
-    ).transform_filter(
-        datum['Final probability correct'] > 0.5
     ).encode(
-        x=alt.X(f'sum(proportion):Q',
+        x=alt.X(f'mean(is_correct):Q',
             scale=alt.Scale(zero=False)),
     )
 
@@ -267,11 +266,9 @@ def accuracy_by_field(source, yEncoding = None):
         fontWeight='bold',
         dx=4,
         dy=-4
-    ).transform_filter(
-        datum['Final probability correct'] > 0.5
     ).encode(
-        text=alt.Text(f'sum(proportion):Q', format='.0%'),
-        x=alt.X(f'sum(proportion):Q',
+        text=alt.Text(f'mean(is_correct):Q', format='.0%'),
+        x=alt.X(f'mean(is_correct):Q',
             scale=alt.Scale(zero=False)),
     )
 
@@ -325,25 +322,22 @@ def accuracy_by_judge():
 
     source = sessions
     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+    source['Log final probability correct'] = source.apply(
+        lambda row: np.log(row['Final probability correct']),
+        axis=1
+    )
 
-    rowEncoding = alt.Row(field ='Participant', type='N', title='Participant')
-    yEncoding = alt.Y(field ='Participant', type='N', title='Participant')
+    yEncoding = alt.Y(field ='Participant', type='N', title='Participant',
+        sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='descending')
+    )
 
-    # outcomes_source = source
     accuracy_source = source[source['Final probability correct'].notna()]
 
     return alt.vconcat(
-        # outcomes_by_field(
-        #     outcomes_source,
-        #     rowEncoding = rowEncoding
-        # ).properties(title="Outcomes by Judge Setting"),
-        # outcomes_by_field(outcomes_source).properties(
-        #     title="Aggregate Outcomes (All Settings)"
-        # ),
         accuracy_by_field(
             accuracy_source,
             yEncoding = yEncoding
-        ).properties(title="Accuracy by Judge"),
+        ).properties(title="Accuracy by Judge (sorted by mean log prob)"),
         accuracy_by_field(accuracy_source).properties(
             title="Aggregate Accuracy (All Judges)"
         )
