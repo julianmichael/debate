@@ -5,18 +5,19 @@ import cats.Id
 import cats.implicits._
 import cats.kernel.Order
 
+import japgolly.scalajs.react.Callback
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.macros.Lenses
 import scalacss.ScalaCssReact._
 
+import jjm.DotMap
+import jjm.ui.Rgba
+
 import debate.Utils.ClassSetInterpolator
 import debate.util.Local
-import jjm.DotMap
-import japgolly.scalajs.react.feature.ReactFragment
-import jjm.ui.Rgba
-import japgolly.scalajs.react.Callback
 
 object LeaderboardPanel {
 

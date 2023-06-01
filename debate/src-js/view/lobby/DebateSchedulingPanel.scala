@@ -8,6 +8,8 @@ import scala.util.Success
 import cats.data.NonEmptySet
 import cats.implicits._
 
+import io.circe.disjunctionCodecs._
+import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.feature.ReactFragment
@@ -28,8 +30,6 @@ import debate.util.Local
 import debate.util.NumberField2
 import debate.util.ProbabilitySliders2
 import debate.util.SparseDistribution
-import io.circe.generic.JsonCodec
-import io.circe.disjunctionCodecs._
 
 object DebateSchedulingPanel {
   val S = Styles

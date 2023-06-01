@@ -1,25 +1,26 @@
 /** Cross-platform code used by both the JVM and JS packages.
   */
 
+import scala.collection.immutable.SortedSet
+
 import cats.Eval
 import cats.Monad
+import cats.Monoid
+import cats.Order
 import cats.Reducible
 import cats.UnorderedFoldable
+import cats.data.NonEmptySet
+import cats.data.NonEmptyVector
 import cats.implicits._
 import cats.kernel.CommutativeMonoid
 
 import io.circe.generic.JsonCodec
+import monocle.Iso
 import monocle.Lens
 import monocle.macros.Lenses
 
 import jjm.ling.ESpan
-import cats.Monoid
-import monocle.Iso
 import jjm.ling.Span
-import cats.Order
-import cats.data.NonEmptySet
-import cats.data.NonEmptyVector
-import scala.collection.immutable.SortedSet
 
 package object debate extends PackagePlatformExtensions {
 

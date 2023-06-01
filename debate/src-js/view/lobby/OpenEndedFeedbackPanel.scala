@@ -5,6 +5,8 @@ import cats.implicits._
 
 import japgolly.scalajs.react.AsyncCallback
 import japgolly.scalajs.react.MonocleReact._
+import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
 import monocle.function.{all => Optics}
 import org.scalajs.dom
@@ -13,10 +15,8 @@ import scalacss.ScalaCssReact._
 import jjm.ui.Mounting
 
 import debate.util.ListConfig
-import debate.util.SyncedState
-import japgolly.scalajs.react.feature.ReactFragment
-import japgolly.scalajs.react.extra.StateSnapshot
 import debate.util.Local
+import debate.util.SyncedState
 
 object OpenEndedFeedbackPanel {
   val S = Styles

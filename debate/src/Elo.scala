@@ -1,13 +1,14 @@
 package debate
 
-import cats.implicits._
-import jjm.implicits._
-
-import com.stripe.rainier.core._
-import com.stripe.rainier.compute._
-import io.circe.generic.JsonCodec
 import cats.data.State
+import cats.implicits._
+
+import com.stripe.rainier.compute._
+import com.stripe.rainier.core._
 import com.stripe.rainier.sampler.EHMC
+import io.circe.generic.JsonCodec
+
+import jjm.implicits._
 
 object Elo {
 

@@ -2,12 +2,12 @@ package debate
 
 import cats.implicits._
 
+import io.circe.Decoder
 import monocle.function.{all => Optics}
 import monocle.macros.Lenses
 
 import jjm.DotPair
 import jjm.implicits._
-import io.circe.Decoder
 
 /** The state of a debate. Persists when people leave; this is the saveable data
   * object.

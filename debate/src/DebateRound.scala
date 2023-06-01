@@ -79,6 +79,9 @@ object NegotiateEnd
 case class OfflineJudgments(judgments: Map[String, OfflineJudgment]) extends DebateRound {
   def isComplete(debaters: Set[Int]): Boolean = true
   def allSpeeches =
+    // throw new IllegalArgumentException(
+    //   "Can't grab allSpeeches from an OfflineJudgments round. Oops.. why did I implement it this way?"
+    // )
     judgments
       .toVector
       .view
