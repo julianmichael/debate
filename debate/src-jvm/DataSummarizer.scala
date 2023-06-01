@@ -157,6 +157,17 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         // TO maybe DO: conditional/option for whether or not debate.isOver for "End time"
         // currently is last time debated instead?
         "End time" -> { info =>
+          info
+            .debate
+            .rounds
+            .view
+            .filterNot(_.isInstanceOf[OfflineJudgments])
+            .flatMap(_.maxTimestamp)
+            .lastOption
+            .map(_.toString)
+            .getOrElse("")
+        },
+        "Last modified time" -> { info =>
           info.debate.rounds.view.flatMap(_.maxTimestamp).lastOption.map(_.toString).getOrElse("")
         }
       )
