@@ -319,7 +319,11 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
           info.role.toString
         },
         "Is turn" -> { info =>
-          info.debate.stateInfo._2.currentSpeakers.contains(info.role).toString
+          (
+            info.debate.currentTransitions.currentSpeakers.contains(info.role) &&
+              (info.role != OfflineJudge ||
+                info.debate.offlineJudgingResults.get(info.participant).exists(_.result.isEmpty))
+          ).toString
         },
         "Is over" -> { info =>
           info.debate.isOver.toString
