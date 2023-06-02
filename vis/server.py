@@ -91,7 +91,7 @@ read_data()
 # The offline debates were 50% correct, and the live debates were 60% correct." (Copilot, 2023)
 
 
-# def an_overview_of_counts():  # TODO: un-average offline
+# def an_overview_of_counts():  # TO maybe DO: un-average offline
 #     # debates["Final probability correct (live and mean of offline)"] = debates.apply(
 #     #     lambda row: row["Final probability correct"]
 #     #     if row["Is offline"] == False
