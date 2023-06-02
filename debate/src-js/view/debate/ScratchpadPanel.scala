@@ -2,10 +2,9 @@ package debate
 package view.debate
 
 // import japgolly.scalajs.react._
-import japgolly.scalajs.react.vdom.html_<^._
-// import monocle.function.{all => Optics}
-// import scalacss.ScalaCssReact._
 import japgolly.scalajs.react.extra.StateSnapshot
+import japgolly.scalajs.react.vdom.html_<^._
+
 import debate.util.ListConfig
 
 // import jjm.ling.ESpan

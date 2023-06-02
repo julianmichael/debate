@@ -21,12 +21,11 @@ import jjm.ling.ESpan
 import jjm.ui.Rgba
 
 import debate.MainChannelRequest
+import debate.SpeechSegment.Quote
+import debate.Utils.ClassSetInterpolator
+import debate.span2text
 import debate.util.Local
 import debate.view.lobby.TabNav
-import debate.SpeechSegment.Quote
-import debate.span2text
-
-import Utils.ClassSetInterpolator
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._

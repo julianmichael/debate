@@ -2,6 +2,7 @@ package debate
 package scheduler
 
 import cats.implicits._
+
 import debate.numJudgingsAllowedPerStory
 
 case class DebaterLoadConstraint(min: Option[Int], max: Option[Int])

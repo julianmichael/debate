@@ -2,12 +2,12 @@ package debate
 
 import cats.implicits._
 
+import io.circe.Decoder
 import monocle.function.{all => Optics}
 import monocle.macros.Lenses
 
 import jjm.DotPair
 import jjm.implicits._
-import io.circe.Decoder
 
 /** The state of a debate. Persists when people leave; this is the saveable data
   * object.
@@ -60,16 +60,9 @@ case class Debate(
       0
   }
 
-  def result: Option[DebateResult]            = stateInfo._1
-  def currentTransitions: DebateTransitionSet = stateInfo._2
-  def offlineJudgingResults = currentTransitions
-    .giveSpeech
-    .get(OfflineJudge)
-    .map(_.fst)
-    .collect { case DebateTurnType.OfflineJudgingTurn(judgments) =>
-      judgments
-    }
-    .getOrElse(Map[String, OfflineJudgment]())
+  def result: Option[DebateResult]                        = stateInfo._1
+  def currentTransitions: DebateTransitionSet             = stateInfo._2
+  def offlineJudgingResults: Map[String, OfflineJudgment] = stateInfo._3
 
   /** Whose turn(s) it is, what they can do, and how to compute the results. */
   def stateInfo: (Option[DebateResult], DebateTransitionSet, Map[String, OfflineJudgment]) = {

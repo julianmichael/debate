@@ -2,11 +2,11 @@ package debate
 
 import cats.implicits._
 
+import io.circe.Decoder
+import io.circe.Encoder
 import io.circe.generic.JsonCodec
 import monocle.macros.GenPrism
 import monocle.macros.Lenses
-import io.circe.Encoder
-import io.circe.Decoder
 
 sealed trait DebateTurnTypeResult extends Product with Serializable
 object DebateTurnTypeResult {

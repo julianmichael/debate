@@ -1,15 +1,16 @@
 package debate
 
-import munit.CatsEffectSuite
+import java.nio.file.Paths
 
-import cats.implicits._
-
-import com.stripe.rainier.core._
-import com.stripe.rainier.compute._
-import com.stripe.rainier.sampler._
 import cats.effect.Blocker
 import cats.effect.IO
-import java.nio.file.Paths
+import cats.implicits._
+
+import com.stripe.rainier.compute._
+import com.stripe.rainier.core._
+import com.stripe.rainier.sampler._
+import munit.CatsEffectSuite
+
 import jjm.implicits._
 
 class ProbProgTests extends CatsEffectSuite {

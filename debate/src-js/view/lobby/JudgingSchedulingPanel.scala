@@ -8,19 +8,19 @@ import scala.util.Success
 import cats.data.NonEmptySet
 import cats.implicits._
 
+import io.circe.disjunctionCodecs._
+import io.circe.generic.JsonCodec
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.feature.ReactFragment
 import japgolly.scalajs.react.vdom.html_<^._
+import monocle.macros.Lenses
 import scalacss.ScalaCssReact._
 
+import debate.scheduler.DebateScheduler
 import debate.util.Local
 import debate.util.NumberField2
-import io.circe.generic.JsonCodec
-import io.circe.disjunctionCodecs._
 import debate.util.SetConfig
-import monocle.macros.Lenses
-import debate.scheduler.DebateScheduler
 
 object JudgingSchedulingPanel {
   val S = Styles

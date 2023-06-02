@@ -6,13 +6,12 @@ import cats.implicits._
 
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.vdom.html_<^._
+import monocle.function.{all => Optics}
 import scalacss.ScalaCssReact._
 
 import jjm.ling.ESpan
 import jjm.ling.Span
 import jjm.ui.Rgba
-
-import monocle.function.{all => Optics}
 
 object ConsolidatedQuotesPanel {
 

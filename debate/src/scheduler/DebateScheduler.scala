@@ -7,14 +7,15 @@ import cats.data.NonEmptySet
 import cats.data.NonEmptyVector
 import cats.data.StateT
 import cats.implicits._
+import cats.kernel.Monoid
+
+import io.circe.generic.JsonCodec
+
+import jjm.implicits._
 
 import debate.quality.QuALITYStory
 import debate.util.DenseDistribution
 import debate.util.SparseDistribution
-import cats.kernel.Monoid
-import io.circe.generic.JsonCodec
-
-import jjm.implicits._
 
 object DebateScheduler {
 

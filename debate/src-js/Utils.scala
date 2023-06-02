@@ -8,8 +8,8 @@ import japgolly.scalajs.react._
 import japgolly.scalajs.react.Callback
 import japgolly.scalajs.react.extra.StateSnapshot
 import japgolly.scalajs.react.vdom.html_<^._
-import scalacss.ScalaCssReact._
 import org.scalajs.dom
+import scalacss.ScalaCssReact._
 
 // mish mash of stuff to be organized later when there's enough to warrant it.
 trait UtilsPlatformExtensions {

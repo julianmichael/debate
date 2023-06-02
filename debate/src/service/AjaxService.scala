@@ -12,8 +12,8 @@ import jjm.DotEncoder
 import jjm.DotKleisli
 
 import debate.quality.QuALITYStory
-import debate.util.SparseDistribution
 import debate.scheduler.DebateScheduler
+import debate.util.SparseDistribution
 
 @JsonCodec
 case class QuALITYStoryMetadata(
