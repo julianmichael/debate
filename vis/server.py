@@ -703,118 +703,7 @@ def final_probability_correct_by_judge_experience_and_participant():  # TODO: ad
         width=fullWidth, height=fullHeight
     )
 
-
-# def final_probability_correct_by_num_judge_rounds():
-#     source = sessions.merge(
-#         debates[
-#             [
-#                 "Room name",
-#                 "Judge",
-#                 "Number of continues",
-#                 "Final probability correct",
-#                 "Speed annotator accuracy",
-#             ]
-#         ],
-#         how="left",
-#         on="Room name",
-#     )
-#     print(source.describe())
-#     source = source[source["Role"].str.startswith("Debater")]
-#     source = source.groupby("Room name").mean().reset_index()
-#     print(source.groupby(["Room name"]).mean())
-#     base = (
-#         alt.Chart(source)
-#         .mark_circle(size=60, color=aggColor)
-#         .encode(
-#             x="Number of continues:Q",
-#             y="Final probability correct:Q",
-#             tooltip=["Room name"],
-#         )
-#         .properties(width=fullWidth)
-#         # .transform_filter(datum["Number of continues"])
-#     )
-#     mean = (
-#         alt.Chart(source)
-#         .mark_line()
-#         .transform_aggregate(
-#             mean_prob="mean(Final probability correct)", groupby=["Number of continues"]
-#         )
-#         .encode(
-#             x=alt.X("Number of continues:Q", axis=alt.Axis(values=[1, 2, 3, 4, 5, 6])),
-#             y="mean_prob:Q",
-#             # tooltip=["Room name"],
-#             color=alt.value(aggColor),
-#         )
-#         .properties(width=fullWidth)
-#         # .transform_filter(datum["Number of continues"])
-#     )
-#     err = (
-#         alt.Chart(source)
-#         .mark_errorband(extent="ci")
-#         .encode(
-#             x="Number of continues:Q",
-#             y="Final probability correct:Q",
-#             color=alt.value(aggColor),
-#         )
-#         .properties(width=fullWidth)
-#     )
-#     return (
-#         base
-#         + err
-#         + mean
-#     )
-
-# def final_probability_correct_by_num_judge_continues():
-#     source = sessions.merge(
-#         debates[
-#             [
-#                 "Room name",
-#                 "Final probability correct"
-#             ]
-#         ],
-#         how="left",
-#         on="Room name",
-#     )
-#     base = (
-#         alt.Chart(source)
-#         .mark_circle(size=60, color=aggColor)
-#         .encode(
-#             x="Number of judge continues:Q",
-#             y="Final probability correct:Q",
-#             tooltip=["Room name"],
-#         )
-#         .properties(width=fullWidth)
-#     )
-#     mean = (
-#         alt.Chart(source)
-#         .mark_line()
-#         .transform_aggregate(
-#             mean_prob="mean(Final probability correct)", groupby=["Number of judge continues"]
-#         )
-#         .encode(
-#             x=alt.X("Number of judge continues:Q", axis=alt.Axis(values=[0, 1, 2, 3, 4, 5, 6])),
-#             y="mean_prob:Q",
-#             color=alt.value(aggColor),
-#         )
-#         .properties(width=fullWidth)
-#     )
-#     err = (
-#         alt.Chart(turns)
-#         .mark_errorband(extent="ci")
-#         .encode(
-#             x="Number of judge continues:Q",
-#             y="Final probability correct:Q",
-#             color=alt.value(aggColor),
-#         )
-#         .properties(width=fullWidth)
-#     )
-#     return (
-#         base
-#         + err
-#         + mean
-#     )
-
-def make_mean_lines_with_scatter( # TODO: add question text...
+def make_mean_lines_with_scatter(
         base_chart,
         x,
         y,
@@ -859,6 +748,26 @@ def make_mean_lines_with_scatter( # TODO: add question text...
         )
     )
     return (points + err + mean)
+
+def final_probability_correct_by_num_judge_continues():
+    source = sessions.merge(debates[["Room name", "Is offline"]], how="left", on="Room name")
+    base = (
+        alt.Chart(source)
+        .transform_filter((datum['Role'] == 'Judge') | (datum['Role'] == 'Offline Judge'))
+        .transform_calculate(roleWithOffline = "datum['Role'] + ' ' + (datum['Is offline'] ? '(no live judge)' : '')")
+        .encode(
+            x=alt.X("Number of judge continues:Q", axis = alt.Axis(tickMinStep=1), title="Number of judge continues"),
+            color=alt.Color('roleWithOffline:N', legend=alt.Legend(title="Role", orient="bottom")),
+        )
+        .properties(width=fullWidth)
+    )
+    return make_mean_lines_with_scatter(
+        base,
+        x = "Number of judge continues",
+        y = "Final probability correct",
+        series = 'roleWithOffline',
+        tooltip = ["Room name", 'Participant']
+    )
 
 def intermediate_probability_correct_by_num_debate_rounds():
     source = turns.merge(
@@ -1210,8 +1119,7 @@ all_graph_specifications = {
     "Results:_Final_probability_correct_by_judge": final_probability_correct_by_judge,
     "Results:_Final_probability_correct_by_judge_experience": final_probability_correct_by_judge_experience,
     "Results:_Final_probability_correct_by_judge_experience_and_participant": final_probability_correct_by_judge_experience_and_participant,
-    # "Results:_Final_probability_correct_by_num_judge_rounds": final_probability_correct_by_num_judge_rounds,
-    # "Results:_Final_probability_correct_by_num_judge_continues": final_probability_correct_by_num_judge_continues,
+    "Results:_Final_probability_correct_by_num_judge_continues": final_probability_correct_by_num_judge_continues,
     "Results:_Intermediate_probability_correct_by_num_debate_rounds": intermediate_probability_correct_by_num_debate_rounds,
     "Results_(Metadata):_Final_probability_correct_by_speed_annotator_accuracy": final_probability_correct_by_speed_annotator_accuracy,
     "Results_(Feedback):_Final_probability_correct_by_question_subjectivity": final_probability_correct_by_question_subjectivity,
