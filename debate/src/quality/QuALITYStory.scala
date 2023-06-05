@@ -77,6 +77,8 @@ case class QuALITYQuestionAnnotations(
   validation: Vector[QuALITYQuestionValidationInstance],
   speedValidation: Vector[QuALITYQuestionSpeedValidationInstance]
 ) {
+  def answerability = validation.map(_.untimedEval1Answerability)
+  def context = validation.map(_.untimedEval2Context)
   def untimedAccuracyAgainstGold   = validation.proportion(_.untimedAnswer == goldLabel)
   def untimedAccuracyAgainstWriter = validation.proportion(_.untimedAnswer == writerLabel)
   def speedAccuracyAgainstGold     = speedValidation.proportion(_.speedAnswer == goldLabel)

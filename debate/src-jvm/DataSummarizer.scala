@@ -75,6 +75,37 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
               ""
           }
         },
+        "Untimed annotator answerability" -> { info =>
+          info.debate.setup.sourceMaterial match {
+            case QuALITYSourceMaterial(articleId, _, _) =>
+              val story = qualityDataset(articleId)
+              story
+                .questions
+                .find(_._2.question == info.debate.setup.question)
+                .map(_._2)
+                .flatMap(_.annotations)
+                // takes first mode...
+                .map(annotation => annotation.answerability.groupBy(identity).maxBy(_._2.size)._1.toString)
+                .getOrElse("")
+            case _ =>
+              ""
+          }
+        },
+        "Untimed annotator context" -> { info =>
+          info.debate.setup.sourceMaterial match {
+            case QuALITYSourceMaterial(articleId, _, _) =>
+              val story = qualityDataset(articleId)
+              story
+                .questions
+                .find(_._2.question == info.debate.setup.question)
+                .map(_._2)
+                .flatMap(_.annotations)
+                .map(annotation => Numbers(annotation.context).stats.mean.toString)
+                .getOrElse("")
+            case _ =>
+              ""
+          }
+        },
         // TO maybe DO: more setup parameters? But we've stuck to the same scoring rule & char limit etc for this semester right...
         "Correct answer" -> { info =>
           info.debate.setup.answers(info.debate.setup.correctAnswerIndex)
