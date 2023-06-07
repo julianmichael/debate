@@ -1,3 +1,5 @@
+# Adapted from: https://github.com/akbir/debate
+
 import json
 
 import anthropic
