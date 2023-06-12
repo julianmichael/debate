@@ -276,11 +276,13 @@ case class DebateStateManager(
       }
     } yield ()
 
-  def refreshLeaderboard = rooms
-    .get
-    .flatMap { roomMap =>
-      leaderboard.set(Leaderboard.fromDebates(roomMap.values.toList.map(_.debate.debate)))
-    }
+  def refreshLeaderboard =
+    for {
+      roomMap  <- rooms.get
+      debaters <- profilesRef.get.map(_.keySet)
+      _ <- leaderboard
+        .set(Leaderboard.fromDebates(roomMap.values.toList.map(_.debate.debate), debaters))
+    } yield ()
 
   def processUpdate(roomName: String, request: DebateStateUpdateRequest) = {
     val updateState =
@@ -479,8 +481,9 @@ object DebateStateManager {
         )
         .map(_.toMap)
       roomsRef <- Ref[IO].of(rooms)
+      debaters <- profilesRef.get.map(_.keySet)
       leaderboardRef <- Ref[IO]
-        .of(Leaderboard.fromDebates(rooms.values.map(_.debate.debate).toList))
+        .of(Leaderboard.fromDebates(rooms.values.map(_.debate.debate).toList, debaters))
     } yield DebateStateManager(
       initializeDebate,
       profilesRef,
