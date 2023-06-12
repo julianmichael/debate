@@ -140,11 +140,14 @@ object DebateSchedulingPanel {
     }
 
     def admitsQuestion(question: QuALITYQuestion, matches: Set[String]): Boolean = {
-      if (matches.contains(question.questionUniqueId))
-        overlappingQuestions
-      else
-        nonOverlappingQuestions
-      question.annotations match {
+      val overlapIsOk =
+        if (matches.contains(question.questionUniqueId))
+          overlappingQuestions
+        else
+          nonOverlappingQuestions
+
+      overlapIsOk &&
+      (question.annotations match {
         case None =>
           noLabels
         case Some(annotations) =>
@@ -156,7 +159,7 @@ object DebateSchedulingPanel {
 
           labelAgr && annotations.untimedAccuracyAgainstGold >= minUntimedAccuracyAgainstGold &&
           annotations.speedAccuracyAgainstGold <= maxSpeedAccuracyAgainstGold
-      }
+      })
     }
 
   }
