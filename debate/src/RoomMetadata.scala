@@ -54,6 +54,7 @@ case class RoomMetadata(
   name: String,
   sourceMaterialId: SourceMaterialId,
   storyTitle: String,
+  question: String,
   roleAssignments: Map[LiveDebateRole, String],
   offlineJudgeAssignments: Map[String, Option[OfflineJudgingMode]],
   creationTime: Long,

@@ -23,6 +23,7 @@ case class DebateState(debate: Debate, participants: Map[String, Role]) {
     name = roomName,
     sourceMaterialId = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
     storyTitle = debate.setup.sourceMaterial.title,
+    question = debate.setup.question,
     roleAssignments = debate.setup.roles,
     offlineJudgeAssignments = debate.setup.offlineJudges,
     creationTime = debate.setup.creationTime,

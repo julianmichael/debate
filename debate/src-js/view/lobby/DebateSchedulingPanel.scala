@@ -114,6 +114,8 @@ object DebateSchedulingPanel {
     storiesWithNoOverlap: Boolean = false,
     overlappingQuestions: Boolean = true,
     nonOverlappingQuestions: Boolean = false,
+    debatedQuestions: Boolean = false,
+    nonDebatedQuestions: Boolean = true,
     noLabels: Boolean = false,
     writerLabelAgreesWithGoldLabel: Boolean = true,
     writerLabelDoesntAgreeWithGoldLabel: Boolean = false,
@@ -139,18 +141,27 @@ object DebateSchedulingPanel {
       overlap && debated && source
     }
 
-    def admitsQuestion(question: QuALITYQuestion, matches: Set[String]): Boolean = {
+    def admitsQuestion(
+      question: QuALITYQuestion,
+      matches: Set[String],
+      questionsDebated: Set[String]
+    ): Boolean = {
       val overlapIsOk =
         if (matches.contains(question.questionUniqueId))
           overlappingQuestions
         else
           nonOverlappingQuestions
 
-      overlapIsOk &&
-      (question.annotations match {
-        case None =>
-          noLabels
-        case Some(annotations) =>
+      val debatedIsOk =
+        if (questionsDebated.contains(question.question)) {
+          debatedQuestions
+        } else
+          nonDebatedQuestions
+
+      overlapIsOk && debatedIsOk &&
+      question
+        .annotations
+        .fold(noLabels) { annotations =>
           val labelAgr =
             if (annotations.goldLabel == annotations.writerLabel)
               writerLabelAgreesWithGoldLabel
@@ -159,7 +170,7 @@ object DebateSchedulingPanel {
 
           labelAgr && annotations.untimedAccuracyAgainstGold >= minUntimedAccuracyAgainstGold &&
           annotations.speedAccuracyAgainstGold <= maxSpeedAccuracyAgainstGold
-      })
+        }
     }
 
   }
@@ -249,9 +260,14 @@ object DebateSchedulingPanel {
                               "source-filters",
                               SourceFilters()
                             ) { sourceFilters =>
+                              val colStyle = TagMod(c"col-md-2 mb-2")
                               ReactFragment(
-                                <.div(S.rowWithGap)(
-                                  <.div(S.col)(
+                                <.div(
+                                  c"row"
+                                  // S.row
+                                  // S.rowWithGap
+                                )(
+                                  <.div(colStyle)(
                                     <.div("Story already debated"),
                                     Checkbox2(
                                       sourceFilters.zoomStateL(SourceFilters.debatedStories),
@@ -262,7 +278,7 @@ object DebateSchedulingPanel {
                                       Some("No")
                                     )
                                   ),
-                                  <.div(S.col)(
+                                  <.div(colStyle)(
                                     <.div("Story overlaps w/single-turn debate"),
                                     Checkbox2(
                                       sourceFilters.zoomStateL(SourceFilters.storiesWithOverlap),
@@ -273,7 +289,7 @@ object DebateSchedulingPanel {
                                       Some("No")
                                     )
                                   ),
-                                  <.div(S.col)(
+                                  <.div(colStyle)(
                                     <.div("Story from Gutenberg"),
                                     Checkbox2(
                                       sourceFilters.zoomStateL(SourceFilters.gutenberg),
@@ -284,7 +300,7 @@ object DebateSchedulingPanel {
                                       Some("No")
                                     )
                                   ),
-                                  <.div(S.col)(
+                                  <.div(colStyle)(
                                     <.div("Question is from single-turn debate"),
                                     Checkbox2(
                                       sourceFilters.zoomStateL(SourceFilters.overlappingQuestions),
@@ -296,7 +312,18 @@ object DebateSchedulingPanel {
                                       Some("No")
                                     )
                                   ),
-                                  <.div(S.col)(
+                                  <.div(colStyle)(
+                                    <.div("Question already has debates"),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.debatedQuestions),
+                                      Some("Yes")
+                                    ),
+                                    Checkbox2(
+                                      sourceFilters.zoomStateL(SourceFilters.nonDebatedQuestions),
+                                      Some("No")
+                                    )
+                                  ),
+                                  <.div(colStyle)(
                                     <.div("Question gold labels"),
                                     Checkbox2(
                                       sourceFilters.zoomStateL(SourceFilters.noLabels),
@@ -368,7 +395,11 @@ object DebateSchedulingPanel {
                                           .filter(q =>
                                             sourceFilters
                                               .value
-                                              .admitsQuestion(q, matchingQuestionIds)
+                                              .admitsQuestion(
+                                                q,
+                                                matchingQuestionIds,
+                                                lobby.officialRooms.map(_.question)
+                                              )
                                           )
                                         ReactFragment(
                                           visibleQuestions.toVdomArray { question =>
