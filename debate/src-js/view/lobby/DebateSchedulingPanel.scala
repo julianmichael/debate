@@ -84,6 +84,8 @@ object DebateSchedulingPanel {
   @Lenses
   @JsonCodec
   case class SchedulingSpec(
+    canJudge: Set[String],
+    canDebate: Set[String],
     workloadDist: SparseDistribution[String],
     ruleDist: SparseDistribution[RuleConfig],
     numDebatesPerQuestion: Int,
@@ -100,6 +102,8 @@ object DebateSchedulingPanel {
       dontAssignNewReading: Boolean,
       numUniqueDebatersConstraint: Option[Int]
     ) = SchedulingSpec(
+      canJudge = people.toSortedSet,
+      canDebate = people.toSortedSet,
       SparseDistribution.uniform(people),
       SparseDistribution.uniform(ruleConfigs),
       numDebatesPerQuestion,
@@ -230,17 +234,6 @@ object DebateSchedulingPanel {
                             schedulingSpec.zoomStateL(SchedulingSpec.numDebatesPerQuestion),
                             Some("Number of debates per question")
                           )
-                        ),
-                        <.div(S.row, c"mt-1")(
-                          Checkbox2(
-                            schedulingSpec.zoomStateL(SchedulingSpec.dontAssignNewReading),
-                            Some("Don't assign new reading")
-                          )
-                        ),
-                        DebateRulesPanel.optionalIntInput(
-                          schedulingSpec.zoomStateL(SchedulingSpec.numUniqueDebatersConstraint),
-                          Some("Enforce a specific number of debaters in this assignment"),
-                          1
                         )
 
                         // <.div(S.row, c"mt-1")(
@@ -255,13 +248,29 @@ object DebateSchedulingPanel {
                     <.div(c"card")(
                       <.div(c"card-body")(
                         <.h4(c"card-title")("Participants"),
+                        <.p(
+                          <.span(^.color := "green", "(can judge) "),
+                          <.span(^.color := "red", "(can debate) ")
+                        ),
                         ProbabilitySliders2[String](
                           schedulingSpec.zoomStateL(SchedulingSpec.workloadDist)
                         ) { case ProbabilitySliders2.Context(item, _, prob, setProb) =>
+                          val canJudge = schedulingSpec
+                            .zoomStateL(SchedulingSpec.canJudge)
+                            .zoomStateL(Optics.at(item))
+                          val canDebate = schedulingSpec
+                            .zoomStateL(SchedulingSpec.canDebate)
+                            .zoomStateL(Optics.at(item))
                           <.div(S.row)(
+                            Checkbox2.mod(box = TagMod(c"form-check-input", S.judgeBox))(canJudge),
+                            Checkbox2
+                              .mod(box = TagMod(c"form-check-input", S.debaterBox))(canDebate),
                             <.span(S.genericProbSliderLabel)(item),
                             <.span(S.genericProbSliderProbLabel)(f"${prob * 100.0}%.0f%%"),
-                            <.input(S.genericProbSlider)( // TODO styling
+                            <.input(
+                              S.genericProbSlider,
+                              S.disabledSlider.when(!canJudge.value && !canDebate.value)
+                            )( // TODO styling
                               ^.`type` := "range",
                               ^.min    := 0.00,
                               ^.max    := 1.00,
@@ -271,7 +280,18 @@ object DebateSchedulingPanel {
                                 ((e: ReactEventFromInput) => setProb(e.target.value.toDouble))
                             )
                           )
-                        }
+                        },
+                        <.div(S.row, c"mt-1")(
+                          Checkbox2(
+                            schedulingSpec.zoomStateL(SchedulingSpec.dontAssignNewReading),
+                            Some("Don't assign new reading")
+                          )
+                        ),
+                        DebateRulesPanel.optionalIntInput(
+                          schedulingSpec.zoomStateL(SchedulingSpec.numUniqueDebatersConstraint),
+                          Some("Enforce a specific number of debaters in this assignment"),
+                          1
+                        )
                       )
                     ),
                     <.div(c"card")(
@@ -473,6 +493,8 @@ object DebateSchedulingPanel {
                           ^.onClick -->
                             ajaxService
                               .sampleSchedule(
+                                schedulingSpec.value.canJudge,
+                                schedulingSpec.value.canDebate,
                                 schedulingSpec.value.workloadDist,
                                 schedulingSpec.value.ruleDist,
                                 articleId,

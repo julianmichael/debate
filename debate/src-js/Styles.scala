@@ -581,4 +581,8 @@ object Styles extends jjm.ui.View.Styles {
     textAlign.center,
     borderRight := "1px solid rgba(0,0,0,.125)" // TODO send to bottom with media queries
   )
+
+  val judgeBox       = style(accentColor(green))
+  val debaterBox     = style(accentColor(red))
+  val disabledSlider = style(accentColor(grey))
 }

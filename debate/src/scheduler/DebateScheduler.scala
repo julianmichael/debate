@@ -388,6 +388,8 @@ object DebateScheduler {
   }
 
   def efficientlySampleSchedules(
+    canJudge: Set[String],
+    canDebate: Set[String],
     desiredWorkload: SparseDistribution[String],
     rules: SparseDistribution[RuleConfig],
     complete: Vector[DebateSetup],
@@ -412,8 +414,6 @@ object DebateScheduler {
 
     // val numDebates       = qas.size * numDebatesPerQuestion
 
-    val people = desiredWorkload.probs.toSortedMap.filter(_._2 > 0.0).keySet
-
     val startingSchedule = Schedule(
       desiredWorkload = desiredWorkload,
       desiredRules = rules,
@@ -426,7 +426,7 @@ object DebateScheduler {
     val potentialDebaters: Set[String] =
       if (dontAssignNewReading) {
         val sourceMaterialId = SourceMaterialId.fromSourceMaterial(sourceMaterial)
-        (complete ++ incomplete)
+        val existingReaders = (complete ++ incomplete)
           .filter(s => SourceMaterialId.fromSourceMaterial(s.sourceMaterial) == sourceMaterialId)
           .foldMap(
             _.roles
@@ -435,8 +435,9 @@ object DebateScheduler {
               }
               .toSet
           )
+        existingReaders.intersect(canDebate)
       } else
-        people
+        canDebate
 
     val debaterChoiceDist = DenseDistribution
       .fromSoftmax[String](
@@ -464,7 +465,7 @@ object DebateScheduler {
                       sourceMaterial,
                       qa,
                       chosenDebaters,
-                      people -- chosenDebaters,
+                      canJudge -- chosenDebaters,
                       creationTime,
                       rand
                     )

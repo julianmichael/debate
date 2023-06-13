@@ -100,6 +100,8 @@ case class Server(
 
       import debate.scheduler._
       def sampleSchedule(
+        canJudge: Set[String],
+        canDebate: Set[String],
         workloadDist: SparseDistribution[String],
         ruleDist: SparseDistribution[RuleConfig],
         articleId: String,
@@ -118,6 +120,8 @@ case class Server(
           rand         <- IO(new scala.util.Random)
           creationTime <- IO(System.currentTimeMillis())
           schedules = DebateScheduler.efficientlySampleSchedules(
+            canJudge,
+            canDebate,
             desiredWorkload = workloadDist,
             rules = ruleDist,
             complete = complete,

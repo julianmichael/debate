@@ -34,6 +34,8 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
   def getSourceMaterialIndex: F[Map[String, QuALITYStoryMetadata]]
   def getStoryAndMatches(articleId: String): F[(QuALITYStory, Set[String])]
   def sampleSchedule(
+    canJudge: Set[String],
+    canDebate: Set[String],
     workloadDist: SparseDistribution[String],
     ruleDist: SparseDistribution[RuleConfig],
     articleId: String,
@@ -60,6 +62,8 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
         case Request.GetStoryAndMatches(articleId) =>
           getStoryAndMatches(articleId)
         case Request.SampleSchedule(
+              canJudge,
+              canDebate,
               workload,
               ruleDist,
               articleId,
@@ -69,6 +73,8 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
               numUniqueDebatersConstraint
             ) =>
           sampleSchedule(
+            canJudge,
+            canDebate,
             workload,
             ruleDist,
             articleId,
@@ -95,6 +101,8 @@ object AjaxService {
         Request.GetStoryAndMatches(articleId)
       )
       def sampleSchedule(
+        canJudge: Set[String],
+        canDebate: Set[String],
         workloadDist: SparseDistribution[String],
         ruleDist: SparseDistribution[RuleConfig],
         articleId: String,
@@ -104,6 +112,8 @@ object AjaxService {
         numUniqueDebatersConstraint: Option[Int]
       ): F[Either[String, Vector[DebateSetup]]] = f(
         Request.SampleSchedule(
+          canJudge,
+          canDebate,
           workloadDist,
           ruleDist,
           articleId,
@@ -138,6 +148,8 @@ object AjaxService {
       type Out = (QuALITYStory, Set[String])
     }
     case class SampleSchedule(
+      canJudge: Set[String],
+      canDebate: Set[String],
       workloadDist: SparseDistribution[String],
       ruleDist: SparseDistribution[RuleConfig],
       articleId: String,
@@ -169,7 +181,7 @@ object AjaxService {
                 implicitly[Encoder[Map[String, QuALITYStoryMetadata]]]
               case GetStoryAndMatches(_) =>
                 implicitly[Encoder[(QuALITYStory, Set[String])]]
-              case SampleSchedule(_, _, _, _, _, _, _) =>
+              case SampleSchedule(_, _, _, _, _, _, _, _, _) =>
                 implicitly[Encoder[Either[String, Vector[DebateSetup]]]]
               case SampleOfflineJudging(_, _, _) =>
                 implicitly[Encoder[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]]
@@ -188,7 +200,7 @@ object AjaxService {
                 implicitly[Decoder[Map[String, QuALITYStoryMetadata]]]
               case GetStoryAndMatches(_) =>
                 implicitly[Decoder[(QuALITYStory, Set[String])]]
-              case SampleSchedule(_, _, _, _, _, _, _) =>
+              case SampleSchedule(_, _, _, _, _, _, _, _, _) =>
                 implicitly[Decoder[Either[String, Vector[DebateSetup]]]]
               case SampleOfflineJudging(_, _, _) =>
                 implicitly[Decoder[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]]
