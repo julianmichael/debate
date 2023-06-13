@@ -104,7 +104,8 @@ case class Server(
         ruleDist: SparseDistribution[RuleConfig],
         articleId: String,
         questionIds: Set[String],
-        numDebatesPerQuestion: Int
+        numDebatesPerQuestion: Int,
+        dontAssignNewReading: Boolean
       ): IO[Either[String, Vector[DebateSetup]]] =
         for {
           rooms <- officialDebates.rooms.get
@@ -127,6 +128,7 @@ case class Server(
             ),
             qas = qas.filter(qa => questionIds.contains(qa.questionId)),
             numDebatesPerQuestion = numDebatesPerQuestion,
+            dontAssignNewReading = dontAssignNewReading,
             // debaters = Map(), // people.mapVals(_ => DebaterLoadConstraint(None, None)),
             creationTime = creationTime,
             rand

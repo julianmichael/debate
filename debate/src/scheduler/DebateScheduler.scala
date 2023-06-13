@@ -395,12 +395,15 @@ object DebateScheduler {
     sourceMaterial: SourceMaterial,
     qas: Vector[QASpec],
     numDebatesPerQuestion: Int,
+    dontAssignNewReading: Boolean,
     // debaters: Map[String, DebaterLoadConstraint],
     creationTime: Long,
     rand: Random
+    // numUniqueDebatersConstraint: Option[Int] = None
   ): Either[String, NonEmptyVector[Schedule]] = {
     // TODO validate setups
 
+    // val numDebaters: Int = numUniqueDebatersConstraint.getOrElse {
     val numDebaters: Int = {
       val minNumDebaters = math.max(2, numDebatesPerQuestion)
       // val maxNumDebaters = math.ceil(math.sqrt(2 * numDebatesPerQuestion * qas.size) + 0.5)
@@ -420,9 +423,25 @@ object DebateScheduler {
       novel = Vector()
     )
     val workload = startingSchedule.workload
+
+    val potentialDebaters: Set[String] =
+      if (dontAssignNewReading) {
+        val sourceMaterialId = SourceMaterialId.fromSourceMaterial(sourceMaterial)
+        (complete ++ incomplete)
+          .filter(s => SourceMaterialId.fromSourceMaterial(s.sourceMaterial) == sourceMaterialId)
+          .foldMap(
+            _.roles
+              .collect { case (Debater(_), name) =>
+                name
+              }
+              .toSet
+          )
+      } else
+        people
+
     val debaterChoiceDist = DenseDistribution
       .fromSoftmax[String](
-        NonEmptyVector.fromVector(people.toVector).get,
+        NonEmptyVector.fromVector(potentialDebaters.toVector).get,
         d => Params.workloadMultiplier * (desiredWorkload.prob(d) - workload.prob(d))
       )
       .withTemperature(Params.samplingTemperature)

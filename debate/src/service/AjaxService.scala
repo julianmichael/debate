@@ -38,7 +38,8 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
     ruleDist: SparseDistribution[RuleConfig],
     articleId: String,
     questionIds: Set[String],
-    numDebatesPerQuestion: Int
+    numDebatesPerQuestion: Int,
+    dontAssignNewReading: Boolean
   ): F[Either[String, Vector[DebateSetup]]]
 
   def sampleOfflineJudging(
@@ -57,9 +58,22 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
           getSourceMaterialIndex
         case Request.GetStoryAndMatches(articleId) =>
           getStoryAndMatches(articleId)
-        case Request
-              .SampleSchedule(workload, ruleDist, articleId, questionIds, numDebatesPerQuestion) =>
-          sampleSchedule(workload, ruleDist, articleId, questionIds, numDebatesPerQuestion)
+        case Request.SampleSchedule(
+              workload,
+              ruleDist,
+              articleId,
+              questionIds,
+              numDebatesPerQuestion,
+              dontAssignNewReading
+            ) =>
+          sampleSchedule(
+            workload,
+            ruleDist,
+            articleId,
+            questionIds,
+            numDebatesPerQuestion,
+            dontAssignNewReading
+          )
         case Request
               .SampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline) =>
           sampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline)
@@ -82,10 +96,17 @@ object AjaxService {
         ruleDist: SparseDistribution[RuleConfig],
         articleId: String,
         questionIds: Set[String],
-        numDebatesPerQuestion: Int
+        numDebatesPerQuestion: Int,
+        dontAssignNewReading: Boolean
       ): F[Either[String, Vector[DebateSetup]]] = f(
-        Request
-          .SampleSchedule(workloadDist, ruleDist, articleId, questionIds, numDebatesPerQuestion)
+        Request.SampleSchedule(
+          workloadDist,
+          ruleDist,
+          articleId,
+          questionIds,
+          numDebatesPerQuestion,
+          dontAssignNewReading
+        )
       )
 
       def sampleOfflineJudging(
@@ -116,7 +137,8 @@ object AjaxService {
       ruleDist: SparseDistribution[RuleConfig],
       articleId: String,
       questionIds: Set[String],
-      numDebatesPerQuestion: Int
+      numDebatesPerQuestion: Int,
+      dontAssignNewReading: Boolean
     ) extends Request {
       type Out = Either[String, Vector[DebateSetup]]
     }
@@ -141,7 +163,7 @@ object AjaxService {
                 implicitly[Encoder[Map[String, QuALITYStoryMetadata]]]
               case GetStoryAndMatches(_) =>
                 implicitly[Encoder[(QuALITYStory, Set[String])]]
-              case SampleSchedule(_, _, _, _, _) =>
+              case SampleSchedule(_, _, _, _, _, _) =>
                 implicitly[Encoder[Either[String, Vector[DebateSetup]]]]
               case SampleOfflineJudging(_, _, _) =>
                 implicitly[Encoder[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]]
@@ -160,7 +182,7 @@ object AjaxService {
                 implicitly[Decoder[Map[String, QuALITYStoryMetadata]]]
               case GetStoryAndMatches(_) =>
                 implicitly[Decoder[(QuALITYStory, Set[String])]]
-              case SampleSchedule(_, _, _, _, _) =>
+              case SampleSchedule(_, _, _, _, _, _) =>
                 implicitly[Decoder[Either[String, Vector[DebateSetup]]]]
               case SampleOfflineJudging(_, _, _) =>
                 implicitly[Decoder[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]]

@@ -86,6 +86,7 @@ object DebateSchedulingPanel {
     workloadDist: SparseDistribution[String],
     ruleDist: SparseDistribution[RuleConfig],
     numDebatesPerQuestion: Int,
+    dontAssignNewReading: Boolean,
     articleMetadataOpt: Option[QuALITYStoryMetadata],
     questionIds: Set[String]
   )
@@ -93,11 +94,13 @@ object DebateSchedulingPanel {
     def init(
       people: NonEmptySet[String],
       ruleConfigs: NonEmptySet[RuleConfig],
-      numDebatesPerQuestion: Int
+      numDebatesPerQuestion: Int,
+      dontAssignNewReading: Boolean
     ) = SchedulingSpec(
       SparseDistribution.uniform(people),
       SparseDistribution.uniform(ruleConfigs),
       numDebatesPerQuestion,
+      dontAssignNewReading,
       None,
       Set()
     )
@@ -190,7 +193,7 @@ object DebateSchedulingPanel {
           case Some(ruleConfigs) =>
             Local[SchedulingSpec].syncedWithLocalStorage(
               "scheduling-specification",
-              SchedulingSpec.init(people, ruleConfigs, 2)
+              SchedulingSpec.init(people, ruleConfigs, 2, false)
             ) { schedulingSpec =>
               Local[Option[Either[String, Vector[DebateSetup]]]]
                 .syncedWithSessionStorage("candidate-schedule", None) { scheduleAttemptOpt =>
@@ -217,9 +220,15 @@ object DebateSchedulingPanel {
                           )
                         },
                         <.div(S.row, c"mt-1")(
-                          NumberField2.apply(
+                          NumberField2(
                             schedulingSpec.zoomStateL(SchedulingSpec.numDebatesPerQuestion),
                             Some("Number of debates per question")
+                          )
+                        ),
+                        <.div(S.row, c"mt-1")(
+                          Checkbox2(
+                            schedulingSpec.zoomStateL(SchedulingSpec.dontAssignNewReading),
+                            Some("Don't assign new reading")
                           )
                         )
                       )
@@ -434,7 +443,8 @@ object DebateSchedulingPanel {
                                 schedulingSpec.value.ruleDist,
                                 articleId,
                                 schedulingSpec.value.questionIds,
-                                schedulingSpec.value.numDebatesPerQuestion
+                                schedulingSpec.value.numDebatesPerQuestion,
+                                schedulingSpec.value.dontAssignNewReading
                               )
                               .completeWith {
                                 case Success(scheduleEither) =>
