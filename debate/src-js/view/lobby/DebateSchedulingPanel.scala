@@ -20,6 +20,7 @@ import scalacss.ScalaCssReact._
 
 import jjm.OrWrapped
 import jjm.ui.CacheCallContent
+import jjm.implicits._
 
 import debate.quality.QuALITYQuestion
 import debate.quality.QuALITYStory
@@ -123,7 +124,8 @@ object DebateSchedulingPanel {
     writerLabelAgreesWithGoldLabel: Boolean = true,
     writerLabelDoesntAgreeWithGoldLabel: Boolean = false,
     minUntimedAccuracyAgainstGold: Double = 1.0,
-    maxSpeedAccuracyAgainstGold: Double = 0.5
+    maxSpeedAccuracyAgainstGold: Double = 0.5,
+    minAverageContextRequiredJudgment: Double = 2.0
   ) {
     def admitsStory(metadata: QuALITYStoryMetadata): Boolean = {
       val overlap =
@@ -172,7 +174,8 @@ object DebateSchedulingPanel {
               writerLabelDoesntAgreeWithGoldLabel
 
           labelAgr && annotations.untimedAccuracyAgainstGold >= minUntimedAccuracyAgainstGold &&
-          annotations.speedAccuracyAgainstGold <= maxSpeedAccuracyAgainstGold
+          annotations.speedAccuracyAgainstGold <= maxSpeedAccuracyAgainstGold &&
+          annotations.context.meanOpt.forall(_ >= minAverageContextRequiredJudgment)
         }
     }
 
@@ -357,7 +360,8 @@ object DebateSchedulingPanel {
                                       .zoomStateL(SourceFilters.minUntimedAccuracyAgainstGold),
                                     0.0,
                                     1.0,
-                                    Some("Min untimed accuracy")
+                                    Some("Min untimed accuracy"),
+                                    numSigFigs = 2
                                   )
                                 ),
                                 <.div(
@@ -366,8 +370,22 @@ object DebateSchedulingPanel {
                                       .zoomStateL(SourceFilters.maxSpeedAccuracyAgainstGold),
                                     0.0,
                                     1.0,
-                                    Some("Max speed accuracy")
+                                    Some("Max speed accuracy"),
+                                    numSigFigs = 2
                                   )
+                                ),
+                                <.div(
+                                  V.Slider(
+                                    sourceFilters
+                                      .zoomStateL(SourceFilters.minAverageContextRequiredJudgment),
+                                    1.0,
+                                    4.0,
+                                    Some("Minimum average 'context required' judgment"),
+                                    numSigFigs = 2
+                                  )
+                                ),
+                                <.p(
+                                  "1) a sentence or two, 2) long paragraph or two; 3) third of the passage; 4) most or all of the passage."
                                 ),
                                 StoryOptSelect(
                                   choices = index
