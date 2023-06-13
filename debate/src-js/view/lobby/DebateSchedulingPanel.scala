@@ -88,6 +88,7 @@ object DebateSchedulingPanel {
     ruleDist: SparseDistribution[RuleConfig],
     numDebatesPerQuestion: Int,
     dontAssignNewReading: Boolean,
+    numUniqueDebatersConstraint: Option[Int],
     articleMetadataOpt: Option[QuALITYStoryMetadata],
     questionIds: Set[String]
   )
@@ -96,12 +97,14 @@ object DebateSchedulingPanel {
       people: NonEmptySet[String],
       ruleConfigs: NonEmptySet[RuleConfig],
       numDebatesPerQuestion: Int,
-      dontAssignNewReading: Boolean
+      dontAssignNewReading: Boolean,
+      numUniqueDebatersConstraint: Option[Int]
     ) = SchedulingSpec(
       SparseDistribution.uniform(people),
       SparseDistribution.uniform(ruleConfigs),
       numDebatesPerQuestion,
       dontAssignNewReading,
+      numUniqueDebatersConstraint,
       None,
       Set()
     )
@@ -196,7 +199,7 @@ object DebateSchedulingPanel {
           case Some(ruleConfigs) =>
             Local[SchedulingSpec].syncedWithLocalStorage(
               "scheduling-specification",
-              SchedulingSpec.init(people, ruleConfigs, 2, false)
+              SchedulingSpec.init(people, ruleConfigs, 2, false, None)
             ) { schedulingSpec =>
               Local[Option[Either[String, Vector[DebateSetup]]]]
                 .syncedWithSessionStorage("candidate-schedule", None) { scheduleAttemptOpt =>
@@ -233,7 +236,20 @@ object DebateSchedulingPanel {
                             schedulingSpec.zoomStateL(SchedulingSpec.dontAssignNewReading),
                             Some("Don't assign new reading")
                           )
+                        ),
+                        DebateRulesPanel.optionalIntInput(
+                          schedulingSpec.zoomStateL(SchedulingSpec.numUniqueDebatersConstraint),
+                          Some("Enforce a specific number of debaters in this assignment"),
+                          1
                         )
+
+                        // <.div(S.row, c"mt-1")(
+                        //   Checkbox2(
+                        //     schedulingSpec.zoomStateL(SchedulingSpec.dontAssignNewReading),
+                        //     Some("Don't assign new reading")
+                        //   )
+                        // )
+
                       )
                     ),
                     <.div(c"card")(
@@ -462,7 +478,8 @@ object DebateSchedulingPanel {
                                 articleId,
                                 schedulingSpec.value.questionIds,
                                 schedulingSpec.value.numDebatesPerQuestion,
-                                schedulingSpec.value.dontAssignNewReading
+                                schedulingSpec.value.dontAssignNewReading,
+                                schedulingSpec.value.numUniqueDebatersConstraint
                               )
                               .completeWith {
                                 case Success(scheduleEither) =>

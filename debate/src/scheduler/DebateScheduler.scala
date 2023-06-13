@@ -396,15 +396,14 @@ object DebateScheduler {
     qas: Vector[QASpec],
     numDebatesPerQuestion: Int,
     dontAssignNewReading: Boolean,
+    numUniqueDebatersConstraint: Option[Int],
     // debaters: Map[String, DebaterLoadConstraint],
     creationTime: Long,
     rand: Random
-    // numUniqueDebatersConstraint: Option[Int] = None
   ): Either[String, NonEmptyVector[Schedule]] = {
     // TODO validate setups
 
-    // val numDebaters: Int = numUniqueDebatersConstraint.getOrElse {
-    val numDebaters: Int = {
+    val numDebaters: Int = numUniqueDebatersConstraint.getOrElse {
       val minNumDebaters = math.max(2, numDebatesPerQuestion)
       // val maxNumDebaters = math.ceil(math.sqrt(2 * numDebatesPerQuestion * qas.size) + 0.5)
       val preferredNumDebaters = math.floor(math.sqrt(2 * numDebatesPerQuestion * qas.size)).toInt
