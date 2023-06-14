@@ -30,6 +30,7 @@ import debate.util.Checkbox2
 import debate.util.Local
 import debate.util.NumberField2
 import debate.util.ProbabilitySliders2
+import debate.util.Slider2
 import debate.util.SparseDistribution
 
 object DebateSchedulingPanel {
@@ -390,8 +391,8 @@ object DebateSchedulingPanel {
                                     )
                                   )
                                 ),
-                                <.div(
-                                  V.Slider(
+                                <.div(c"row")(
+                                  Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
                                     sourceFilters
                                       .zoomStateL(SourceFilters.minUntimedAccuracyAgainstGold),
                                     0.0,
@@ -400,8 +401,8 @@ object DebateSchedulingPanel {
                                     numSigFigs = 2
                                   )
                                 ),
-                                <.div(
-                                  V.Slider(
+                                <.div(c"row")(
+                                  Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
                                     sourceFilters
                                       .zoomStateL(SourceFilters.maxSpeedAccuracyAgainstGold),
                                     0.0,
@@ -410,8 +411,8 @@ object DebateSchedulingPanel {
                                     numSigFigs = 2
                                   )
                                 ),
-                                <.div(
-                                  V.Slider(
+                                <.div(c"row")(
+                                  Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
                                     sourceFilters
                                       .zoomStateL(SourceFilters.minAverageContextRequiredJudgment),
                                     1.0,
