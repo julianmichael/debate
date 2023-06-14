@@ -283,7 +283,8 @@ def accuracy_by_judge_setting():
         debates[
             [
                 "Room name",
-                "Is offline"
+                "Is offline",
+                "Is single debater"
             ]
         ],
         how="left",
@@ -291,12 +292,14 @@ def accuracy_by_judge_setting():
     )
 
     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
-    source['roleWithOffline'] = source.apply(
-        lambda row: row['Role'] + ' (no live judge)'
-        if row['Is offline']
-        else row['Role'],
-        axis=1,
-    )
+    def get_setting(row):
+        if row['Is offline']:
+            return row['Role'] + ' (no live judge)'
+        elif row['Is single debater']:
+            return row['Role'] + ' (single debater)'
+        else:
+            return row['Role']
+    source['roleWithOffline'] = source.apply(get_setting, axis=1)
 
     rowEncoding = alt.Row(field ='roleWithOffline', type='N', title='Role')
     yEncoding = alt.Y(field ='roleWithOffline', type='N', title='Role')
@@ -385,7 +388,7 @@ def calibration_plot(bin_size):
         return f'{bot * bin_size:.2f} – {top * bin_size:.2f}'
 
     source = sessions
-    source = source[source['Final probability correct'].notna()]
+    source = source[source['Final probability correct'].notna()].copy()
     source['Prediction confidence'] = source.apply(
         lambda row: get_confidence(row['Final probability correct']),
         axis=1

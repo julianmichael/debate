@@ -45,6 +45,9 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         "Is offline" -> { info =>
           (!info.debate.setup.rules.hasJudge).toString
         },
+        "Is single debater" -> { info =>
+          (info.debate.setup.roles.keySet.filter(_.isDebater).size == 1).toString
+        },
 
         // TODO: Ask J, best for merge w/ questsion metadata here or in .py
         // re: IDK if this is the best way
@@ -85,8 +88,9 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
                 .map(_._2)
                 .flatMap(_.annotations)
                 // takes first mode...
-                .map(annotation => annotation.answerability.groupBy(identity).maxBy(_._2.size)._1.toString)
-                .getOrElse("")
+                .map(annotation =>
+                  annotation.answerability.groupBy(identity).maxBy(_._2.size)._1.toString
+                ).getOrElse("")
             case _ =>
               ""
           }
@@ -114,25 +118,24 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
           info.debate.setup.answers(1 - info.debate.setup.correctAnswerIndex)
         },
         "Honest debater" -> { info =>
-          info.debate.setup.roles(Debater(info.debate.setup.correctAnswerIndex))
+          info.debate.setup.roles.getOrElse(Debater(info.debate.setup.correctAnswerIndex), "")
         },
         "Dishonest debater" -> { info =>
-          info.debate.setup.roles(Debater(1 - info.debate.setup.correctAnswerIndex))
+          info.debate.setup.roles.getOrElse(Debater(1 - info.debate.setup.correctAnswerIndex), "")
         },
         "Debater A" -> { info =>
-          info.debate.setup.roles(Debater(0))
+          info.debate.setup.roles.getOrElse(Debater(0), "")
         },
         "Debater B" -> { info =>
-          info.debate.setup.roles(Debater(1))
+          info.debate.setup.roles.getOrElse(Debater(1), "")
         },
-
-        // TO maybe DO: more than one judge? => for now num offline judges and their average probability correct
         "Judge" -> { info =>
-          info.debate.setup.roles.get(Judge).map(_.toString).getOrElse("")
+          info.debate.setup.roles.getOrElse(Judge, "")
         },
         "Num offline judges" -> { info =>
           info.debate.setup.offlineJudges.keySet.size.toString
         },
+        // TODO: three final probabilities: live, avg offline, avg all
         "Final probability correct" -> { info =>
           info
             .debate
