@@ -31,7 +31,7 @@ data_dir = os.environ.get("DATA_DIR", default="save")
 # set graphic parameters
 correctColor = "green"
 incorrectColor = "crimson"
-nullColor = "grey"
+nullColor = "lightgrey"
 onlineColor = "orange"
 offlineColor = "blue"
 aggColor = "black"
@@ -45,12 +45,13 @@ def read_data():
     global turns
     debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
     debates["Start time"] = pd.to_datetime(debates["Start time"], unit="ms")
-    # only include debates after the given time
+    debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
+    # only include debates for a given time
     debates = debates[
-        debates["Start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y")
+        debates["Start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y") #&
+        #debates["End time"] < pd.to_datetime("26/05/23", format="%d/%m/%y")
     ]
     debates["Final probability incorrect"] = 1 - debates["Final probability correct"]
-    debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
     sessions = pd.read_csv(os.path.join(data_dir, "official/summaries/sessions.csv"), keep_default_na=True)
     # filter sessions to only the included debates
     sessions = sessions.merge(debates[["Room name"]], how="inner", on="Room name")
@@ -91,49 +92,51 @@ read_data()
 # The offline debates were 50% correct, and the live debates were 60% correct." (Copilot, 2023)
 
 
-def an_overview_of_counts():  # TODO: un-average offline
-    debates["Final probability correct (live and mean of offline)"] = debates.apply(
-        lambda row: row["Final probability correct"]
-        if row["Is offline"] == False
-        else row["Average offline probability correct"],
-        axis=1,
-    )
-    bins = [0, 0.491, 0.509, 1]
-    labels = ["0-49%", "0.5", "51-100%"]
-    debates["Final probability correct bins"] = pd.cut(
-        debates["Final probability correct (live and mean of offline)"],
-        bins=bins,
-        labels=labels,
-    )
-    counts_bar = (
-        alt.Chart(debates)
-        .mark_bar()
-        .encode(
-            x=alt.X("count()", stack="zero", title="Number of debates"),
-            y=alt.Y("Status:O", title=None),
-            color=alt.Color(
-                "Final probability correct bins:O",
-                sort="descending",
-                scale=alt.Scale(range=[correctColor, incorrectColor, nullColor]),
-            ),
-            row=alt.Row(
-                "Is offline:N",
-                header=alt.Header(
-                    title="Debates categorized by correctness, setup, and status",
-                    titleFontSize=18,
-                    titleFontWeight="bold",
-                    titleOrient="top",
-                    labelExpr='datum.value ? "Offline (averaged)" : "Live"',
-                    labelOrient="top",
-                    labelAnchor="start",
-                    labelFontSize=14,
-                    labelFontWeight="bold",
-                ),
-            ),
-            tooltip=["count()", "Status:O", "Final probability correct bins:O"],
-        )
-    )
-    return counts_bar.properties(width=fullWidth - 100, height=fullHeight / 4)
+# def an_overview_of_counts():  # TO maybe DO: un-average offline
+#     # debates["Final probability correct (live and mean of offline)"] = debates.apply(
+#     #     lambda row: row["Final probability correct"]
+#     #     if row["Is offline"] == False
+#     #     else row["Average offline probability correct"],
+#     #     axis=1,
+#     # )
+#     bins = [0, 0.491, 0.509, 1]
+#     labels = ["0-49%", "0.5", "51-100%"]
+#     sessions["Final probability correct bins"] = pd.cut(
+#         sessions["Final probability correct"],
+#         bins=bins,
+#         labels=labels,
+#     )
+#     counts_bar = (
+#         alt.Chart(sessions).transform_filter(
+#             alt.FieldOneOfPredicate(field='Role', oneOf=["Judge", "Offline Judge"])
+#         )
+#         .mark_bar()
+#         .encode(
+#             x=alt.X("count()", stack="zero", title="Number of judgements"),
+#             y=alt.Y("Final probability correct bins:O"),
+#             color=alt.Color(
+#                 "Final probability correct bins:O",
+#                 sort="descending",
+#                 scale=alt.Scale(range=[correctColor, "white", incorrectColor, nullColor]),
+#             ),
+#             row=alt.Row(
+#                 "Role:N",
+#                 # header=alt.Header(
+#                 #     title="Debates categorized by correctness, setup, and status",
+#                 #     titleFontSize=18,
+#                 #     titleFontWeight="bold",
+#                 #     titleOrient="top",
+#                 #     labelExpr='datum.value ? "Offline (averaged)" : "Live"',
+#                 #     labelOrient="top",
+#                 #     labelAnchor="start",
+#                 #     labelFontSize=14,
+#                 #     labelFontWeight="bold",
+#                 # ),
+#             ),
+#             tooltip=["count()", "Final probability correct bins:O"],
+#         )
+#     )
+#     return counts_bar.properties(width=fullWidth - 100, height=fullHeight / 4)
 
 def outcomes_by_field(source, rowEncoding = None):
 
@@ -178,7 +181,7 @@ def outcomes_by_field(source, rowEncoding = None):
         x=alt.X('count():Q'),
         color = alt.Color(
             'Final probability correct (with imputation):Q',
-            scale=alt.Scale(scheme='redblue', domain=[0.0, 1.0]),
+            scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0]),
             title='Final probability correct'
         ),
         order=alt.Order(
@@ -224,7 +227,7 @@ def accuracy_by_field(source, yEncoding = None, invert = False):
             ),
             scale=alt.Scale(domain=[0.0, 1.0])
         ),
-        color=alt.Color('Final probability correct:Q', scale=alt.Scale(scheme='redblue', domain=[0.0, 1.0])),
+        color=alt.Color('Final probability correct:Q', scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0])),
         order=alt.Order(
             f'Final probability correct:Q',
             sort='descending' if not invert else 'ascending'
@@ -238,7 +241,7 @@ def accuracy_by_field(source, yEncoding = None, invert = False):
         ]
     ).properties(width=fullWidth - 200)
 
-    prop_color = 'green'
+    prop_color = aggColor
     # rule_thickness = 1.0
     # err_thickness = 1.0
     point_size = 25.0
@@ -485,7 +488,7 @@ def evidence_by_rounds():
         )
         .mark_line(color=aggColor)
         .encode(x="Num previous debating rounds:O", y="mean(Quote length)")
-    ).properties(width=fullWidth / 2, height=fullHeight)
+    ).properties(width=fullWidth / 3, height=fullHeight - 100)
 
     evidence_average_band = evidence_average.mark_errorband(extent="ci").encode(
         y=alt.Y("Quote length")
@@ -504,7 +507,7 @@ def evidence_by_rounds():
                 ),
             ),
         )
-    ).properties(width=fullWidth / 2, height=fullHeight)
+    ).properties(width=fullWidth / 3, height=fullHeight - 100)
 
     evidence_honest_dishonest_band = evidence_honest_dishonest.mark_errorband(
         extent="ci"
@@ -516,7 +519,7 @@ def evidence_by_rounds():
     ).configure_axis(labelAngle=0)
 
 
-def evidence_by_rounds_and_participant():
+def evidence_by_rounds_and_participant(): #TO maybe DO add error bars
     evidence_line = (
         alt.Chart(turns)
         .mark_line()
@@ -642,7 +645,7 @@ def final_probability_by_debaters():  # I feel like there should be a shorter wa
     )
 
 
-def final_probability_correct_by_judge():
+def final_probability_correct_by_judge(): # TODO remove null
     judge_avg = (
         alt.Chart(debates)
         .mark_circle(color=nullColor)
@@ -718,7 +721,7 @@ def final_probability_correct_by_judge_experience():  # TODO: add other judge se
     )
 
 
-def final_probability_correct_by_judge_experience_and_participant():  # TODO: add other judge setups # TODO categorize judge patterns
+def final_probability_correct_by_judge_experience_and_participant():  # TODO: add other judge setups # TO maybe DO categorize judge patterns # TODO fix "tooltip"
     debates.sort_values(by=["End time"], inplace=True)
     debates["Judge experience"] = debates.groupby("Judge")["End time"].transform(
         "cumcount"
@@ -753,117 +756,6 @@ def final_probability_correct_by_judge_experience_and_participant():  # TODO: ad
     )
     return alt.layer(judge_ex, selectors, text, data=debates).properties(
         width=fullWidth, height=fullHeight
-    )
-
-
-def final_probability_correct_by_num_judge_rounds():
-    source = sessions.merge(
-        debates[
-            [
-                "Room name",
-                "Judge",
-                "Number of continues",
-                "Final probability correct",
-                "Speed annotator accuracy",
-            ]
-        ],
-        how="left",
-        on="Room name",
-    )
-    print(source.describe())
-    source = source[source["Role"].str.startswith("Debater")]
-    source = source.groupby("Room name").mean().reset_index()
-    print(source.groupby(["Room name"]).mean())
-    base = (
-        alt.Chart(source)
-        .mark_circle(size=60, color=aggColor)
-        .encode(
-            x="Number of continues:Q",
-            y="Final probability correct:Q",
-            tooltip=["Room name"],
-        )
-        .properties(width=fullWidth)
-        # .transform_filter(datum["Number of continues"])
-    )
-    mean = (
-        alt.Chart(source)
-        .mark_line()
-        .transform_aggregate(
-            mean_prob="mean(Final probability correct)", groupby=["Number of continues"]
-        )
-        .encode(
-            x=alt.X("Number of continues:Q", axis=alt.Axis(values=[1, 2, 3, 4, 5, 6])),
-            y="mean_prob:Q",
-            # tooltip=["Room name"],
-            color=alt.value(aggColor),
-        )
-        .properties(width=fullWidth)
-        # .transform_filter(datum["Number of continues"])
-    )
-    err = (
-        alt.Chart(source)
-        .mark_errorband(extent="ci")
-        .encode(
-            x="Number of continues:Q",
-            y="Final probability correct:Q",
-            color=alt.value(aggColor),
-        )
-        .properties(width=fullWidth)
-    )
-    return (
-        base
-        + err
-        + mean
-    )
-
-def final_probability_correct_by_num_judge_continues():
-    source = sessions.merge(
-        debates[
-            [
-                "Room name",
-                "Final probability correct"
-            ]
-        ],
-        how="left",
-        on="Room name",
-    )
-    base = (
-        alt.Chart(source)
-        .mark_circle(size=60, color=aggColor)
-        .encode(
-            x="Number of judge continues:Q",
-            y="Final probability correct:Q",
-            tooltip=["Room name"],
-        )
-        .properties(width=fullWidth)
-    )
-    mean = (
-        alt.Chart(source)
-        .mark_line()
-        .transform_aggregate(
-            mean_prob="mean(Final probability correct)", groupby=["Number of judge continues"]
-        )
-        .encode(
-            x=alt.X("Number of judge continues:Q", axis=alt.Axis(values=[0, 1, 2, 3, 4, 5, 6])),
-            y="mean_prob:Q",
-            color=alt.value(aggColor),
-        )
-        .properties(width=fullWidth)
-    )
-    err = (
-        alt.Chart(turns)
-        .mark_errorband(extent="ci")
-        .encode(
-            x="Number of judge continues:Q",
-            y="Final probability correct:Q",
-            color=alt.value(aggColor),
-        )
-        .properties(width=fullWidth)
-    )
-    return (
-        base
-        + err
-        + mean
     )
 
 def make_mean_lines_with_scatter(
@@ -911,6 +803,26 @@ def make_mean_lines_with_scatter(
         )
     )
     return (points + err + mean)
+
+def final_probability_correct_by_num_judge_continues():
+    source = sessions.merge(debates[["Room name", "Is offline"]], how="left", on="Room name")
+    base = (
+        alt.Chart(source)
+        .transform_filter((datum['Role'] == 'Judge') | (datum['Role'] == 'Offline Judge'))
+        .transform_calculate(roleWithOffline = "datum['Role'] + ' ' + (datum['Is offline'] ? '(no live judge)' : '')")
+        .encode(
+            x=alt.X("Number of judge continues:Q", axis = alt.Axis(tickMinStep=1), title="Number of judge continues"),
+            color=alt.Color('roleWithOffline:N', legend=alt.Legend(title="Role", orient="bottom")),
+        )
+        .properties(width=fullWidth)
+    )
+    return make_mean_lines_with_scatter(
+        base,
+        x = "Number of judge continues",
+        y = "Final probability correct",
+        series = 'roleWithOffline',
+        tooltip = ["Room name", 'Participant']
+    )
 
 def intermediate_probability_correct_by_num_debate_rounds():
     source = turns.merge(
@@ -1145,43 +1057,6 @@ def turns_to_complete_by_participant():
     )
 
 
-def debater_turns_by_week():
-    debates["End week"] = debates["End time"].apply(lambda x: x.week)
-
-    def convert_time(x):
-        start_date = datetime.datetime.strptime(f"{x.year}-{x.week}-1", "%Y-%W-%w")
-        end_date = start_date + pd.Timedelta(days=6)
-        return f'{start_date.strftime("%b%d")}|{end_date.strftime("%b%d")}'
-
-    debates["End week label"] = debates["End time"].apply(convert_time)
-    source = sessions.merge(debates, how="left", on="Room name")
-    source["Role"] = source["Role"].map(
-        lambda x: "Debater" if x.startswith("Debater") else x
-    )
-    return (
-        alt.Chart(source)
-        .mark_bar()
-        .encode(
-            x=alt.X(
-                "End week label:O",
-                sort=alt.EncodingSortField(  # TODO: fix, doesn't seem sorted
-                    field="End week", order="ascending"
-                ),
-            ),
-            y=alt.Y("count()"),
-            color=alt.Color("Role:O"),
-        )
-        .transform_filter(
-            datum["Status"]
-            != "complete" & datum["Is turn"]
-            == True & datum["Judge"]
-            != None
-        )
-        .properties(width=200)
-        .facet(facet="Judge:N", columns=4, spacing=10)
-    )
-
-
 def debater_pairings_by_role():
     return (
         alt.Chart(debates)
@@ -1192,10 +1067,6 @@ def debater_pairings_by_role():
             color="count():Q",
         )
     )
-
-
-def debater_pairings_by_person():  # TODO Instead of having them in separate items on the dropdown menu, hv multiple tweakers for the same viewed data?
-    return
 
 
 def participant_by_current_workload():
@@ -1218,36 +1089,6 @@ def participant_by_current_workload():
             column=alt.Column("Role:O"),
         )
         .transform_filter(datum["Is over_x"] == False)
-        .properties(width=200)
-    )
-
-
-def participant_by_past_workloads():
-    source = sessions.merge(debates, how="left", on="Room name")
-    source["Role"] = source["Role"].map(
-        lambda x: "Debater" if x.startswith("Debater") else x
-    )
-    source["End date"] = source["End time"] - pd.to_timedelta(6, unit="d")
-    source_by_week = (
-        source.groupby(["Participant", pd.Grouper(key="End date", freq="W-MON")])
-        .sum()
-        .reset_index()
-        .sort_values("End date")
-    )
-
-    return (
-        alt.Chart(source_by_week)
-        .mark_bar()
-        .encode(
-            x=alt.X("count()"),
-            y=alt.Y(
-                "Participant:O",
-                sort=alt.EncodingSortField(op="count", order="descending"),
-            ),
-            color=alt.Color("End date:O"),
-            column=alt.Column("End date:O"),
-        )
-        .transform_filter(datum["Status"] == "complete")
         .properties(width=200)
     )
 
@@ -1323,7 +1164,7 @@ def debates_completed_per_week():
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
-    "Main_results:_An_overview_of_counts": an_overview_of_counts,
+    #"Main_results:_An_overview_of_counts": an_overview_of_counts,
     "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
     "Main_results:_Calibration": calibration_plots,
     "Results:_Win_rates_by_participant": win_rates_by_participant,
@@ -1334,21 +1175,16 @@ all_graph_specifications = {
     "Results:_Final_probability_correct_by_judge": final_probability_correct_by_judge,
     "Results:_Final_probability_correct_by_judge_experience": final_probability_correct_by_judge_experience,
     "Results:_Final_probability_correct_by_judge_experience_and_participant": final_probability_correct_by_judge_experience_and_participant,
-    "Results:_Final_probability_correct_by_num_judge_rounds": final_probability_correct_by_num_judge_rounds,
     "Results:_Final_probability_correct_by_num_judge_continues": final_probability_correct_by_num_judge_continues,
     "Results:_Intermediate_probability_correct_by_num_debate_rounds": intermediate_probability_correct_by_num_debate_rounds,
     "Results_(Metadata):_Final_probability_correct_by_speed_annotator_accuracy": final_probability_correct_by_speed_annotator_accuracy,
     "Results_(Feedback):_Final_probability_correct_by_question_subjectivity": final_probability_correct_by_question_subjectivity,
     "Results_(Feedback):_Final_probability_correct_by_information_progress": final_probability_correct_by_information_progress,
-    # "Results:_Live_debates_accuracy_by_date": live_debates_accuracy_by_date,
     "Track:_Anonymity": anonymity,
     "Track:_Debates_completed_per_week": debates_completed_per_week,
-    "Track:_Debater_turns_by_week": debater_turns_by_week,
     "Track:_Participant_by_current_workload": participant_by_current_workload,
-    # "Track:_Participant_by_past_workload": participant_by_past_workload,
     "Track:_Turns_to_complete_by_participant": turns_to_complete_by_participant,
     "Track:_Debater_pairings_by_role": debater_pairings_by_role,
-    # "Track:_Debater_pairings_by_person": debater_pairings_by_person,
     "Track:_Judge_pairings": judge_pairings,
     "Track:_Num_rounds_per_debate": num_rounds_per_debate,
 }
