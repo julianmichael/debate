@@ -585,4 +585,15 @@ object Styles extends jjm.ui.View.Styles {
   val judgeBox       = style(accentColor(green))
   val debaterBox     = style(accentColor(red))
   val disabledSlider = style(accentColor(grey))
+
+  val globalDialogOverlay = style(
+    position.fixed,
+    left.`0`,
+    top.`0`,
+    width(100 %%),
+    height(100 %%),
+    backgroundColor(rgba(0, 0, 0, 0.20))
+  )
+
+  val popupDialog = style(margin.auto, marginTop(8 rem), maxWidth(30 rem))
 }

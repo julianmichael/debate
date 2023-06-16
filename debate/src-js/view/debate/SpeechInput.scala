@@ -11,8 +11,10 @@ import org.scalajs.dom.ext.KeyCode
 import scalacss.ScalaCssReact._
 
 import jjm.DotPair
+import jjm.implicits._
 
 import debate.util.Local
+import debate.answerLetter
 
 object SpeechInput {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -146,30 +148,67 @@ object SpeechInput {
               )
             },
             speechInputPanel(submit, false),
-            <.div(S.row)(
-              saveOpt.whenDefined(save =>
-                <.button(c"btn btn-secondary")(
-                  <.i(c"bi bi-arrow-left"),
-                  " Save",
-                  ^.onClick --> save
-                )
-              ),
-              <.button(S.grow)(
-                "Submit judgment & collect reward",
-                ^.disabled := speechIsTooLong,
-                ^.onClick --> submit
-              ),
-              continueOpt.map { continue =>
-                // TODO: calculate full penalty based on number of debate rounds in between
+            Local[Boolean].make(false) { showConfirmationDialog =>
+              <.div(S.row)(
+                <.div(S.globalDialogOverlay)(
+                    <.div(S.popupDialog, c"card")(
+                      <.div(c"card-header")("End the debate?"),
+                      <.div(c"card-body")(
+                        <.p("You are about to end the debate with the following choice: "),
+                        probs.value.zipWithIndex.maximaBy(_._1) match {
+                          case Nil =>
+                            <.p(c"text-danger")("Error: no answers.")
+                          case (prob, index) :: Nil =>
+                            <.p(S.answerBox(index))(
+                              <.span(S.answerProbLabel(index))(
+                                f"(${prob * 100}%.0f%%) ${answerLetter(index)}: "
+                              ),
+                              debate.value.setup.answers(index)
+                            )
+                          case multiple =>
+                            val letters =
+                              Utils
+                                .delimitedSpans(multiple.map(p => answerLetter(p._2)))
+                                .toVdomArray
+                            <.p(c"text-muted", S.bold)(s"Uncertain (equal between ", letters, ").")
+                        },
+                        <.p("Proceed?"),
+                        <.button(c"card-button card-link btn btn-outline-danger")(
+                          "Cancel",
+                          ^.onClick --> showConfirmationDialog.setState(false)
+                        ),
+                        <.button(c"card-button card-link btn btn-primary")(
+                          "Submit",
+                          ^.onClick --> (showConfirmationDialog.setState(false) >> submit)
+                        )
+                      )
+                    )
+                  )
+                  .when(showConfirmationDialog.value),
+                saveOpt.whenDefined(save =>
+                  <.button(c"btn btn-secondary")(
+                    <.i(c"bi bi-arrow-left"),
+                    " Save",
+                    ^.onClick --> save
+                  )
+                ),
                 <.button(S.grow)(
-                  f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
+                  "Submit judgment & collect reward",
                   ^.disabled := speechIsTooLong,
-                  ^.onMouseMove --> consideringContinue.setState(true),
-                  ^.onMouseLeave --> consideringContinue.setState(false),
-                  ^.onClick --> continue
-                )
-              }
-            )
+                  ^.onClick --> showConfirmationDialog.setState(true)
+                ),
+                continueOpt.map { continue =>
+                  // TODO: calculate full penalty based on number of debate rounds in between
+                  <.button(S.grow)(
+                    f"Continue debate for $$${setup.rules.scoringFunction.perTurnPenalty}%.2f",
+                    ^.disabled := speechIsTooLong,
+                    ^.onMouseMove --> consideringContinue.setState(true),
+                    ^.onMouseLeave --> consideringContinue.setState(false),
+                    ^.onClick --> continue
+                  )
+                }
+              )
+            }
           ),
           <.div(S.row)(
             scores

@@ -179,14 +179,15 @@ object Elo {
         .flatMap { case (debate, result) =>
           val liveResultOpt = result
             .judgingInfo
-            .map(info =>
-              DebateResult(
-                debate,
-                debate.setup.roles.get(Judge).get,
-                info.finalJudgement,
-                debate.numDebateRounds
-              )
-            )
+            .flatMap { info =>
+              debate
+                .setup
+                .roles
+                .get(Judge)
+                .map(judge =>
+                  DebateResult(debate, judge, info.finalJudgement, debate.numDebateRounds)
+                )
+            }
           val offlineResults = debate
             .offlineJudgingResults
             .toList
