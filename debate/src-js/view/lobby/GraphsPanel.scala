@@ -74,8 +74,15 @@ object GraphsPanel {
                 analyticsService
                   .getAnalyticsGraph(makeEndpointName(graphName))
                   .completeWith {
-                    case Failure(exception) =>
-                      Callback(jqDiv.html(exception.getMessage()))
+                    case Failure(_) =>
+                      val errDiv =
+                        f"""
+                        <div class="alert alert-danger">
+                          <h5>Error</h5>
+                          <p>Check the JavaScript console for details.</p>
+                        </div>
+                      """
+                      Callback(jqDiv.html(errDiv))
                     case Success(data) =>
                       Callback(
                         scalajs
