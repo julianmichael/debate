@@ -43,6 +43,7 @@ def read_data():
     global debates
     global sessions
     global turns
+    global leaderboard
     debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
     debates["Start time"] = pd.to_datetime(debates["Start time"], unit="ms")
     debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
@@ -61,6 +62,33 @@ def read_data():
     # filter turns to only the included debates
     turns = turns.merge(debates[["Room name"]], how="inner", on="Room name")
 
+    leaderboard = sessions.merge(
+        debates[
+            [
+                "Room name",
+                "Honest debater",
+                "Dishonest debater"
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+    # filter to sessions corresponding to a judge
+    leaderboard = leaderboard[leaderboard['Final probability correct'].notna()]
+    from math import log
+    leaderboard['Judge reward'] = leaderboard.apply(
+        lambda row: log(row['Final probability correct']) - (0.05 * row['Number of judge continues']),
+        axis=1
+    )
+    leaderboard['Honest debater reward'] = leaderboard.apply(
+        lambda row: log(row['Final probability correct']),
+        axis=1
+    )
+    leaderboard['Dishonest debater reward'] = leaderboard.apply(
+        lambda row: log(1 - row['Final probability correct']),
+        axis=1
+    )
+
     print("Debates:")
     print(debates.dtypes)
     print(debates.describe())
@@ -70,7 +98,9 @@ def read_data():
     print("Sessions:")
     print(sessions.dtypes)
     print(sessions.describe())
-
+    print("Leaderboard (disaggregated):")
+    print(leaderboard.dtypes)
+    print(leaderboard.describe())
 
 read_data()
 

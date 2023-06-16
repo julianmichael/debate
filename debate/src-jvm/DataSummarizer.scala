@@ -383,7 +383,20 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
                 .offlineJudgingResults
                 .get(info.participant)
                 .filter(_.result.isDefined)
-                .map(_.judgments.size - 1)
+                .map { judgment =>
+                  judgment.mode match {
+                    case OfflineJudgingMode.Stepped =>
+                      judgment.judgments.size - 1
+                    case OfflineJudgingMode.Timed =>
+                      info
+                        .debate
+                        .rounds
+                        .collect { case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
+                          ()
+                        }
+                        .size
+                  }
+                }
                 .foldMap(_.toString)
             case _ =>
               ""
