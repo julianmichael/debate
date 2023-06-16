@@ -198,7 +198,12 @@ def outcomes_by_field(source, rowEncoding = None):
 
     return main_bar
 
-def accuracy_by_field(source, yEncoding = None, invert = False):
+def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = False):
+
+    if by_turn:
+        prob_correct_field = 'Probability correct'
+    else:
+        prob_correct_field = 'Final probability correct'
 
     if yEncoding is None:
         groups = []
@@ -211,8 +216,8 @@ def accuracy_by_field(source, yEncoding = None, invert = False):
     ).transform_calculate(
         proportion = '1 / datum.total'
     ).transform_calculate(
-        is_correct = 'datum["Final probability correct"] > 0.5 ? 1 : 0',
-        is_not_correct = 'datum["Final probability correct"] <= 0.5 ? 1 : 0'
+        is_correct = f'datum["{prob_correct_field}"] > 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0',
+        is_not_correct = f'datum["{prob_correct_field}"] <= 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0'
     )
 
     if yEncoding is not None:
@@ -227,17 +232,18 @@ def accuracy_by_field(source, yEncoding = None, invert = False):
             ),
             scale=alt.Scale(domain=[0.0, 1.0])
         ),
-        color=alt.Color('Final probability correct:Q', scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0])),
+        color=alt.Color(f'{prob_correct_field}:Q', scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0])),
         order=alt.Order(
-            f'Final probability correct:Q',
+            f'{prob_correct_field}:Q',
             sort='descending' if not invert else 'ascending'
         ),
         tooltip = [
             'count():Q',
             'total:Q',
             'sum(proportion):Q',
-            'Final probability correct:Q',
-            'Room name:N'
+            f'{prob_correct_field}:Q',
+            'Room name:N',
+            'Participant:N'
         ]
     ).properties(width=fullWidth - 200)
 
@@ -378,7 +384,7 @@ def win_rates_by_participant():
         ).properties(title="Win Rate by Dishonest Debater (sorted by mean log prob)"),
     ).resolve_scale(x = 'independent')
 
-def calibration_plot(bin_size):
+def calibration_plot(bin_size, by_turn: bool = False):
     def get_confidence(x: float):
         if x < 0.5:
             return 1 - x
@@ -390,10 +396,16 @@ def calibration_plot(bin_size):
         top = bot + 1
         return f'{bot * bin_size:.2f} – {top * bin_size:.2f}'
 
-    source = sessions
-    source = source[source['Final probability correct'].notna()].copy()
+    if by_turn:
+        prob_correct_field = 'Probability correct'
+        source = turns
+    else:
+        prob_correct_field = 'Final probability correct'
+        source = sessions
+
+    source = source[source[prob_correct_field].notna()].copy()
     source['Prediction confidence'] = source.apply(
-        lambda row: get_confidence(row['Final probability correct']),
+        lambda row: get_confidence(row[prob_correct_field]),
         axis=1
     )
 
@@ -407,7 +419,7 @@ def calibration_plot(bin_size):
     )
 
     calibration_reference = pd.DataFrame([
-        {'Confidence bin': make_bin(start * bin_size), 'Final probability correct': f'{(start + 0.5) * bin_size:.2f}'}
+        {'Confidence bin': make_bin(start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
         for start in range(int(.5 / bin_size), int(1.0 / bin_size))
     ])
     calibration_reference_graph = alt.Chart(
@@ -416,20 +428,165 @@ def calibration_plot(bin_size):
         color='black',
         strokeDash=[5, 5],
     ).encode(
-        x = alt.X('Final probability correct:Q'),
+        x = alt.X(f'{prob_correct_field}:Q'),
         y = alt.Y('Confidence bin:O')
     )
 
     return accuracy_by_field(
         source,
+        by_turn = by_turn,
         yEncoding = binY
     ) + calibration_reference_graph
+
+def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, invert = False):
+
+    if by_turn:
+        prob_correct_field = 'Probability correct'
+    else:
+        prob_correct_field = 'Final probability correct'
+
+    if xEncoding is None:
+        groups = []
+    else:
+        groups = [xEncoding.field]
+
+    base = alt.Chart(source).transform_joinaggregate(
+        total = "count()",
+        groupby = groups
+    ).transform_calculate(
+        proportion = '1 / datum.total'
+    ).transform_calculate(
+        is_correct = f'datum["{prob_correct_field}"] > 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0',
+        is_not_correct = f'datum["{prob_correct_field}"] <= 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0'
+    )
+
+    if xEncoding is not None:
+        base = base.encode(x=xEncoding)
+
+
+    prop_color = aggColor
+    # rule_thickness = 1.0
+    # err_thickness = 1.0
+    point_size = 25.0
+    mean_field = 'is_correct' if not invert else 'is_not_correct'
+
+    main_bar = base.mark_bar().encode(
+        y=alt.Y(f'mean({mean_field}):Q',
+            axis=alt.Axis(
+                title=None,
+                format='.0%',
+                labelExpr="(datum.value * 5) % 1 ? null : datum.label",
+            ),
+            scale=alt.Scale(domain=[0.0, 1.0])
+        ),
+        tooltip = [
+            'count():Q',
+            f'mean({mean_field}):Q'
+        ]
+    ).properties(width=fullWidth - 200)
+
+    gold_err = (base
+    ).mark_rule(
+        # extent='ci',
+        color=prop_color,
+    ).encode(
+        y=f'ci0({mean_field}):Q',
+        y2=f'ci1({mean_field}):Q',
+        # scale=alt.Scale(zero=False)
+        tooltip=[]
+    )
+    gold_mean = base.mark_point(
+        # thickness=2.0
+        color=prop_color, size=point_size, filled=True
+    ).encode(
+        y=alt.Y(f'mean({mean_field}):Q',
+            scale=alt.Scale(zero=False)),
+    )
+
+    gold_mean_num = base.mark_text(
+        color='white',
+        align='left',
+        baseline='bottom',
+        fontWeight='bold',
+        dy=14,
+        dx=2
+    ).encode(
+        text=alt.Text(f'mean({mean_field}):Q', format='.0%'),
+        y=alt.Y(f'mean({mean_field}):Q',
+            scale=alt.Scale(zero=False)),
+        
+    )
+
+    # return main_bar
+    return main_bar + gold_err + gold_mean + gold_mean_num
+
+def simple_calibration_plot(bin_size, by_turn: bool = False):
+    def get_confidence(x: float):
+        if x < 0.5:
+            return 1 - x
+        else:  
+            return x
+
+    def make_bin(x: float):
+        bot = math.floor(x / bin_size)
+        top = bot + 1
+        return f'{bot * bin_size:.2f} – {top * bin_size:.2f}'
+
+    if by_turn:
+        source = turns
+        prob_correct_field = 'Probability correct'
+    else:
+        source = sessions
+        prob_correct_field = 'Final probability correct'
+
+    source = source[source[prob_correct_field].notna()].copy()
+    source['Prediction confidence'] = source.apply(
+        lambda row: get_confidence(row[prob_correct_field]),
+        axis=1
+    )
+
+    source['Confidence bin'] = source.apply(
+        lambda row: make_bin(row['Prediction confidence']),
+        axis=1
+    )
+
+    binX = alt.X(field ='Confidence bin', type='O'
+        # sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
+    )
+
+    calibration_reference = pd.DataFrame([
+        {'Confidence bin': make_bin(start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
+        for start in range(int(.5 / bin_size), int(1.0 / bin_size))
+    ])
+    calibration_reference_graph = alt.Chart(
+        calibration_reference
+    ).mark_line(
+        color='black',
+        strokeDash=[5, 5],
+    ).encode(
+        y = alt.Y(f'{prob_correct_field}:Q'),
+        x = alt.X('Confidence bin:O')
+    )
+
+    return simple_accuracy_by_field(
+        source,
+        by_turn = by_turn,
+        xEncoding = binX
+    ) + calibration_reference_graph
+
+def simple_calibration_plots():
+
+    return alt.vconcat(
+        simple_calibration_plot(bin_size = 0.05).properties(title="Calibration (Aggregate)"),
+        simple_calibration_plot(bin_size = 0.05, by_turn = True).facet(row='Num previous debating rounds:O').properties(title="Calibration by Turn"),
+    )
 
 def calibration_plots():
 
     return alt.vconcat(
         calibration_plot(bin_size = 0.05).properties(title="Calibration (Aggregate)"),
         calibration_plot(bin_size = 0.1).facet(row='Participant:N').properties(title="Calibration by Judge"),
+        calibration_plot(bin_size = 0.05, by_turn = True).facet(row='Num previous debating rounds:O').properties(title="Calibration by Turn"),
     )
 
 
@@ -1167,6 +1324,7 @@ all_graph_specifications = {
     #"Main_results:_An_overview_of_counts": an_overview_of_counts,
     "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
     "Main_results:_Calibration": calibration_plots,
+    "Main_results:_Calibration_(Simple)": simple_calibration_plots,
     "Results:_Win_rates_by_participant": win_rates_by_participant,
     "Results:_Distribution_of_final_probability_correct,_live_vs_offline_debates": final_probability_correct_distribution_live_vs_offline_debates,
     "Results:_Evidence_by_rounds": evidence_by_rounds,
