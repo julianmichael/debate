@@ -63,6 +63,7 @@ object SpeechInput {
           .String
           .mod(textarea =
             TagMod(
+              ^.spellCheck := true,
               S.fullWidthInput,
               ^.rows := 5,
               ^.onKeyDown ==>
