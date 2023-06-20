@@ -60,8 +60,8 @@ object DebatesPanel {
                   S.eligibleForOfflineJudgingStatusLabel
                 case WaitingToBegin =>
                   S.waitingToBeginStatusLabel
-                case MustJudgeBeforeDebating =>
-                  S.mustJudgeBeforeDebatingStatusLabel
+                case MustJudgeBeforeSeeing =>
+                  S.mustJudgeBeforeSeeingStatusLabel
                 case Complete =>
                   S.completeStatusLabel
               }
@@ -187,7 +187,7 @@ object DebatesPanel {
       AwaitingFeedback,
       InProgress,
       WaitingToBegin,
-      MustJudgeBeforeDebating,
+      MustJudgeBeforeSeeing,
       Complete
     )
     val offlineJudgingHeadings = List(
@@ -201,7 +201,7 @@ object DebatesPanel {
       AwaitingFeedback,
       InProgress,
       WaitingToBegin,
-      MustJudgeBeforeDebating,
+      MustJudgeBeforeSeeing,
       CurrentlyOfflineJudging,
       AssignedForOfflineJudging,
       EligibleForOfflineJudging,

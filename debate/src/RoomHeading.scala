@@ -21,8 +21,8 @@ trait RoomHeading {
         "in progress"
       case WaitingToBegin =>
         "waiting to begin"
-      case MustJudgeBeforeDebating =>
-        "must judge before debating"
+      case MustJudgeBeforeSeeing =>
+        "must judge before seeing"
       case AssignedForOfflineJudging =>
         "you are assigned as an offline judge"
       case CurrentlyOfflineJudging =>
@@ -41,8 +41,8 @@ trait RoomHeading {
         "In Progress"
       case WaitingToBegin =>
         "Waiting to Begin"
-      case MustJudgeBeforeDebating =>
-        "Must Judge the Story Before Debating"
+      case MustJudgeBeforeSeeing =>
+        "Must Judge the Story Before Seeing"
       case AssignedForOfflineJudging =>
         "You are Assigned to Judge Offline"
       case CurrentlyOfflineJudging =>
@@ -60,7 +60,7 @@ object RoomHeading {
   case object CurrentlyOfflineJudging   extends RoomHeading
   case object AssignedForOfflineJudging extends RoomHeading
   case object EligibleForOfflineJudging extends RoomHeading
-  case object MustJudgeBeforeDebating   extends RoomHeading
+  case object MustJudgeBeforeSeeing     extends RoomHeading
   case object Complete                  extends RoomHeading
 
   def infer(metadata: RoomMetadata, user: String, stats: DebaterStoryStats): RoomHeading =
@@ -95,20 +95,16 @@ object RoomHeading {
             } else
               AwaitingFeedback
           }
+        } else if (stats.needsToJudgeStory) {
+          MustJudgeBeforeSeeing
         } else if (stats.hasReadStory || !stats.canJudgeMore || user == adminUsername) {
           Complete
         } else
           EligibleForOfflineJudging
-      case _
-          if metadata
-            .roleAssignments
-            .toVector
-            .existsAs { case (Debater(_), `user`) =>
-              true
-            } && stats.needsToJudgeStory =>
-        MustJudgeBeforeDebating
       case _ if metadata.offlineJudgeAssignments.contains(user) =>
         AssignedForOfflineJudging
+      case _ if !metadata.roleAssignments.values.toSet.contains(user) && stats.needsToJudgeStory =>
+        MustJudgeBeforeSeeing
       case _
           if !metadata.roleAssignments.values.toSet.contains(user) && !stats.hasReadStory &&
             stats.canJudgeMore && user != adminUsername =>

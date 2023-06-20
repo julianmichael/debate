@@ -124,7 +124,7 @@ case class DebateStateManager(
                   case RoomHeading.AssignedForOfflineJudging | RoomHeading
                         .EligibleForOfflineJudging =>
                     OfflineJudge
-                  case RoomHeading.MustJudgeBeforeDebating =>
+                  case RoomHeading.MustJudgeBeforeSeeing =>
                     Peeper // no peeping! Judge your stuff first!
                   case _ =>
                     debateState
