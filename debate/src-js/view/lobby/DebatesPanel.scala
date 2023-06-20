@@ -127,13 +127,14 @@ object DebatesPanel {
           }
 
           ReactFragment(
+            PersonalizedGraphsCard(userName),
             Utils.textInputWithEnterButton(
               field = roomNameLive,
               placeholderOpt = Some("Room"),
               buttonContent = "Join",
               isEnabled = canEnter,
               enter = enter
-            )(^.marginBottom := 1.rem),
+            )(^.marginBottom := 1.rem, ^.marginTop := 1.rem),
             ReactFragment(
               Utils.tagDelimitedElements(
                 headings.flatMap(showMetadatasWithHeading),

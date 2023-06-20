@@ -1,0 +1,130 @@
+package debate
+package view.lobby
+
+import scala.concurrent.Future
+import scala.util.Failure
+import scala.util.Success
+
+import cats.implicits._
+import cats.~>
+
+import japgolly.scalajs.react.AsyncCallback
+import japgolly.scalajs.react.Callback
+import japgolly.scalajs.react.feature.ReactFragment
+import japgolly.scalajs.react.vdom.html_<^._
+import org.scalajs.dom
+import org.scalajs.jquery.jQuery
+import scalacss.ScalaCssReact._
+
+import jjm.OrWrapped
+import jjm.io.HttpUtil
+import jjm.ui.CacheCallContent
+
+import debate.service.AnalyticsService
+import debate.util.ListConfig
+import debate.util.Local
+import jjm.ui.Mounting
+
+object PersonalizedGraphsCard {
+  val S = Styles
+  val V = new jjm.ui.View(S)
+
+  import Utils.ClassSetInterpolator
+
+  import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
+
+  val analyticsService = {
+
+    def httpProtocol = dom.document.location.protocol
+    type DelayedFuture[A] = () => Future[A]
+    val toAsyncCallback = λ[DelayedFuture ~> AsyncCallback](f => AsyncCallback.fromFuture(f()))
+
+    val analyticsApiUrl: String =
+      s"$httpProtocol//${dom.document.location.host}/$analyticsServiceApiEndpoint"
+
+    AnalyticsService(
+      HttpUtil
+        .makeHttpPostClient[AnalyticsService.Request](analyticsApiUrl)
+        .andThenK(toAsyncCallback)
+        // .andThenK(λ[AsyncCallback ~> OrWrapped[AsyncCallback, *]](OrWrapped.wrapped(_)))
+    )
+  }
+
+  val GraphNamesFetch = new CacheCallContent[Unit, Vector[String]]
+  val GraphNameSelect = V.OptionalSelect[String](identity, "Choose...")
+
+  def makeGraphNamePretty(endpoint: String) = endpoint.replaceAll("_", " ")
+  def makeEndpointName(graphName: String)   = graphName.replaceAll(" ", "_")
+
+  def getPersonalizedGraphDisplayDivId(index: Int) = s"personalized-graph-$index"
+
+  def reloadGraphs(
+    userName: String
+  )(oldGraphs: Vector[Option[String]], newGraphs: Vector[Option[String]]) =
+    newGraphs
+      .zipWithIndex
+      .collect { case (newGraphNameOpt, index) =>
+        oldGraphs.lift(index) match {
+          case Some(`newGraphNameOpt`) =>
+            Callback.empty // don't need to refresh this graph
+          case _ =>
+            val graphId = getPersonalizedGraphDisplayDivId(index)
+            def jqDiv   = jQuery(s"#$graphId")
+            newGraphNameOpt match {
+              case None =>
+                Callback(jqDiv.empty()) // empty the graph display
+              case Some(graphName) =>
+                analyticsService
+                  .getPersonalizedAnalyticsGraph(
+                    makeEndpointName(userName),
+                    makeEndpointName(graphName)
+                  )
+                  .completeWith {
+                    case Failure(_) =>
+                      val errDiv =
+                        f"""
+                        <div class="alert alert-danger">
+                          <h5>Error</h5>
+                          <p>Check the JavaScript console for details.</p>
+                        </div>
+                      """
+                      Callback(jqDiv.html(errDiv))
+                    case Success(data) =>
+                      Callback(
+                        scalajs
+                          .js
+                          .Dynamic
+                          .global
+                          .vegaEmbed(s"#$graphId", io.circe.scalajs.convertJsonToJs(data))
+                      )
+                  }
+            }
+        }
+      }
+      .combineAll
+
+  def apply(userName: String) =
+    Local[Vector[Option[String]]]
+      .make(Vector(Some("Win rates")), didUpdate = reloadGraphs(userName)) { graphs =>
+        ReactFragment(
+          GraphNamesFetch
+            .make((), _ => OrWrapped.wrapped(analyticsService.getPersonalizedAnalyticsGraphNames)) {
+              case GraphNamesFetch.Loading =>
+                <.div("Loading graph names.")
+              case GraphNamesFetch.Loaded(graphNames) =>
+                Mounting.make(reloadGraphs(userName)(Vector(), graphs.value)) {
+                  ListConfig[Option[String]].nice(graphs, None, 1) {
+                    case ListConfig.Context(graphName, index) =>
+                      ReactFragment(
+                        GraphNameSelect.mod(select = TagMod(S.listCardHeaderSelect))(
+                          graphNames.toSet.map(makeGraphNamePretty),
+                          graphName
+                        ),
+                        <.div(c"card-body")(^.id := getPersonalizedGraphDisplayDivId(index))
+                      )
+                  }
+                }
+            }
+        )
+      }
+}

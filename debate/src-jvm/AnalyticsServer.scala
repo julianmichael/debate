@@ -66,6 +66,15 @@ object AnalyticsServer {
         AnalyticsService.Request.GetAnalyticsGraph(name),
         get(baseUri.withPath(s"/graph/$name"))
       )
+
+      def getPersonalizedAnalyticsGraphNames = doRequest(
+        AnalyticsService.Request.GetPersonalizedAnalyticsGraphNames,
+        get(baseUri.withPath("/personalized_graphs"))
+      )
+      def getPersonalizedAnalyticsGraph(user: String, name: String) = doRequest(
+        AnalyticsService.Request.GetPersonalizedAnalyticsGraph(user, name),
+        get(baseUri.withPath(s"/personalized_graph/$user/$name"))
+      )
     }
   }
 
