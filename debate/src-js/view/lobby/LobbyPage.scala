@@ -74,7 +74,17 @@ object LobbyPage {
                   refreshLeaderboard = sendToMainChannel(RefreshLeaderboard())
                 )
               ),
-            "Analytics" -> TabNav.tab(AnalyticsPanel(userName)),
+            "Analytics" ->
+              TabNav.tab(
+                AnalyticsPanel(
+                  userName,
+                  lobby,
+                  room =>
+                    connect(
+                      ConnectionSpec(isOfficial = true, roomName = room, participantName = userName)
+                    )
+                )
+              ),
             "Admin" ->
               TabNav.tab(
                 AdminPanel(
