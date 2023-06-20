@@ -15,10 +15,12 @@ object AnalyticsPanel {
   def apply(userName: String, lobby: Lobby, connectToRoom: String => Callback) =
     TabNav("admin-tab", initialTabIndex = 1)(
       "Graphs" -> TabNav.tab(<.div(c"card-body", S.spaceySubcontainer)(GraphsPanel())),
-      "Open-Ended Feedback" ->
+      "Feedback" ->
         TabNav.tab(<.div(c"card-body", S.spaceySubcontainer)(OpenEndedFeedbackPanel(userName))),
-      "Hard Questions" ->
+      "Questions" ->
         TabNav
-          .tab(<.div(c"card-body", S.spaceySubcontainer)(HardQuestionsPanel(lobby, connectToRoom)))
+          .tab(<.div(c"card-body", S.spaceySubcontainer)(HardQuestionsPanel(lobby, connectToRoom))),
+      "Judgments" ->
+        TabNav.tab(<.div(c"card-body", S.spaceySubcontainer)(JudgmentsPanel(lobby, connectToRoom)))
     )
 }

@@ -195,24 +195,14 @@ object MetadataBox {
           }
         }
 
-        val style =
-          result.judgingInfo match {
-            case None =>
-              if (offlineJudgingResults.flatMap(_._2.result).nonEmpty) {
-                val avgJudgment =
-                  offlineJudgingResults
-                    .flatMap(_._2.result)
-                    .map(_.distribution)
-                    .view
-                    .transpose
-                    .map(v => v.sum / v.size)
-                    .toVector
-                getBgColorModFromJudgment(avgJudgment)
-              } else
-                TagMod(^.backgroundColor := "#eee")
-            case Some(info) =>
-              getBgColorModFromJudgment(info.finalJudgement)
-          }
+        val style = {
+          val avgJudgment =
+            (
+              offlineJudgingResults.flatMap(_._2.result).map(_.distribution) ++
+                result.judgingInfo.map(_.finalJudgement)
+            ).view.transpose.map(v => v.sum / v.size).toVector
+          getBgColorModFromJudgment(avgJudgment)
+        }
 
         val offlineResults = Option {
           val judgmentElements = offlineJudgingResults
