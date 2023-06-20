@@ -141,7 +141,7 @@ object Elo {
     val globalBias            = Normal(0, 1).latent
     val noOpponentAdjustment  = Normal(0, 1).latent
     val noLiveJudgeAdjustment = Normal(0, 1).latent
-    val questionEase          = Normal(0, 1).latentVec(questions.size)
+    val questionEase          = Normal(0, 0.25).latentVec(questions.size)
     val honestSkill           = Normal(0, 1).latentVec(debaters.size)
     val dishonestSkill        = Normal(0, 1).latentVec(debaters.size)
     val judgeLeadingSkill     = Normal(0, 1).latentVec(debaters.size)
