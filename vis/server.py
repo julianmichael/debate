@@ -46,10 +46,10 @@ def read_data():
     debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
     debates["Start time"] = pd.to_datetime(debates["Start time"], unit="ms")
     debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
-    # only include debates for a given time
+    # only include debates after the given time
     debates = debates[
-        debates["Start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y") #&
-        #debates["End time"] < pd.to_datetime("26/05/23", format="%d/%m/%y")
+        (debates["Start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y"))# &
+        #(debates["End time"] < pd.to_datetime("21/05/23", format="%d/%m/%y"))
     ]
     debates["Final probability incorrect"] = 1 - debates["Final probability correct"]
     sessions = pd.read_csv(os.path.join(data_dir, "official/summaries/sessions.csv"), keep_default_na=True)

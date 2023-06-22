@@ -60,6 +60,14 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
               ""
           }
         },
+        "Story length" -> { info =>
+          info.debate.setup.sourceMaterial match {
+            case QuALITYSourceMaterial(_, _, contents) =>
+              contents.mkString.length.toString
+            case _ =>
+              ""
+          }
+        },
         "Question" -> { info =>
           info.debate.setup.question
         },
@@ -293,6 +301,15 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             .content
             .collect { case SpeechSegment.Quote(span) =>
               Utils.renderSpan(info.debate.setup.sourceMaterial.contents, span)
+            }
+            .mkString(" [[input text]] ")
+        },
+        "Participant quote span midpoint" -> { info =>
+          info
+            .speech
+            .content
+            .collect { case SpeechSegment.Quote(span) =>
+              (span.begin+span.end)/2
             }
             .mkString(" [[input text]] ")
         },
