@@ -328,7 +328,9 @@ def accuracy_by_judge_setting():
             [
                 "Room name",
                 "Is offline",
-                "Is single debater"
+                "Is single debater",
+                "Has honest debater",
+                # "Has dishonest debater",
             ]
         ],
         how="left",
@@ -340,7 +342,10 @@ def accuracy_by_judge_setting():
         if row['Is offline']:
             return row['Role'] + ' (no live judge)'
         elif row['Is single debater']:
-            return row['Role'] + ' (single debater)'
+            if row['Has honest debater']:
+                return row['Role'] + ' (single honest debater)'
+            else:
+                return row['Role'] + ' (single dishonest debater)'
         else:
             return row['Role']
     source['roleWithOffline'] = source.apply(get_setting, axis=1)
