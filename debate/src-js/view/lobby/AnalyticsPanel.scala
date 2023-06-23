@@ -17,6 +17,8 @@ object AnalyticsPanel {
       "Graphs" -> TabNav.tab(<.div(c"card-body", S.spaceySubcontainer)(GraphsPanel())),
       "Feedback" ->
         TabNav.tab(<.div(c"card-body", S.spaceySubcontainer)(OpenEndedFeedbackPanel(userName))),
+      "Stories" ->
+        TabNav.tab(<.div(c"card-body", S.spaceySubcontainer)(StoriesAnalyticsPanel(lobby))),
       "Questions" ->
         TabNav
           .tab(<.div(c"card-body", S.spaceySubcontainer)(HardQuestionsPanel(lobby, connectToRoom))),
