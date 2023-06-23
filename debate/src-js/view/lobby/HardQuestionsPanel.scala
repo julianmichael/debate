@@ -14,7 +14,7 @@ object HardQuestionsPanel {
 
   def apply(lobby: Lobby, connectToRoom: String => Callback) = {
     val thMod = c"text-left"
-    <.table(
+    <.table(c"table table-striped")(
       <.thead(
         <.tr(
           <.th(thMod)("Question"),
