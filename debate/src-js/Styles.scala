@@ -487,7 +487,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val tentativeInputLabel = style(inputLabel, color(c"#888"))
 
-  val fullWidthInput = style(width(100 %%), margin(mainHalfPadding))
+  val fullWidthInput = style(minHeight(2 rem), width(100 %%), margin(mainHalfPadding))
 
   val debatePanel = style(
     display.flex,
