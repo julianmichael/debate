@@ -210,7 +210,7 @@ object DebatePanel {
                 i
               }
           else
-            (0 until debate.setup.numDebaters).toSet
+            (0 until debate.setup.numAnswers).toSet
         val visibleSpeeches = round.visibleSpeechesForRole(role, debaters)
         // number of feedback rounds the current user has given so far as offline judge.
         // The user can only see this round if they have given feedback on all previous rounds where the live judge did.
@@ -423,7 +423,7 @@ object DebatePanel {
                                   i
                                 }
                             else
-                              (0 until setup.numDebaters).toSet,
+                              (0 until setup.numAnswers).toSet,
                           round = round,
                           modifyRound =
                             roundOpt =>

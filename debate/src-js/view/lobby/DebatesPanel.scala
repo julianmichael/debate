@@ -25,7 +25,8 @@ object DebatesPanel {
     storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
     presentDebaters: Set[String],
     connect: ConnectionSpec => Callback,
-    sendToMainChannel: MainChannelRequest => Callback
+    sendToMainChannel: MainChannelRequest => Callback,
+    includeAnalytics: Boolean
   ) =
     <.div(c"card-body", S.spaceySubcontainer)(
       Local[Boolean].make(true) { anonymizeAll =>
@@ -60,8 +61,8 @@ object DebatesPanel {
                   S.eligibleForOfflineJudgingStatusLabel
                 case WaitingToBegin =>
                   S.waitingToBeginStatusLabel
-                case MustJudgeBeforeDebating =>
-                  S.mustJudgeBeforeDebatingStatusLabel
+                case MustJudgeBeforeSeeing =>
+                  S.mustJudgeBeforeSeeingStatusLabel
                 case Complete =>
                   S.completeStatusLabel
               }
@@ -127,13 +128,14 @@ object DebatesPanel {
           }
 
           ReactFragment(
+            Option(PersonalizedGraphsCard(userName)).filter(_ => includeAnalytics),
             Utils.textInputWithEnterButton(
               field = roomNameLive,
               placeholderOpt = Some("Room"),
               buttonContent = "Join",
               isEnabled = canEnter,
               enter = enter
-            )(^.marginBottom := 1.rem),
+            )(^.marginBottom := 1.rem, ^.marginTop := 1.rem),
             ReactFragment(
               Utils.tagDelimitedElements(
                 headings.flatMap(showMetadatasWithHeading),
@@ -186,7 +188,7 @@ object DebatesPanel {
       AwaitingFeedback,
       InProgress,
       WaitingToBegin,
-      MustJudgeBeforeDebating,
+      MustJudgeBeforeSeeing,
       Complete
     )
     val offlineJudgingHeadings = List(
@@ -200,25 +202,30 @@ object DebatesPanel {
       AwaitingFeedback,
       InProgress,
       WaitingToBegin,
-      MustJudgeBeforeDebating,
+      MustJudgeBeforeSeeing,
       CurrentlyOfflineJudging,
       AssignedForOfflineJudging,
       EligibleForOfflineJudging,
       Complete
     )
 
-    def makeTab(isOfficial: Boolean, headings: List[RoomHeading], rooms: Set[RoomMetadata]) =
-      debatesTab(
-        isAdmin = isAdmin,
-        userName = userName,
-        isOfficial = isOfficial,
-        headings = headings,
-        rooms = rooms,
-        storyRecord = lobby.storyRecord,
-        presentDebaters = lobby.presentDebaters,
-        connect = connect,
-        sendToMainChannel = sendToMainChannel
-      )
+    def makeTab(
+      isOfficial: Boolean,
+      headings: List[RoomHeading],
+      rooms: Set[RoomMetadata],
+      includeAnalytics: Boolean
+    ) = debatesTab(
+      isAdmin = isAdmin,
+      userName = userName,
+      isOfficial = isOfficial,
+      headings = headings,
+      rooms = rooms,
+      storyRecord = lobby.storyRecord,
+      presentDebaters = lobby.presentDebaters,
+      connect = connect,
+      sendToMainChannel = sendToMainChannel,
+      includeAnalytics = includeAnalytics
+    )
 
     // TODO: eliminate redundancy between this and notification counts in LobbyPage
 
@@ -243,20 +250,40 @@ object DebatesPanel {
     TabNav("debate-tab", initialTabIndex = 0)(
       "My Live Debates" ->
         TabNav.tabWithNotifications(numDebatesMyTurn)(
-          makeTab(isOfficial = true, headings = liveDebateHeadings, rooms = myDebates)
+          makeTab(
+            isOfficial = true,
+            headings = liveDebateHeadings,
+            rooms = myDebates,
+            includeAnalytics = true
+          )
         ),
       "My Offline Judging" ->
         TabNav.tabWithNotifications(numDebatesReadyToJudge)(
           makeTab(
             isOfficial = true,
             headings = offlineJudgingHeadings,
-            rooms = debatesForOfflineJudging
+            rooms = debatesForOfflineJudging,
+            includeAnalytics = false
           )
         ),
       "All Official Debates" ->
-        TabNav.tab(makeTab(isOfficial = true, headings = allHeadings, rooms = lobby.officialRooms)),
+        TabNav.tab(
+          makeTab(
+            isOfficial = true,
+            headings = allHeadings,
+            rooms = lobby.officialRooms,
+            includeAnalytics = false
+          )
+        ),
       "Practice Debates" ->
-        TabNav.tab(makeTab(isOfficial = false, headings = allHeadings, rooms = lobby.practiceRooms))
+        TabNav.tab(
+          makeTab(
+            isOfficial = false,
+            headings = allHeadings,
+            rooms = lobby.practiceRooms,
+            includeAnalytics = false
+          )
+        )
     )
   }
 }

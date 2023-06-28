@@ -177,7 +177,19 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "Not at all",
-        maxDescription = "Best possible"
+        maxDescription = "Best possible",
+        isValid = (setup, _) => setup.numAssignedDebaters == 2
+      )
+    ),
+    DotPair[Question][Key](Key.Likert("evidence use (single)"))(
+      Question.Likert(
+        { case Debater(_) =>
+          "Given the evidence available in the story, how effectively did you use it?"
+        },
+        numOptions = 5,
+        minDescription = "Not at all",
+        maxDescription = "Best possible",
+        isValid = (setup, _) => setup.numAssignedDebaters == 1
       )
     ),
     DotPair[Question][Key](Key.ComparativeLikert("evidence in debate"))(
@@ -187,7 +199,19 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "Poor / irrelevant",
-        maxDescription = "Clear & effective"
+        maxDescription = "Clear & effective",
+        isValid = (setup, _) => setup.numAssignedDebaters == 2
+      )
+    ),
+    DotPair[Question][Key](Key.Likert("evidence in debate (single)"))(
+      Question.Likert(
+        { case Judge | OfflineJudge =>
+          "How compelling was the debater's evidence?"
+        },
+        numOptions = 5,
+        minDescription = "Poor / irrelevant",
+        maxDescription = "Clear & effective",
+        isValid = (setup, _) => setup.numAssignedDebaters == 1
       )
     ),
     DotPair[Question][Key](Key.ComparativeLikert("factual accuracy"))(
@@ -197,7 +221,19 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "Completely inaccurately",
-        maxDescription = "Completely accurately"
+        maxDescription = "Completely accurately",
+        isValid = (setup, _) => setup.numAssignedDebaters == 2
+      )
+    ),
+    DotPair[Question][Key](Key.Likert("factual accuracy (single)"))(
+      Question.Likert(
+        { case Debater(_) =>
+          "How accurately did you represent the facts of the story in your arguments?"
+        },
+        numOptions = 5,
+        minDescription = "Completely inaccurately",
+        maxDescription = "Completely accurately",
+        isValid = (setup, _) => setup.numAssignedDebaters == 1
       )
     ),
     DotPair[Question][Key](Key.ComparativeLikert("factual informativeness (comparative)"))(
@@ -207,7 +243,8 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "Not at all",
-        maxDescription = "Highly informative"
+        maxDescription = "Highly informative",
+        isValid = (setup, _) => setup.numAssignedDebaters == 2
       )
     ),
     DotPair[Question][Key](Key.Likert("factual informativeness (total)"))(
@@ -233,7 +270,22 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "Completely facts",
-        maxDescription = "Completely semantics"
+        maxDescription = "Completely semantics",
+        isValid = (setup, _) => setup.numAssignedDebaters == 2
+      )
+    ),
+    DotPair[Question][Key](Key.Likert("facts versus semantics (single)"))(
+      Question.Likert(
+        {
+          case Debater(_) =>
+            "How much did you focus on matters of fact versus matters of semantics?"
+          case Judge | OfflineJudge =>
+            "How much did the debater focus on matters of fact versus matters of semantics?"
+        },
+        numOptions = 5,
+        minDescription = "Completely facts",
+        maxDescription = "Completely semantics",
+        isValid = (setup, _) => setup.numAssignedDebaters == 1
       )
     ),
     DotPair[Question][Key](Key.ComparativeLikert("clarity"))(
@@ -243,7 +295,19 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "Completely muddled",
-        maxDescription = "Completely clear"
+        maxDescription = "Completely clear",
+        isValid = (setup, _) => setup.numAssignedDebaters == 2
+      )
+    ),
+    DotPair[Question][Key](Key.Likert("clarity (single)"))(
+      Question.Likert(
+        { case _ =>
+          "How clear & understandable do you feel the argumentation was?"
+        },
+        numOptions = 5,
+        minDescription = "Completely muddled",
+        maxDescription = "Completely clear",
+        isValid = (setup, _) => setup.numAssignedDebaters == 1
       )
     ),
     DotPair[Question][Key](Key.ComparativeLikert("clash"))(
@@ -256,7 +320,8 @@ object Feedback {
         },
         numOptions = 5,
         minDescription = "No clash",
-        maxDescription = "Addressed all arguments"
+        maxDescription = "Addressed all arguments",
+        isValid = (setup, _) => setup.numAssignedDebaters == 2
       )
     ),
     DotPair[Question][Key](Key.ComparativeLikert("judge adaptation"))(
@@ -272,7 +337,23 @@ object Feedback {
         numOptions = 5,
         minDescription = "Not at all",
         maxDescription = "Addressed all concerns",
-        isValid = (setup, _) => setup.rules.hasJudge
+        isValid = (setup, _) => setup.rules.hasJudge && setup.numAssignedDebaters == 2
+      )
+    ),
+    DotPair[Question][Key](Key.Likert("judge adaptation (single)"))(
+      Question.Likert(
+        {
+          case Debater(_) =>
+            "How well did you respond/adapt to the judge's concerns?"
+          case Judge =>
+            "How well did the debater respond/adapt to your concerns?"
+          case OfflineJudge =>
+            "How well did the debater respond/adapt to the judge's concerns?"
+        },
+        numOptions = 5,
+        minDescription = "Not at all",
+        maxDescription = "Addressed all concerns",
+        isValid = (setup, _) => setup.rules.hasJudge && setup.numAssignedDebaters == 1
       )
     ),
     DotPair[Question][Key](Key.Likert("judge reasoning"))(

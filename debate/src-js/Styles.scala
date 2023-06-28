@@ -189,7 +189,7 @@ object Styles extends jjm.ui.View.Styles {
   val currentlyOfflineJudgingStatusLabel   = style(color.darkorange)
   val eligibleForOfflineJudgingStatusLabel = style(color.black)
   val waitingToBeginStatusLabel            = style(color.gold)
-  val mustJudgeBeforeDebatingStatusLabel   = style(color.red)
+  val mustJudgeBeforeSeeingStatusLabel     = style(color.red)
   val completeStatusLabel                  = style(color.darkgreen)
 
   val loading = style(
@@ -487,7 +487,7 @@ object Styles extends jjm.ui.View.Styles {
 
   val tentativeInputLabel = style(inputLabel, color(c"#888"))
 
-  val fullWidthInput = style(width(100 %%), margin(mainHalfPadding))
+  val fullWidthInput = style(minHeight(2 rem), width(100 %%), margin(mainHalfPadding))
 
   val debatePanel = style(
     display.flex,
@@ -585,4 +585,15 @@ object Styles extends jjm.ui.View.Styles {
   val judgeBox       = style(accentColor(green))
   val debaterBox     = style(accentColor(red))
   val disabledSlider = style(accentColor(grey))
+
+  val globalDialogOverlay = style(
+    position.fixed,
+    left.`0`,
+    top.`0`,
+    width(100 %%),
+    height(100 %%),
+    backgroundColor(rgba(0, 0, 0, 0.20))
+  )
+
+  val popupDialog = style(margin.auto, marginTop(8 rem), maxWidth(30 rem))
 }

@@ -16,12 +16,17 @@ case class DebaterStoryStats(
   def hasReadStory      = (debating - Assigned).nonEmpty
   def needsToJudgeStory = (allJudging - Complete - AwaitingFeedback).nonEmpty
   def canJudgeMore      = allJudging.unorderedFoldMap(_.size) < numJudgingsAllowedPerStory
-  def debatesUserMustJudgeFirst(roomName: String): Set[String] =
-    if (debating.values.exists(_.contains(roomName))) {
-      val judging = allJudging
+  def debatesUserMustJudgeFirst(roomName: String): Set[String] = {
+    val judging = allJudging
+    val allCurrentJudgingForStory =
       judging.get(Assigned).combineAll |+| judging.get(Begun).combineAll
-    } else
-      Set()
+    allCurrentJudgingForStory - roomName
+  }
+  // if (debating.values.exists(_.contains(roomName))) {
+  //   val judging = allJudging
+  //   judging.get(Assigned).combineAll |+| judging.get(Begun).combineAll
+  // } else
+  //   Set()
 }
 object DebaterStoryStats {
   implicit val debaterStoryStatsCommutativeMonoid: CommutativeMonoid[DebaterStoryStats] =

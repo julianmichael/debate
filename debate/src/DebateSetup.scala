@@ -46,7 +46,16 @@ case class DebateSetup(
 ) {
   def participants = roles.values.toSet ++ offlineJudges.keySet
 
-  def numDebaters = answers.size
+  def numAnswers = answers.size
+
+  def numAssignedDebaters =
+    roles
+      .keys
+      .toList
+      .collect { case Debater(_) =>
+        ()
+      }
+      .size
 
   def areAllRolesAssigned =
     roles.contains(Judge) && answers.indices.forall(i => roles.contains(Debater(i)))

@@ -5,6 +5,7 @@ out
 .bloop
 .metals
 .DS_Store
+*.ipynb_checkpoints*
 
 *.~undo-tree~
 .#*

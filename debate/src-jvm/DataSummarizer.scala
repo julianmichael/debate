@@ -48,7 +48,24 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         "Is single debater" -> { info =>
           (info.debate.setup.roles.keySet.filter(_.isDebater).size == 1).toString
         },
-
+        "Has honest debater" -> { info =>
+          info
+            .debate
+            .setup
+            .roles
+            .keySet
+            .contains(Debater(info.debate.setup.correctAnswerIndex))
+            .toString
+        },
+        "Has dishonest debater" -> { info =>
+          info
+            .debate
+            .setup
+            .roles
+            .keySet
+            .contains(Debater(1 - info.debate.setup.correctAnswerIndex))
+            .toString
+        },
         // TODO: Ask J, best for merge w/ questsion metadata here or in .py
         // re: IDK if this is the best way
         "Article ID" -> { info =>
@@ -400,7 +417,20 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
                 .offlineJudgingResults
                 .get(info.participant)
                 .filter(_.result.isDefined)
-                .map(_.judgments.size - 1)
+                .map { judgment =>
+                  judgment.mode match {
+                    case OfflineJudgingMode.Stepped =>
+                      judgment.judgments.size - 1
+                    case OfflineJudgingMode.Timed =>
+                      info
+                        .debate
+                        .rounds
+                        .collect { case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
+                          ()
+                        }
+                        .size
+                  }
+                }
                 .foldMap(_.toString)
             case _ =>
               ""

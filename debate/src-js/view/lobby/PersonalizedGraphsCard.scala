@@ -23,8 +23,9 @@ import jjm.ui.CacheCallContent
 import debate.service.AnalyticsService
 import debate.util.ListConfig
 import debate.util.Local
+import jjm.ui.Mounting
 
-object GraphsPanel {
+object PersonalizedGraphsCard {
   val S = Styles
   val V = new jjm.ui.View(S)
 
@@ -55,9 +56,11 @@ object GraphsPanel {
   def makeGraphNamePretty(endpoint: String) = endpoint.replaceAll("_", " ")
   def makeEndpointName(graphName: String)   = graphName.replaceAll(" ", "_")
 
-  def getGraphDisplayDivId(index: Int) = s"graph-$index"
+  def getPersonalizedGraphDisplayDivId(index: Int) = s"personalized-graph-$index"
 
-  def reloadGraphs(oldGraphs: Vector[Option[String]], newGraphs: Vector[Option[String]]) =
+  def reloadGraphs(
+    userName: String
+  )(oldGraphs: Vector[Option[String]], newGraphs: Vector[Option[String]]) =
     newGraphs
       .zipWithIndex
       .collect { case (newGraphNameOpt, index) =>
@@ -65,14 +68,17 @@ object GraphsPanel {
           case Some(`newGraphNameOpt`) =>
             Callback.empty // don't need to refresh this graph
           case _ =>
-            val graphId = getGraphDisplayDivId(index)
+            val graphId = getPersonalizedGraphDisplayDivId(index)
             def jqDiv   = jQuery(s"#$graphId")
             newGraphNameOpt match {
               case None =>
                 Callback(jqDiv.empty()) // empty the graph display
               case Some(graphName) =>
                 analyticsService
-                  .getAnalyticsGraph(makeEndpointName(graphName))
+                  .getPersonalizedAnalyticsGraph(
+                    makeEndpointName(userName),
+                    makeEndpointName(graphName)
+                  )
                   .completeWith {
                     case Failure(_) =>
                       val errDiv =
@@ -97,34 +103,28 @@ object GraphsPanel {
       }
       .combineAll
 
-  def apply() =
-    Local[Vector[Option[String]]].make(Vector(None), didUpdate = reloadGraphs) { graphs =>
-      <.div(c"card-body", S.spaceySubcontainer)(
-        <.h3(c"card-title")("Analytics"),
-        <.div(c"pb-2")(
-          <.a(c"card-link")(
-            ^.href := "#",
-            "Refresh",
-            ^.onClick -->
-              (analyticsService.refresh.completeWith(_ => reloadGraphs(Vector(), graphs.value)))
-          ),
-          <.a(c"card-link")(^.href := "/download", ^.target.blank, "Download")
-        ),
-        GraphNamesFetch.make((), _ => OrWrapped.wrapped(analyticsService.getAnalyticsGraphNames)) {
-          case GraphNamesFetch.Loading =>
-            <.div("Loading graph names.")
-          case GraphNamesFetch.Loaded(graphNames) =>
-            ListConfig[Option[String]].nice(graphs, None, 1) {
-              case ListConfig.Context(graphName, index) =>
-                ReactFragment(
-                  GraphNameSelect.mod(select = TagMod(S.listCardHeaderSelect))(
-                    graphNames.toSet.map(makeGraphNamePretty),
-                    graphName
-                  ),
-                  <.div(c"card-body")(^.id := getGraphDisplayDivId(index))
-                )
+  def apply(userName: String) =
+    Local[Vector[Option[String]]]
+      .make(Vector(Some("Win rates")), didUpdate = reloadGraphs(userName)) { graphs =>
+        ReactFragment(
+          GraphNamesFetch
+            .make((), _ => OrWrapped.wrapped(analyticsService.getPersonalizedAnalyticsGraphNames)) {
+              case GraphNamesFetch.Loading =>
+                <.div("Loading graph names.")
+              case GraphNamesFetch.Loaded(graphNames) =>
+                Mounting.make(reloadGraphs(userName)(Vector(), graphs.value)) {
+                  ListConfig[Option[String]].nice(graphs, None, 1) {
+                    case ListConfig.Context(graphName, index) =>
+                      ReactFragment(
+                        GraphNameSelect.mod(select = TagMod(S.listCardHeaderSelect))(
+                          graphNames.toSet.map(makeGraphNamePretty),
+                          graphName
+                        ),
+                        <.div(c"card-body")(^.id := getPersonalizedGraphDisplayDivId(index))
+                      )
+                  }
+                }
             }
-        }
-      )
-    }
+        )
+      }
 }

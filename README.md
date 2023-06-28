@@ -35,6 +35,17 @@ compilation, which takes longer but produces a much smaller and faster-running J
 
 To run unit tests, use `mill debate.jvm.test`. (JS tests aren't working at the moment; see #76.)
 
+### Running the model debate server
+
+To run debates with GPT-4 as a participant, you will need to have the packages in `model-debate/requirements.txt` installed. To start the server (which formats and processes POST requests sent from the main Scala webapp, before sending the debate transcript to GPT-4), navigate to the subdirectory `model-debate` and run 
+```bash
+uvicorn app:app
+```
+
+You can also pass in the following flags:
+* `---port`: the port to host the server at.
+* `---reload`: if you're doing development on the server, and want automatic reloading.
+
 ### Running the analytics server
 
 There's a python server to produce the visualizations in the Analytics tab of the interface.
