@@ -588,7 +588,8 @@ object Server {
         .ifM(
           ifTrue =
             IO(println("Initializing profiles to include all assigned debaters.")) >>
-              profilesRef.set(allDebaters.view.map(name => name -> Profile(name, None)).toMap),
+              profilesRef
+                .set(allDebaters.view.map(name => name -> Profile.Human(name, None)).toMap),
           ifFalse = IO.unit
         )
       mainChannel <- Topic[IO, Lobby](

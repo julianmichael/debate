@@ -75,6 +75,7 @@ object Slack {
 
       val notify = profiles
         .get(debater)
+        .flatMap(Profile.human.getOption)
         .flatMap(_.slackEmail)
         .traverse(lookupByEmail)
         .flatMap(_.traverse_(id => postMessage(id, msg)))

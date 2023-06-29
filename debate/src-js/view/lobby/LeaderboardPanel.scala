@@ -367,6 +367,9 @@ object LeaderboardPanel {
               renderRows(
                 rows = debaters
                   .toVector
+                  .filter(name =>
+                    leaderboard.ratings.averageSkills.contains(name)
+                  ) // to avoid bugs with debaters who have no debates
                   .map(debater =>
                     makeRatingsRowData(
                       debater,

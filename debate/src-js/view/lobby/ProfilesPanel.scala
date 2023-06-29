@@ -11,6 +11,7 @@ import scalacss.ScalaCssReact._
 
 import debate.Utils.ClassSetInterpolator
 import debate.util.Local
+import scala.util.Try
 
 object ProfilesPanel {
 
@@ -105,18 +106,72 @@ object ProfilesPanel {
           .get(name)
           .map { profile =>
             ReactFragment(
-              <.h5("Slack Email"),
-              Local[String].make(profile.slackEmail.getOrElse("")) { newSlackEmailStr =>
-                Utils.textInputWithEnterButton(
-                  field = newSlackEmailStr,
-                  placeholderOpt = Some("None (no Slack notifications)"),
-                  buttonContent = "Set",
-                  isEnabled = newSlackEmailStr.value != profile.slackEmail.getOrElse(""),
-                  enter = sendToMainChannel(
-                    RegisterDebater(Profile(name, Some(newSlackEmailStr.value).filter(_.nonEmpty)))
-                  ),
-                  inputMod = S.attentionBackground.when(profile.slackEmail.isEmpty)
-                )(^.marginBottom := "1rem")
+              <.div(c"btn-group d-flex mb-2", ^.role := "group")(
+                <.button(c"btn w-100", ^.`type` := "button")(
+                  "Human",
+                  if (profile.isHuman)
+                    c"btn-primary"
+                  else
+                    c"btn-outline-primary",
+                  (
+                    ^.onClick -->
+                      sendToMainChannel(RegisterDebater(Profile.Human(profile.name, None)))
+                  ).when(profile.isAI)
+                ),
+                <.button(c"btn w-100", ^.`type` := "button")(
+                  "AI",
+                  if (profile.isAI)
+                    c"btn-secondary"
+                  else
+                    c"btn-outline-secondary",
+                  (^.onClick --> sendToMainChannel(RegisterDebater(Profile.AI(profile.name, None))))
+                    .when(profile.isHuman)
+                )
+              ),
+              profile match {
+                case Profile.Human(name, slackEmail) =>
+                  ReactFragment(
+                    <.h5("Slack Email"),
+                    Local[String].make(slackEmail.getOrElse("")) { newSlackEmailStr =>
+                      Utils.textInputWithEnterButton(
+                        field = newSlackEmailStr,
+                        placeholderOpt = Some("None (no Slack notifications)"),
+                        buttonContent = "Set",
+                        isEnabled = newSlackEmailStr.value != slackEmail.getOrElse(""),
+                        enter = sendToMainChannel(
+                          RegisterDebater(
+                            Profile.Human(name, Some(newSlackEmailStr.value).filter(_.nonEmpty))
+                          )
+                        ),
+                        inputMod = S.attentionBackground.when(slackEmail.isEmpty)
+                      )(^.marginBottom := "1rem")
+                    }
+                  )
+                case Profile.AI(name, localPort) =>
+                  ReactFragment(
+                    <.h5("Local Port"),
+                    Local[String].make(localPort.map(_.toString).getOrElse("")) { newPortStr =>
+                      Utils.textInputWithEnterButton(
+                        field = newPortStr,
+                        placeholderOpt = None,
+                        buttonContent = "Set",
+                        isEnabled =
+                          newPortStr.value != localPort.map(_.toString).getOrElse("") &&
+                            (newPortStr.value.isEmpty || Try(newPortStr.value.toInt).isSuccess),
+                        enter =
+                          (CallbackTo(
+                            RegisterDebater(
+                              Profile
+                                .AI(name, Option(newPortStr.value).filter(_.nonEmpty).map(_.toInt))
+                            )
+                          )) >>= sendToMainChannel
+                      )(^.marginBottom := "1rem")
+                    },
+                    <.button(c"btn btn-block btn-primary mb-2")(
+                      "Execute Pending Turns",
+                      ^.onClick --> sendToMainChannel(ExecutePendingTurns(name))
+                    )
+                  )
               }
             )
           },
@@ -136,7 +191,7 @@ object ProfilesPanel {
             <.button(c"mt-2 btn btn-sm btn-outline-secondary", S.simpleSelectable)(
               <.i(c"bi bi-arrow-up"),
               " Reactivate",
-              ^.onClick --> sendToMainChannel(RegisterDebater(Profile(name, None)))
+              ^.onClick --> sendToMainChannel(RegisterDebater(Profile.Human(name, None)))
             )
           )
         }
@@ -167,7 +222,7 @@ object ProfilesPanel {
           buttonContent = <.i(c"bi bi-plus"),
           isEnabled = newProfileStr.value.nonEmpty && !lobby.profiles.contains(newProfileStr.value),
           enter =
-            sendToMainChannel(RegisterDebater(Profile(newProfileStr.value, None))) >>
+            sendToMainChannel(RegisterDebater(Profile.Human(newProfileStr.value, None))) >>
               newProfileStr.setState("")
         )(^.marginBottom := "1rem"),
         <.h3("Active Profiles"),
