@@ -138,9 +138,9 @@ object Elo {
     val questions = debates.map(QuestionId.fromDebate)
     val debaters  = debaterSet.toVector
 
-    val globalBias            = Normal(0, 1).latent
-    val noOpponentAdjustment  = Normal(0, 1).latent
-    val noLiveJudgeAdjustment = Normal(0, 1).latent
+    val globalBias            = Normal(0, 10).latent
+    val noOpponentAdjustment  = Normal(0, 10).latent
+    val noLiveJudgeAdjustment = Normal(0, 10).latent
     val questionEase          = Normal(0, 0.25).latentVec(questions.size)
     val honestSkill           = Normal(0, 1).latentVec(debaters.size)
     val dishonestSkill        = Normal(0, 1).latentVec(debaters.size)
