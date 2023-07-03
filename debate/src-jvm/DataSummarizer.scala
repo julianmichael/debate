@@ -455,7 +455,35 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             case _ =>
               ""
           }
-        }
+        },
+        "Offline judging start time" -> { info =>
+          info.role match {
+            case OfflineJudge =>
+              info
+                .debate
+                .offlineJudgingResults
+                .get(info.participant)
+                .map(_.startTimeMillis.toString)
+                .getOrElse("")
+            case _ =>
+              ""
+          }
+        },
+        //TO ask: stepped? is this the final?
+        "Offline judging end time" -> { info =>
+          info.role match {
+            case OfflineJudge =>
+              info
+                .debate
+                .offlineJudgingResults
+                .get(info.participant)
+                .flatMap(_.result)
+                .map(res => res.feedback.timestamp.toString)
+                .getOrElse("")
+            case _ =>
+              ""
+          }
+        },
 
         // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
         // But there might be cases where times overlap.. let's decide def first?
