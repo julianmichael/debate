@@ -6,6 +6,8 @@ import prompts
 from rollout.debate_client import DebateClient
 from typing import List
 
+from textwrap import dedent
+
 class SequentialDebater():
 
     def __init__(self, story: str, answers: List[str], temperature: float, debater_idx: int, client: DebateClient):
@@ -25,22 +27,25 @@ class SequentialDebater():
 
         self.temperature = temperature
 
-        self.opening_prompt = f""""
-Here the current transcript of the debate is:
 
-{self.story}
+    def prepare_transcript(self, history):
+        # TODO: check length of transcript and cut it down to length if possible
+        # tip: use something computed from self.client.max_context_size
+        separator = "\n---------------------------------------------\n"
+        opening_prompt = dedent(f"""
+            Here is the current transcript of the debate:
 
-{prompts.NAME_1}: I claim the answer is {self.answers[0]}
-{prompts.NAME_2}: I claim the answer is {self.answers[1]}
----------------------------------------------\n\n
-"""
+            {self.story}
+
+            {prompts.NAME_1}: I claim the answer is {self.answers[0]}
+            {prompts.NAME_2}: I claim the answer is {self.answers[1]}{separator}\n""")
+        history_str = separator.join([f"{name}: {argument}" for name, argument in history])
+        transcript = opening_prompt + history_str
+        return transcript
 
     async def run_single_turn(self, history):
-        separator = "\n---------------------------------------------\n"
-        history_str = separator.join([f"{name}: {argument}" for name, argument in history])
-        transcript = self.opening_prompt + history_str
+        transcript = self.prepare_transcript(history)
         async with aiohttp.ClientSession() as session:
-
             response = await self.client.chat_completion_with_backoff_async(
                 session=session,
                 messages=[

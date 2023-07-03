@@ -19,6 +19,7 @@ ORG_KEY = secrets["NYU_ORG"]
 OPEN_API_KEY = secrets["API_KEY"]
 ANTHROPIC_API_KEY = secrets["ANTHROPIC_API_KEY"]
 ARTICLE_LEN_LIMIT = {'gpt-4': 6000, 'gpt-3.5-turbo': 2000}
+MAX_CONTEXT_LENGTH = {'gpt-4': 8192}
 
 
 def filter_on_story_length(story, model):
@@ -84,7 +85,7 @@ async def main():
     answers = [data['correct answer'], data['negative answer']]
 
     api_key = ANTHROPIC_API_KEY if MODEL.startswith("claude") else OPEN_API_KEY
-    client = DebateClient(model=MODEL, api_key=api_key, org_key=ORG_KEY)
+    client = DebateClient(model=MODEL, api_key=api_key, org_key=ORG_KEY, max_context_length=MAX_CONTEXT_LENGTH[MODEL])
     debater = SequentialDebater(story, answers, NUM_STEPS, TEMPERATURE, MODEL_ROLE, client)
 
     # mutable

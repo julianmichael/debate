@@ -14,10 +14,11 @@ ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1/complete"
 
 class DebateClient:
 
-    def __init__(self, model: str, api_key: str, org_key: str):
+    def __init__(self, model: str, api_key: str, org_key: str, max_context_length: int):
         self.model = model
         self.api_key = api_key
         self.org_key = org_key
+        self.max_context_length = max_context_length
 
     # for exponential backoff
     @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
