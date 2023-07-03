@@ -62,7 +62,7 @@ class ProbProgTests extends CatsEffectSuite {
 
   def loadDebateData: IO[DebateData] = Blocker[IO].use { blocker =>
     for {
-      server   <- Server.create(Paths.get("data"), Paths.get("save"), blocker)
+      server   <- Server.create(Paths.get("data"), Paths.get("save"), Nil, blocker)
       debates  <- server.officialDebates.rooms.get.map(_.values.toVector.map(_.debate.debate))
       debaters <- server.profiles.get.map(_.keySet.toVector)
     } yield DebateData(debates, debaters)

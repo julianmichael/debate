@@ -52,6 +52,7 @@ case class Server(
   pushUpdate: IO[Unit],
   httpClient: Client[IO],
   slackClientOpt: Option[Slack.Service[IO]],
+  aiDebaters: Map[Int, AIDebateService[IO]],
   officialDebates: DebateStateManager,
   practiceDebates: DebateStateManager,
   mainChannel: Topic[IO, Lobby],
@@ -511,7 +512,7 @@ object Server {
     }
   }
 
-  def create(dataPath: NIOPath, saveDir: NIOPath, blocker: Blocker)(
+  def create(dataPath: NIOPath, saveDir: NIOPath, aiDebaterPorts: List[Int], blocker: Blocker)(
     implicit cs: ContextShift[IO],
     timer: Timer[IO]
   ) = {
@@ -560,6 +561,8 @@ object Server {
         .attempt
         .map(_.toOption)
         .map(_.map(token => Slack.Service.fullHttpClient(httpClient, token)))
+      aiDebaters =
+        aiDebaterPorts.map(port => port -> AIDebateService.forLocalServer(httpClient, port)).toMap
       dataSummarizer = new DataSummarizer(qualityDataset)
       officialDebates <- DebateStateManager.init(
         initializeDebate(qualityDataset),
@@ -567,6 +570,7 @@ object Server {
         profilesRef,
         pushUpdateRef,
         slackClientOpt,
+        aiDebaters,
         dataSummarizer
       )
       practiceDebates <- DebateStateManager.init(
@@ -574,7 +578,8 @@ object Server {
         practiceRoomsDir(saveDir),
         profilesRef,
         pushUpdateRef,
-        None, // don't send slack notifications for practice rooms
+        None,       // don't send slack notifications for practice rooms
+        aiDebaters, // but do use AI debaters
         dataSummarizer
       )
       officialRooms <- officialDebates.getRoomMetadata
@@ -659,6 +664,7 @@ object Server {
       pushUpdate = pushUpdate,
       httpClient = httpClient,
       slackClientOpt = slackClientOpt,
+      aiDebaters = aiDebaters,
       officialDebates = officialDebates,
       practiceDebates = practiceDebates,
       mainChannel = mainChannel,

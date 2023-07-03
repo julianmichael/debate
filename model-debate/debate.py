@@ -10,6 +10,7 @@ from typing import List, Tuple
 import pandas as pd
 import tiktoken
 
+from rollout.debate_client import DebateClient
 from rollout.sequential_debate import SequentialDebater
 from utils import load_secrets
 
@@ -88,7 +89,8 @@ async def main():
     data['history'] = history
 
     api_key = ANTHROPIC_API_KEY if MODEL.startswith("claude") else OPEN_API_KEY
-    debater = SequentialDebater(data, MODEL, NUM_STEPS, TEMPERATURE, MODEL_ROLE, api_key, ORG_KEY)
+    client = DebateClient(model=MODEL, api_key=api_key, org_key=ORG_KEY)
+    debater = SequentialDebater(data, NUM_STEPS, TEMPERATURE, MODEL_ROLE, client)
 
     if args.model_role == "debater_a":
         response = await debater.run_single_turn()

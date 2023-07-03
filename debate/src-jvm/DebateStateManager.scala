@@ -24,6 +24,8 @@ import jjm.implicits._
 import jjm.io.FileUtil
 
 import debate.service.Slack
+import jjm.DotPair
+import debate.DebateStateUpdateRequest
 
 /** The server state for a debate room.
   *
@@ -49,6 +51,7 @@ case class DebateStateManager(
   saveDir: NIOPath,
   pushUpdateRef: Ref[IO, IO[Unit]],
   slackClientOpt: Option[Slack.Service[IO]],
+  aiDebaters: Map[Int, AIDebateService[IO]],
   dataSummarizer: DataSummarizer
 )(implicit c: Concurrent[IO]) {
 
@@ -252,9 +255,9 @@ case class DebateStateManager(
               } >>
               debate
                 .currentTransitions
-                .currentSpeakers
+                .giveSpeech
                 .toVector
-                .traverse(role =>
+                .traverse { case (role, turn) =>
                   role
                     .asLiveDebateRoleOpt
                     .traverse(liveRole =>
@@ -263,18 +266,61 @@ case class DebateStateManager(
                         .roles
                         .get(liveRole)
                         .traverse(debater =>
-                          slack.sendMessage(
-                            profiles,
-                            debater,
-                            s"It's your turn in the new room `$roomName`! " +
-                              MotivationalQuotes.yourTurn.sample()
-                          )
+                          profiles
+                            .get(debater)
+                            .traverse_ {
+                              case Profile.Human(_, _) =>
+                                slack.sendMessage(
+                                  profiles,
+                                  debater,
+                                  s"It's your turn in the new room `$roomName`! " +
+                                    MotivationalQuotes.yourTurn.sample()
+                                )
+                              case profile @ Profile.AI(_, _) =>
+                                doAITurn(roomName, debate, profile, turn)
+                            }
                         )
                     )
-                )
+                }
           }
       }
     } yield ()
+
+  // the big TODO.
+  // TODO: AI Debate service
+  def doAITurn(
+    roomName: String,
+    debate: Debate,
+    profile: Profile.AI,
+    turn: DotPair[Lambda[A => A => Debate], DebateTurnType]
+  ): IO[Unit] = profile
+    .localPort
+    .flatMap(aiDebaters.get)
+    .product(
+      debate
+        .setup
+        .roles
+        .find(_._2 == profile.name)
+        .map(_._1)
+        .collect { case Debater(i) =>
+          i
+        }
+    )
+    .traverse_ { case (service, index) =>
+      // do a compare and update after the response is received
+      for {
+        response <- service.takeTurn(debate, Debater(index), turn.fst).flatTap(r => IO(println(r)))
+        room     <- rooms.get
+        _ <-
+          room
+            .get(roomName)
+            .filter(_.debate.debate == debate)
+            .fold(IO.unit) { room =>
+              val state = room.debate.copy(debate = turn.snd(response))
+              processUpdate(roomName, DebateStateUpdateRequest.State(state)).void
+            }
+      } yield ()
+    }
 
   def refreshLeaderboard =
     for {
@@ -301,14 +347,12 @@ case class DebateStateManager(
           debateState.debate.offlineJudgingResults.values.flatMap(_.result).toSet !=
           priorState.debate.offlineJudgingResults.values.flatMap(_.result).toSet
       ).ifM(ifTrue = refreshLeaderboard, ifFalse = IO.unit)
-      _ <- slackClientOpt.traverse_ { slack =>
+      _ <- {
         for {
           _ <- {
-            val curUsersWhoseTurnItIs = debateState.debate.currentTransitions.giveSpeech.keySet
-            val liveUsersToNotify =
-              curUsersWhoseTurnItIs
-                .flatMap(_.asLiveDebateRoleOpt)
-                .flatMap(debateState.debate.setup.roles.get) -- debateState.participants.keySet
+            val debate                = debateState.debate
+            val curUsersWhoseTurnItIs = debate.currentTransitions.giveSpeech.keySet
+            println(s"Current users whose turn it is: $curUsersWhoseTurnItIs")
             val offlineJudgesToNotify =
               if (
                 !priorState.debate.currentTransitions.giveSpeech.contains(OfflineJudge) &&
@@ -318,26 +362,49 @@ case class DebateStateManager(
               } else
                 Set.empty[String]
 
-            profilesRef
-              .get
-              .flatMap { profiles =>
-                liveUsersToNotify
-                  .toVector
-                  .traverse_ { debater =>
-                    slack.sendMessage(
-                      profiles,
-                      debater,
-                      s"It's your turn in `$roomName`! " + MotivationalQuotes.yourTurn.sample()
-                    )
-                  } >>
+            debate
+              .currentTransitions
+              .giveSpeech
+              .toVector
+              .traverse { case (role, turn) =>
+                role
+                  .asLiveDebateRoleOpt
+                  .traverse(liveRole =>
+                    debate
+                      .setup
+                      .roles
+                      .get(liveRole)
+                      .traverse(debater =>
+                        profiles
+                          .get(debater)
+                          .traverse_ {
+                            case Profile.Human(name, _) =>
+                              if (!debateState.participants.contains(name)) {
+                                slackClientOpt.traverse(
+                                  _.sendMessage(
+                                    profiles,
+                                    debater,
+                                    s"It's your turn in the new room `$roomName`! " +
+                                      MotivationalQuotes.yourTurn.sample()
+                                  )
+                                )
+                              } else
+                                IO.unit
+                            case profile @ Profile.AI(_, _) =>
+                              doAITurn(roomName, debate, profile, turn)
+                          }
+                      )
+                  ) >>
                   offlineJudgesToNotify
                     .toVector
                     .traverse_ { debater =>
-                      slack.sendMessage(
-                        profiles,
-                        debater,
-                        s"You can now judge in the room `$roomName`! " +
-                          MotivationalQuotes.newJudging.sample()
+                      slackClientOpt.traverse_(
+                        _.sendMessage(
+                          profiles,
+                          debater,
+                          s"You can now judge in the room `$roomName`! " +
+                            MotivationalQuotes.newJudging.sample()
+                        )
                       )
                     }
 
@@ -362,11 +429,13 @@ case class DebateStateManager(
                         name -> result.finalJudgement(i)
                     }
                     .traverse_ { case (name, prob) =>
-                      slack.sendMessage(
-                        profiles,
-                        name,
-                        f"You tied with your opponent in room `$roomName%s` with ${prob * 100.0}%.0f%% judge confidence! " +
-                          MotivationalQuotes.youveTied.sample()
+                      slackClientOpt.traverse_(
+                        _.sendMessage(
+                          profiles,
+                          name,
+                          f"You tied with your opponent in room `$roomName%s` with ${prob * 100.0}%.0f%% judge confidence! " +
+                            MotivationalQuotes.youveTied.sample()
+                        )
                       )
                     }
                 } else {
@@ -380,11 +449,13 @@ case class DebateStateManager(
                         name -> result.finalJudgement(i)
                     }
                     .traverse_ { case (name, prob) =>
-                      slack.sendMessage(
-                        profiles,
-                        name,
-                        f"You won in room `$roomName` with ${prob * 100.0}%.0f%% judge confidence! " +
-                          MotivationalQuotes.youveWon.sample()
+                      slackClientOpt.traverse_(
+                        _.sendMessage(
+                          profiles,
+                          name,
+                          f"You won in room `$roomName` with ${prob * 100.0}%.0f%% judge confidence! " +
+                            MotivationalQuotes.youveWon.sample()
+                        )
                       )
                     }
                 }
@@ -399,11 +470,13 @@ case class DebateStateManager(
                     name -> result.finalJudgement(i)
                 }
                 .traverse_ { case (name, prob) =>
-                  slack.sendMessage(
-                    profiles,
-                    name,
-                    f"You lost in room `$roomName` with ${prob * 100.0}%.0f%% judge confidence. " +
-                      MotivationalQuotes.youveLost.sample()
+                  slackClientOpt.traverse_(
+                    _.sendMessage(
+                      profiles,
+                      name,
+                      f"You lost in room `$roomName` with ${prob * 100.0}%.0f%% judge confidence. " +
+                        MotivationalQuotes.youveLost.sample()
+                    )
                   )
                 }
 
@@ -454,6 +527,7 @@ object DebateStateManager {
     profilesRef: Ref[IO, Map[String, Profile]],
     pushUpdateRef: Ref[IO, IO[Unit]],
     slackClientOpt: Option[Slack.Service[IO]],
+    aiDebaters: Map[Int, AIDebateService[IO]],
     dataSummarizer: DataSummarizer
   )(implicit c: Concurrent[IO]) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
@@ -492,6 +566,7 @@ object DebateStateManager {
       saveDir,
       pushUpdateRef,
       slackClientOpt,
+      aiDebaters,
       dataSummarizer
     )
   }

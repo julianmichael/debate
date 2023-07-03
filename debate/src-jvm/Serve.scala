@@ -33,6 +33,15 @@ object Serve
     )
     .withDefault(8081)
 
+  val aiDebaterPortsO = Opts
+    .options[Int](
+      "ai-port",
+      metavar = "port number",
+      help = "Ports where AI debaters are locally hosted."
+    )
+    .map(_.toList)
+    .withDefault(Nil)
+
   val saveO = Opts
     .option[NIOPath](
       "save",
@@ -48,15 +57,16 @@ object Serve
     * @return
     *   the process's exit code.
     */
-  def main: Opts[IO[ExitCode]] = (jsPathO, jsDepsPathO, portO, analyticsPortO, saveO, sslO).mapN {
-    (jsPath, jsDepsPath, port, analyticsPort, save, ssl) =>
-      Blocker[IO]
-        .use { blocker =>
-          Server
-            .create(Paths.get("data"), save, blocker)
-            .flatMap(_.run(jsPath, jsDepsPath, port, analyticsPort, executionContext, ssl))
-        }
-        .as(ExitCode.Success)
-  }
+  def main: Opts[IO[ExitCode]] =
+    (jsPathO, jsDepsPathO, portO, analyticsPortO, aiDebaterPortsO, saveO, sslO).mapN {
+      (jsPath, jsDepsPath, port, analyticsPort, aiDebaterPorts, save, ssl) =>
+        Blocker[IO]
+          .use { blocker =>
+            Server
+              .create(Paths.get("data"), save, aiDebaterPorts, blocker)
+              .flatMap(_.run(jsPath, jsDepsPath, port, analyticsPort, executionContext, ssl))
+          }
+          .as(ExitCode.Success)
+    }
 
 }

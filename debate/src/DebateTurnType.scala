@@ -1,6 +1,9 @@
 package debate
 
+import jjm.DotDecoder
+
 import monocle.Prism
+import io.circe.Decoder
 
 /** Specifies who gets to speak next and what kind of input they should provide.
   */
@@ -118,4 +121,24 @@ object DebateTurnType {
     ): ((String, OfflineJudgment)) => OfflineJudgments => OfflineJudgments =
       input => OfflineJudgments.judgments.modify(_ + input)
   }
+
+  implicit val debateTurnTypeDotDecoder =
+    new DotDecoder[DebateTurnType] {
+      def apply(turnType: DebateTurnType): Decoder[turnType.Out] = {
+        val res =
+          turnType match {
+            case JudgeFeedbackTurn(_, _, _) =>
+              implicitly[Decoder[JudgeFeedback]]
+            case SimultaneousSpeechesTurn(_, _, _) =>
+              implicitly[Decoder[DebateSpeech]]
+            case NegotiateEndTurn(_) =>
+              implicitly[Decoder[Boolean]]
+            case OfflineJudgingTurn(_) =>
+              implicitly[Decoder[JudgeFeedback]]
+            case DebaterSpeechTurn(_, _, _) =>
+              implicitly[Decoder[DebateSpeech]]
+          }
+        res.asInstanceOf[Decoder[turnType.Out]]
+      }
+    }
 }

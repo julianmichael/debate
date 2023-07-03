@@ -3,19 +3,19 @@
 import aiohttp
 
 import prompts
-from rollout.debate_manager import DebateManager
+from rollout.debate_client import DebateClient
 
 
-class SequentialDebater(DebateManager):
+class SequentialDebater():
 
-    def __init__(self, data, model, temperature, debater_idx, api_key, org_key):
+    def __init__(self, data, temperature, debater_idx, client: DebateClient):
         super().__init__()
         self.data = data
         self.history = data['history']
-        self.model = model
         self.debater_idx = debater_idx
         self.name = prompts.NAME_1 if debater_idx == 0 else prompts.NAME_2
         self.results = []
+        self.client = client
 
         self.private1 = prompts.private1 + f"You argue that the answer is: '{self.data['answers'][0]}'"
         self.private2 = prompts.private2 + f"You argue that the answer is: '{self.data['answers'][1]}'"
@@ -23,8 +23,6 @@ class SequentialDebater(DebateManager):
         self.system_prompt = "\n".join([prompts.seq_rules, self.private1] if debater_idx ==
                                        0 else "\n".join([prompts.seq_rules, self.private2]))
 
-        self.api_key = api_key
-        self.org_key = org_key
         self.temperature = temperature
 
         self.opening_prompt = f""""
@@ -48,9 +46,8 @@ Here the current transcript of the debate is:
         transcript = self.create_transcript()
         async with aiohttp.ClientSession() as session:
 
-            response = await self.chat_completion_with_backoff_async(
+            response = await self.client.chat_completion_with_backoff_async(
                 session=session,
-                model=self.model,
                 messages=[
                     {
                         "role": "system",

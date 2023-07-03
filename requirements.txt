@@ -8,3 +8,14 @@ jupyterlab
 altair-saver
 selenium
 jsonschema==3.2.0 
+
+anthropic
+openai
+tenacity
+pandas
+aiohttp
+tqdm
+tiktoken
+uvicorn
+fastapi
+pydantic

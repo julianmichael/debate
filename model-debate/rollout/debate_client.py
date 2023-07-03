@@ -11,18 +11,17 @@ from prompts import WORD_LIMIT
 OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
 ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1/complete"
 
+class DebateClient:
 
-class DebateManager:
-
-    def __init__(self):
-        self.api_key = None
-        self.org_key = None
-        pass
+    def __init__(self, model: str, api_key: str, org_key: str):
+        self.model = model
+        self.api_key = api_key
+        self.org_key = org_key
 
     # for exponential backoff
-    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
-    async def chat_completion_with_backoff_async(self, session, model, messages, temperature):
-        if model.startswith("claude"):
+    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
+    async def chat_completion_with_backoff_async(self, session, messages, temperature):
+        if self.model.startswith("claude"):
             async with session.post(
                     ANTHROPIC_BASE_URL,
                     headers={
@@ -33,7 +32,7 @@ class DebateManager:
                     },
                     data=json.dumps({
                         "prompt": f"{anthropic.HUMAN_PROMPT}{messages}{anthropic.AI_PROMPT}",
-                        "model": model,
+                        "model": self.model,
                         "max_tokens_to_sample": WORD_LIMIT,
                         "temperature": temperature,
                     }),
@@ -57,7 +56,7 @@ class DebateManager:
                         "OpenAI-Organization": f"{self.org_key}",
                     },
                     data=json.dumps({
-                        "model": model,
+                        "model": self.model,
                         "messages": messages,
                         "temperature": temperature,
                     }),
