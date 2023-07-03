@@ -76,30 +76,30 @@ async def main():
 
     # load story, question, answer choices
     data = load_story_and_question(1, 0, MODEL)
-    data['story'] = f"\n\nContext:\n\n{data['story']}\n\nQuestion: {data['question']}\n\n"
-    data['debater_a_answer'] = data['correct answer']
-    data['debater_b_answer'] = data['negative answer']
-
     print(f"Question: {data['question']}")
     print(f"Correct answer: {data['correct answer']}")
     print(f"Negative answer: {data['negative answer']}")
 
-    # load history
-    history: List[Tuple[str, str]] = []
-    data['history'] = history
+    story = f"\n\nContext:\n\n{data['story']}\n\nQuestion: {data['question']}\n\n"
+    answers = [data['correct answer'], data['negative answer']]
 
     api_key = ANTHROPIC_API_KEY if MODEL.startswith("claude") else OPEN_API_KEY
     client = DebateClient(model=MODEL, api_key=api_key, org_key=ORG_KEY)
-    debater = SequentialDebater(data, NUM_STEPS, TEMPERATURE, MODEL_ROLE, client)
+    debater = SequentialDebater(story, answers, NUM_STEPS, TEMPERATURE, MODEL_ROLE, client)
+
+    # mutable
+    history: List[Tuple[str, str]] = []
 
     if args.model_role == "debater_a":
-        response = await debater.run_single_turn()
+        response = await debater.run_single_turn(history)
+        history.append((debater.name, response))
         print(response)
     while True:
         try:
             human_response = input("Your response: ")
-            debater.history.append(("Human", human_response))
-            model_response = await debater.run_single_turn()
+            history.append(("Human", human_response))
+            model_response = await debater.run_single_turn(history)
+            history.append((debater.name, response))
             print(model_response)
         except KeyboardInterrupt:
             break

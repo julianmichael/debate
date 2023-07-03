@@ -1,5 +1,6 @@
 # Adapted from: https://github.com/akbir/debate
 
+import aiohttp
 import json
 
 import anthropic
