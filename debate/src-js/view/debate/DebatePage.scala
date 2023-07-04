@@ -412,6 +412,7 @@ object DebatePage {
                   DebatePanel(
                     profiles = profiles,
                     roomName = roomName,
+                    isOfficial = isOfficial,
                     userName = userName,
                     role = role,
                     debate = debateState.zoomStateL(DebateState.debate),

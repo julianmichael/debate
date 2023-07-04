@@ -335,7 +335,7 @@ case class Server(
               x.through(filterCloseFrames)
                 .map(unpickleFromWSFrame[MainChannelRequest])
                 .evalMap {
-                  case Poke(roomName, pokees) =>
+                  case Poke(roomName, isOfficial, pokees) =>
                     profiles
                       .get
                       .flatMap { profs =>
@@ -344,11 +344,55 @@ case class Server(
                             .toSortedSet
                             .toVector
                             .traverse_(pokee =>
-                              slack.sendMessage(
-                                profs,
-                                pokee,
-                                s"You've been poked in room `$roomName`!"
-                              )
+                              profs.get(pokee) match {
+                                case Some(Profile.Human(_, _)) =>
+                                  val isOfficialStr =
+                                    if (isOfficial)
+                                      ""
+                                    else
+                                      " practice"
+                                  slack.sendMessage(
+                                    profs,
+                                    pokee,
+                                    s"You've been poked in$isOfficialStr room `$roomName`!"
+                                  )
+                                case Some(profile @ Profile.AI(_, _)) =>
+                                  val debates =
+                                    if (isOfficial)
+                                      officialDebates
+                                    else
+                                      practiceDebates
+                                  debates
+                                    .rooms
+                                    .get
+                                    .flatMap(
+                                      _.get(roomName)
+                                        .traverse_ { room =>
+                                          val debate = room.debate.debate
+                                          debate
+                                            .setup
+                                            .roles
+                                            .find(_._2 == pokee)
+                                            .map(_._1)
+                                            .traverse_ { role =>
+                                              debate
+                                                .currentTransitions
+                                                .giveSpeech
+                                                .get(role)
+                                                .traverse_ { turn =>
+                                                  officialDebates.doAITurn(
+                                                    roomName,
+                                                    room.debate.debate,
+                                                    profile,
+                                                    turn
+                                                  )
+                                                }
+                                            }
+                                        }
+                                    )
+                                case _ =>
+                                  IO.unit
+                              }
                             )
                         )
                       }

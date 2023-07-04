@@ -9,6 +9,8 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from prompts import WORD_LIMIT
 
+from fastapi import HTTPException
+
 OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
 ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1/complete"
 
@@ -21,7 +23,7 @@ class DebateClient:
         self.max_context_length = max_context_length
 
     # for exponential backoff
-    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
+    # @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
     async def chat_completion_with_backoff_async(self, session, messages, temperature):
         if self.model.startswith("claude"):
             async with session.post(
@@ -42,12 +44,15 @@ class DebateClient:
                 if resp.status == 200:
                     response = await resp.json()
                     return response.get("completion")
-                elif resp.status == 429:
-                    print("Anthropic API rate limit exceeded")
-                    raise openai.error.OpenAIError()
                 else:
-                    print(f"Error: {resp.status} {await resp.text()}")
-                    raise Exception(f"Error: {resp.status} {await resp.text()}")
+                    raise HTTPException(status_code=resp.status, detail=(await resp.json()))
+                # elif resp.status == 429:
+                #     raise HTTPException(status_code=429, detail=resp.text())
+                #     print("Anthropic API rate limit exceeded")
+                #     raise openai.error.OpenAIError()
+                # else:
+                #     print(f"Error: {resp.status} {await resp.text()}")
+                #     raise Exception(f"Error: {resp.status} {await resp.text()}")
 
         else:
             async with session.post(
@@ -66,8 +71,12 @@ class DebateClient:
                 if resp.status == 200:
                     response = await resp.json()
                     return response["choices"][0]["message"]["content"]
-                elif resp.status == 429:
-                    raise openai.error.OpenAIError()
                 else:
-                    print(f"Error: {resp.status} {await resp.text()}")
-                    raise Exception(f"Error: {resp.status} {await resp.text()}")
+                    response = await resp.json()
+                    message = response['error']['message']
+                    raise HTTPException(status_code=resp.status, detail=message)
+                # elif resp.status == 429:
+                #     raise openai.error.OpenAIError()
+                # else:
+                #     print(f"Error: {resp.status} {await resp.text()}")
+                #     raise Exception(f"Error: {resp.status} {await resp.text()}")

@@ -390,11 +390,34 @@ object AIDebateService {
         val endpoint = Uri.unsafeFromString(s"http://localhost:$localPort/debate")
         // Speech will always be DebateSpeech for now, but later we can match on DebateTurnType
         // to make sure it matches if we need to.
+        def getErrorString(msg: String) =
+          s"""Received an error from the AI server:
+             |
+             |"$msg"
+             |
+             |Ask an admin to resolve the error and retry this turn of the debate.
+             |""".stripMargin
+        import io.circe.parser.decode
         client
           .fetchAs[String](HttpRequest[F](method = Method.POST, uri = endpoint).withEntity(entity))
           .map(s =>
-            io.circe.parser.decode[String](s).toOption.get
-          ) // TODO not sure if we need this...?
+            decode[io.circe.Json](s)
+              .toOption
+              .flatMap(_.asObject)
+              .flatMap(_.apply("detail"))
+              .flatMap(_.asString)
+              .map(getErrorString)
+              // .map(_.spaces2)
+              .orElse(decode[String](s).toOption).getOrElse(s)
+          )
+          // .redeem(
+          //   error => "Error returned from AI server: " + error.getMessage,
+          //   // decode[io.circe.Json](error.getMessage)
+          //   //   .toOption
+          //   //   .orElse(decode[String](error.getMessage).toOption)
+          //   //   .getOrElse(error.getMessage),
+          //   body => decode[String](body).toOption.get
+          // )
           .map(msg =>
             DebateSpeech(
               profile.name,

@@ -18,8 +18,8 @@ secrets = load_secrets("SECRETS")
 ORG_KEY = secrets["NYU_ORG"]
 OPEN_API_KEY = secrets["API_KEY"]
 ANTHROPIC_API_KEY = secrets["ANTHROPIC_API_KEY"]
-ARTICLE_LEN_LIMIT = {'gpt-4': 6000, 'gpt-3.5-turbo': 2000}
-MAX_CONTEXT_LENGTH = {'gpt-4': 8192}
+ARTICLE_LEN_LIMIT = {'gpt-4': 6000, 'gpt-3.5-turbo': 2000, 'gpt-3.5-turbo-16k': 12000}
+MAX_CONTEXT_LENGTH = {'gpt-4': 8192, 'gpt-3.5-turbo-16k': 16384}
 
 
 def filter_on_story_length(story, model):

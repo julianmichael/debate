@@ -57,6 +57,7 @@ object DebatePanel {
   /** Show whose turn it is. */
   def turnDisplay(
     roomName: String,
+    isOfficial: Boolean,
     assignments: Map[LiveDebateRole, String],
     userName: String,
     role: Role,
@@ -139,7 +140,7 @@ object DebatePanel {
               ^.href := "#",
               (
                 ^.onClick --> {
-                  sendToMainChannel(Poke(roomName, peopleWaitedOn)) >>
+                  sendToMainChannel(Poke(roomName, isOfficial, peopleWaitedOn)) >>
                     justPoked.setState(
                       true,
                       AsyncCallback.unit.delayMs(5000).completeWith(_ => justPoked.setState(false))
@@ -264,6 +265,7 @@ object DebatePanel {
   def apply(
     profiles: Set[String],
     roomName: String,
+    isOfficial: Boolean,
     userName: String,
     role: Role,
     debate: StateSnapshot[Debate],
@@ -482,6 +484,7 @@ object DebatePanel {
               .when(canSeeResult),
             turnDisplay(
               roomName,
+              isOfficial,
               debate.value.setup.roles,
               userName,
               role,
