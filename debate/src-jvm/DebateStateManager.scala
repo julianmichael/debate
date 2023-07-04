@@ -53,7 +53,7 @@ case class DebateStateManager(
   slackClientOpt: Option[Slack.Service[IO]],
   aiDebaters: Map[Int, AIDebateService[IO]],
   dataSummarizer: DataSummarizer
-)(implicit c: Concurrent[IO]) {
+)(implicit c: Concurrent[IO], cs: ContextShift[IO]) {
 
   val summariesDir = saveDir.resolve("summaries")
   def writeCSVs(blocker: Blocker)(implicit cs: ContextShift[IO]): IO[Unit] =
@@ -309,15 +309,18 @@ case class DebateStateManager(
     .traverse_ { case (service, index) =>
       // do a compare and update after the response is received
       for {
-        response <- service.takeTurn(debate, Debater(index), turn.fst).flatTap(r => IO(println(r)))
-        room     <- rooms.get
+        response <- service
+          .takeTurn(debate, profile, Debater(index), turn.fst)
+          .flatTap(r => IO(println(r)))
+        curRooms <- rooms.get
         _ <-
-          room
+          curRooms
             .get(roomName)
-            .filter(_.debate.debate == debate)
+            // .filter(_.debate.debate == debate)
             .fold(IO.unit) { room =>
               val state = room.debate.copy(debate = turn.snd(response))
-              processUpdate(roomName, DebateStateUpdateRequest.State(state)).void
+              processUpdate(roomName, DebateStateUpdateRequest.State(state))
+                .flatMap(room.channel.publish1)
             }
       } yield ()
     }
@@ -391,7 +394,7 @@ case class DebateStateManager(
                               } else
                                 IO.unit
                             case profile @ Profile.AI(_, _) =>
-                              doAITurn(roomName, debate, profile, turn)
+                              doAITurn(roomName, debate, profile, turn).start.void
                           }
                       )
                   ) >>
@@ -529,7 +532,7 @@ object DebateStateManager {
     slackClientOpt: Option[Slack.Service[IO]],
     aiDebaters: Map[Int, AIDebateService[IO]],
     dataSummarizer: DataSummarizer
-  )(implicit c: Concurrent[IO]) = {
+  )(implicit c: Concurrent[IO], cs: ContextShift[IO]) = {
     val saveDirOs = os.Path(saveDir, os.pwd)
     for {
       _     <- IO(os.makeDir.all(saveDirOs))
