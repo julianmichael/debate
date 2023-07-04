@@ -26,6 +26,7 @@ import debate.Utils.ClassSetInterpolator
 import debate.span2text
 import debate.util.Local
 import debate.view.lobby.TabNav
+import japgolly.scalajs.react.feature.ReactFragment
 
 object DebatePanel {
   // import org.scalajs.macrotaskexecutor.MacrotaskExecutor.Implicits._
@@ -513,7 +514,15 @@ object DebatePanel {
                         (debate.setState(debateAfterUndo) >>
                           currentMessage.setState(SpeechSegments.getString(speech)))
                     )
-                  }
+                  },
+                ReactFragment(
+                  currentTransitions
+                    .undo
+                    .toVector
+                    .map { case (role, (_, debateAfterUndo)) =>
+                      <.button(s"Undo ($role)", ^.onClick --> debate.setState(debateAfterUndo))
+                    }: _*
+                ).when(role == Facilitator)
               )
             )
           )
