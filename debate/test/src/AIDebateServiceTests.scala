@@ -53,7 +53,7 @@ ation to the study of human culture and society. Therefore, I stand by my claim 
   qualityDataset.test("recursively finding quotes") { qualityDataset =>
     val ambition       = qualityDataset.find(_._2.title == "Ambition").get._2
     val ambitionTokens = Server.tokenizeStory(ambition.article)
-    val quoteTokens    = Server.tokenizeStory(ambitionExampleQuote)
+    val quoteTokens    = Server.tokenizeStoryAligned(ambitionExampleQuote)
     val segments = AIDebateService
       .recursivelyReconstructQuotes(ambitionTokens, quoteTokens, storyOffset = 0)
     // val (indices, lengths, sequence) = AIDebateService

@@ -3,8 +3,19 @@ NAME_2 = "Debater B"
 WORD_LIMIT = 150
 QUOTE_LIMIT = 50
 
-sim_rules = f"""
-The following are rules from the game of Debate.
+single_debater_rules = f"""The following are rules from the game of Consultation.
+- There is a Consultant who is trying to convince a Judge of the answer to a question.
+- There are a number of rounds. In each round, the Consultant provides an argument to the Judge, and the Judge provides feedback and asks questions to the Consultant.
+- An argument may consist of several sub-claims explaining or supporting the answer.
+- During the consultation, the Consultant may revise their arguments, claims and sub-claims, but must not revise or change their initial answer.
+- Eventually, the Judge decides to end the consultation.
+- Then the Judge looks at the transcript and decides which answer is correct.
+- The Judge's job is to choose the correct answer, allowing the consultation to inform their decision.
+- The Judge evlauates which argument is more accurate and relevant to answer the question.
+- A turn of dialogue is limited to {WORD_LIMIT} words.
+- If context is provided, the consultant should use this to inform their arguments."""
+
+sim_rules = f"""The following are rules from the game of Debate.
 - There are two debaters both arguing their answer to a specific question and a Judge.
 - There are a number of rounds. In each round, both debaters make their arguments simulatenously.
 - An argument may consist of several sub-claims, to support and explain their answer.
@@ -14,28 +25,26 @@ The following are rules from the game of Debate.
 - During the debate, debaters may revise their arguments, claims and sub-claims. They must not revise or change their initial answer.
 - Eventually we reach final round (unknown to the debaters) and the debate ends.
 - Then the Judge looks at the debate transcript and decides which answer is correct.
-- The Judge’s job is to choose the correct answer, allowing the debate to inform their decision.
+- The Judge's job is to choose the correct answer, allowing the debate to inform their decision.
 - The Judge evlauates which argument is more accurate and relevant to answer the question.
 - A turn of dialogue is limited to {WORD_LIMIT} words.
-- If context is provided, both debaters should use this to inform their arguments.
-"""
+- If context is provided, both debaters should use this to inform their arguments."""
 
-seq_rules = f"""
-The following are rules from the game of Debate.
+seq_rules = f"""The following are rules from the game of Debate.
+- There are two debaters both arguing their answer to a specific question and a Judge.
 - There are a number of rounds. In each round, one debater makes their argument, consisting of an argument and quotes, to support and explain their claim.
-- Debaters open a quote with the special tokens <quote> and close a quote with the special tokens </quote>.
+- Debaters open a quote with the special token <quote> and close a quote with the special token </quote>.
 - Text inside the quote tokens must be copied verbatim from the context. Violating this rule will result in immediate disqualification.
 - The speaking debater switches each round.
 - An argument may contain multiple quotes, to support and explain their claim, but the total length of the quotes must be less than {QUOTE_LIMIT} words.
-- An argument may also contain objections to parts of the other’s argument.
+- An argument may also contain objections to parts of the other's argument.
 - Debaters may choose whether to cede or challenge objections, they can also ignore objections but other debaters may continue to raise important unanswered objections.  
 - Eventually we reach final round (unknown to the debaters) and the debate ends.
-- The judge’s job is to choose the correct answer, evaluating which claim+objection is more accurate and helpful than the claim on its own.
+- The judge's job is to choose the correct answer, evaluating which claim+objection is more accurate and helpful than the claim on its own.
 - The winner of the new round wins the game. (Though there may be further recursion.)
 - A turn of dialogue is limited to {WORD_LIMIT} words.
 - If context is provided, both debaters should use this to inform their arguments.
-- Debaters do not know when the debate will end.
-"""
+- Debaters do not know when the debate will end."""
 
 # TODO: update judge rules for quality
 judge_prompt = f"""

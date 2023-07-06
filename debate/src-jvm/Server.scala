@@ -38,6 +38,10 @@ import debate.singleturn.SingleTurnDebateQuestion
 import debate.singleturn.SingleTurnDebateUtils
 import debate.util.DenseDistribution
 import debate.util.SparseDistribution
+import jjm.ling.SourceText
+import shapeless.HNil
+import jjm.ling.Token
+import jjm.ling.TokenText
 
 case class Server(
   dataPath: NIOPath,
@@ -523,6 +527,16 @@ object Server {
       .map((x: String) => jjm.corenlp.Tokenizer.tokenize(x).map(_.token))
       .intercalate(Vector("\n"))
       .filter(_.nonEmpty)
+    res
+  }
+
+  def tokenizeStoryAligned(x: String) = {
+    val res = x
+      .split("\n")
+      .toVector
+      .map((x: String) => jjm.corenlp.Tokenizer.tokenizeWithSource(x))
+      .intercalate(Vector(Token.field("\n") :: SourceText.field(TokenText("\n", "", "")) :: HNil))
+      .filter(_.token.nonEmpty)
     res
   }
 

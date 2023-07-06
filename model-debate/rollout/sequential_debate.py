@@ -19,11 +19,11 @@ class SequentialDebater():
         self.results = []
         self.client = client
 
-        self.private1 = prompts.private1 + f"You argue that the answer is: '{self.answers[0]}'"
-        self.private2 = prompts.private2 + f"You argue that the answer is: '{self.answers[1]}'"
-
-        self.system_prompt = "\n".join([prompts.seq_rules, self.private1] if debater_idx ==
-                                       0 else "\n".join([prompts.seq_rules, self.private2]))
+        # self.private1 = prompts.private1 + f"You argue that the answer is: '{self.answers[0]}'"
+        # self.private2 = prompts.private2 + f"You argue that the answer is: '{self.answers[1]}'"
+        self.private = prompts.private1 if debater_idx == 0 else prompts.private2
+        self.position = self.private + f"You argue that the answer is: '{self.answers[debater_idx]}'"
+        self.system_prompt = "\n".join([prompts.seq_rules, self.position])
 
         self.temperature = temperature
 
@@ -39,13 +39,25 @@ class SequentialDebater():
 
             {prompts.NAME_1}: I claim the answer is {self.answers[0]}
             {prompts.NAME_2}: I claim the answer is {self.answers[1]}{separator}\n""")
-        history_str = separator.join([f"{name}: {argument}" for name, argument in history])
-        transcript = opening_prompt + history_str
+        history_str = separator.join([f"{self.name}: {argument}" for name, argument in history])
+        transcript = opening_prompt + history_str + separator + f"{self.name}: "
         return transcript
 
     async def run_single_turn(self, history):
         transcript = self.prepare_transcript(history)
         async with aiohttp.ClientSession() as session:
+            with open("last_system_prompt.txt", "w") as f:
+                f.write(self.system_prompt)
+            with open("last_transcript_prompt.txt", "w") as f:
+                f.write(transcript)
+
+            with open("last_prompt.txt", "w") as f:
+                f.write(
+                    self.system_prompt + "\n" +
+                    "\n\n-------- END SYSTEM PROMPT ------------------\n\n" +
+                    transcript
+                )
+
             response = await self.client.chat_completion_with_backoff_async(
                 session=session,
                 messages=[

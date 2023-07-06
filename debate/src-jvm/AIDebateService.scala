@@ -16,6 +16,7 @@ import scala.language.existentials
 import jjm.ling.ESpan
 import jjm.ling.Text
 import debate.SpeechSegment.Quote
+import jjm.ling.HasSourceText
 
 trait AIDebateService[F[_]] extends DotKleisli[F, AIDebateService.Request] {
   def takeTurn[Speech](
@@ -114,6 +115,7 @@ object AIDebateService {
         type Input = Speech
       }
     ): DebateTurnPrompt = {
+      // TODO DebatePanel.visibleRounds
       val readableDebate = ReadableDebate.fromDebate(debate)
       DebateTurnPrompt(
         storyId = readableDebate.storyId,
@@ -252,9 +254,9 @@ object AIDebateService {
   }
 
   val quoteSpanningBufferSize = 10
-  def recursivelyReconstructQuotes(
+  def recursivelyReconstructQuotes[A: HasSourceText](
     storyTokens: Vector[String],
-    quoteTokens: Vector[String],
+    quoteTokens: Vector[A],
     storyOffset: Int,
     mustBeAtBeginning: Boolean = false,
     mustBeAtEnd: Boolean = false
@@ -326,7 +328,7 @@ object AIDebateService {
           .tail
           .flatMap { segmentWithEndDelimiter =>
             val quote :: nonQuoteSegments = segmentWithEndDelimiter.split(endDelimiter).toList
-            val quoteTokens               = Server.tokenizeStory(quote)
+            val quoteTokens               = Server.tokenizeStoryAligned(quote)
             // val ((storyTokenIndex, quoteTokenIndex), _, bestSubsequence) =
             //   longestCommonVectorSubstring(
             //     story.contents,

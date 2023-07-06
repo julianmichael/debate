@@ -57,8 +57,8 @@ async def debate(input: DebaterTurnInput):
             turn.role = names[turn.index]
         history.append((turn.role, turn.text))
 
-    # model = "gpt-4"
-    model = "gpt-3.5-turbo-16k"
+    model = "gpt-4"
+    # model = "gpt-3.5-turbo-16k"
     client = DebateClient(model = model, org_key= ORG_KEY, api_key = OPEN_API_KEY, max_context_length=MAX_CONTEXT_LENGTH[model])
     debater = SequentialDebater(story, input.answers, 0.7, input.debaterIndex, client)
     response = await debater.run_single_turn(history)
