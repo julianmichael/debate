@@ -3,48 +3,53 @@ NAME_2 = "Debater B"
 WORD_LIMIT = 150
 QUOTE_LIMIT = 50
 
-single_debater_rules = f"""The following are rules from the game of Consultation.
-- There is a Consultant who is trying to convince a Judge of the answer to a question.
-- There are a number of rounds. In each round, the Consultant provides an argument to the Judge, and the Judge provides feedback and asks questions to the Consultant.
-- An argument may consist of several sub-claims explaining or supporting the answer.
-- During the consultation, the Consultant may revise their arguments, claims and sub-claims, but must not revise or change their initial answer.
-- Eventually, the Judge decides to end the consultation.
-- Then the Judge looks at the transcript and decides which answer is correct.
-- The Judge's job is to choose the correct answer, allowing the consultation to inform their decision.
-- The Judge evlauates which argument is more accurate and relevant to answer the question.
-- A turn of dialogue is limited to {WORD_LIMIT} words.
-- If context is provided, the consultant should use this to inform their arguments."""
+story_rules = """- A reading comprehension question is asked about a story.
+- The story is a science fiction story from the mid-20th century.
+- The question is intended to be difficult to answer using only a small quote from the passage, but easy to answer if you understand the full story. (Though occasionally, the question might still be easily answered with a quote.)
+- Two possible answers are provided to the question. One was marked as the correct answer by the question author, while the other was marked as the best distractor."""
 
-sim_rules = f"""The following are rules from the game of Debate.
-- There are two debaters both arguing their answer to a specific question and a Judge.
-- There are a number of rounds. In each round, both debaters make their arguments simulatenously.
-- An argument may consist of several sub-claims, to support and explain their answer.
-- An argument may also contain objections to the other debater's argument or particular part of their argument.
-- Debaters may choose whether to cede or challenge objections.
-- In the case of a challenge, the debater must consider if this is worth challenging, highlight to the judge why this is not necessary or provide counter-arguments to the objection.
-- During the debate, debaters may revise their arguments, claims and sub-claims. They must not revise or change their initial answer.
-- Eventually we reach final round (unknown to the debaters) and the debate ends.
-- Then the Judge looks at the debate transcript and decides which answer is correct.
-- The Judge's job is to choose the correct answer, allowing the debate to inform their decision.
-- The Judge evlauates which argument is more accurate and relevant to answer the question.
-- A turn of dialogue is limited to {WORD_LIMIT} words.
-- If context is provided, both debaters should use this to inform their arguments."""
+def sim_seq_rules(is_simultaneous: bool):
+    if(is_simultaneous):
+        return """- There are a number of rounds. In each round, both debaters make their arguments simulatenously."""
+    else:
+        return """- There are a number of rounds. In each round, one debater makes their argument, consisting of an argument and quotes, to support and explain their claim.
+- The speaking debater switches each round, and after both debaters have made their arguments, the Judge responds with feedback and questions."""
 
-seq_rules = f"""The following are rules from the game of Debate.
-- There are two debaters both arguing their answer to a specific question and a Judge.
-- There are a number of rounds. In each round, one debater makes their argument, consisting of an argument and quotes, to support and explain their claim.
-- Debaters open a quote with the special token <quote> and close a quote with the special token </quote>.
+def argument_rules(word_limit: int, quote_limit: int):
+    return """- An argument may consist of several sub-claims, to support and explain their answer.
+- Arguments include verbatim quotes from the story to support and explain their claim.
+- Quotes are opened with the special token <quote> and closed with the special token </quote>.
 - Text inside the quote tokens must be copied verbatim from the context. Violating this rule will result in immediate disqualification.
-- The speaking debater switches each round.
-- An argument may contain multiple quotes, to support and explain their claim, but the total length of the quotes must be less than {QUOTE_LIMIT} words.
-- An argument may also contain objections to parts of the other's argument.
+- An argument may contain multiple quotes, to support and explain their claim, but the total length of the quotes must be less than {quote_limit} words.
+- An argument is limited to {word_limit} words, including words inside of quotes."""
+
+clash_rules = f"""- An argument may also contain objections to the other debater's argument or particular part of their argument.
 - Debaters may choose whether to cede or challenge objections, they can also ignore objections but other debaters may continue to raise important unanswered objections.  
-- Eventually we reach final round (unknown to the debaters) and the debate ends.
-- The judge's job is to choose the correct answer, evaluating which claim+objection is more accurate and helpful than the claim on its own.
-- The winner of the new round wins the game. (Though there may be further recursion.)
-- A turn of dialogue is limited to {WORD_LIMIT} words.
-- If context is provided, both debaters should use this to inform their arguments.
-- Debaters do not know when the debate will end."""
+- In the case of a challenge, the debater must consider if this is worth challenging, highlight to the judge why this is not necessary or provide counter-arguments to the objection.
+- During the debate, debaters may revise their arguments, claims and sub-claims. They must not revise or change their initial answer."""
+
+def judge_rules(session: str):
+    return f"""- Eventually, the Judge decides to end the {session}.
+- Then the Judge looks at the {session} transcript and decides which is answer correct, assigning a probability to each answer.
+- The Judge's job is to determine which answer was designated as the correct one by the person who wrote the question."""
+
+def debate_rules(word_limit: int, quote_limit: int, is_simultaneous: bool):
+    return f"""The following are rules from the game of Debate.
+{story_rules}
+- There are two debaters both arguing their answer to a specific question and a Judge.
+{sim_seq_rules(is_simultaneous)}
+{argument_rules(word_limit, quote_limit)}
+{clash_rules}
+{judge_rules("debate")}"""
+
+
+def single_debater_rules(word_limit: int, quote_limit: int):
+    return f"""The following are rules from the game of Consultation.
+{story_rules}
+- There is a Consultant who is trying to convince a Judge of one the two answers.
+- There are a number of rounds. In each round, the Consultant provides an argument to the Judge, and the Judge provides feedback and asks questions to the Consultant.
+{argument_rules(word_limit, quote_limit)}
+{judge_rules("consultation")}"""
 
 # TODO: update judge rules for quality
 judge_prompt = f"""

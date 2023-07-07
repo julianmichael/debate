@@ -14,7 +14,7 @@ from fastapi import HTTPException
 OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
 ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1/complete"
 
-class DebateClient:
+class ChatClient:
 
     def __init__(self, model: str, api_key: str, org_key: str, max_context_length: int):
         self.model = model
@@ -47,7 +47,6 @@ class DebateClient:
                 else:
                     raise HTTPException(status_code=resp.status, detail=(await resp.json()))
                 # elif resp.status == 429:
-                #     raise HTTPException(status_code=429, detail=resp.text())
                 #     print("Anthropic API rate limit exceeded")
                 #     raise openai.error.OpenAIError()
                 # else:
@@ -60,7 +59,7 @@ class DebateClient:
                     headers={
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {self.api_key}",
-                        "OpenAI-Organization": f"{self.org_key}",
+                        # "OpenAI-Organization": f"{self.org_key}",
                     },
                     data=json.dumps({
                         "model": self.model,

@@ -10,16 +10,16 @@ from typing import List, Tuple
 import pandas as pd
 import tiktoken
 
-from rollout.debate_client import DebateClient
-from rollout.sequential_debate import SequentialDebater
+from chat_client import ChatClient 
+from debater import Debater
 from utils import load_secrets
 
 secrets = load_secrets("SECRETS")
 ORG_KEY = secrets["NYU_ORG"]
 OPEN_API_KEY = secrets["API_KEY"]
 ANTHROPIC_API_KEY = secrets["ANTHROPIC_API_KEY"]
-ARTICLE_LEN_LIMIT = {'gpt-4': 6000, 'gpt-3.5-turbo': 2000, 'gpt-3.5-turbo-16k': 12000}
-MAX_CONTEXT_LENGTH = {'gpt-4': 8192, 'gpt-3.5-turbo-16k': 16384}
+ARTICLE_LEN_LIMIT = {'gpt-4': 6000, 'gpt-3.5-turbo': 2000, 'gpt-3.5-turbo-16k': 12000, 'gpt-4-32k': 24000}
+MAX_CONTEXT_LENGTH = {'gpt-4': 8192, 'gpt-3.5-turbo-16k': 16384, 'gpt-4-32k': 32768}
 
 
 def filter_on_story_length(story, model):
@@ -85,21 +85,21 @@ async def main():
     answers = [data['correct answer'], data['negative answer']]
 
     api_key = ANTHROPIC_API_KEY if MODEL.startswith("claude") else OPEN_API_KEY
-    client = DebateClient(model=MODEL, api_key=api_key, org_key=ORG_KEY, max_context_length=MAX_CONTEXT_LENGTH[MODEL])
-    debater = SequentialDebater(story, answers, NUM_STEPS, TEMPERATURE, MODEL_ROLE, client)
+    client = ChatClient(model=MODEL, api_key=api_key, org_key=ORG_KEY, max_context_length=MAX_CONTEXT_LENGTH[MODEL])
+    debater = Debater(story, answers, NUM_STEPS, TEMPERATURE, MODEL_ROLE, client)
 
     # mutable
     history: List[Tuple[str, str]] = []
 
     if args.model_role == "debater_a":
-        response = await debater.run_single_turn(history)
+        response = await debater.run_single_turn(history, "sequential")
         history.append((debater.name, response))
         print(response)
     while True:
         try:
             human_response = input("Your response: ")
             history.append(("Human", human_response))
-            model_response = await debater.run_single_turn(history)
+            model_response = await debater.run_single_turn(history, "sequential")
             history.append((debater.name, response))
             print(model_response)
         except KeyboardInterrupt:

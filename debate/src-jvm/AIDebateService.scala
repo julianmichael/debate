@@ -1,22 +1,26 @@
 package debate
 
+import scala.language.existentials
+
+import cats.effect.Effect
+import cats.implicits._
+
 import io.circe.Decoder
 import io.circe.Encoder
 import io.circe.generic.JsonCodec
+import org.http4s.Uri
+import org.http4s.client.Client
 
 import jjm.DotDecoder
 import jjm.DotEncoder
 import jjm.DotKleisli
-import cats.effect.Effect
-import cats.implicits._
-import org.http4s.client.Client
-import org.http4s.Uri
-
-import scala.language.existentials
+import jjm.implicits._
 import jjm.ling.ESpan
-import jjm.ling.Text
-import debate.SpeechSegment.Quote
 import jjm.ling.HasSourceText
+import jjm.ling.HasToken
+import jjm.ling.Text
+
+import debate.SpeechSegment.Quote
 
 trait AIDebateService[F[_]] extends DotKleisli[F, AIDebateService.Request] {
   def takeTurn[Speech](
@@ -105,7 +109,7 @@ object AIDebateService {
     debaterIndex: Int,
     charLimitOpt: Option[Int],
     quoteCharLimitOpt: Option[Int],
-    isSimultaneous: Boolean // simultaneous or sequential speeches
+    turnType: String // "single debater" | "sequential" | "simultaneous"
   )
   object DebateTurnPrompt {
     def fromDebate[Speech](
@@ -132,12 +136,32 @@ object AIDebateService {
             .get, // debaters only
         charLimitOpt = turnType.charLimitOpt,
         quoteCharLimitOpt = turnType.quoteLimit,
-        isSimultaneous =
+        turnType =
           turnType match {
             case DebateTurnType.SimultaneousSpeechesTurn(_, _, _) =>
-              true
+              "simultaneous"
+            case DebateTurnType.DebaterSpeechTurn(_, _, _) =>
+              if (
+                debate
+                  .setup
+                  .roles
+                  .keySet
+                  .collect { case Debater(i) =>
+                    i
+                  }
+                  .size == 1
+              ) {
+                // technically we would want to check the round type for assignedDebatersOnly,
+                // but in practice this will work as long as everyone is assigned who needs to be.
+                "single debater"
+              } else {
+                "sequential"
+              }
             case _ =>
-              false
+              // shouldn't happen since we're only having the model do debating in the presence
+              // of a live judge
+              ???
+
           }
       )
     }
@@ -254,7 +278,7 @@ object AIDebateService {
   }
 
   val quoteSpanningBufferSize = 10
-  def recursivelyReconstructQuotes[A: HasSourceText](
+  def recursivelyReconstructQuotes[A: HasSourceText: HasToken](
     storyTokens: Vector[String],
     quoteTokens: Vector[A],
     storyOffset: Int,
@@ -269,7 +293,7 @@ object AIDebateService {
     else {
       val ((storyIndex, quoteIndex), sequence) = longestCommonVectorSubstring(
         storyTokens,
-        quoteTokens
+        quoteTokens.map(_.token)
       )
       println(s"longest subsequence: $sequence")
       if (sequence.size == 0) {
