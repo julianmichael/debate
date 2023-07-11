@@ -3,7 +3,7 @@
 import aiohttp
 import json
 
-import anthropic
+# import anthropic
 import openai
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
