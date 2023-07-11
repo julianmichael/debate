@@ -388,6 +388,7 @@ case class Server(
                                                     roomName,
                                                     room.debate.debate,
                                                     profile,
+                                                    role,
                                                     turn
                                                   )
                                                 }

@@ -277,7 +277,7 @@ case class DebateStateManager(
                                     MotivationalQuotes.yourTurn.sample()
                                 )
                               case profile @ Profile.AI(_, _) =>
-                                doAITurn(roomName, debate, profile, turn)
+                                doAITurn(roomName, debate, profile, role, turn)
                             }
                         )
                     )
@@ -286,32 +286,19 @@ case class DebateStateManager(
       }
     } yield ()
 
-  // the big TODO.
-  // TODO: AI Debate service
   def doAITurn(
     roomName: String,
     debate: Debate,
     profile: Profile.AI,
+    role: DebateRole,
     turn: DotPair[Lambda[A => A => Debate], DebateTurnType]
   ): IO[Unit] = profile
     .localPort
     .flatMap(aiDebaters.get)
-    .product(
-      debate
-        .setup
-        .roles
-        .find(_._2 == profile.name)
-        .map(_._1)
-        .collect { case Debater(i) =>
-          i
-        }
-    )
-    .traverse_ { case (service, index) =>
+    .traverse_ { service =>
       // do a compare and update after the response is received
       for {
-        response <- service
-          .takeTurn(debate, profile, Debater(index), turn.fst)
-          .flatTap(r => IO(println(r)))
+        response <- service.takeTurn(debate, profile, role, turn.fst).flatTap(r => IO(println(r)))
         curRooms <- rooms.get
         _ <-
           curRooms
@@ -394,7 +381,7 @@ case class DebateStateManager(
                               } else
                                 IO.unit
                             case profile @ Profile.AI(_, _) =>
-                              doAITurn(roomName, debate, profile, turn).start.void
+                              doAITurn(roomName, debate, profile, role, turn).start.void
                           }
                       )
                   ) >>
