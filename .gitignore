@@ -22,3 +22,6 @@ node_modules/
 
 /slack-token.txt
 *.pyc
+
+SECRETS
+OLD_SECRETS
