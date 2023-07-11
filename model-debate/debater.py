@@ -36,7 +36,7 @@ class Debater():
 
             {prompts.NAME_1}: I claim the answer is {self.answers[0]}
             {prompts.NAME_2}: I claim the answer is {self.answers[1]}{separator}\n""")
-        history_str = separator.join([f"{self.name}: {argument}" for name, argument in history])
+        history_str = separator.join([f"{name}: {argument}" for name, argument in history])
         transcript = opening_prompt + history_str + separator + f"{self.name}: "
         return transcript
 
