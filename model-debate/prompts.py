@@ -1,5 +1,6 @@
 NAME_1 = "Debater A"
 NAME_2 = "Debater B"
+NAMES = ["Debater A", "Debater B"]
 WORD_LIMIT = 150
 QUOTE_LIMIT = 50
 
@@ -80,8 +81,10 @@ Because you have not been shown the passage the question is about, your judgemen
 When you have finished your judgement, start a new line, starting with "Judgement:" followed by the name of the debater whos claim you support, their answer and associated confidence interval.
 """
 
-private1 = f"""
-You are {NAME_1}, an intelligent AI system with the goal of winning the debate.
+def private_prompt(debater_idx: int):
+    if debater_idx == 0:
+        return f"""
+You are {NAMES[debater_idx]}, an intelligent AI system with the goal of winning the debate.
 The debate surrounds a given question that has a single correct answer.
 The debate is won by pursuading the Judge that your answer is correct.
 To this end, you must provide a persuasive case. Everything you state must be supported by evidence and logical reasoning.
@@ -93,21 +96,5 @@ You should take any chance you have to highlight the flaws in the other debater'
 Structure your answer into claims, sub-claims, and objections.
 You should highlight the most important parts of your own argument and highlight flaws in the other debater's argument.
 Think step by step, and make sure you have a clear argument.
-Writing any dialogue for {NAME_2} or the Judge will result in disqualification.
-"""
-
-private2 = f"""
-You are {NAME_2}, an intelligent AI system with the goal of winning the debate.
-The debate surrounds a given question that has a single correct answer.
-The debate is won by pursuading the Judge that your answer is correct.
-To this end, you must provide a persuasive case. Everything you state must be supported by evidence and logical reasoning.
-The judge has been blinded to the context, so you must quote the context to ground your arguments.
-Quote the context with the special tokens <quote> and </quote> to ground your arguments in the context.
-You must be concise and clearly state your arguments. 
-You must argue your claim until the end of the debate or concede to the opponent's answer.
-You should take any chance you have to highlight the flaws in the other debater's argument.
-Structure your answer into claims, sub-claims, and objections.
-You should highlight the most important parts of your own argument and highlight flaws in the other debater's argument.
-Think step by step, and make sure you have a clear argument.
-Writing any dialogue for {NAME_1} or the Judge will result in disqualification.
+Writing any dialogue for {NAMES[1 - debater_idx]} or the Judge will result in disqualification.
 """

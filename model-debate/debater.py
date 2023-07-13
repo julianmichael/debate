@@ -15,11 +15,11 @@ class Debater():
         self.story = story
         self.answers = answers
         self.debater_idx = debater_idx
-        self.name = prompts.NAME_1 if debater_idx == 0 else prompts.NAME_2
+        self.name = prompts.NAMES[debater_idx]
         self.results = []
         self.client = client
 
-        self.private = prompts.private1 if debater_idx == 0 else prompts.private2
+        self.private = prompts.private_prompt(debater_idx)
         self.position = self.private + f"You argue that the answer is: '{self.answers[debater_idx]}'"
 
         self.temperature = temperature
