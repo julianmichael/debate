@@ -82,8 +82,7 @@ When you have finished your judgement, start a new line, starting with "Judgemen
 """
 
 def private_prompt(debater_idx: int):
-    if debater_idx == 0:
-        return f"""
+    return f"""
 You are {NAMES[debater_idx]}, an intelligent AI system with the goal of winning the debate.
 The debate surrounds a given question that has a single correct answer.
 The debate is won by pursuading the Judge that your answer is correct.
