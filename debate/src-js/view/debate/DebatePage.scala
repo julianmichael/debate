@@ -113,6 +113,7 @@ object DebatePage {
     isOfficial: Boolean,
     roomName: String,
     debate: StateSnapshot[DebateState],
+    hasAI: Boolean,
     disconnect: Callback
   ) = {
 
@@ -178,6 +179,8 @@ object DebatePage {
           }
         )
         .when(userRole.canSeeDebaterNames || userRole == Observer),
+      <.div(<.a(^.href := "https://forms.gle/ErLSNEpHmvM7qU1P8", "Give feedback on AI debaters"))
+        .when(hasAI),
       <.div(S.grow),
       <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary)
     )
@@ -255,7 +258,7 @@ object DebatePage {
   private def qaAndRolesRow(
     isOfficial: Boolean,
     anonymize: Boolean,
-    profiles: Set[String],
+    profiles: Map[String, Profile],
     userName: String,
     role: Role,
     debateState: StateSnapshot[DebateState]
@@ -283,7 +286,7 @@ object DebatePage {
           ),
           " ",
           <.div(S.judgesList)(
-            showRoleNames(anonymize, debateState, profiles, role, userName, Judge)
+            showRoleNames(anonymize, debateState, profiles.keySet, role, userName, Judge)
           ),
           ^.onClick --> tryAssumingRole(Judge)
         ),
@@ -320,7 +323,7 @@ object DebatePage {
                 showRoleNames(
                   anonymize,
                   debateState,
-                  profiles,
+                  profiles.keySet,
                   role,
                   userName,
                   Debater(answerIndex)
@@ -336,7 +339,7 @@ object DebatePage {
               .lobby
               .DebateCreationPanel
               .offlineJudgesConfig(
-                profiles,
+                profiles.keySet,
                 debateState.zoomStateL(
                   DebateState
                     .debate
@@ -351,7 +354,7 @@ object DebatePage {
   }
 
   def apply(
-    profiles: Set[String],
+    profiles: Map[String, Profile],
     connectionSpec: ConnectionSpec,
     disconnect: Callback,
     sendToMainChannel: MainChannelRequest => Callback
@@ -393,8 +396,24 @@ object DebatePage {
                   (role.asDebateRoleOpt.nonEmpty &&
                     debateState.value.debate.feedback.get(userName).isEmpty))
 
+            val hasAI = debateState
+              .value
+              .debate
+              .setup
+              .roles
+              .values
+              .flatMap(profiles.get)
+              .exists(_.isAI)
             <.div(S.debateContainer, S.spaceyContainer)(
-              headerRow(userName, role, isOfficial, roomName, debateState, disconnect = disconnect),
+              headerRow(
+                userName,
+                role,
+                isOfficial,
+                roomName,
+                debateState,
+                hasAI,
+                disconnect = disconnect
+              ),
               if (role == Peeper) {
                 <.div("No peeping! Go judge your assigned debates for this story first.")
               } else if (role == OfflineJudge && !debateState.value.debate.isOver) {
@@ -410,7 +429,7 @@ object DebatePage {
                     debateState = debateState
                   ),
                   DebatePanel(
-                    profiles = profiles,
+                    profiles = profiles.keySet,
                     roomName = roomName,
                     isOfficial = isOfficial,
                     userName = userName,

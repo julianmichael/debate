@@ -179,7 +179,7 @@ object App {
                               view
                                 .debate
                                 .DebatePage(
-                                  profiles = lobby.value.profiles.keySet,
+                                  profiles = lobby.value.profiles,
                                   connectionSpec = cs,
                                   disconnect = connectionSpecOpt.setState(None),
                                   sendToMainChannel = sendToMainChannel
