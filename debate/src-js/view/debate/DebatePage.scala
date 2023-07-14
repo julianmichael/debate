@@ -67,8 +67,8 @@ object DebatePage {
 
       val shouldScroll =
         prevDebateOpt.fold(true)(prevDebate =>
-          DebatePanel.visibleRounds(userName, prevRole, prevDebate.debate) !=
-            DebatePanel.visibleRounds(userName, curRole, curDebate.debate)
+          prevDebate.debate.visibleRounds(userName, prevRole) !=
+            curDebate.debate.visibleRounds(userName, curRole)
         )
       if (!shouldScroll || jQuery("#speeches").length < 1)
         Callback.empty

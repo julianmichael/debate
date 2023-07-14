@@ -119,8 +119,10 @@ object AIDebateService {
         type Input = Speech
       }
     ): DebateTurnPrompt = {
-      // TODO DebatePanel.visibleRounds
-      val readableDebate = ReadableDebate.fromDebate(debate)
+      val readableDebate = {
+        val userName = role.asLiveDebateRoleOpt.flatMap(debate.setup.roles.get).getOrElse("N/A")
+        ReadableDebate.fromDebate(debate, userName, role)
+      }
       DebateTurnPrompt(
         storyId = readableDebate.storyId,
         storyTitle = readableDebate.storyTitle,
@@ -406,7 +408,7 @@ object AIDebateService {
         // Speech will always be DebateSpeech for now, but later we can match on DebateTurnType
         // to make sure it matches if we need to.
         def getErrorString(msg: String) =
-          s"""Received an error from the AI server:
+          s"""!!! Received an error from the AI server !!!
              |
              |"$msg"
              |

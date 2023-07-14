@@ -157,85 +157,7 @@ object DebatePanel {
     )
   }
 
-  case class VisibleRound(
-    round: DebateRound,
-    roundType: DebateRoundType,
-    numPreviousDebateRounds: Int,
-    offlineJudgmentsForRound: Set[JudgeFeedback],
-    visibleSpeeches: Map[Role, DebateSpeech]
-  )
-
-  def visibleRounds(userName: String, role: Role, debate: Debate) = {
-    val judgmentsForEachRound = {
-      val allJudgmentGroups = debate
-        .offlineJudgingResults
-        .values
-        .toVector
-        .filter(_.mode == OfflineJudgingMode.Stepped)
-        .map(_.judgments)
-      val maxNumJudgments = allJudgmentGroups.map(_.size).maximumOption.getOrElse(0)
-      (0 until maxNumJudgments)
-        .map { n =>
-          allJudgmentGroups.flatMap(_.lift(n)).toSet
-        }
-        .toVector
-    }
-    debate
-      .rounds
-      .zip(
-        debate.setup.rules.roundTypes #::: LazyList.continually(DebateRoundType.OfflineJudgingRound)
-      )
-      .zip(
-        debate
-          .rounds
-          .scanLeft(0 -> judgmentsForEachRound.lift(0).combineAll) { case ((n, _), round) =>
-            round match {
-              case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
-                (n + 1) -> judgmentsForEachRound.lift(n + 1).combineAll
-              case _ =>
-                n -> Set()
-              // case JudgeFeedback(_, _, false) =>
-              //   n + 1
-              // case _ =>
-              //   n
-            }
-          }
-      )
-      .flatMap { case ((round, roundType), (numPrevDebateRounds, judgmentsForRound)) =>
-        val debaters =
-          if (roundType.assignedDebatersOnly)
-            debate
-              .setup
-              .roles
-              .keySet
-              .collect { case Debater(i) =>
-                i
-              }
-          else
-            (0 until debate.setup.numAnswers).toSet
-        val visibleSpeeches = round.visibleSpeechesForRole(role, debaters)
-        // number of feedback rounds the current user has given so far as offline judge.
-        // The user can only see this round if they have given feedback on all previous rounds where the live judge did.
-        val continuationLimitOpt =
-          debate.offlineJudgingResults.get(userName) match {
-            case Some(result) if result.result.isEmpty =>
-              Some(result.judgments.size)
-            case None if role == OfflineJudge =>
-              Some(0)
-            case _ =>
-              None
-          }
-
-        Option(
-          VisibleRound(round, roundType, numPrevDebateRounds, judgmentsForRound, visibleSpeeches)
-        ).filter(_ =>
-          continuationLimitOpt.forall(_ > numPrevDebateRounds) &&
-            (role.canSeeIntermediateArguments || round.isComplete(debaters))
-        )
-      }
-  }
-
-  def getHighlights(visibleRounds: Vector[VisibleRound], curMessageSpans: Set[ESpan]) =
+  def getHighlights(visibleRounds: Vector[Debate.VisibleRound], curMessageSpans: Set[ESpan]) =
     visibleRounds
       .flatMap(
         _.visibleSpeeches
@@ -328,7 +250,7 @@ object DebatePanel {
           )
         }
         .getOrElse(Feedback.initAnswers(setup, role))
-      val theseVisibleRounds = visibleRounds(userName, role, debate.value)
+      val theseVisibleRounds = debate.value.visibleRounds(userName, role)
       Local[DotMap[Option, Feedback.Key]].make(workingAnswers) { surveyAnswers =>
         val leftPanelTabs =
           Vector(
@@ -399,7 +321,7 @@ object DebatePanel {
                   .zipWithIndex
                   .flatMap {
                     case (
-                          VisibleRound(
+                          Debate.VisibleRound(
                             thisRound,
                             thisRoundType,
                             numPreviousDebateRounds,

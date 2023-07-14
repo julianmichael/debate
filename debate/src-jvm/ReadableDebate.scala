@@ -25,9 +25,14 @@ case class ReadableDebate(
 )
 object ReadableDebate {
 
-  def fromDebate(debate: Debate) = {
+  def fromDebate(debate: Debate, userName: String, role: Role) = {
     val sourceMaterialId = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial)
-    val turnList         = debate.rounds.flatMap(constructTurnsForRound(debate, _)).toList
+    val turnList =
+      debate
+        .visibleRounds(userName, role)
+        .map(_.round)
+        .flatMap(constructTurnsForRound(debate, _))
+        .toList
     ReadableDebate(
       storyId =
         sourceMaterialId match {
