@@ -217,66 +217,6 @@ object AIDebateService {
       loop(Map.empty[(Int, Int), Int].withDefaultValue(0), (0, 0), 1, 1)
   }
 
-  // adapted from https://stackoverflow.com/questions/44672145/functional-way-to-find-the-longest-common-substring-between-two-strings-in-scala
-  // allows for extra whitespace in one or the other.
-  // max length is computed based on QUOTE tokens.
-  def longestCommonVectorSubstring[A](
-    a: Vector[A],
-    b: Vector[A],
-    isCollapsible: A => Boolean
-  ): ((Int, Int), (Int, Int), Vector[A]) = {
-    def loop(
-      bestLengths: Map[(Int, Int), (Int, Int)],
-      bestIndices: (Int, Int),
-      i: Int,
-      j: Int
-    ): ((Int, Int), (Int, Int), Vector[A]) =
-      // if we're done, return the best substring
-      if (i > a.length) {
-        val bestI = bestIndices._1
-        (bestIndices, bestLengths(bestIndices), a.slice(bestI - bestLengths(bestIndices)._1, bestI))
-      } else {
-        // compute the best length for a match at (i, j)
-        val currentLengths: (Int, Int) = {
-          val (prevILen, prevJLen) = bestLengths(i - 1, j - 1)
-          if (a(i - 1) == b(j - 1)) {
-            (prevILen + 1, prevJLen + 1)
-          } else if (isCollapsible(a(i - 1)) && isCollapsible(b(j - 1))) {
-            (prevILen + 1, prevJLen + 1)
-          } else if (isCollapsible(a(i - 1))) {
-            (prevILen + 1, prevJLen)
-          } else if (isCollapsible(b(j - 1))) {
-            (prevILen, prevJLen + 1)
-          } else
-            (0, 0)
-        }
-        // store this result if it's nonzero
-        val newBestLengths =
-          if (currentLengths != (0, 0))
-            bestLengths + ((i, j) -> currentLengths)
-          else
-            bestLengths
-        // update the best indices if we've found a longer substring
-        val newBestIndices =
-          if (currentLengths._2 > bestLengths(bestIndices)._2)
-            (i, j)
-          else
-            bestIndices
-        // loop through j second
-        val (newI, newJ) =
-          if (j == b.length)
-            (i + 1, 1)
-          else
-            (i, j + 1)
-        loop(newBestLengths, newBestIndices, newI, newJ)
-      }
-
-    if (b.isEmpty)
-      ((0, 0), (0, 0), Vector[A]())
-    else
-      loop(Map.empty[(Int, Int), (Int, Int)].withDefaultValue((0, 0)), (0, 0), 1, 1)
-  }
-
   val quoteSpanningBufferSize = 10
   def recursivelyReconstructQuotes[A: HasSourceText: HasToken](
     storyTokens: Vector[String],
@@ -285,9 +225,6 @@ object AIDebateService {
     mustBeAtBeginning: Boolean = false,
     mustBeAtEnd: Boolean = false
   ): Vector[SpeechSegment] =
-    // println(s"recursivelyReconstructQuotes: ${storyTokens.size} ${quoteTokens.size}")
-    // println(quoteTokens)
-
     if (storyTokens.isEmpty || quoteTokens.isEmpty)
       Vector.empty[SpeechSegment]
     else {
@@ -344,8 +281,7 @@ object AIDebateService {
     println(s"Original speech:\n$msg")
     val startDelimiter = "\\<quote>"
     val endDelimiter   = "\\</quote>"
-    // import jjm.implicits._
-    val segments = msg.split(startDelimiter).toVector
+    val segments       = msg.split(startDelimiter).toVector
     val result =
       SpeechSegment.Text(segments.head) +:
         segments
@@ -353,46 +289,99 @@ object AIDebateService {
           .flatMap { segmentWithEndDelimiter =>
             val quote :: nonQuoteSegments = segmentWithEndDelimiter.split(endDelimiter).toList
             val quoteTokens               = Server.tokenizeStoryAligned(quote)
-            // val ((storyTokenIndex, quoteTokenIndex), _, bestSubsequence) =
-            //   longestCommonVectorSubstring(
-            //     story.contents,
-            //     quoteTokens,
-            //     isCollapsible = "\\s+".r.matches
-            //   )
             SpeechSegments.collapse(
               recursivelyReconstructQuotes(story.contents, quoteTokens, storyOffset = 0) ++
                 nonQuoteSegments.map(SpeechSegment.Text(_)).filter(_.text.nonEmpty)
             )
-          // SpeechSegments.collapse(
-          //   Vector(
-          //     Option(SpeechSegment.Text("\"")),
-          //     Option(quoteTokenIndex)
-          //       .filter(_ > 0)
-          //       .map { quoteTokenIndex =>
-          //         SpeechSegment.Text(Text.renderSpan(quoteTokens, ESpan(0, quoteTokenIndex)))
-          //       },
-          //     Option(bestSubsequence.size)
-          //       .filter(_ > 0)
-          //       .map(subseqLen =>
-          //         SpeechSegment.Quote(ESpan(storyTokenIndex, storyTokenIndex + subseqLen))
-          //       ),
-          //     Option(quoteTokenIndex + bestSubsequence.size)
-          //       .filter(_ < quote.size)
-          //       .map { quoteTokenIndex =>
-          //         SpeechSegment.Text(
-          //           Text.renderSpan(
-          //             quoteTokens,
-          //             ESpan(quoteTokenIndex + bestSubsequence.size, quote.size)
-          //           )
-          //         )
-          //       },
-          //     Option(SpeechSegment.Text("\"" + nonQuoteSegments.mkString(" ")))
-          //   ).flatten
-          // )
           }
     println(s"\nReconstructed speech:\n$result")
     result
   }
+
+  case class QuoteSplit(admissibleSpan: ESpan, remainingText: String, remainingLimit: Option[Int])
+
+  def enforceQuoteLimit(
+    story: Vector[String],
+    quoteCharLimitOpt: Option[Int],
+    quote: ESpan
+  ): QuoteSplit =
+    quoteCharLimitOpt match {
+      case None =>
+        QuoteSplit(quote, "", None)
+      case Some(quoteLimit) =>
+        val quoteText = Text.renderSpan(story, quote)
+        if (quoteLimit < story(quote.begin).size) {
+          QuoteSplit(ESpan(quote.begin, quote.begin), quoteText, Some(quoteLimit))
+        } else if (quoteLimit > quoteText.size) {
+          QuoteSplit(quote, "", Some(quoteLimit - quoteText.size))
+        } else {
+          // this is the last quote.
+          // binary search for the longest prefix that satisfies the quote limit
+          // begin/end define the range in which the end of the desired quote appears
+          def loop(begin: Int, end: Int): QuoteSplit = {
+            val mid    = (begin + end) / 2
+            val prefix = Text.renderSpan(story, ESpan(quote.begin, mid))
+            if (begin == mid) {
+              // if we're just barely over, walk back until we're under
+              if (prefix.length > quoteLimit) {
+                loop(begin - 1, end - 1)
+              } else { // otherwise we're done
+                QuoteSplit(
+                  ESpan(quote.begin, mid),
+                  Text.renderSpan(story, ESpan(mid, quote.endExclusive)),
+                  Some(quoteLimit - prefix.length)
+                )
+              }
+            } else {
+              val curText = Text.renderSpan(story, ESpan(quote.begin, mid))
+              if (quoteLimit < curText.length) {
+                loop(begin, mid)
+              } else {
+                loop(mid, end)
+              }
+            }
+          }
+          loop(quote.begin, quote.end)
+        }
+    }
+
+  def enforceCharLimits(
+    story: Vector[String],
+    charLimitOpt: Option[Int],
+    quoteCharLimitOpt: Option[Int],
+    speech: List[SpeechSegment]
+  ): List[SpeechSegment] =
+    speech match {
+      case Nil =>
+        Nil
+      case SpeechSegment.Text(text) :: rest =>
+        // if we surpass the character limit, cut it off here
+        charLimitOpt match {
+          case Some(charLimit) =>
+            if (charLimit <= text.size) {
+              List(SpeechSegment.Text(text.take(charLimit)))
+            } else {
+              SpeechSegment.Text(text) ::
+                enforceCharLimits(story, charLimitOpt.map(_ - text.size), quoteCharLimitOpt, rest)
+            }
+          case None =>
+            SpeechSegment.Text(text) :: enforceCharLimits(story, None, quoteCharLimitOpt, rest)
+        }
+      case SpeechSegment.Quote(quote) :: rest =>
+        val QuoteSplit(charAdmissibleSpan, _, newCharLimitOpt) = enforceQuoteLimit(
+          story,
+          charLimitOpt,
+          quote
+        )
+        val QuoteSplit(quoteAdmissibleSpan, remainingText, newQuoteLimitOpt) = enforceQuoteLimit(
+          story,
+          quoteCharLimitOpt,
+          charAdmissibleSpan
+        )
+
+        SpeechSegment.Quote(quoteAdmissibleSpan) :: SpeechSegment.Text(remainingText) ::
+          enforceCharLimits(story, newCharLimitOpt, newQuoteLimitOpt, rest)
+    }
 
   def forLocalServer[F[_]: Effect](client: Client[F], localPort: Int) = {
     import org.http4s.{Request => HttpRequest}
@@ -448,7 +437,14 @@ object AIDebateService {
             DebateSpeech(
               profile.name,
               System.currentTimeMillis(),
-              reconstructSpeech(debate.setup.sourceMaterial, msg)
+              SpeechSegments.collapse(
+                enforceCharLimits(
+                  debate.setup.sourceMaterial.contents,
+                  turn.charLimitOpt,
+                  turn.quoteLimit,
+                  reconstructSpeech(debate.setup.sourceMaterial, msg).toList
+                ).toVector
+              )
             ).asInstanceOf[Speech]
           )
       }

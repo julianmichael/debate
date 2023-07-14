@@ -3,7 +3,6 @@
 import aiohttp
 import json
 
-# import anthropic
 import openai
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
@@ -26,6 +25,7 @@ class ChatClient:
     # @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
     async def chat_completion_with_backoff_async(self, session, messages, temperature):
         if self.model.startswith("claude"):
+            import anthropic
             async with session.post(
                     ANTHROPIC_BASE_URL,
                     headers={
