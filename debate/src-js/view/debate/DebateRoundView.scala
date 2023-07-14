@@ -75,44 +75,18 @@ object DebateRoundView {
     <.span(S.quoteCitation)(s" (${span.begin}–${span.end})")
   )
 
-  def makeSpeechContentHtml(source: Vector[String], content: Vector[SpeechSegment]) = content
-    .map {
-      case SpeechSegment.Text(text) =>
-        <.span(breakNewlines(text))
-      case SpeechSegment.Quote(span) =>
-        quoteToHTML(source, span)
-    }
-    .zipWithIndex
-    .toVdomArray { case (el, i) =>
-      el(^.key := s"text-$i")
-    }
-
-  def makeSimultaneousSpeechesHtml(
-    source: Vector[String],
-    speeches: Map[Int, DebateSpeech],
-    startTimeOpt: Option[Long],
-    userRole: Role,
-    userName: String,
-    anonymize: Boolean
-  ) =
-    <.div(S.speechRow)(
-      speeches
-        .toVector
-        .sortBy(_._1)
-        .toVdomArray { case (debaterIndex, speech) =>
-          <.div(S.speechBox, S.answerBg(debaterIndex))(
-            ^.width := s"${100 / speeches.size}%",
-            ^.key   := s"speech-$debaterIndex",
-            speechHeaderHTML(
-              Debater(debaterIndex),
-              speech,
-              startTimeOpt,
-              userRole,
-              userName,
-              anonymize
-            ),
-            makeSpeechContentHtml(source, speech.content)
-          )
+  def makeSpeechContentHtml(source: Vector[String], content: Vector[SpeechSegment]) =
+    <.div(S.speechContent)(
+      content
+        .map {
+          case SpeechSegment.Text(text) =>
+            <.span(breakNewlines(text))
+          case SpeechSegment.Quote(span) =>
+            quoteToHTML(source, span)
+        }
+        .zipWithIndex
+        .toVdomArray { case (el, i) =>
+          el(^.key := s"text-$i")
         }
     )
 
@@ -121,6 +95,8 @@ object DebateRoundView {
     role: Role,
     speech: DebateSpeech,
     distribution: Option[Vector[Double]],
+    charLimitOpt: Option[Int],
+    quoteLimitOpt: Option[Int],
     startTimeOpt: Option[Long],
     userRole: Role,
     userName: String,
@@ -139,7 +115,57 @@ object DebateRoundView {
               Utils.ProbabilityBarItem(prob, S.answerBg(answerIndex))
             }
         )
-      )
+      ),
+      <.div(S.speechFooter)(
+          <.div(c"text-muted")(
+            <.small(
+              charLimitOpt.whenDefined(limit =>
+                <.span(SpeechSegments.getSpeechLength(source, speech.content), "/", s"$limit")
+              ),
+              " ".when(charLimitOpt.orElse(quoteLimitOpt).nonEmpty),
+              quoteLimitOpt.whenDefined(limit =>
+                <.span(
+                  "(",
+                  SpeechSegments.getQuoteCoverage(source, speech.content),
+                  "/",
+                  s"$limit)"
+                )
+              )
+            )
+          )
+        )
+        .when(charLimitOpt.orElse(quoteLimitOpt).nonEmpty)
+    )
+
+  def makeSimultaneousSpeechesHtml(
+    source: Vector[String],
+    speeches: Map[Int, DebateSpeech],
+    charLimitOpt: Option[Int],
+    quoteLimitOpt: Option[Int],
+    startTimeOpt: Option[Long],
+    userRole: Role,
+    userName: String,
+    anonymize: Boolean
+  ) =
+    <.div(S.speechRow)(
+      speeches
+        .toVector
+        .sortBy(_._1)
+        .toVdomArray { case (debaterIndex, speech) =>
+          makeSpeechHtml(
+            source,
+            Debater(debaterIndex),
+            speech,
+            None,
+            charLimitOpt,
+            quoteLimitOpt,
+            startTimeOpt,
+            userRole,
+            userName,
+            anonymize,
+            S.answerBg(debaterIndex)
+          )(^.width := s"${100 / speeches.size}%", ^.key := s"speech-$debaterIndex")
+        }
     )
 
   def makeRoundHtml(
@@ -151,6 +177,8 @@ object DebateRoundView {
     numPreviousDebateRounds: Int,
     getRewardForJudgment: (Int, Vector[Double]) => Option[Double],
     debaters: Set[Int],
+    charLimitOpt: Option[Int],
+    quoteLimitOpt: Option[Int],
     round: DebateRound,
     modifyRound: Option[DebateRound] => Callback
   ) = {
@@ -180,6 +208,8 @@ object DebateRoundView {
                   Debater(index),
                   speech,
                   None,
+                  charLimitOpt,
+                  quoteLimitOpt,
                   debateStartTime,
                   role,
                   userName,
@@ -196,6 +226,8 @@ object DebateRoundView {
               makeSimultaneousSpeechesHtml(
                 source,
                 speeches,
+                charLimitOpt,
+                quoteLimitOpt,
                 debateStartTime,
                 role,
                 userName,
@@ -223,6 +255,8 @@ object DebateRoundView {
                 Debater(debaterIndex),
                 speech,
                 None,
+                charLimitOpt,
+                quoteLimitOpt,
                 debateStartTime,
                 role,
                 userName,
@@ -239,6 +273,8 @@ object DebateRoundView {
                 Judge,
                 speech,
                 Some(probabilities).filter(_.size > 1),
+                charLimitOpt,
+                quoteLimitOpt,
                 debateStartTime,
                 role,
                 userName,
@@ -339,6 +375,8 @@ object DebateRoundView {
                             OfflineJudge,
                             result.feedback,
                             Some(result.distribution).filter(_.size > 1),
+                            charLimitOpt,
+                            quoteLimitOpt,
                             debateStartTime,
                             role,
                             userName,
@@ -357,6 +395,8 @@ object DebateRoundView {
                                 Vector(SpeechSegment.Text("<pending>"))
                               ),
                               None,
+                              charLimitOpt,
+                              quoteLimitOpt,
                               debateStartTime,
                               role,
                               userName,

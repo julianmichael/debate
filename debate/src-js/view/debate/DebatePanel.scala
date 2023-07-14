@@ -427,6 +427,8 @@ object DebatePanel {
                                 }
                             else
                               (0 until setup.numAnswers).toSet,
+                          charLimitOpt = roundType.charLimitOpt,
+                          quoteLimitOpt = roundType.quoteLimitOpt.flatten,
                           round = round,
                           modifyRound =
                             roundOpt =>
@@ -451,6 +453,8 @@ object DebatePanel {
                             OfflineJudge,
                             j.feedback,
                             Some(j.distribution),
+                            None,
+                            None,
                             debate.value.startTime,
                             role,
                             userName,
@@ -468,6 +472,8 @@ object DebatePanel {
                       Vector(),
                     role,
                     DebateSpeech(userName, -1L, currentMessageSpeechSegments),
+                    None,
+                    None,
                     None,
                     debate.value.startTime,
                     role,
