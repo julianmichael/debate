@@ -51,7 +51,7 @@ object WriteDebates
             rooms
               .view
               .flatMap { case (_, room) =>
-                ReadableDebate.sessionsFromDebate(room.debate.debate)
+                ReadableDebate.sessionsFromDebate(room.debate.debate, ("```", "```"))
               }
               .toList
           FileUtil.writeJsonLines(out)(readableDebates)

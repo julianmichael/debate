@@ -25,13 +25,18 @@ case class ReadableDebate(
 )
 object ReadableDebate {
 
-  def fromDebate(debate: Debate, userName: String, role: Role) = {
+  def fromDebate(
+    debate: Debate,
+    userName: String,
+    role: Role,
+    quoteDelimiters: (String, String)
+  ) = {
     val sourceMaterialId = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial)
     val turnList =
       debate
         .visibleRounds(userName, role)
         .map(_.round)
-        .flatMap(constructTurnsForRound(debate, _))
+        .flatMap(constructTurnsForRound(debate, _, quoteDelimiters))
         .toList
     ReadableDebate(
       storyId =
@@ -52,7 +57,7 @@ object ReadableDebate {
     )
   }
 
-  def sessionsFromDebate(debate: Debate) = {
+  def sessionsFromDebate(debate: Debate, quoteDelimiters: (String, String)) = {
     val sourceMaterialId = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial)
     val turnLists: List[(List[ReadableTurn], String, Boolean)] =
       List(
@@ -61,7 +66,7 @@ object ReadableDebate {
           .flatMap(_.judgingInfo)
           .map(judgingInfo =>
             (
-              constructTurnsForLiveJudge(debate, debate.rounds.toList),
+              constructTurnsForLiveJudge(debate, debate.rounds.toList, quoteDelimiters),
               debate.setup.roles(Judge),
               judgingInfo.finalJudgement(debate.setup.correctAnswerIndex) > 0.5
             )
@@ -82,13 +87,15 @@ object ReadableDebate {
                       constructTurnsForSteppedOfflineJudge(
                         debate,
                         offlineJudgment.judgments.toList,
-                        debate.rounds.toList
+                        debate.rounds.toList,
+                        quoteDelimiters
                       )
                     case OfflineJudgingMode.Timed =>
                       constructTurnsForTimedOfflineJudge(
                         debate,
                         finalJudgment,
-                        debate.rounds.toList
+                        debate.rounds.toList,
+                        quoteDelimiters
                       )
                   }
 
@@ -122,7 +129,11 @@ object ReadableDebate {
     }
   }
 
-  def constructTurnsForRound(debate: Debate, round: DebateRound): List[ReadableTurn] =
+  def constructTurnsForRound(
+    debate: Debate,
+    round: DebateRound,
+    quoteDelimiters: (String, String)
+  ): List[ReadableTurn] =
     round match {
       case SimultaneousSpeeches(speeches) =>
         speeches
@@ -132,8 +143,11 @@ object ReadableDebate {
             ReadableTurn(
               role = "Debater",
               index = Some(index),
-              text = SpeechSegments
-                .getSpeechString(debate.setup.sourceMaterial.contents, speech.content),
+              text = SpeechSegments.getSpeechString(
+                debate.setup.sourceMaterial.contents,
+                speech.content,
+                quoteDelimiters
+              ),
               None
             )
           }
@@ -145,8 +159,11 @@ object ReadableDebate {
             ReadableTurn(
               role = "Debater",
               index = Some(index),
-              text = SpeechSegments
-                .getSpeechString(debate.setup.sourceMaterial.contents, speech.content),
+              text = SpeechSegments.getSpeechString(
+                debate.setup.sourceMaterial.contents,
+                speech.content,
+                quoteDelimiters
+              ),
               None
             )
           }
@@ -155,8 +172,11 @@ object ReadableDebate {
           ReadableTurn(
             role = "Judge",
             index = None,
-            text = SpeechSegments
-              .getSpeechString(debate.setup.sourceMaterial.contents, feedback.content),
+            text = SpeechSegments.getSpeechString(
+              debate.setup.sourceMaterial.contents,
+              feedback.content,
+              quoteDelimiters
+            ),
             Some(dist)
           )
         )
@@ -165,20 +185,24 @@ object ReadableDebate {
       case OfflineJudgments(_) =>
         Nil
     }
-  def constructTurnsForLiveJudge(debate: Debate, rounds: List[DebateRound]): List[ReadableTurn] =
-    rounds.flatMap(constructTurnsForRound(debate, _))
+  def constructTurnsForLiveJudge(
+    debate: Debate,
+    rounds: List[DebateRound],
+    quoteDelimiters: (String, String)
+  ): List[ReadableTurn] = rounds.flatMap(constructTurnsForRound(debate, _, quoteDelimiters))
 
   def constructTurnsForSteppedOfflineJudge(
     debate: Debate,
     judgments: List[JudgeFeedback],
-    rounds: List[DebateRound]
+    rounds: List[DebateRound],
+    quoteDelimiters: (String, String)
   ): List[ReadableTurn] =
     judgments.map { case JudgeFeedback(distribution, feedback, _) =>
       ReadableTurn(
         role = "Offline Judge (Stepped)",
         index = None,
         text = SpeechSegments
-          .getSpeechString(debate.setup.sourceMaterial.contents, feedback.content),
+          .getSpeechString(debate.setup.sourceMaterial.contents, feedback.content, quoteDelimiters),
         Some(distribution)
       )
     } match {
@@ -193,7 +217,7 @@ object ReadableDebate {
               case _ =>
                 false
             }
-            .map(constructTurnsForRound(debate, _))
+            .map(constructTurnsForRound(debate, _, quoteDelimiters))
             .zip(nonFirstJudgeTurns)
             .flatMap(Function.tupled(_ :+ _)))
     }
@@ -201,7 +225,8 @@ object ReadableDebate {
   def constructTurnsForTimedOfflineJudge(
     debate: Debate,
     judgment: JudgeFeedback,
-    rounds: List[DebateRound]
+    rounds: List[DebateRound],
+    quoteDelimiters: (String, String)
   ): List[ReadableTurn] =
     rounds
       .filter {
@@ -210,12 +235,15 @@ object ReadableDebate {
         case _ =>
           false
       }
-      .flatMap(constructTurnsForRound(debate, _)) :+
+      .flatMap(constructTurnsForRound(debate, _, quoteDelimiters)) :+
       ReadableTurn(
         role = "Offline Judge (Timed)",
         index = None,
-        text = SpeechSegments
-          .getSpeechString(debate.setup.sourceMaterial.contents, judgment.feedback.content),
+        text = SpeechSegments.getSpeechString(
+          debate.setup.sourceMaterial.contents,
+          judgment.feedback.content,
+          quoteDelimiters
+        ),
         Some(judgment.distribution)
       )
 

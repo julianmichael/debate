@@ -121,7 +121,7 @@ object AIDebateService {
     ): DebateTurnPrompt = {
       val readableDebate = {
         val userName = role.asLiveDebateRoleOpt.flatMap(debate.setup.roles.get).getOrElse("N/A")
-        ReadableDebate.fromDebate(debate, userName, role)
+        ReadableDebate.fromDebate(debate, userName, role, quoteDelimiters = ("<quote>", "</quote>"))
       }
       DebateTurnPrompt(
         storyId = readableDebate.storyId,
