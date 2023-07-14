@@ -189,7 +189,7 @@ object DebatePage {
   private def showRoleNames(
     anonymize: Boolean,
     debateState: StateSnapshot[DebateState],
-    profiles: Set[String],
+    profiles: Map[String, Profile],
     userRole: Role,
     userName: String,
     role: LiveDebateRole
@@ -203,7 +203,7 @@ object DebatePage {
               V.Select
                 .String
                 .mod(select = TagMod(S.customSelect, ^.width.auto))(
-                  choices = profiles.toList.sorted,
+                  choices = profiles.keySet.toList.sorted,
                   debateState
                     .zoomStateO(
                       DebateState
@@ -217,7 +217,10 @@ object DebatePage {
             )
           case _ =>
             val nameDisplay = renderDebateParticipant(anonymize, userRole, userName, role, name)
-            if (userRole == role) {
+            val isAI        = profiles.get(name).exists(_.isAI)
+            if (isAI) {
+              <.span(S.presentParticipant)(nameDisplay, " (AI)")
+            } else if (userRole == role) {
               <.span(S.presentParticipant)(nameDisplay)
             } else if (debateState.value.participants.get(name).isEmpty) {
               <.span(S.missingParticipant)(nameDisplay, " (not here)")
@@ -286,7 +289,7 @@ object DebatePage {
           ),
           " ",
           <.div(S.judgesList)(
-            showRoleNames(anonymize, debateState, profiles.keySet, role, userName, Judge)
+            showRoleNames(anonymize, debateState, profiles, role, userName, Judge)
           ),
           ^.onClick --> tryAssumingRole(Judge)
         ),
@@ -323,7 +326,7 @@ object DebatePage {
                 showRoleNames(
                   anonymize,
                   debateState,
-                  profiles.keySet,
+                  profiles,
                   role,
                   userName,
                   Debater(answerIndex)
