@@ -117,20 +117,13 @@ object DebateRoundView {
         )
       ),
       <.div(S.speechFooter)(
-          <.div(c"text-muted")(
-            <.small(
-              charLimitOpt.whenDefined(limit =>
-                <.span(SpeechSegments.getSpeechLength(source, speech.content), "/", s"$limit")
-              ),
-              " ".when(charLimitOpt.orElse(quoteLimitOpt).nonEmpty),
-              quoteLimitOpt.whenDefined(limit =>
-                <.span(
-                  "(",
-                  SpeechSegments.getQuoteCoverage(source, speech.content),
-                  "/",
-                  s"$limit)"
-                )
-              )
+          <.small(
+            charLimitOpt.whenDefined(limit =>
+              <.span(SpeechSegments.getSpeechLength(source, speech.content), "/", s"$limit")
+            ),
+            " ".when(charLimitOpt.orElse(quoteLimitOpt).nonEmpty),
+            quoteLimitOpt.whenDefined(limit =>
+              <.span("(", SpeechSegments.getQuoteCoverage(source, speech.content), "/", s"$limit)")
             )
           )
         )

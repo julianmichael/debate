@@ -577,7 +577,12 @@ object Styles extends jjm.ui.View.Styles {
 
   val speechContent = style(flexGrow(1))
 
-  val speechFooter = style(addClassNames("mt-1"), padding(0 rem, .25 rem, .25 rem), textAlign.right)
+  val speechFooter = style(
+    addClassNames("mt-1"),
+    color(c"#aaa"),
+    padding(0 rem, .25 rem, .25 rem),
+    textAlign.right
+  )
 
   @nowarn
   val cardLeftSideXColumn = style(
