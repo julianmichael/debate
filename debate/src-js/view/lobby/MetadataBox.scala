@@ -76,6 +76,7 @@ object MetadataBox {
 
   def apply(
     storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]],
+    profiles: Map[String, Profile],
     presentDebaters: Set[String],
     roomMetadata: RoomMetadata,
     isOfficial: Boolean,
@@ -99,7 +100,11 @@ object MetadataBox {
     val canEnterRoom =
       userName.nonEmpty && debatesUserMustJudgeFirst.isEmpty && !mustWaitForDebateToEnd
 
-    val assignedLiveParticipants   = roomMetadata.roleAssignments.values.toSet
+    val assignedLiveParticipants = roomMetadata
+      .roleAssignments
+      .values
+      .toSet
+      .filter(name => profiles.get(name).exists(_.isHuman))
     val participantsPresentInLobby = assignedLiveParticipants.intersect(presentDebaters)
     val lobbyPresenceIndicator = Option(
       <.div(

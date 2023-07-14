@@ -17,6 +17,7 @@ object DebatesPanel {
   val V = new jjm.ui.View(S)
 
   def debatesTab(
+    profiles: Map[String, Profile],
     isAdmin: Boolean,
     userName: String,
     isOfficial: Boolean,
@@ -97,6 +98,7 @@ object DebatesPanel {
                           Local[Boolean].make(true) { anonymize =>
                             MetadataBox(
                               storyRecord = storyRecord,
+                              profiles = profiles,
                               presentDebaters = presentDebaters,
                               roomMetadata = rm,
                               isOfficial = isOfficial,
@@ -215,6 +217,7 @@ object DebatesPanel {
       rooms: Set[RoomMetadata],
       includeAnalytics: Boolean
     ) = debatesTab(
+      profiles = lobby.profiles,
       isAdmin = isAdmin,
       userName = userName,
       isOfficial = isOfficial,

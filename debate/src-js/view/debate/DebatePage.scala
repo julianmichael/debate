@@ -179,7 +179,7 @@ object DebatePage {
           }
         )
         .when(userRole.canSeeDebaterNames || userRole == Observer),
-      <.div(<.a(^.href := "https://forms.gle/ErLSNEpHmvM7qU1P8", "Give feedback on AI debaters"))
+      <.div(<.a(^.href := "https://forms.gle/ErLSNEpHmvM7qU1P8", "[Feedback on AI debaters]"))
         .when(hasAI),
       <.div(S.grow),
       <.div(<.strong("Rules: "), debate.value.debate.setup.rules.summary)
