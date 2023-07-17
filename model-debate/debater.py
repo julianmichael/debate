@@ -18,10 +18,6 @@ class Debater():
         self.name = prompts.NAMES[debater_idx]
         self.results = []
         self.client = client
-
-        self.private = prompts.private_prompt(debater_idx)
-        self.position = self.private + f"You argue that the answer is: '{self.answers[debater_idx]}'"
-
         self.temperature = temperature
 
 
@@ -40,13 +36,18 @@ class Debater():
         transcript = opening_prompt + history_str + separator + f"{self.name}: "
         return transcript
 
-    async def run_single_turn(self, history, word_limit: int, quote_limit: int, turn_type: str):
+    async def run_single_turn(self, history, char_limit: int, quote_char_limit: int, turn_type: str):
+        word_limit = char_limit / 5
+        quote_limit = quote_char_limit / 5
         if turn_type == "single debater":
             rules = prompts.single_debater_rules(word_limit, quote_limit)
         elif turn_type in {"sequential", "simultaneous"}:
             rules = prompts.debate_rules(word_limit, quote_limit, turn_type == "simultaneous")
         else:
             raise ValueError(f"Invalid turn type: {turn_type}")
+
+        self.private = prompts.private_prompt(self.debater_idx, word_limit, quote_limit)
+        self.position = self.private + f"You argue that the answer is: '{self.answers[self.debater_idx]}'"
         system_prompt = "\n".join([rules, self.position])
         transcript = self.prepare_transcript(history)
         async with aiohttp.ClientSession() as session:

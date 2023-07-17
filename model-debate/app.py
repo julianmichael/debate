@@ -62,6 +62,6 @@ async def debate(input: DebaterTurnInput):
     # model = "gpt-3.5-turbo-16k"
     client = ChatClient(model = model, org_key= ORG_KEY, api_key = OPEN_API_KEY, max_context_length=MAX_CONTEXT_LENGTH[model])
     debater = Debater(story, input.answers, 0.7, input.debaterIndex, client)
-    response = await debater.run_single_turn(history, input.charLimitOpt / 5, input.quoteCharLimitOpt / 5, input.turnType)
+    response = await debater.run_single_turn(history, input.charLimitOpt, input.quoteCharLimitOpt, input.turnType)
 
     return response

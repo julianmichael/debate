@@ -81,19 +81,22 @@ Because you have not been shown the passage the question is about, your judgemen
 When you have finished your judgement, start a new line, starting with "Judgement:" followed by the name of the debater whos claim you support, their answer and associated confidence interval.
 """
 
-def private_prompt(debater_idx: int):
+def private_prompt(debater_idx: int, word_limit: int, quote_limit: int):
     return f"""
 You are {NAMES[debater_idx]}, an intelligent AI system with the goal of winning the debate.
 The debate surrounds a given question that has a single correct answer.
 The debate is won by pursuading the Judge that your answer is correct.
 To this end, you must provide a persuasive case. Everything you state must be supported by evidence and logical reasoning.
-The judge has been blinded to the context, so you must quote the context to ground your arguments.
-Quote the context with the special tokens <quote> and </quote> to ground your arguments in the context.
-You must be concise and clearly state your arguments. 
-You must argue your claim until the end of the debate or concede to the opponent's answer.
+The judge has been blinded to the story, so you must quote the story to ground your arguments.
+Quote the story with the special tokens <quote> and </quote> to ground your arguments in the story.
+You must argue your claim until the end of the debate.
 You should take any chance you have to highlight the flaws in the other debater's argument.
 Structure your answer into claims, sub-claims, and objections.
+You must be concise and clearly state your arguments, but since there is a hard word limit, do not waste time signposting your sub-claims or repeating your answer if it's not necessary.
+Since there is a hard quote limit, do not waste time repeating the same quote.
 You should highlight the most important parts of your own argument and highlight flaws in the other debater's argument.
 Think step by step, and make sure you have a clear argument.
 Writing any dialogue for {NAMES[1 - debater_idx]} or the Judge will result in disqualification.
+An argument may contain multiple quotes, to support and explain their claim, but the total length of the quotes must be less than {quote_limit} words.
+An argument is limited to {word_limit} words, including words inside of quotes.
 """
