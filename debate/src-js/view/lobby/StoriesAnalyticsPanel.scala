@@ -8,6 +8,7 @@ import scalacss.ScalaCssReact._
 import debate.util.Local
 
 import cats.implicits._
+import jjm.implicits._
 
 object StoriesAnalyticsPanel {
   val S = Styles
@@ -18,7 +19,8 @@ object StoriesAnalyticsPanel {
   def apply(lobby: Lobby) =
     Local[Set[String]].syncedWithLocalStorage("story-reader-excludes", Set.empty) { excludes =>
       val thMod = c"text-left"
-      val initialMap = lobby
+      // boolean: whether the person needs to be assigned more judging
+      val initialMap: Map[SourceMaterialId, Map[String, Boolean]] = lobby
         .storyRecord
         .toVector
         .foldMap { case (person, storyInfo) =>
@@ -30,19 +32,23 @@ object StoriesAnalyticsPanel {
                   storyStats.debating.isEmpty &&
                   (storyStats.needsToJudgeStory || storyStats.canJudgeMore)
                 )
-                  Set(person)
+                  Map[String, Vector[Boolean]](person -> Vector(storyStats.canJudgeMore))
                 else
-                  Set.empty[String]
+                  Map.empty[String, Vector[Boolean]]
               Map(sourceMaterialId -> personIfUnfinished)
             }
         }
+        .mapVals(_.mapVals(_.exists(identity)))
       val mapWithMissingElements = initialMap.map { case (story, people) =>
         story ->
-          ((people ++ lobby.storyRecord.filter(p => !p._2.contains(story)).keySet) --
+          ((people ++ lobby.storyRecord.filter(p => !p._2.contains(story)).keySet.map(_ -> true)) --
             excludes.value)
       }
 
       <.div(
+        <.p(
+          "Italicized names need to be assigned to judge the story (i.e., they have not yet been assigned to judge it)."
+        ),
         <.table(c"table table-striped")(
           <.thead(<.tr(<.th(thMod)("Story"), <.th(thMod)("People remaining not to spoil"))),
           <.tbody(
@@ -52,7 +58,20 @@ object StoriesAnalyticsPanel {
               .toVdomArray { case (sourceMaterialId, unfinishedPeople) =>
                 <.tr(
                   <.td(sourceMaterialId.title),
-                  <.td(Utils.delimitedSpans(unfinishedPeople.toVector.sorted).toVdomArray)
+                  <.td(
+                    Utils
+                      .delimitedSpans(unfinishedPeople.toVector.filterNot(_._2).map(_._1).sorted)
+                      .toVdomArray,
+                    ", ".when(
+                      unfinishedPeople.toVector.filter(_._2).nonEmpty &&
+                        unfinishedPeople.toVector.filterNot(_._2).nonEmpty
+                    ),
+                    <.i(
+                      Utils
+                        .delimitedSpans(unfinishedPeople.toVector.filter(_._2).map(_._1).sorted)
+                        .toVdomArray
+                    )
+                  )
                 )
               }
           )
