@@ -21,6 +21,11 @@ import monocle.macros.Lenses
 
 import jjm.ling.ESpan
 import jjm.ling.Span
+import io.circe.Encoder
+import jjm.Duad
+import io.circe.Decoder
+
+import jjm.implicits._
 
 package object debate extends PackagePlatformExtensions {
 
@@ -168,5 +173,12 @@ package object debate extends PackagePlatformExtensions {
     def contains(other: Span) = span.begin <= other.begin && span.endExclusive >= other.endExclusive
     def +(offset: Int)        = span.translate(offset)
     def -(offset: Int)        = span.translate(-offset)
+  }
+
+  implicit def duadEncoder[A: Encoder]: Encoder[Duad[A]] = Encoder[(A, A)]
+    .contramap[Duad[A]](d => d.min -> d.max)
+  implicit def duadDecoder[A: Decoder: Order]: Decoder[Duad[A]] = Decoder[(A, A)].map {
+    case (a, b) =>
+      a <-> b
   }
 }

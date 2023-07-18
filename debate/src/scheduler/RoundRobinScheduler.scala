@@ -1,24 +1,119 @@
 package debate
 package scheduler
 
-import scala.util.Random
-
-import cats.data.NonEmptySet
-import cats.data.NonEmptyVector
-import cats.data.StateT
 import cats.implicits._
-import cats.kernel.Monoid
 
 import io.circe.generic.JsonCodec
 
+import jjm.Duad
 import jjm.implicits._
 
 import debate.quality.QuALITYStory
-import debate.util.DenseDistribution
-import debate.util.SparseDistribution
-import debate.quality.QuALITYQuestion
+import scala.util.Random
+
+@JsonCodec
+case class RoundRobinStorySchedule(
+  qa: RoundRobinStorySchedule.QASpec,
+  debater1: Profile.Human,
+  debater2: Profile.Human,
+  ai: Profile.AI,
+  judges: Vector[Profile.Human] // 10 of these
+) {
+  import RoundRobinStorySchedule._
+  def debaters = debater1 <-> debater2
+  def getDebateSetups = {
+    def makeDebate(
+      honest: Option[Profile],
+      dishonest: Option[Profile],
+      judge: Profile.Human,
+      honestFirst: Boolean
+    ) = DebateSetupSpec(
+      rules =
+        if (List(honest, dishonest).flatten.size > 1)
+          twoDebaterRules
+        else
+          singleDebaterRules,
+      sourceMaterial = QuALITYSourceMaterialSpec(qa.articleId),
+      question = qa.question,
+      answers = {
+        val as = Vector(qa.correctAnswer, qa.incorrectAnswer)
+        if (honestFirst)
+          as
+        else
+          as.reverse
+      },
+      correctAnswerIndex =
+        if (honestFirst)
+          0
+        else
+          1,
+      roles =
+        (
+          (Judge -> judge.name) ::
+            (
+              if (honestFirst)
+                List(honest, dishonest)
+              else
+                List(dishonest, honest)
+            ).zipWithIndex
+              .flatMap { case (debater, i) =>
+                debater.map(p => Debater(i) -> p.name)
+              }
+        ).toMap,
+      offlineJudges = Map.empty
+    )
+
+    Vector(
+      makeDebate(Some(debater1), Some(debater2), judges(0), honestFirst = true),
+      makeDebate(Some(debater2), Some(debater1), judges(1), honestFirst = false),
+      makeDebate(Some(debater1), None, judges(2), honestFirst = false),
+      makeDebate(None, Some(debater2), judges(3), honestFirst = true),
+      makeDebate(Some(ai), Some(ai), judges(4), honestFirst = true),
+      makeDebate(Some(ai), Some(ai), judges(5), honestFirst = false),
+      makeDebate(Some(ai), None, judges(6), honestFirst = true),
+      makeDebate(None, Some(ai), judges(7), honestFirst = false)
+    )
+  }
+}
+object RoundRobinStorySchedule {
+
+  @JsonCodec
+  case class QASpec(
+    articleId: String,
+    questionId: String,
+    question: String,
+    correctAnswer: String,
+    incorrectAnswer: String
+  )
+
+  val twoDebaterRules = DebateRules(
+    fixedOpening = Vector(
+      DebateRoundType.JudgeFeedbackRound(true, 750),
+      DebateRoundType.SimultaneousSpeechesRound(750, Some(250), false),
+      DebateRoundType.JudgeFeedbackRound(true, 750)
+    ),
+    repeatingStructure = Vector(
+      DebateRoundType.SequentialSpeechesRound(750, Some(250), false),
+      DebateRoundType.JudgeFeedbackRound(true, 750)
+    ),
+    fixedClosing = None,
+    globalQuoteRestriction = None,
+    scoringFunction = ScoringFunction.LogScoreWithLinearPenalty.default
+  )
+  val singleDebaterRules = DebateRules(
+    fixedOpening = Vector(DebateRoundType.JudgeFeedbackRound(true, 750)),
+    repeatingStructure = Vector(
+      DebateRoundType.SequentialSpeechesRound(1500, Some(500), true),
+      DebateRoundType.JudgeFeedbackRound(true, 750)
+    ),
+    fixedClosing = None,
+    globalQuoteRestriction = None,
+    scoringFunction = ScoringFunction.LogScoreWithLinearPenalty.default
+  )
+}
 
 object RoundRobinScheduler {
+  import RoundRobinStorySchedule.QASpec
 
   def getQuestionForStory(story: QuALITYStory): Option[QASpec] = story
     .questions
@@ -30,6 +125,7 @@ object RoundRobinScheduler {
         if annotations.goldLabel == annotations.writerLabel
         if annotations.untimedAccuracyAgainstGold == 1.0
         if annotations.speedAccuracyAgainstGold <= 0.5
+        if annotations.averageContextScore >= 3.0
         bestDistractors = annotations.bestDistractors(correctAnswerIndex = annotations.goldLabel)
       } yield {
         if (bestDistractors.size > 1) {
@@ -37,11 +133,12 @@ object RoundRobinScheduler {
           // System.err.println(s"Multiple best distractors: ${question.asJson.spaces2}")
         }
         QASpec(
+          articleId = story.articleId,
           questionId = question.questionUniqueId,
           question = question.question,
           correctAnswer = question.options(annotations.goldLabel - 1),
           incorrectAnswer = question.options(bestDistractors.head - 1)
-        ) -> annotations.context.map(_.toDouble).meanOpt.getOrElse(0.0)
+        ) -> annotations.averageContextScore
       }
     }
     .toVector
@@ -65,208 +162,60 @@ object RoundRobinScheduler {
         |  ${setup.offlineJudges.keySet.mkString("\n|  ")}
     """.stripMargin.trim
 
-  case class QASpec(
-    questionId: String,
-    question: String,
-    correctAnswer: String,
-    incorrectAnswer: String
-  )
-
   // this fully specifies a set of debates for a question
   // in the round-robin scheduling setting
-  case class RoundRobinStorySchedule(
-    story: QuALITYStory,
-    question: QASpec,
-    debater1: Profile.Human,
-    debater2: Profile.Human,
-    ai: Profile.AI,
-    judges: Vector[Profile.Human] // 10 of these
-  ) {
-    // val sourceMaterial = SourceMaterial
-    def getDebateSetups = {
-      def humanHuman(
-        honest: Profile.Human,
-        dishonest: Profile.Human,
-        judge: Profile.Human,
-        honestFirst: Boolean
-      ) = DebateSetup(
-        rules = RoundRobinStorySchedule.twoDebaterRules,
-        sourceMaterial = sourceMaterial,
-        question = qa.question,
-        answers = {
-          val as = Vector(qa.correctAnswer, qa.incorrectAnswer)
-          if (correctAnswerIndex == 0)
-            as
-          else
-            as.reverse
-        },
-        correctAnswerIndex = correctAnswerIndex,
-        roles =
-          List[Option[(LiveDebateRole, String)]](
-            honestDebaterOpt.map(Debater(correctAnswerIndex) -> _),
-            dishonestDebaterOpt.map(Debater(1 - correctAnswerIndex) -> _)
-          ).flatten.toMap ++ judgeOpt.map(Judge -> _),
-        offlineJudges = offlineJudges.map(_ -> None).toMap,
-        creationTime = creationTime
-      )
-    }
-  }
-  object RoundRobinStorySchedule {
-    val twoDebaterRules = DebateRules(
-      fixedOpening = Vector(
-        DebateRoundType.JudgeFeedbackRound(true, 750),
-        DebateRoundType.SimultaneousSpeechesRound(750, Some(250), false),
-        DebateRoundType.JudgeFeedbackRound(true, 750)
-      ),
-      repeatingStructure = Vector(
-        DebateRoundType.SequentialSpeechesRound(750, Some(250), false),
-        DebateRoundType.JudgeFeedbackRound(true, 750)
-      ),
-      fixedClosing = None,
-      globalQuoteRestriction = None,
-      scoringFunction = ScoringFunction.LogScoreWithLinearPenalty.default
-    )
-    val singleDebaterRules = DebateRules(
-      fixedOpening = Vector(DebateRoundType.JudgeFeedbackRound(true, 750)),
-      repeatingStructure = Vector(
-        DebateRoundType.SequentialSpeechesRound(1500, Some(500), true),
-        DebateRoundType.JudgeFeedbackRound(true, 750)
-      ),
-      fixedClosing = None,
-      globalQuoteRestriction = None,
-      scoringFunction = ScoringFunction.LogScoreWithLinearPenalty.default
-    )
-  }
 
   def scheduleRoundRobin(
-    debaterPairs: Set[(Profile.Human, Profile.Human)],
+    eligibleStories: Set[QuALITYStory],
+    existingSchedules: Vector[RoundRobinStorySchedule],
+    debaterPairsToSchedule: Set[Duad[Profile.Human]],
     judges: Set[Profile.Human],
     aiDebater: Profile.AI,
-    stories: Vector[QuALITYStory]
-  ): Either[String, Vector[DebateSetup]] = {}
-  def efficientlySampleSchedules(
-    canJudge: Set[String],
-    canDebate: Set[String],
-    desiredWorkload: SparseDistribution[String],
-    rules: SparseDistribution[RuleConfig],
-    complete: Vector[DebateSetup],
-    incomplete: Vector[DebateSetup],
-    sourceMaterial: SourceMaterial,
-    qas: Vector[QASpec],
-    numDebatesPerQuestion: Int,
-    dontAssignNewReading: Boolean,
-    numUniqueDebatersConstraint: Option[Int],
-    // debaters: Map[String, DebaterLoadConstraint],
-    creationTime: Long,
     rand: Random
-  ): Either[String, NonEmptyVector[Schedule]] = {
-    // TODO validate setups
-
-    val numDebaters: Int = numUniqueDebatersConstraint.getOrElse {
-      val minNumDebaters = math.max(2, numDebatesPerQuestion)
-      // val maxNumDebaters = math.ceil(math.sqrt(2 * numDebatesPerQuestion * qas.size) + 0.5)
-      val preferredNumDebaters = math.floor(math.sqrt(2 * numDebatesPerQuestion * qas.size)).toInt
-      math.max(minNumDebaters, preferredNumDebaters)
-    }
-
-    // val numDebates       = qas.size * numDebatesPerQuestion
-
-    val startingSchedule = Schedule(
-      desiredWorkload = desiredWorkload,
-      desiredRules = rules,
-      complete = complete,
-      incomplete = incomplete,
-      novel = Vector()
-    )
-    val workload = startingSchedule.workload
-
-    val potentialDebaters: Set[String] =
-      if (dontAssignNewReading) {
-        val sourceMaterialId = SourceMaterialId.fromSourceMaterial(sourceMaterial)
-        val existingReaders = (complete ++ incomplete)
-          .filter(s => SourceMaterialId.fromSourceMaterial(s.sourceMaterial) == sourceMaterialId)
-          .foldMap(
-            _.roles
-              .collect { case (Debater(_), name) =>
-                name
-              }
-              .toSet
-          )
-        existingReaders.intersect(canDebate)
-      } else
-        canDebate
-
-    val debaterChoiceDist = DenseDistribution
-      .fromSoftmax[String](
-        NonEmptyVector.fromVector(potentialDebaters.toVector).get,
-        d => Params.workloadMultiplier * (desiredWorkload.prob(d) - workload.prob(d))
-      )
-      .withTemperature(Params.samplingTemperature)
-
-    // sample debaters according to how far off they are from their desired workload
-    val attemptedSampledSchedules = (1 to 15) // number of different debater sets we try
+  ): Either[String, Vector[RoundRobinStorySchedule]] =
+    debaterPairsToSchedule
       .toVector
-      .map { _ =>
-        val chosenDebaters = debaterChoiceDist.sampleWithoutReplacement(numDebaters, rand).toSet
-
-        qas
-          .traverse(qa =>
-            (1 to numDebatesPerQuestion)
-              .toVector
-              .traverse(_ =>
-                for {
-                  schedule <- StateT.get[Either[String, *], Schedule]
-                  setup <- StateT.liftF(
-                    sampleSetupForQuestion(
-                      schedule,
-                      sourceMaterial,
-                      qa,
-                      chosenDebaters,
-                      canJudge -- chosenDebaters,
-                      creationTime,
-                      rand
-                    )
-                  )
-                  _ <- StateT.modify[Either[String, *], Schedule](Schedule.novel.modify(_ :+ setup))
-                } yield setup
-              )
+      .foldLeftM(Vector.empty[RoundRobinStorySchedule]) { case (curSchedules, debaters) =>
+        val allCurSchedules = existingSchedules ++ curSchedules
+        val debatersPair    = (debaters.min, debaters.max)
+        val (debater1, debater2) =
+          if (rand.nextBoolean())
+            debatersPair
+          else
+            debatersPair.swap
+        val chosenJudges = rand
+          .shuffle(
+            (
+              allCurSchedules.foldMap(sched =>
+                sched
+                  .judges
+                  .map(_ -> Map(None -> 1, Some(sched.debater1) -> 1, Some(sched.debater2) -> 1))
+                  .toMap
+              ) |+| judges.map(_ -> Map.empty[Option[Profile.Human], Int]).toMap
+            ).toVector // shuffle before sorting to randomize order of judges and break ties randomly
           )
-          .runS(startingSchedule)
-          // .flatMap(schedule =>
-          //   if (Constraints.doesScheduleObeyLoadConstraints(schedule, people)) {
-          //     Right(schedule)
-          //   } else {
-          //     Left("Schedule does not obey load constraints")
-          //   }
-          // )
-          .flatMap(schedule =>
-            if (Constraints.doesScheduleMeetJudgingConstraints(schedule)) {
-              Right(schedule)
-            } else {
-              Left("Schedule does not meet judging constraints")
-            }
+          .sortBy(p =>
+            p._2.getOrElse(None, 0) -> // prefer judges who have judged less
+              (p._2.getOrElse(Some(debater1), 0) + p._2.getOrElse(Some(debater2), 0))
+          // and among those, prefer those who have judged these debaters less
+          )
+          .map(_._1)
+          .take(8)
+        for {
+          qa <- eligibleStories
+            .view
+            .filterNot(s => allCurSchedules.exists(_.qa.articleId == s.articleId))
+            .flatMap(getQuestionForStory)
+            .headOption
+            .toRight("No eligible questions left.")
+        } yield curSchedules :+
+          RoundRobinStorySchedule(
+            qa = qa,
+            debater1 = debater1,
+            debater2 = debater2,
+            ai = aiDebater,
+            judges = chosenJudges
           )
       }
-
-    val errorsStr = attemptedSampledSchedules
-      .flatMap(_.left.toOption)
-      .counts
-      .toVector
-      .sortBy(-_._2)
-      .toNev
-      .map(
-        _.map { case (err, count) =>
-            s"($count) $err"
-          }
-          .toVector
-          .mkString("; ")
-      )
-      .foldMap(x => s"Errors: $x")
-
-    attemptedSampledSchedules
-      .flatMap(_.toOption)
-      .toNev
-      .toRight(s"No valid schedules produced. $errorsStr")
-  }
 
 }

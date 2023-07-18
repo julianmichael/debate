@@ -27,6 +27,11 @@ import debate.service.Slack
 import jjm.DotPair
 import debate.DebateStateUpdateRequest
 
+import debate.quality.QuALITYStory
+import debate.scheduler.RoundRobinStorySchedule
+import debate.scheduler.RoundRobinScheduler
+import jjm.Duad
+
 /** The server state for a debate room.
   *
   * @param debate
@@ -47,6 +52,7 @@ case class DebateStateManager(
   initializeDebate: DebateSetupSpec => IO[DebateSetup],
   profilesRef: Ref[IO, Map[String, Profile]],
   rooms: Ref[IO, Map[String, DebateRoom]],
+  roundRobinSchedules: Ref[IO, Vector[RoundRobinStorySchedule]],
   leaderboard: Ref[IO, Leaderboard],
   saveDir: NIOPath,
   pushUpdateRef: Ref[IO, IO[Unit]],
@@ -506,10 +512,49 @@ case class DebateStateManager(
         onClose = removeParticipant(roomName, participantName)
       )
     } yield res
+
+  def scheduleRoundRobin(
+    eligibleStories: Set[QuALITYStory],
+    debaterPairsToSchedule: Set[Duad[Profile.Human]],
+    judges: Set[Profile.Human],
+    aiDebater: Profile.AI
+  ): IO[Either[String, Vector[RoundRobinStorySchedule]]] = {
+    val scheduleEitherIO =
+      for {
+        schedules <- roundRobinSchedules.get
+        rand      <- IO(new scala.util.Random)
+      } yield RoundRobinScheduler.scheduleRoundRobin(
+        eligibleStories,
+        schedules,
+        debaterPairsToSchedule,
+        judges,
+        aiDebater,
+        rand
+      )
+    scheduleEitherIO.flatMap(
+      _.traverse(schedules =>
+        for {
+          _ <- schedules.traverse_ { schedule =>
+            for {
+              setups <- schedule.getDebateSetups.traverse(initializeDebate)
+              _      <- createDebates(setups)
+            } yield ()
+          }
+          _            <- roundRobinSchedules.update(_ ++ schedules)
+          newSchedules <- roundRobinSchedules.get
+          _ <-
+            FileUtil.writeJsonLines(
+              DebateStateManager.getRoundRobinDir(saveDir).resolve("schedules.jsonl")
+            )(newSchedules)
+        } yield schedules
+      )
+    )
+  }
 }
 object DebateStateManager {
 
-  def getTrashDir(saveDir: NIOPath) = saveDir.resolve("trash")
+  def getTrashDir(saveDir: NIOPath)      = saveDir.resolve("trash")
+  def getRoundRobinDir(saveDir: NIOPath) = saveDir.resolve("round-robin")
 
   def init(
     initializeDebate: DebateSetupSpec => IO[DebateSetup],
@@ -545,13 +590,23 @@ object DebateStateManager {
         )
         .map(_.toMap)
       roomsRef <- Ref[IO].of(rooms)
-      debaters <- profilesRef.get.map(_.keySet)
+      _        <- IO(os.makeDir.all(os.Path(getRoundRobinDir(saveDirOs.toNIO), os.pwd)))
+      roundRobinSchedules <- FileUtil
+        .readJsonLines[RoundRobinStorySchedule](
+          getRoundRobinDir(saveDir).resolve("schedules.jsonl")
+        )
+        .compile
+        .toVector
+        .recover(_ => Vector())
+      roundRobinSchedulesRef <- Ref[IO].of(roundRobinSchedules)
+      debaters               <- profilesRef.get.map(_.keySet)
       leaderboardRef <- Ref[IO]
         .of(Leaderboard.fromDebates(rooms.values.map(_.debate.debate).toList, debaters))
     } yield DebateStateManager(
       initializeDebate,
       profilesRef,
       roomsRef,
+      roundRobinSchedulesRef,
       leaderboardRef,
       saveDir,
       pushUpdateRef,

@@ -13,7 +13,9 @@ import jjm.DotKleisli
 
 import debate.quality.QuALITYStory
 import debate.scheduler.DebateScheduler
+import debate.scheduler.RoundRobinStorySchedule
 import debate.util.SparseDistribution
+import jjm.Duad
 
 @JsonCodec
 case class QuALITYStoryMetadata(
@@ -51,6 +53,13 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
     maxNumJudgesForOffline: Int
   ): F[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]
 
+  def scheduleRoundRobin(
+    eligibleStories: Set[QuALITYStory],
+    debaterPairsToSchedule: Set[Duad[Profile.Human]],
+    judges: Set[Profile.Human],
+    aiDebater: Profile.AI
+  ): F[Either[String, Vector[RoundRobinStorySchedule]]]
+
   import AjaxService.Request
   def apply(req: Request): F[req.Out] = {
     val res =
@@ -86,6 +95,9 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
         case Request
               .SampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline) =>
           sampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline)
+        case Request
+              .ScheduleRoundRobin(eligibleStories, debaterPairsToSchedule, judges, aiDebater) =>
+          scheduleRoundRobin(eligibleStories, debaterPairsToSchedule, judges, aiDebater)
       }
     res.asInstanceOf[F[req.Out]]
   }
@@ -131,6 +143,15 @@ object AjaxService {
       ): F[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]] = f(
         Request.SampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline)
       )
+
+      def scheduleRoundRobin(
+        eligibleStories: Set[QuALITYStory],
+        debaterPairsToSchedule: Set[Duad[Profile.Human]],
+        judges: Set[Profile.Human],
+        aiDebater: Profile.AI
+      ): F[Either[String, Vector[RoundRobinStorySchedule]]] = f(
+        Request.ScheduleRoundRobin(eligibleStories, debaterPairsToSchedule, judges, aiDebater)
+      )
     }
 
   @JsonCodec
@@ -168,6 +189,15 @@ object AjaxService {
       type Out = Either[String, DebateScheduler.OfflineJudgeSchedulingResult]
     }
 
+    case class ScheduleRoundRobin(
+      eligibleStories: Set[QuALITYStory],
+      debaterPairsToSchedule: Set[Duad[Profile.Human]],
+      judges: Set[Profile.Human],
+      aiDebater: Profile.AI
+    ) extends Request {
+      type Out = Either[String, Vector[RoundRobinStorySchedule]]
+    }
+
     import io.circe.disjunctionCodecs._
 
     implicit val ajaxServiceRequestDotEncoder =
@@ -185,6 +215,8 @@ object AjaxService {
                 implicitly[Encoder[Either[String, Vector[DebateSetup]]]]
               case SampleOfflineJudging(_, _, _) =>
                 implicitly[Encoder[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]]
+              case ScheduleRoundRobin(_, _, _, _) =>
+                implicitly[Encoder[Either[String, Vector[RoundRobinStorySchedule]]]]
             }
           res.asInstanceOf[Encoder[req.Out]]
         }
@@ -204,6 +236,8 @@ object AjaxService {
                 implicitly[Decoder[Either[String, Vector[DebateSetup]]]]
               case SampleOfflineJudging(_, _, _) =>
                 implicitly[Decoder[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]]
+              case ScheduleRoundRobin(_, _, _, _) =>
+                implicitly[Decoder[Either[String, Vector[RoundRobinStorySchedule]]]]
             }
           res.asInstanceOf[Decoder[req.Out]]
         }

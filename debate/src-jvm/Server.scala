@@ -42,6 +42,7 @@ import jjm.ling.SourceText
 import shapeless.HNil
 import jjm.ling.Token
 import jjm.ling.TokenText
+import jjm.Duad
 
 case class Server(
   dataPath: NIOPath,
@@ -176,6 +177,13 @@ case class Server(
               )
             )
         }
+      def scheduleRoundRobin(
+        eligibleStories: Set[QuALITYStory],
+        debaterPairsToSchedule: Set[Duad[Profile.Human]],
+        judges: Set[Profile.Human],
+        aiDebater: Profile.AI
+      ): IO[Either[String, Vector[RoundRobinStorySchedule]]] = officialDebates
+        .scheduleRoundRobin(eligibleStories, debaterPairsToSchedule, judges, aiDebater)
     }
   )
 
