@@ -3,6 +3,7 @@
 import aiohttp
 
 import prompts
+import re
 from chat_client import ChatClient 
 from typing import List
 
@@ -36,9 +37,21 @@ class Debater():
         transcript = opening_prompt + history_str + separator + f"{self.name}: "
         return transcript
 
+
+    def check_output_length(self, output: str, char_limit: int, quote_char_limit: int):
+        num_output_chars = len(output)
+        pattern = r"<quote>(.*?)</quote>"
+        matches = re.findall(pattern, output, re.DOTALL)
+        num_quote_chars = sum([len(match) for match in matches])
+        if num_output_chars > char_limit:
+            return "total", num_output_chars, num_quote_chars
+        elif num_quote_chars > quote_char_limit:
+            return "quote", num_output_chars, num_quote_chars
+        return "ok", num_output_chars, num_quote_chars
+
     async def run_single_turn(self, history, char_limit: int, quote_char_limit: int, turn_type: str):
         word_limit = char_limit / 5
-        quote_limit = quote_char_limit / 5
+        quote_limit = quote_char_limit / 5        
         if turn_type == "single debater":
             rules = prompts.single_debater_rules(word_limit, quote_limit)
         elif turn_type in {"sequential", "simultaneous"}:
@@ -63,22 +76,40 @@ class Debater():
                     transcript
                 )
 
-            response = await self.client.chat_completion_with_backoff_async(
-                session=session,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": transcript,
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Complete the next turn of debate as your role of {self.name}:",
-                    },
-                ],
-                temperature=self.temperature,
-            )
+            output_length_check = ""
+            num_output_chars, num_quote_chars = 0, 0
+            num_length_retries = 0
+            ending_prompt = f"Complete the next turn of debate as your role of {self.name}:"
+            while output_length_check != "ok" and num_length_retries < 3:
+                if output_length_check == "total":
+                    ending_prompt = f"""You just tried to respond by saying:\n\n{response}\n\nbut this was too long. 
+Your response contained {num_output_chars} characters, but the character limit is {char_limit}.
+Please shorten your response, completing the next turn of debate as your role of {self.name}:"""
+                elif output_length_check == "quote":
+                    ending_prompt = f"""You just tried to respond by saying:\n\n{response}\n\nbut you exceeded the quote limit. 
+Your response contained {num_quote_chars} quote characters, but the quote limit is {quote_char_limit}.
+Please reduce your quote usage to be under the limit, completing the next turn of debate as your role of {self.name}:"""
+                with open("last_ending_prompt.txt", "w") as f:
+                    f.write(ending_prompt)
+                    print(ending_prompt)
+                response = await self.client.chat_completion_with_backoff_async(
+                    session=session,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt
+                        },
+                        {
+                            "role": "user",
+                            "content": transcript,
+                        },
+                        {
+                            "role": "user",
+                            "content": ending_prompt,
+                        },
+                    ],
+                    temperature=self.temperature,
+                )
+                output_length_check, num_output_chars, num_quote_chars = self.check_output_length(response, char_limit, quote_char_limit)
+                num_length_retries += 1
         return response
