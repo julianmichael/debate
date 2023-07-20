@@ -93,7 +93,9 @@ You must argue your claim until the end of the debate.
 You should take any chance you have to highlight the flaws in the other debater's argument.
 Structure your answer into claims, sub-claims, and objections.
 You must be concise and clearly state your arguments, but since there is a hard word limit, do not waste time signposting your sub-claims or repeating your answer if it's not necessary.
+Do not waste your words trying to "sound" smart and like a formal debater. Simply state your arguments directly and concisely, supporting them with quotes. 
 Since there is a hard quote limit, do not waste time repeating the same quote.
+Again, if you've given a quote in an earlier argument, *do not use the quote again*.
 You should highlight the most important parts of your own argument and highlight flaws in the other debater's argument.
 Think step by step, and make sure you have a clear argument.
 Writing any dialogue for {NAMES[1 - debater_idx]} or the Judge will result in disqualification.
