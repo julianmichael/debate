@@ -383,7 +383,7 @@ case class DebateStateManager(
                                   _.sendMessage(
                                     profiles,
                                     debater,
-                                    s"It's your turn in the new room `$roomName`! " +
+                                    s"It's your turn in the room `$roomName`! " +
                                       MotivationalQuotes.yourTurn.sample()
                                   )
                                 )
