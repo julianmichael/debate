@@ -319,9 +319,10 @@ case class Server(
         practiceRooms      <- practiceDebates.getRoomMetadata
         leaderboard        <- officialDebates.leaderboard.get
         allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
-        _           <- presence.update(_ |+| Map(profile -> 1))
-        _           <- pushUpdate
-        curPresence <- presence.get
+        _                   <- presence.update(_ |+| Map(profile -> 1))
+        _                   <- pushUpdate
+        curPresence         <- presence.get
+        roundRobinSchedules <- officialDebates.roundRobinSchedules.get
         outStream = Stream
           .emit[IO, Option[Lobby]](
             Some(
@@ -332,7 +333,10 @@ case class Server(
                 officialRooms,
                 practiceRooms,
                 leaderboard,
-                currentRuleConfigs
+                currentRuleConfigs,
+                roundRobinSchedules
+                  .foldMap(sched => Map((sched.debater1 <-> sched.debater2) -> 1))
+                  .toVector
               )
             )
           ) // send the current set of debaters and rooms on connect
@@ -439,6 +443,8 @@ case class Server(
                       officialDebates.scheduleOfflineJudges(assignments)
                     else
                       practiceDebates.scheduleOfflineJudges(assignments)
+                  case ExecutePendingTurns(_) =>
+                    IO.unit // TODO
                 },
           onClose = presence.update(p => (p |+| Map(profile -> -1)).filter(_._2 > 0)) >> pushUpdate
         )
@@ -668,6 +674,7 @@ object Server {
                 .set(allDebaters.view.map(name => name -> Profile.Human(name, None)).toMap),
           ifFalse = IO.unit
         )
+      roundRobinSchedules <- officialDebates.roundRobinSchedules.get
       mainChannel <- Topic[IO, Lobby](
         Lobby(
           profiles,
@@ -676,7 +683,10 @@ object Server {
           officialRooms,
           practiceRooms,
           leaderboard,
-          ruleConfigs
+          ruleConfigs,
+          roundRobinSchedules
+            .foldMap(sched => Map((sched.debater1 <-> sched.debater2) -> 1))
+            .toVector
         )
       )
       openEndedFeedback <- FileUtil
@@ -708,6 +718,7 @@ object Server {
           practiceRooms <- practiceDebates.getRoomMetadata
           leaderboard   <- officialDebates.leaderboard.get
           allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
+          roundRobinSchedules <- officialDebates.roundRobinSchedules.get
           _ <- mainChannel.publish1(
             Lobby(
               profiles,
@@ -716,7 +727,10 @@ object Server {
               officialRooms,
               practiceRooms,
               leaderboard,
-              ruleConfigs
+              ruleConfigs,
+              roundRobinSchedules
+                .foldMap(sched => Map((sched.debater1 <-> sched.debater2) -> 1))
+                .toVector
             )
           )
         } yield ()

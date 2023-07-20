@@ -26,6 +26,7 @@ import jjm.Duad
 import io.circe.Decoder
 
 import jjm.implicits._
+import cats.Foldable
 
 package object debate extends PackagePlatformExtensions {
 
@@ -187,4 +188,13 @@ package object debate extends PackagePlatformExtensions {
     case (a, b) =>
       a <-> b
   }
+
+  implicit def duadFoldable: Foldable[Duad] =
+    new Foldable[Duad] {
+      def foldLeft[A, B](fa: Duad[A], b: B)(f: (B, A) => B): B = f(f(b, fa.min), fa.max)
+      def foldRight[A, B](fa: Duad[A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] = f(
+        fa.min,
+        f(fa.max, lb)
+      )
+    }
 }

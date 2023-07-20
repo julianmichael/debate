@@ -21,6 +21,7 @@ case class RoundRobinStorySchedule(
   ai: Profile.AI,
   judges: Vector[Profile.Human] // 10 of these
 ) {
+  require(judges.size == 8)
   import RoundRobinStorySchedule._
   def debaters = debater1 <-> debater2
   def getDebateSetups = {
@@ -222,14 +223,16 @@ object RoundRobinScheduler {
             debatersPair.swap
         val chosenJudges = {
           import RoundRobinStorySchedule.JudgeLoad
-          val baseVector = rand.shuffle(
-            (
-              allCurSchedules.foldMap(sched => sched.getJudgeLoads) |+|
-                judges
-                  .map(_ -> Monoid[JudgeLoad].empty)
-                  .toMap // shuffle before sorting to randomize order of judges and break ties randomly
-            ).toVector
-          )
+          val baseVector = rand
+            .shuffle(
+              (
+                allCurSchedules.foldMap(sched => sched.getJudgeLoads) |+|
+                  judges
+                    .map(_ -> Monoid[JudgeLoad].empty)
+                    .toMap // shuffle before sorting to randomize order of judges and break ties randomly
+              ).toVector
+            )
+            .filter(jpair => !debaters.contains(jpair._1))
           case class Acc(
             currentAssignment: Vector[Profile.Human],
             remainingChoices: Vector[(Profile.Human, JudgeLoad)]
@@ -260,9 +263,11 @@ object RoundRobinScheduler {
                           load.setting(OneModel)
                         }
                     }
-                  Acc(
-                    currentAssignment :+ nextJudge._1,
-                    remainingChoices.filterNot(_._1 == nextJudge._1)
+                  loop(
+                    Acc(
+                      currentAssignment :+ nextJudge._1,
+                      remainingChoices.filterNot(_._1 == nextJudge._1)
+                    )
                   )
                 }
             }
@@ -276,6 +281,11 @@ object RoundRobinScheduler {
         }
 
         for {
+          checkedChosenJudges <-
+            if (chosenJudges.size != 8) {
+              Left(s"Could not assign enough judges (assigned: ${chosenJudges.size})")
+            } else
+              Right(chosenJudges)
           qa <- eligibleStories
             .view
             .filterNot(s => allCurSchedules.exists(_.qa.articleId == s.articleId))
@@ -313,7 +323,7 @@ object RoundRobinScheduler {
             debater1 = debater1,
             debater2 = debater2,
             ai = aiDebater,
-            judges = chosenJudges
+            judges = checkedChosenJudges
           )
       }
   }

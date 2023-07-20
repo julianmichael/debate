@@ -5,6 +5,7 @@ import cats.kernel.CommutativeMonoid
 
 import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
+import jjm.Duad
 
 case class DebaterStoryStats(
   debating: Map[DebateProgressLabel, Set[String]] = Map(),
@@ -42,7 +43,8 @@ case class Lobby(
   officialRooms: Set[RoomMetadata],
   practiceRooms: Set[RoomMetadata],
   leaderboard: Leaderboard,
-  ruleConfigs: Map[String, RuleConfig]
+  ruleConfigs: Map[String, RuleConfig],
+  roundRobinLoads: Vector[(Duad[Profile.Human], Int)]
 ) {
   lazy val storyRecord: Map[String, Map[SourceMaterialId, DebaterStoryStats]] = RoomMetadata
     .constructStoryRecord(officialRooms)
@@ -55,6 +57,7 @@ object Lobby {
     Set(),
     Set(),
     Leaderboard(Map(), Elo.Ratings.empty, Elo.Ratings.empty),
-    Map()
+    Map(),
+    Vector()
   )
 }

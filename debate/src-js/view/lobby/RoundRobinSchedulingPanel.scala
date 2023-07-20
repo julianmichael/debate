@@ -85,7 +85,12 @@ object RoundRobinSchedulingPanel {
                       rest.map(Duad(debater, _)).toSet ++ loop(rest)
                   }
                 loop(schedulingSpec.value.canDebate.toList)
-              }
+              }.toVector.sorted
+
+              val debatersToBeScheduled = schedulingSpec
+                .value
+                .debaterPairs
+                .unorderedFoldMap(_.toList.toSet)
 
               Local[StoryAndQuestionFilters]
                 .syncedWithSessionStorage("source-filters", StoryAndQuestionFilters()) {
@@ -118,6 +123,11 @@ object RoundRobinSchedulingPanel {
                                     .zoomStateL(SchedulingSpec.debaterPairs)
                                     .modState(_.filterNot(_.contains(person)))
 
+                              val numQuestions = lobby
+                                .roundRobinLoads
+                                .filter(_._1.contains(person))
+                                .foldMap(_._2)
+
                               <.div(S.row, ^.key := s"config-${person.name}")(
                                 Checkbox2.mod(box = TagMod(c"form-check-input", S.judgeBox))(
                                   canJudge,
@@ -127,7 +137,12 @@ object RoundRobinSchedulingPanel {
                                   canDebate,
                                   didUpdate = maybeRemoveDebater
                                 ),
-                                <.span(^.width := "14rem")(person.name)
+                                <.span(^.width := "14rem")(person.name),
+                                <.span(
+                                  ^.width           := s"${numQuestions}rem",
+                                  ^.backgroundColor := "darkblue",
+                                  ^.color           := "white"
+                                )(numQuestions)
                               )
                             }
                         )
@@ -149,11 +164,26 @@ object RoundRobinSchedulingPanel {
                               .zoomStateL(SchedulingSpec.debaterPairs)
                               .zoomStateL(Optics.at(pair))
 
-                            <.div(S.row, ^.key := s"config-${pair.map(_.name)}")(
-                              Checkbox2
-                                .mod(box = TagMod(c"form-check-input", S.judgeBox))(isIncluded),
+                            val numQuestions = lobby
+                              .roundRobinLoads
+                              .filter(_._1 == pair)
+                              .foldMap(_._2)
+
+                            <.div(
+                              S.row,
+                              ^.key    := s"config-${pair.map(_.name)}",
+                              (^.color := "#f0f0f0").when(
+                                !isIncluded.value && pair.exists(debatersToBeScheduled.contains)
+                              )
+                            )(
+                              Checkbox2.mod(box = TagMod(c"form-check-input"))(isIncluded),
                               <.span(^.width := "14rem")(pair.min.name),
-                              <.span(^.width := "14rem")(pair.max.name)
+                              <.span(^.width := "14rem")(pair.max.name),
+                              <.span(
+                                ^.width           := s"${numQuestions}rem",
+                                ^.backgroundColor := "darkblue",
+                                ^.color           := "white"
+                              )(numQuestions)
                             )
                           }
                         )
