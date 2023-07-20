@@ -5,6 +5,7 @@ import java.nio.file.Files
 
 import scala.concurrent.duration._
 
+import cats.data.NonEmptySet
 import cats.effect.Blocker
 import cats.effect.Concurrent
 import cats.effect.ContextShift
@@ -27,10 +28,10 @@ import debate.service.Slack
 import jjm.DotPair
 import debate.DebateStateUpdateRequest
 
-import debate.quality.QuALITYStory
 import debate.scheduler.RoundRobinStorySchedule
 import debate.scheduler.RoundRobinScheduler
 import jjm.Duad
+import debate.quality.QuALITYStory
 
 /** The server state for a debate room.
   *
@@ -49,6 +50,8 @@ object DebateRoom {
 }
 
 case class DebateStateManager(
+  quality: Map[String, QuALITYStory],
+  qualityMatches: Map[String, NonEmptySet[String]],
   initializeDebate: DebateSetupSpec => IO[DebateSetup],
   profilesRef: Ref[IO, Map[String, Profile]],
   rooms: Ref[IO, Map[String, DebateRoom]],
@@ -514,7 +517,7 @@ case class DebateStateManager(
     } yield res
 
   def scheduleRoundRobin(
-    eligibleStories: Set[QuALITYStory],
+    sourceFilters: StoryAndQuestionFilters,
     debaterPairsToSchedule: Set[Duad[Profile.Human]],
     judges: Set[Profile.Human],
     aiDebater: Profile.AI
@@ -523,8 +526,23 @@ case class DebateStateManager(
       for {
         schedules <- roundRobinSchedules.get
         rand      <- IO(new scala.util.Random)
+        curArticles <- rooms
+          .get
+          .map(
+            _.values
+              .view
+              .map(_.debate.debate.setup.sourceMaterial)
+              .flatMap(SourceMaterial.quality.getOption)
+              .map(_.articleId)
+              .toSet
+          )
+
+        eligibleStories =
+          quality.values.view.filter(story => !curArticles.contains(story.articleId)).toVector
       } yield RoundRobinScheduler.scheduleRoundRobin(
         eligibleStories,
+        qualityMatches,
+        sourceFilters,
         schedules,
         debaterPairsToSchedule,
         judges,
@@ -557,6 +575,8 @@ object DebateStateManager {
   def getRoundRobinDir(saveDir: NIOPath) = saveDir.resolve("round-robin")
 
   def init(
+    quality: Map[String, QuALITYStory],
+    qualityMatches: Map[String, NonEmptySet[String]],
     initializeDebate: DebateSetupSpec => IO[DebateSetup],
     saveDir: NIOPath,
     profilesRef: Ref[IO, Map[String, Profile]],
@@ -603,6 +623,8 @@ object DebateStateManager {
       leaderboardRef <- Ref[IO]
         .of(Leaderboard.fromDebates(rooms.values.map(_.debate.debate).toList, debaters))
     } yield DebateStateManager(
+      quality,
+      qualityMatches,
       initializeDebate,
       profilesRef,
       roomsRef,

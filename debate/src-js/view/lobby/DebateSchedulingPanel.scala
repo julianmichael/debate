@@ -20,9 +20,7 @@ import scalacss.ScalaCssReact._
 
 import jjm.OrWrapped
 import jjm.ui.CacheCallContent
-import jjm.implicits._
 
-import debate.quality.QuALITYQuestion
 import debate.quality.QuALITYStory
 import debate.scheduler.DebateScheduler
 import debate.service.QuALITYStoryMetadata
@@ -32,6 +30,7 @@ import debate.util.NumberField2
 import debate.util.ProbabilitySliders2
 import debate.util.Slider2
 import debate.util.SparseDistribution
+import japgolly.scalajs.react.extra.StateSnapshot
 
 object DebateSchedulingPanel {
   val S = Styles
@@ -115,78 +114,101 @@ object DebateSchedulingPanel {
     )
   }
 
-  @Lenses
-  @JsonCodec
-  case class SourceFilters(
-    gutenberg: Boolean = true,
-    nonGutenberg: Boolean = false,
-    debatedStories: Boolean = false,
-    nonDebatedStories: Boolean = true,
-    storiesWithOverlap: Boolean = true,
-    storiesWithNoOverlap: Boolean = false,
-    overlappingQuestions: Boolean = true,
-    nonOverlappingQuestions: Boolean = false,
-    debatedQuestions: Boolean = false,
-    nonDebatedQuestions: Boolean = true,
-    noLabels: Boolean = false,
-    writerLabelAgreesWithGoldLabel: Boolean = true,
-    writerLabelDoesntAgreeWithGoldLabel: Boolean = false,
-    minUntimedAccuracyAgainstGold: Double = 1.0,
-    maxSpeedAccuracyAgainstGold: Double = 0.5,
-    minAverageContextRequiredJudgment: Double = 2.0
-  ) {
-    def admitsStory(metadata: QuALITYStoryMetadata): Boolean = {
-      val overlap =
-        if (metadata.numSingleTurnDebateMatches > 0)
-          storiesWithOverlap
-        else
-          storiesWithNoOverlap
-      val debated =
-        if (metadata.hasBeenDebated)
-          debatedStories
-        else
-          nonDebatedStories
-      val source =
-        if (metadata.source == "Gutenberg")
-          gutenberg
-        else
-          nonGutenberg
-      overlap && debated && source
-    }
-
-    def admitsQuestion(
-      question: QuALITYQuestion,
-      matches: Set[String],
-      questionsDebated: Set[String]
-    ): Boolean = {
-      val overlapIsOk =
-        if (matches.contains(question.questionUniqueId))
-          overlappingQuestions
-        else
-          nonOverlappingQuestions
-
-      val debatedIsOk =
-        if (questionsDebated.contains(question.question)) {
-          debatedQuestions
-        } else
-          nonDebatedQuestions
-
-      overlapIsOk && debatedIsOk &&
-      question
-        .annotations
-        .fold(noLabels) { annotations =>
-          val labelAgr =
-            if (annotations.goldLabel == annotations.writerLabel)
-              writerLabelAgreesWithGoldLabel
-            else
-              writerLabelDoesntAgreeWithGoldLabel
-
-          labelAgr && annotations.untimedAccuracyAgainstGold >= minUntimedAccuracyAgainstGold &&
-          annotations.speedAccuracyAgainstGold <= maxSpeedAccuracyAgainstGold &&
-          annotations.context.meanOpt.forall(_ >= minAverageContextRequiredJudgment)
-        }
-    }
-
+  def sourceFiltersConfig(sourceFilters: StateSnapshot[StoryAndQuestionFilters]) = {
+    val colStyle = TagMod(c"col-md-2 mb-2")
+    ReactFragment(
+      <.div(
+        c"row"
+        // S.row
+        // S.rowWithGap
+      )(
+        <.div(colStyle)(
+          <.div("Story already debated"),
+          Checkbox2(sourceFilters.zoomStateL(StoryAndQuestionFilters.debatedStories), Some("Yes")),
+          Checkbox2(sourceFilters.zoomStateL(StoryAndQuestionFilters.nonDebatedStories), Some("No"))
+        ),
+        <.div(colStyle)(
+          <.div("Story overlaps w/single-turn debate"),
+          Checkbox2(
+            sourceFilters.zoomStateL(StoryAndQuestionFilters.storiesWithOverlap),
+            Some("Yes")
+          ),
+          Checkbox2(
+            sourceFilters.zoomStateL(StoryAndQuestionFilters.storiesWithNoOverlap),
+            Some("No")
+          )
+        ),
+        <.div(colStyle)(
+          <.div("Story from Gutenberg"),
+          Checkbox2(sourceFilters.zoomStateL(StoryAndQuestionFilters.gutenberg), Some("Yes")),
+          Checkbox2(sourceFilters.zoomStateL(StoryAndQuestionFilters.nonGutenberg), Some("No"))
+        ),
+        <.div(colStyle)(
+          <.div("Question is from single-turn debate"),
+          Checkbox2(
+            sourceFilters.zoomStateL(StoryAndQuestionFilters.overlappingQuestions),
+            Some("Yes")
+          ),
+          Checkbox2(
+            sourceFilters.zoomStateL(StoryAndQuestionFilters.nonOverlappingQuestions),
+            Some("No")
+          )
+        ),
+        <.div(colStyle)(
+          <.div("Question already has debates"),
+          Checkbox2(
+            sourceFilters.zoomStateL(StoryAndQuestionFilters.debatedQuestions),
+            Some("Yes")
+          ),
+          Checkbox2(
+            sourceFilters.zoomStateL(StoryAndQuestionFilters.nonDebatedQuestions),
+            Some("No")
+          )
+        ),
+        <.div(colStyle)(
+          <.div("Question gold labels"),
+          Checkbox2(sourceFilters.zoomStateL(StoryAndQuestionFilters.noLabels), Some("None")),
+          Checkbox2(
+            sourceFilters.zoomStateL(StoryAndQuestionFilters.writerLabelAgreesWithGoldLabel),
+            Some("Writer = Gold")
+          ),
+          Checkbox2(
+            sourceFilters.zoomStateL(StoryAndQuestionFilters.writerLabelDoesntAgreeWithGoldLabel),
+            Some("Writer != Gold")
+          )
+        )
+      ),
+      <.div(c"row")(
+        Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
+          sourceFilters.zoomStateL(StoryAndQuestionFilters.minUntimedAccuracyAgainstGold),
+          0.0,
+          1.0,
+          Some("Min untimed accuracy"),
+          numSigFigs = 2
+        )
+      ),
+      <.div(c"row")(
+        Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
+          sourceFilters.zoomStateL(StoryAndQuestionFilters.maxSpeedAccuracyAgainstGold),
+          0.0,
+          1.0,
+          Some("Max speed accuracy"),
+          numSigFigs = 2
+        )
+      ),
+      <.div(c"row")(
+        Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
+          sourceFilters.zoomStateL(StoryAndQuestionFilters.minAverageContextRequiredJudgment),
+          1.0,
+          4.0,
+          Some("Minimum average 'context required' judgment"),
+          numSigFigs = 2
+        )
+      ),
+      <.p(
+        "(1) a sentence or two, (2) long paragraph or two; (3) third of the passage; (4) most or all of the passage."
+      )
+    )
   }
 
   def apply(lobby: Lobby, createRooms: CreateRooms => Callback) =
@@ -305,125 +327,12 @@ object DebateSchedulingPanel {
                           case IndexFetch.Loading =>
                             <.div("Loading QuALITY index...")
                           case IndexFetch.Loaded(index) =>
-                            Local[SourceFilters].syncedWithSessionStorage(
+                            Local[StoryAndQuestionFilters].syncedWithSessionStorage(
                               "source-filters",
-                              SourceFilters()
+                              StoryAndQuestionFilters()
                             ) { sourceFilters =>
-                              val colStyle = TagMod(c"col-md-2 mb-2")
                               ReactFragment(
-                                <.div(
-                                  c"row"
-                                  // S.row
-                                  // S.rowWithGap
-                                )(
-                                  <.div(colStyle)(
-                                    <.div("Story already debated"),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.debatedStories),
-                                      Some("Yes")
-                                    ),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.nonDebatedStories),
-                                      Some("No")
-                                    )
-                                  ),
-                                  <.div(colStyle)(
-                                    <.div("Story overlaps w/single-turn debate"),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.storiesWithOverlap),
-                                      Some("Yes")
-                                    ),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.storiesWithNoOverlap),
-                                      Some("No")
-                                    )
-                                  ),
-                                  <.div(colStyle)(
-                                    <.div("Story from Gutenberg"),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.gutenberg),
-                                      Some("Yes")
-                                    ),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.nonGutenberg),
-                                      Some("No")
-                                    )
-                                  ),
-                                  <.div(colStyle)(
-                                    <.div("Question is from single-turn debate"),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.overlappingQuestions),
-                                      Some("Yes")
-                                    ),
-                                    Checkbox2(
-                                      sourceFilters
-                                        .zoomStateL(SourceFilters.nonOverlappingQuestions),
-                                      Some("No")
-                                    )
-                                  ),
-                                  <.div(colStyle)(
-                                    <.div("Question already has debates"),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.debatedQuestions),
-                                      Some("Yes")
-                                    ),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.nonDebatedQuestions),
-                                      Some("No")
-                                    )
-                                  ),
-                                  <.div(colStyle)(
-                                    <.div("Question gold labels"),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(SourceFilters.noLabels),
-                                      Some("None")
-                                    ),
-                                    Checkbox2(
-                                      sourceFilters
-                                        .zoomStateL(SourceFilters.writerLabelAgreesWithGoldLabel),
-                                      Some("Writer = Gold")
-                                    ),
-                                    Checkbox2(
-                                      sourceFilters.zoomStateL(
-                                        SourceFilters.writerLabelDoesntAgreeWithGoldLabel
-                                      ),
-                                      Some("Writer != Gold")
-                                    )
-                                  )
-                                ),
-                                <.div(c"row")(
-                                  Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
-                                    sourceFilters
-                                      .zoomStateL(SourceFilters.minUntimedAccuracyAgainstGold),
-                                    0.0,
-                                    1.0,
-                                    Some("Min untimed accuracy"),
-                                    numSigFigs = 2
-                                  )
-                                ),
-                                <.div(c"row")(
-                                  Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
-                                    sourceFilters
-                                      .zoomStateL(SourceFilters.maxSpeedAccuracyAgainstGold),
-                                    0.0,
-                                    1.0,
-                                    Some("Max speed accuracy"),
-                                    numSigFigs = 2
-                                  )
-                                ),
-                                <.div(c"row")(
-                                  Slider2.mod(textSpan = c"col-sm-6", slider = c"col-sm-6")(
-                                    sourceFilters
-                                      .zoomStateL(SourceFilters.minAverageContextRequiredJudgment),
-                                    1.0,
-                                    4.0,
-                                    Some("Minimum average 'context required' judgment"),
-                                    numSigFigs = 2
-                                  )
-                                ),
-                                <.p(
-                                  "1) a sentence or two, 2) long paragraph or two; 3) third of the passage; 4) most or all of the passage."
-                                ),
+                                ReactFragment(sourceFiltersConfig(sourceFilters)),
                                 StoryOptSelect(
                                   choices = index
                                     .values

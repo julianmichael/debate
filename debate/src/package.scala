@@ -175,6 +175,12 @@ package object debate extends PackagePlatformExtensions {
     def -(offset: Int)        = span.translate(-offset)
   }
 
+  implicit class RichDuad[A](duad: Duad[A]) {
+    def toPair: (A, A)                                   = Duad.unapply(duad).get
+    def contains(a: A)                                   = duad.min == a || duad.max == a
+    def map[B](f: A => B)(implicit o: Order[B]): Duad[B] = Duad(f(duad.min), f(duad.max))
+  }
+
   implicit def duadEncoder[A: Encoder]: Encoder[Duad[A]] = Encoder[(A, A)]
     .contramap[Duad[A]](d => d.min -> d.max)
   implicit def duadDecoder[A: Decoder: Order]: Decoder[Duad[A]] = Decoder[(A, A)].map {

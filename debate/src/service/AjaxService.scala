@@ -54,7 +54,7 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
   ): F[Either[String, DebateScheduler.OfflineJudgeSchedulingResult]]
 
   def scheduleRoundRobin(
-    eligibleStories: Set[QuALITYStory],
+    sourceFilters: StoryAndQuestionFilters,
     debaterPairsToSchedule: Set[Duad[Profile.Human]],
     judges: Set[Profile.Human],
     aiDebater: Profile.AI
@@ -95,9 +95,8 @@ trait AjaxService[F[_]] extends DotKleisli[F, AjaxService.Request] {
         case Request
               .SampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline) =>
           sampleOfflineJudging(excludes, maxNumJudgesForOnline, maxNumJudgesForOffline)
-        case Request
-              .ScheduleRoundRobin(eligibleStories, debaterPairsToSchedule, judges, aiDebater) =>
-          scheduleRoundRobin(eligibleStories, debaterPairsToSchedule, judges, aiDebater)
+        case Request.ScheduleRoundRobin(sourceFilters, debaterPairsToSchedule, judges, aiDebater) =>
+          scheduleRoundRobin(sourceFilters, debaterPairsToSchedule, judges, aiDebater)
       }
     res.asInstanceOf[F[req.Out]]
   }
@@ -145,12 +144,12 @@ object AjaxService {
       )
 
       def scheduleRoundRobin(
-        eligibleStories: Set[QuALITYStory],
+        sourceFilters: StoryAndQuestionFilters,
         debaterPairsToSchedule: Set[Duad[Profile.Human]],
         judges: Set[Profile.Human],
         aiDebater: Profile.AI
       ): F[Either[String, Vector[RoundRobinStorySchedule]]] = f(
-        Request.ScheduleRoundRobin(eligibleStories, debaterPairsToSchedule, judges, aiDebater)
+        Request.ScheduleRoundRobin(sourceFilters, debaterPairsToSchedule, judges, aiDebater)
       )
     }
 
@@ -190,7 +189,7 @@ object AjaxService {
     }
 
     case class ScheduleRoundRobin(
-      eligibleStories: Set[QuALITYStory],
+      sourceFilters: StoryAndQuestionFilters,
       debaterPairsToSchedule: Set[Duad[Profile.Human]],
       judges: Set[Profile.Human],
       aiDebater: Profile.AI

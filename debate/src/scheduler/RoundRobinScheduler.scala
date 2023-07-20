@@ -2,6 +2,7 @@ package debate
 package scheduler
 
 import cats.implicits._
+import cats.data.NonEmptySet
 
 import io.circe.generic.JsonCodec
 
@@ -10,6 +11,7 @@ import jjm.implicits._
 
 import debate.quality.QuALITYStory
 import scala.util.Random
+import cats.kernel.Monoid
 
 @JsonCodec
 case class RoundRobinStorySchedule(
@@ -74,8 +76,37 @@ case class RoundRobinStorySchedule(
       makeDebate(None, Some(ai), judges(7), honestFirst = false)
     )
   }
+  import RoundRobinStorySchedule.JudgeLoad
+  import JudgeLoad._
+  def getJudgeLoads: Map[Profile.Human, JudgeLoad] = Map(
+    judges(0) -> JudgeLoad(Map(TwoHumans -> 1), Map(debater1 -> 1, debater2 -> 1)),
+    judges(1) -> JudgeLoad(Map(TwoHumans -> 1), Map(debater1 -> 1, debater2 -> 1)),
+    judges(2) -> JudgeLoad(Map(OneHuman -> 1), Map(debater1 -> 1)),
+    judges(3) -> JudgeLoad(Map(OneHuman -> 1), Map(debater2 -> 1)),
+    judges(4) -> JudgeLoad(Map(TwoModels -> 1)),
+    judges(5) -> JudgeLoad(Map(TwoModels -> 1)),
+    judges(6) -> JudgeLoad(Map(OneModel -> 1)),
+    judges(7) -> JudgeLoad(Map(OneModel -> 1))
+  )
 }
 object RoundRobinStorySchedule {
+
+  case class JudgeLoad(
+    settingsJudged: Map[JudgeLoad.DebateSetting, Int],
+    debatersJudged: Map[Profile.Human, Int] = Map()
+  ) {
+    def setting(setting: JudgeLoad.DebateSetting) = settingsJudged.getOrElse(setting, 0)
+    def debaters(ds: Profile.Human*)              = ds.foldMap(d => debatersJudged.getOrElse(d, 0))
+  }
+  object JudgeLoad {
+    sealed trait DebateSetting
+    case object TwoHumans extends DebateSetting
+    case object OneHuman  extends DebateSetting
+    case object TwoModels extends DebateSetting
+    case object OneModel  extends DebateSetting
+
+    implicit val judgeLoadMonoid: Monoid[JudgeLoad] = cats.derived.semiauto.monoid[JudgeLoad]
+  }
 
   @JsonCodec
   case class QASpec(
@@ -115,7 +146,11 @@ object RoundRobinStorySchedule {
 object RoundRobinScheduler {
   import RoundRobinStorySchedule.QASpec
 
-  def getQuestionForStory(story: QuALITYStory): Option[QASpec] = story
+  def getQuestionForStory(
+    story: QuALITYStory,
+    maxSpeedAccuracy: Double,
+    minAverageContextScore: Double
+  ): Option[QASpec] = story
     .questions
     .values
     .view
@@ -124,8 +159,8 @@ object RoundRobinScheduler {
         annotations <- question.annotations
         if annotations.goldLabel == annotations.writerLabel
         if annotations.untimedAccuracyAgainstGold == 1.0
-        if annotations.speedAccuracyAgainstGold <= 0.5
-        if annotations.averageContextScore >= 3.0
+        if annotations.speedAccuracyAgainstGold <= maxSpeedAccuracy
+        if annotations.averageContextScore >= minAverageContextScore
         bestDistractors = annotations.bestDistractors(correctAnswerIndex = annotations.goldLabel)
       } yield {
         if (bestDistractors.size > 1) {
@@ -166,13 +201,15 @@ object RoundRobinScheduler {
   // in the round-robin scheduling setting
 
   def scheduleRoundRobin(
-    eligibleStories: Set[QuALITYStory],
+    eligibleStories: Vector[QuALITYStory],
+    qualityMatches: Map[String, NonEmptySet[String]],
+    sourceFilters: StoryAndQuestionFilters,
     existingSchedules: Vector[RoundRobinStorySchedule],
     debaterPairsToSchedule: Set[Duad[Profile.Human]],
     judges: Set[Profile.Human],
     aiDebater: Profile.AI,
     rand: Random
-  ): Either[String, Vector[RoundRobinStorySchedule]] =
+  ): Either[String, Vector[RoundRobinStorySchedule]] = {
     debaterPairsToSchedule
       .toVector
       .foldLeftM(Vector.empty[RoundRobinStorySchedule]) { case (curSchedules, debaters) =>
@@ -183,29 +220,91 @@ object RoundRobinScheduler {
             debatersPair
           else
             debatersPair.swap
-        val chosenJudges = rand
-          .shuffle(
+        val chosenJudges = {
+          import RoundRobinStorySchedule.JudgeLoad
+          val baseVector = rand.shuffle(
             (
-              allCurSchedules.foldMap(sched =>
-                sched
-                  .judges
-                  .map(_ -> Map(None -> 1, Some(sched.debater1) -> 1, Some(sched.debater2) -> 1))
-                  .toMap
-              ) |+| judges.map(_ -> Map.empty[Option[Profile.Human], Int]).toMap
-            ).toVector // shuffle before sorting to randomize order of judges and break ties randomly
+              allCurSchedules.foldMap(sched => sched.getJudgeLoads) |+|
+                judges
+                  .map(_ -> Monoid[JudgeLoad].empty)
+                  .toMap // shuffle before sorting to randomize order of judges and break ties randomly
+            ).toVector
           )
-          .sortBy(p =>
-            p._2.getOrElse(None, 0) -> // prefer judges who have judged less
-              (p._2.getOrElse(Some(debater1), 0) + p._2.getOrElse(Some(debater2), 0))
-          // and among those, prefer those who have judged these debaters less
+          case class Acc(
+            currentAssignment: Vector[Profile.Human],
+            remainingChoices: Vector[(Profile.Human, JudgeLoad)]
           )
-          .map(_._1)
-          .take(8)
+          def loop(acc: Acc): Acc =
+            acc match {
+              case Acc(currentAssignment, remainingChoices) =>
+                if (currentAssignment.size == 8)
+                  return acc
+                else {
+                  import JudgeLoad._
+                  val nextJudge =
+                    currentAssignment.size match {
+                      case 0 | 1 =>
+                        remainingChoices.minBy { case (_, load) =>
+                          load.setting(TwoHumans) + load.debaters(debater1, debater2)
+                        }
+                      case 2 | 3 =>
+                        remainingChoices.minBy { case (_, load) =>
+                          load.setting(OneHuman) + load.debaters(debater1, debater2)
+                        }
+                      case 4 | 5 =>
+                        remainingChoices.minBy { case (_, load) =>
+                          load.setting(TwoModels)
+                        }
+                      case 6 | 7 =>
+                        remainingChoices.minBy { case (_, load) =>
+                          load.setting(OneModel)
+                        }
+                    }
+                  Acc(
+                    currentAssignment :+ nextJudge._1,
+                    remainingChoices.filterNot(_._1 == nextJudge._1)
+                  )
+                }
+            }
+          // independently randomly assign honest/dishonest
+          loop(Acc(Vector.empty, baseVector))
+            .currentAssignment
+            .grouped(2)
+            .map(rand.shuffle(_))
+            .toVector
+            .flatten
+        }
+
         for {
           qa <- eligibleStories
             .view
             .filterNot(s => allCurSchedules.exists(_.qa.articleId == s.articleId))
-            .flatMap(getQuestionForStory)
+            .flatMap { story =>
+              val matches = qualityMatches.get(story.articleId).foldMap(_.toSortedSet)
+              story
+                .questions
+                .values
+                .toVector
+                .filter(q =>
+                  sourceFilters
+                    .admitsQuestion(q, matches, Set()) // TODO: fill in questions debated so far
+                )
+                .flatMap(q => q.annotations.map(q -> _))
+                .map { case (question, annotations) =>
+                  val bestDistractors = annotations
+                    .bestDistractors(correctAnswerIndex = annotations.goldLabel)
+                  QASpec(
+                    articleId = story.articleId,
+                    questionId = question.questionUniqueId,
+                    question = question.question,
+                    correctAnswer = question.options(annotations.goldLabel - 1),
+                    incorrectAnswer = question.options(bestDistractors.head - 1)
+                  ) -> annotations.averageContextScore
+                }
+                .sortBy(-_._2)
+                .map(_._1)
+                .headOption
+            }
             .headOption
             .toRight("No eligible questions left.")
         } yield curSchedules :+
@@ -217,5 +316,5 @@ object RoundRobinScheduler {
             judges = chosenJudges
           )
       }
-
+  }
 }

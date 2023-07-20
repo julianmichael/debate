@@ -55,6 +55,8 @@ object AdminPanel {
                 )
               )
             ),
+          "Schedule Round Robin" ->
+            TabNav.tab(<.div(c"card-body", S.spaceySubcontainer)(RoundRobinSchedulingPanel(lobby))),
           "Schedule Debates" ->
             TabNav.tab(
               <.div(c"card-body", S.spaceySubcontainer)(

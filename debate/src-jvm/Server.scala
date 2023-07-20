@@ -178,12 +178,12 @@ case class Server(
             )
         }
       def scheduleRoundRobin(
-        eligibleStories: Set[QuALITYStory],
+        sourceFilters: StoryAndQuestionFilters,
         debaterPairsToSchedule: Set[Duad[Profile.Human]],
         judges: Set[Profile.Human],
         aiDebater: Profile.AI
       ): IO[Either[String, Vector[RoundRobinStorySchedule]]] = officialDebates
-        .scheduleRoundRobin(eligibleStories, debaterPairsToSchedule, judges, aiDebater)
+        .scheduleRoundRobin(sourceFilters, debaterPairsToSchedule, judges, aiDebater)
     }
   )
 
@@ -632,6 +632,8 @@ object Server {
         aiDebaterPorts.map(port => port -> AIDebateService.forLocalServer(httpClient, port)).toMap
       dataSummarizer = new DataSummarizer(qualityDataset)
       officialDebates <- DebateStateManager.init(
+        qualityDataset,
+        qualityMatches,
         initializeDebate(qualityDataset),
         officialRoomsDir(saveDir),
         profilesRef,
@@ -641,6 +643,8 @@ object Server {
         dataSummarizer
       )
       practiceDebates <- DebateStateManager.init(
+        qualityDataset,
+        qualityMatches,
         initializeDebate(qualityDataset),
         practiceRoomsDir(saveDir),
         profilesRef,
