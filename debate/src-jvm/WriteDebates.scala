@@ -61,7 +61,7 @@ object WriteDebates
               .view
               .filter(p => roomName.forall(_ == p._1))
               .flatMap { case (_, room) =>
-                ReadableDebate.sessionsFromDebate(room.debate.debate, ("```", "```"))
+                ReadableDebate.sessionsFromDebate(room.debate.debate, ("<quote>", "</quote>"))
               }
               .toList
           FileUtil.writeJsonLines(out)(readableDebates)
