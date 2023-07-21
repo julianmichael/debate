@@ -36,12 +36,21 @@ object WriteDebates
     )
     .withDefault(Paths.get("debates-readable.jsonl"))
 
+  val roomO =
+    Opts
+      .option[String](
+        "room",
+        metavar = "room name",
+        help = "Room name to print out the debate for."
+      )
+      .orNone
+
   /** Main function. Runs the server. Stop with ^C.
     *
     * @return
     *   the process's exit code.
     */
-  def main: Opts[IO[ExitCode]] = (saveO, outO).mapN { (save, out) =>
+  def main: Opts[IO[ExitCode]] = (saveO, outO, roomO).mapN { (save, out, roomName) =>
     Blocker[IO].use { blocker =>
       for {
         server <- Server.create(Paths.get("data"), save, Nil, blocker)
@@ -50,6 +59,7 @@ object WriteDebates
           val readableDebates =
             rooms
               .view
+              .filter(p => roomName.forall(_ == p._1))
               .flatMap { case (_, room) =>
                 ReadableDebate.sessionsFromDebate(room.debate.debate, ("```", "```"))
               }
