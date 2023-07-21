@@ -68,7 +68,13 @@ object DebatesPanel {
                   S.completeStatusLabel
               }
             }
-            val roomsForHeading = metadatasByHeading.get(heading).combineAll
+            val roomsForHeading = {
+              val rooms = metadatasByHeading.get(heading).combineAll
+              if (roomNameLive.value.isEmpty)
+                rooms
+              else
+                rooms.filter(_.matchesQuery(roomNameLive.value, anonymizeAll.value))
+            }
 
             val hideResultsByDefault = Set[RoomHeading](
               RoomHeading.CurrentlyOfflineJudging,
@@ -113,18 +119,19 @@ object DebatesPanel {
                         }
                       }
 
-                    // nonMatchingRooms
-                    val (matchingRooms, _) =
-                      if (roomNameLive.value.isEmpty)
-                        roomsForHeading -> Set[RoomMetadata]()
-                      else
-                        roomsForHeading
-                          .partition(_.matchesQuery(roomNameLive.value, anonymizeAll.value))
+                    ReactFragment(showRooms(roomsForHeading, true))
 
-                    ReactFragment(
-                      showRooms(matchingRooms, true)
-                      // showRooms(nonMatchingRooms, false)
-                    )
+                    // val (matchingRooms, nonMatchingRooms) =
+                    //   if (roomNameLive.value.isEmpty)
+                    //     roomsForHeading -> Set[RoomMetadata]()
+                    //   else
+                    //     roomsForHeading
+                    //       .partition(_.matchesQuery(roomNameLive.value, anonymizeAll.value))
+
+                    // ReactFragment(
+                    //   showRooms(roomsForHeading, true)
+                    //   showRooms(nonMatchingRooms, false)
+                    // )
                   }
                 )
               }
