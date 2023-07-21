@@ -289,7 +289,7 @@ object RoundRobinScheduler {
           qa <- eligibleStories
             .view
             .filterNot(s => allCurSchedules.exists(_.qa.articleId == s.articleId))
-            .flatMap { story =>
+            .map { story =>
               val matches = qualityMatches.get(story.articleId).foldMap(_.toSortedSet)
               story
                 .questions
@@ -313,8 +313,10 @@ object RoundRobinScheduler {
                 }
                 .sortBy(-_._2)
                 .map(_._1)
-                .headOption
             }
+            .toVector
+            .sortBy(_.size)
+            .flatMap(_.headOption)
             .headOption
             .toRight("No eligible questions left.")
         } yield curSchedules :+
