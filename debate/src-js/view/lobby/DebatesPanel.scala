@@ -113,7 +113,8 @@ object DebatesPanel {
                         }
                       }
 
-                    val (matchingRooms, nonMatchingRooms) =
+                    // nonMatchingRooms
+                    val (matchingRooms, _) =
                       if (roomNameLive.value.isEmpty)
                         roomsForHeading -> Set[RoomMetadata]()
                       else
@@ -121,8 +122,8 @@ object DebatesPanel {
                           .partition(_.matchesQuery(roomNameLive.value, anonymizeAll.value))
 
                     ReactFragment(
-                      showRooms(matchingRooms, true),
-                      showRooms(nonMatchingRooms, false)
+                      showRooms(matchingRooms, true)
+                      // showRooms(nonMatchingRooms, false)
                     )
                   }
                 )
