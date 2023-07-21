@@ -91,7 +91,6 @@ object AIDebateService {
           Decoder
             .decodeJson
             .flatMap { response =>
-              println(response)
               res.asInstanceOf[Decoder[req.Out]]
             }
         }
@@ -234,7 +233,6 @@ object AIDebateService {
         storyTokens,
         quoteTokens.map(_.token)
       )
-      println(s"longest subsequence: $sequence")
       if (sequence.size == 0) {
         Vector(SpeechSegment.Text(Text.render(quoteTokens)))
       } else if (
@@ -280,7 +278,6 @@ object AIDebateService {
     }
 
   def reconstructSpeech(story: SourceMaterial, msg: String): Vector[SpeechSegment] = {
-    println(s"Original speech:\n$msg")
     val startDelimiter = "\\<quote>"
     val endDelimiter   = "\\</quote>"
     val segments       = msg.split(startDelimiter).toVector
@@ -296,7 +293,6 @@ object AIDebateService {
                 nonQuoteSegments.map(SpeechSegment.Text(_)).filter(_.text.nonEmpty)
             )
           }
-    println(s"\nReconstructed speech:\n$result")
     result
   }
 
