@@ -21,7 +21,7 @@ case class RoundRobinStorySchedule(
   ai: Profile.AI,
   judges: Vector[Profile.Human] // 10 of these
 ) {
-  require(judges.size == 8)
+  require(judges.size == 10)
   import RoundRobinStorySchedule._
   def debaters = debater1 <-> debater2
   def getDebateSetups = {
@@ -74,7 +74,9 @@ case class RoundRobinStorySchedule(
       makeDebate(Some(ai), Some(ai), judges(4), honestFirst = true),
       makeDebate(Some(ai), Some(ai), judges(5), honestFirst = false),
       makeDebate(Some(ai), None, judges(6), honestFirst = true),
-      makeDebate(None, Some(ai), judges(7), honestFirst = false)
+      makeDebate(None, Some(ai), judges(7), honestFirst = false),
+      makeDebate(Some(ai), None, judges(8), honestFirst = false),
+      makeDebate(None, Some(ai), judges(9), honestFirst = true)
     )
   }
   import RoundRobinStorySchedule.JudgeLoad
@@ -87,7 +89,9 @@ case class RoundRobinStorySchedule(
     judges(4) -> JudgeLoad(Map(TwoModels -> 1)),
     judges(5) -> JudgeLoad(Map(TwoModels -> 1)),
     judges(6) -> JudgeLoad(Map(OneModel -> 1)),
-    judges(7) -> JudgeLoad(Map(OneModel -> 1))
+    judges(7) -> JudgeLoad(Map(OneModel -> 1)),
+    judges(8) -> JudgeLoad(Map(OneModel -> 1)),
+    judges(9) -> JudgeLoad(Map(OneModel -> 1))
   )
 }
 object RoundRobinStorySchedule {
@@ -240,7 +244,7 @@ object RoundRobinScheduler {
           def loop(acc: Acc): Acc =
             acc match {
               case Acc(currentAssignment, remainingChoices) =>
-                if (currentAssignment.size == 8)
+                if (currentAssignment.size == 10)
                   return acc
                 else {
                   import JudgeLoad._
@@ -258,7 +262,7 @@ object RoundRobinScheduler {
                         remainingChoices.minBy { case (_, load) =>
                           load.setting(TwoModels)
                         }
-                      case 6 | 7 =>
+                      case 6 | 7 | 8 | 9 =>
                         remainingChoices.minBy { case (_, load) =>
                           load.setting(OneModel)
                         }
@@ -282,7 +286,7 @@ object RoundRobinScheduler {
 
         for {
           checkedChosenJudges <-
-            if (chosenJudges.size != 8) {
+            if (chosenJudges.size != 10) {
               Left(s"Could not assign enough judges (assigned: ${chosenJudges.size})")
             } else
               Right(chosenJudges)
