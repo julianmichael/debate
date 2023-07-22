@@ -8,7 +8,11 @@ case class ReadableTurn(
   role: String,
   index: Option[Int],
   text: String,
-  probabilities: Option[Vector[Double]]
+  probabilities: Option[Vector[Double]],
+  chars: Int,
+  charLimit: Option[Int],
+  quoteChars: Int,
+  quoteCharLimit: Option[Int]
 )
 
 @JsonCodec
@@ -35,8 +39,14 @@ object ReadableDebate {
     val turnList =
       debate
         .visibleRounds(userName, role)
-        .map(_.round)
-        .flatMap(constructTurnsForRound(debate, _, quoteDelimiters))
+        .flatMap { visibleRound =>
+          constructTurnsForRound(
+            debate,
+            visibleRound.roundType,
+            visibleRound.round,
+            quoteDelimiters
+          )
+        }
         .toList
     ReadableDebate(
       storyId =
@@ -66,7 +76,11 @@ object ReadableDebate {
           .flatMap(_.judgingInfo)
           .map(judgingInfo =>
             (
-              constructTurnsForLiveJudge(debate, debate.rounds.toList, quoteDelimiters),
+              constructTurnsForLiveJudge(
+                debate,
+                debate.setup.rules.roundTypes.zip(debate.rounds).toList,
+                quoteDelimiters
+              ),
               debate.setup.roles(Judge),
               judgingInfo.finalJudgement(debate.setup.correctAnswerIndex) > 0.5
             )
@@ -87,14 +101,14 @@ object ReadableDebate {
                       constructTurnsForSteppedOfflineJudge(
                         debate,
                         offlineJudgment.judgments.toList,
-                        debate.rounds.toList,
+                        debate.setup.rules.roundTypes.zip(debate.rounds).toList,
                         quoteDelimiters
                       )
                     case OfflineJudgingMode.Timed =>
                       constructTurnsForTimedOfflineJudge(
                         debate,
                         finalJudgment,
-                        debate.rounds.toList,
+                        debate.setup.rules.roundTypes.zip(debate.rounds).toList,
                         quoteDelimiters
                       )
                   }
@@ -131,6 +145,7 @@ object ReadableDebate {
 
   def constructTurnsForRound(
     debate: Debate,
+    roundType: DebateRoundType,
     round: DebateRound,
     quoteDelimiters: (String, String)
   ): List[ReadableTurn] =
@@ -148,7 +163,13 @@ object ReadableDebate {
                 speech.content,
                 quoteDelimiters
               ),
-              None
+              None,
+              chars = SpeechSegments
+                .getSpeechLength(debate.setup.sourceMaterial.contents, speech.content),
+              charLimit = roundType.charLimitOpt,
+              quoteChars = SpeechSegments
+                .getQuoteCoverage(debate.setup.sourceMaterial.contents, speech.content),
+              quoteCharLimit = roundType.quoteLimitOpt.flatten
             )
           }
       case SequentialSpeeches(speeches) =>
@@ -164,7 +185,13 @@ object ReadableDebate {
                 speech.content,
                 quoteDelimiters
               ),
-              None
+              None,
+              chars = SpeechSegments
+                .getSpeechLength(debate.setup.sourceMaterial.contents, speech.content),
+              charLimit = roundType.charLimitOpt,
+              quoteChars = SpeechSegments
+                .getQuoteCoverage(debate.setup.sourceMaterial.contents, speech.content),
+              quoteCharLimit = roundType.quoteLimitOpt.flatten
             )
           }
       case JudgeFeedback(dist, feedback, _) =>
@@ -177,7 +204,13 @@ object ReadableDebate {
               feedback.content,
               quoteDelimiters
             ),
-            Some(dist)
+            Some(dist),
+            chars = SpeechSegments
+              .getSpeechLength(debate.setup.sourceMaterial.contents, feedback.content),
+            charLimit = roundType.charLimitOpt,
+            quoteChars = SpeechSegments
+              .getQuoteCoverage(debate.setup.sourceMaterial.contents, feedback.content),
+            quoteCharLimit = roundType.quoteLimitOpt.flatten
           )
         )
       case NegotiateEnd(_) =>
@@ -187,14 +220,16 @@ object ReadableDebate {
     }
   def constructTurnsForLiveJudge(
     debate: Debate,
-    rounds: List[DebateRound],
+    rounds: List[(DebateRoundType, DebateRound)],
     quoteDelimiters: (String, String)
-  ): List[ReadableTurn] = rounds.flatMap(constructTurnsForRound(debate, _, quoteDelimiters))
+  ): List[ReadableTurn] = rounds.flatMap { case (roundType, round) =>
+    constructTurnsForRound(debate, roundType, round, quoteDelimiters)
+  }
 
   def constructTurnsForSteppedOfflineJudge(
     debate: Debate,
     judgments: List[JudgeFeedback],
-    rounds: List[DebateRound],
+    rounds: List[(DebateRoundType, DebateRound)],
     quoteDelimiters: (String, String)
   ): List[ReadableTurn] =
     judgments.map { case JudgeFeedback(distribution, feedback, _) =>
@@ -203,7 +238,13 @@ object ReadableDebate {
         index = None,
         text = SpeechSegments
           .getSpeechString(debate.setup.sourceMaterial.contents, feedback.content, quoteDelimiters),
-        Some(distribution)
+        Some(distribution),
+        chars = SpeechSegments
+          .getSpeechLength(debate.setup.sourceMaterial.contents, feedback.content),
+        charLimit = None,
+        quoteChars = SpeechSegments
+          .getQuoteCoverage(debate.setup.sourceMaterial.contents, feedback.content),
+        quoteCharLimit = None
       )
     } match {
       case Nil =>
@@ -212,12 +253,14 @@ object ReadableDebate {
         head ::
           (rounds
             .filter {
-              case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
+              case (_, SimultaneousSpeeches(_)) | (_, SequentialSpeeches(_)) =>
                 true;
               case _ =>
                 false
             }
-            .map(constructTurnsForRound(debate, _, quoteDelimiters))
+            .map { case (roundType, round) =>
+              constructTurnsForRound(debate, roundType, round, quoteDelimiters)
+            }
             .zip(nonFirstJudgeTurns)
             .flatMap(Function.tupled(_ :+ _)))
     }
@@ -225,17 +268,19 @@ object ReadableDebate {
   def constructTurnsForTimedOfflineJudge(
     debate: Debate,
     judgment: JudgeFeedback,
-    rounds: List[DebateRound],
+    rounds: List[(DebateRoundType, DebateRound)],
     quoteDelimiters: (String, String)
   ): List[ReadableTurn] =
     rounds
       .filter {
-        case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
+        case (_, SimultaneousSpeeches(_)) | (_, SequentialSpeeches(_)) =>
           true;
         case _ =>
           false
       }
-      .flatMap(constructTurnsForRound(debate, _, quoteDelimiters)) :+
+      .flatMap { case (roundType, round) =>
+        constructTurnsForRound(debate, roundType, round, quoteDelimiters)
+      } :+
       ReadableTurn(
         role = "Offline Judge (Timed)",
         index = None,
@@ -244,7 +289,13 @@ object ReadableDebate {
           judgment.feedback.content,
           quoteDelimiters
         ),
-        Some(judgment.distribution)
+        Some(judgment.distribution),
+        chars = SpeechSegments
+          .getSpeechLength(debate.setup.sourceMaterial.contents, judgment.feedback.content),
+        charLimit = None,
+        quoteChars = SpeechSegments
+          .getQuoteCoverage(debate.setup.sourceMaterial.contents, judgment.feedback.content),
+        quoteCharLimit = None
       )
 
 }
