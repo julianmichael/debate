@@ -1,12 +1,12 @@
 import re
 from typing import List, Optional
 
+from chat_client import ChatClient
 from fastapi import FastAPI
 from pydantic import BaseModel
-
-from chat_client import ChatClient 
-from debate import Debater
 from utils import load_secrets
+
+from debate import Debater
 
 secrets = load_secrets("SECRETS")
 ORG_KEY = secrets["NYU_ORG"]
@@ -54,14 +54,20 @@ async def debate(input: DebaterTurnInput):
     history = []
     for turn in input.turns:
         if turn.role == "Debater":
-            turn.role = names[turn.index]
+            if input.turnType == "single debater":
+                turn.role = "Consultant"
+            else:
+                turn.role = names[turn.index]
         history.append((turn.role, turn.text))
 
     # model = "gpt-4"
     model = "gpt-4-32k"
     # model = "gpt-3.5-turbo-16k"
-    client = ChatClient(model = model, org_key= ORG_KEY, api_key = OPEN_API_KEY, max_context_length=MAX_CONTEXT_LENGTH[model])
-    debater = Debater(story, input.answers, 0.7, input.debaterIndex, client)
+    client = ChatClient(model=model,
+                        org_key=ORG_KEY,
+                        api_key=OPEN_API_KEY,
+                        max_context_length=MAX_CONTEXT_LENGTH[model])
+    debater = Debater(story, input.answers, 0.7, input.debaterIndex, input.turnType, client)
     response = await debater.run_single_turn(history, input.charLimitOpt, input.quoteCharLimitOpt, input.turnType)
 
     return response
