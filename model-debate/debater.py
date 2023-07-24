@@ -68,7 +68,7 @@ Here is the current transcript of the debate:
         elif turn_type in {"sequential", "simultaneous"}:
             rules = prompts.debate_rules(word_limit, quote_limit, turn_type == "simultaneous")
             # TODO: add examples for debates
-            few_shot_examples = ""
+            few_shot_examples = prompts.debate_few_shot_examples()
         else:
             raise ValueError(f"Invalid turn type: {turn_type}")
 

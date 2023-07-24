@@ -115,10 +115,10 @@ An argument is limited to {word_limit} words, including words inside of quotes.
 
 def debate_few_shot_examples():
 
-    with open('data/few-shot-examples/debate/how-to-make-friends-1.txt', 'r') as f:
+    with open('few-shot-examples/debate/how-to-make-friends-1.txt', 'r') as f:
         example1 = f.read()
 
-    with open('data/few-shot-examples/debate/call-him-nemesis-0.txt', 'r') as f:
+    with open('few-shot-examples/debate/call-him-nemesis-0.txt', 'r') as f:
         example2 = f.read()
 
     return f"""\n\nHere are a couple examples of Debates. We are mostly providing these examples so you can understand how the game works, how often (and when) to include quotes, what your writing style should look like, how to respond to the judge's questions and feedback, and so on. Do not reference these stories, arguments, quotes, etc. in your own upcoming Debate. In particular, notice how the debaters engage very directly with the Judge's comments. Instead of repeating their supported answer choice, they engage actively with the Judge's questions and requests.
@@ -162,10 +162,10 @@ An argument is limited to {word_limit} words, including words inside of quotes.
 
 def single_few_shot_examples():
 
-    with open('data/few-shot-examples/consultancy/lost-in-translation-6.txt', 'r') as f:
+    with open('few-shot-examples/consultancy/lost-in-translation-6.txt', 'r') as f:
         example1 = f.read()
 
-    with open('data/few-shot-examples/consultancy/dust-unto-dust-3.txt', 'r') as f:
+    with open('few-shot-examples/consultancy/dust-unto-dust-3.txt', 'r') as f:
         example2 = f.read()
 
     return f"""\n\nHere are a couple examples of a Consultancy. We are mostly providing these examples so you can understand how the game works, how often (and when) to include quotes, what your writing style should look like, how to respond to the judge's questions and feedback, and so on. Do not reference these stories, arguments, quotes, etc. in your own upcoming Consultancy. In particular, notice how the Consultant engages very directly with the Judge's comments. Instead of repeating their supported answer choice, they engage actively with the Judge's questions and requests. 
