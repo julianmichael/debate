@@ -1,5 +1,6 @@
 """
 Runs on a JSONL file that is the output of the WriteDebates.scala script (transcript of a debate).
+This JSONL file is produced by running mill -i debate.jvm.runMain debate.WriteDebates --out <filename> --room <room name>
 
 Useful for getting LM-formatted transcripts of existing debates for few-shot learning.
 """
@@ -80,7 +81,7 @@ async def debate(input: DebaterTurnInput, turn_type: str):
                         org_key=ORG_KEY,
                         api_key=OPEN_API_KEY,
                         max_context_length=MAX_CONTEXT_LENGTH[model])
-    debater = Debater(story, input.answers, 0.7, 0, client)
+    debater = Debater(story, input.answers, 0.7, 0, turn_type, client)
     response = await debater.run_single_turn(history, 750, 500, turn_type)
 
     return response
@@ -91,5 +92,6 @@ if __name__ == "__main__":
     input = DebaterTurnInput.parse_file(args.filename)
     response = asyncio.run(debate(input, args.turn_type))
     print(response)
-    with open("response.txt", "w") as f:
-        f.write(response)
+    if response:
+        with open("response.txt", "w") as f:
+            f.write(response)
