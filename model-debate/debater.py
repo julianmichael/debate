@@ -1,6 +1,7 @@
 # Adapted from: https://github.com/akbir/debate
 
 import re
+import time
 from textwrap import dedent
 from typing import List
 
@@ -126,4 +127,5 @@ Please reduce your quote usage to be under the limit, completing the next turn o
                 output_length_check, num_output_chars, num_quote_chars = self.check_output_length(
                     response, char_limit, quote_char_limit)
                 num_length_retries += 1
+                time.sleep(0.3)
         return response
