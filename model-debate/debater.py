@@ -1,6 +1,7 @@
 # Adapted from: https://github.com/akbir/debate
 
 import re
+import time
 from textwrap import dedent
 from typing import List
 
@@ -68,7 +69,7 @@ Here is the current transcript of the debate:
         elif turn_type in {"sequential", "simultaneous"}:
             rules = prompts.debate_rules(word_limit, quote_limit, turn_type == "simultaneous")
             # TODO: add examples for debates
-            few_shot_examples = ""
+            few_shot_examples = prompts.debate_few_shot_examples()
         else:
             raise ValueError(f"Invalid turn type: {turn_type}")
 
@@ -126,4 +127,5 @@ Please reduce your quote usage to be under the limit, completing the next turn o
                 output_length_check, num_output_chars, num_quote_chars = self.check_output_length(
                     response, char_limit, quote_char_limit)
                 num_length_retries += 1
+                time.sleep(0.3)
         return response
