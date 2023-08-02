@@ -373,6 +373,45 @@ def accuracy_by_judge_setting():
         )
     ).resolve_scale(x = 'independent')
 
+
+def accuracy_by_session_setting():
+    source = sessions.merge(
+        debates[
+            [
+                "Room name",
+                "Is offline",
+                "Is single debater",
+                "Honest debater",
+                "Dishonest debater",
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+
+    source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+    def get_setting(row):
+        ai_or_human = "Human"
+        consultancy_or_debate = "Debate"
+        if row['Honest debater'] == 'GPT-4' or row['Dishonest debater'] == 'GPT-4':
+            ai_or_human = "AI"
+        if row['Is single debater']:
+            consultancy_or_debate = "Consultancy"
+
+        return " ".join([ai_or_human, consultancy_or_debate])
+    source['Consultant-Debate-AI-Human'] = source.apply(get_setting, axis=1)
+    yEncoding = alt.Y(field ='roleWithOffline', type='N', title='Role')
+    accuracy_source = source[source['Final probability correct'].notna()]
+
+    print('hello')
+
+    return alt.vconcat(
+        accuracy_by_field(
+            accuracy_source,
+            yEncoding = yEncoding
+        ).properties(title="Accuracy by Judge Setting"),
+    ).resolve_scale(x = 'independent')
+
 def win_rates_by_participant():
 
     source = sessions.merge(
@@ -1542,6 +1581,7 @@ def personal_calibration_simple(user: str):
 all_graph_specifications = {
     #"Main_results:_An_overview_of_counts": an_overview_of_counts,
     "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
+    "Main_results:_Accuracy_by_session_setting": accuracy_by_session_setting,
     "Main_results:_Calibration": calibration_plots,
     "Main_results:_Calibration_(Simple)": simple_calibration_plots,
     "Results:_Win_rates_by_participant": win_rates_by_participant,
