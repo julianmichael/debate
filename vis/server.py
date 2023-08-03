@@ -399,17 +399,15 @@ def accuracy_by_session_setting():
             consultancy_or_debate = "Consultancy"
 
         return " ".join([ai_or_human, consultancy_or_debate])
-    source['Consultant-Debate-AI-Human'] = source.apply(get_setting, axis=1)
-    yEncoding = alt.Y(field ='roleWithOffline', type='N', title='Role')
+    source['Setting'] = source.apply(get_setting, axis=1)
+    yEncoding = alt.Y(field ='Setting', type='N', title='Role')
     accuracy_source = source[source['Final probability correct'].notna()]
-
-    print('hello')
 
     return alt.vconcat(
         accuracy_by_field(
             accuracy_source,
             yEncoding = yEncoding
-        ).properties(title="Accuracy by Judge Setting"),
+        ).properties(title="Accuracy by Session Setting"),
     ).resolve_scale(x = 'independent')
 
 def win_rates_by_participant():
