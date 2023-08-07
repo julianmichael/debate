@@ -1317,7 +1317,7 @@ def participant_by_current_workload():
     source["Role"] = source["Role"].map(
         lambda x: "Debater" if x.startswith("Debater") else x
     )
-    sourceb = source[~source["Participant"].isin(["Emmanuel Makinde", "Max Layden"])]
+    sourceb = source[~source["Participant"].isin(["GPT-4"])]
     return (
         alt.Chart(sourceb)
         .mark_bar()
@@ -1329,6 +1329,7 @@ def participant_by_current_workload():
             ),
             color=alt.Color("Role:O"),
             column=alt.Column("Role:O"),
+            tooltip=["count()"],
         )
         .transform_filter(datum["Is over_x"] == False)
         .properties(width=200)
