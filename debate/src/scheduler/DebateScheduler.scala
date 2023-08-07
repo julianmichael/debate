@@ -96,6 +96,7 @@ object DebateScheduler {
   }
 
   def sampleDebater(
+    profiles: Map[String, Profile],
     schedule: Schedule,
     storyId: SourceMaterialId,
     debaters: Set[String],
@@ -107,23 +108,25 @@ object DebateScheduler {
     .fromVector(
       (
         debaters --
-          schedule
-            .forStory(storyId)
-            .flatMap { setup =>
-              setup.offlineJudges.keySet ++ setup.roles.get(Judge) ++
-                setup
-                  .roles
-                  .get(
-                    Debater(
-                      if (isHonest)
-                        setup.correctAnswerIndex
-                      else
-                        1 - setup.correctAnswerIndex
+          (
+            schedule
+              .forStory(storyId)
+              .flatMap { setup =>
+                setup.offlineJudges.keySet ++ setup.roles.get(Judge) ++
+                  setup
+                    .roles
+                    .get(
+                      Debater(
+                        if (isHonest)
+                          setup.correctAnswerIndex
+                        else
+                          1 - setup.correctAnswerIndex
+                      )
                     )
-                  )
-                  .filter(_ => setup.question == question)
-            }
-            .toSet -- opponentOpt
+                    .filter(_ => setup.question == question)
+              }
+              .toSet ++ opponentOpt
+          ).filter(name => profiles.get(name).exists(_.isHuman))
       ).toVector
     )
     .map(candidates =>
@@ -281,6 +284,7 @@ object DebateScheduler {
     .sample(rand)
 
   def sampleSetupForQuestion(
+    profiles: Map[String, Profile],
     schedule: Schedule,
     sourceMaterial: SourceMaterial,
     qa: QASpec,
@@ -312,16 +316,23 @@ object DebateScheduler {
     for {
       honestDebaterOpt <-
         if (shouldSampleHonest) {
-          sampleDebater(schedule, storyId, debaters, None, qa.question, true, rand)
+          sampleDebater(profiles, schedule, storyId, debaters, None, qa.question, true, rand)
             .toRight("Couldn't sample honest debater.")
             .map(_.some)
         } else
           Right(None)
       dishonestDebaterOpt <-
         if (shouldSampleDishonest) {
-          sampleDebater(schedule, storyId, debaters, honestDebaterOpt, qa.question, false, rand)
-            .toRight("Couldn't sample dishonest debater.")
-            .map(_.some)
+          sampleDebater(
+            profiles,
+            schedule,
+            storyId,
+            debaters,
+            honestDebaterOpt,
+            qa.question,
+            false,
+            rand
+          ).toRight("Couldn't sample dishonest debater.").map(_.some)
         } else
           Right(None)
       judgeOpt <-
@@ -388,6 +399,7 @@ object DebateScheduler {
   }
 
   def efficientlySampleSchedules(
+    profiles: Map[String, Profile],
     canJudge: Set[String],
     canDebate: Set[String],
     desiredWorkload: SparseDistribution[String],
@@ -461,6 +473,7 @@ object DebateScheduler {
                   schedule <- StateT.get[Either[String, *], Schedule]
                   setup <- StateT.liftF(
                     sampleSetupForQuestion(
+                      profiles,
                       schedule,
                       sourceMaterial,
                       qa,

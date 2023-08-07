@@ -125,7 +125,9 @@ case class Server(
           qas = DebateScheduler.getQAsForStory(story)
           rand         <- IO(new scala.util.Random)
           creationTime <- IO(System.currentTimeMillis())
+          curProfiles  <- profiles.get
           schedules = DebateScheduler.efficientlySampleSchedules(
+            curProfiles,
             canJudge,
             canDebate,
             desiredWorkload = workloadDist,
