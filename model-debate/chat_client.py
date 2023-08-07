@@ -22,7 +22,7 @@ class ChatClient:
         self.max_context_length = max_context_length
 
     # for exponential backoff
-    # @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
+    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
     async def chat_completion_with_backoff_async(self, session, messages, temperature):
         if self.model.startswith("claude"):
             import anthropic
