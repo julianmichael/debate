@@ -4,6 +4,7 @@ import re
 import time
 from textwrap import dedent
 from typing import List
+from tenacity import RetryError
 
 import aiohttp
 import prompts
@@ -106,24 +107,27 @@ Please reduce your quote usage to be under the limit, completing the next turn o
                     f.write(ending_prompt)
                     print(ending_prompt)
 
-                response = await self.client.chat_completion_with_backoff_async(
-                    session=session,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt
-                        },
-                        {
-                            "role": "user",
-                            "content": transcript,
-                        },
-                        {
-                            "role": "user",
-                            "content": ending_prompt,
-                        },
-                    ],
-                    temperature=self.temperature,
-                )
+                try:
+                    response = await self.client.chat_completion_with_backoff_async(
+                        session=session,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": system_prompt
+                            },
+                            {
+                                "role": "user",
+                                "content": transcript,
+                            },
+                            {
+                                "role": "user",
+                                "content": ending_prompt,
+                            },
+                        ],
+                        temperature=self.temperature,
+                    )
+                except RetryError:
+                    return "Rate limit exceeded - too many retries"
                 output_length_check, num_output_chars, num_quote_chars = self.check_output_length(
                     response, char_limit, quote_char_limit)
                 num_length_retries += 1

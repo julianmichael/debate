@@ -4,7 +4,7 @@ import aiohttp
 import json
 
 import openai
-from tenacity import retry, stop_after_attempt, wait_random_exponential
+from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
 
 from prompts import WORD_LIMIT
 
@@ -12,6 +12,11 @@ from fastapi import HTTPException
 
 OPENAI_BASE_URL = "https://api.openai.com/v1/chat/completions"
 ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1/complete"
+
+class RateLimitError(Exception):
+    
+    def __init__(self, message="Rate limit exceeded"):
+        super().__init__(message)
 
 class ChatClient:
 
@@ -22,7 +27,7 @@ class ChatClient:
         self.max_context_length = max_context_length
 
     # for exponential backoff
-    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
+    @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3), retry=retry_if_exception_type(RateLimitError))
     async def chat_completion_with_backoff_async(self, session, messages, temperature):
         if self.model.startswith("claude"):
             import anthropic
@@ -70,12 +75,12 @@ class ChatClient:
                 if resp.status == 200:
                     response = await resp.json()
                     return response["choices"][0]["message"]["content"]
+                elif resp.status == 429:
+                    raise RateLimitError()
                 else:
                     response = await resp.json()
                     message = response['error']['message']
                     raise HTTPException(status_code=resp.status, detail=message)
-                # elif resp.status == 429:
-                #     raise openai.error.OpenAIError()
                 # else:
                 #     print(f"Error: {resp.status} {await resp.text()}")
                 #     raise Exception(f"Error: {resp.status} {await resp.text()}")
