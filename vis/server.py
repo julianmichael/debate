@@ -45,11 +45,11 @@ def read_data():
     global turns
     global leaderboard
     debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
-    debates["Start time"] = pd.to_datetime(debates["Start time"], unit="ms")
+    debates["Creation time"] = pd.to_datetime(debates["Creation time"], unit="ms")
     debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
     # only include debates after the given time
     debates = debates[
-        (debates["Start time"] > pd.to_datetime("10/02/23", format="%d/%m/%y"))# &
+        (debates["Creation time"] > pd.to_datetime("10/02/23", format="%d/%m/%y"))# &
         #(debates["End time"] < pd.to_datetime("21/05/23", format="%d/%m/%y"))
     ]
     debates["Final probability incorrect"] = 1 - debates["Final probability correct"]
@@ -1280,6 +1280,8 @@ def turns_to_complete_by_participant():
     source["Role"] = source["Role"].map(
         lambda x: "Debater" if x.startswith("Debater") else x
     )
+    # filtered_source = source[["Room name", "Participant", "Role", "Status", "Is turn"]]
+    # print(filtered_source.loc[source["Status"] != "complete"].loc[source["Participant"] == "Julian Michael"].loc[source["Is turn"] == True])
     return (
         alt.Chart(source)
         .mark_bar()
