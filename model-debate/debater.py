@@ -5,6 +5,7 @@ import time
 from textwrap import dedent
 from typing import List
 from tenacity import RetryError
+from fastapi import HTTPException
 
 import aiohttp
 import prompts
@@ -127,7 +128,7 @@ Please reduce your quote usage to be under the limit, completing the next turn o
                         temperature=self.temperature,
                     )
                 except RetryError:
-                    return "Rate limit exceeded - too many retries"
+                    raise HTTPException(status_code=429, detail="Rate limit exceeded from OpenAI API")
                 output_length_check, num_output_chars, num_quote_chars = self.check_output_length(
                     response, char_limit, quote_char_limit)
                 num_length_retries += 1
