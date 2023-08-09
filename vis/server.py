@@ -1355,9 +1355,11 @@ def judge_pairings():
 
 
 def debates_completed_per_week():
+
+    source = debates[debates['End time'].notna()]
     # debates['End date'] = debates['End time'] - pd.to_timedelta(6, unit='d')
 
-    debates["End week"] = debates["End time"].apply(
+    source["End week"] = source["End time"].apply(
         lambda x: x.week
         # lambda x: f'{(x.dt.week).strftime("%b %d")} - {x.strftime("%B %d")}'
     )
@@ -1367,7 +1369,7 @@ def debates_completed_per_week():
         end_date = start_date + pd.Timedelta(days=6)
         return f'{start_date.strftime("%b%d")}|{end_date.strftime("%b%d")}'
 
-    debates["End week label"] = debates["End time"].apply(
+    source["End week label"] = source["End time"].apply(
         convert_time
         # lambda x: datetime.datetime.strptime(
         #     f'{x.year}-{x.week}-1', "%Y-%W-%w"
@@ -1377,11 +1379,11 @@ def debates_completed_per_week():
         # lambda x: f'{x.year}- {(x.week).strftime("%b %d")} - {x.strftime("%B %d")}'
     )
     # add a column to debates with a human-readable date range from End week (week number) using pandas
-    # debates['End week label'] = debates['End time'].apply(
+    # source['End week label'] = source['End time'].apply(
     #     lambda x: f'{(x - pd.to_timedelta(6, unit="d")).strftime("%b %d")} - {x.strftime("%b %d")}'
     # )
     all_bar = (
-        alt.Chart(debates[debates["Is over"] == True])
+        alt.Chart(source[source["Is over"] == True])
         .mark_bar()
         .encode(
             x=alt.X(
