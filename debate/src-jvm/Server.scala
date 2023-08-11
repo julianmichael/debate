@@ -592,7 +592,7 @@ object Server {
     timer: Timer[IO]
   ) = {
 
-    val httpClient = JavaNetClientBuilder[IO](blocker).create
+    val httpClient = JavaNetClientBuilder[IO](blocker).withReadTimeout(3.minutes).create
 
     // import org.http4s.client.blaze._
     // BlazeClientBuilder[IO](scala.concurrent.ExecutionContext.global)
