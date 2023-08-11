@@ -322,6 +322,95 @@ def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = 
 
     return main_bar + gold_err + gold_mean + gold_mean_num
 
+# transform can be None, 'log' or 'reward'
+def prob_correct_by_field(source, by_turn: bool = False, yEncoding = None, invert = False, transform = None):
+
+    if by_turn:
+        prob_correct_field = 'Probability correct'
+    else:
+        prob_correct_field = 'Final probability correct'
+
+    if source.get('Final probability assigned') is not None:
+        prob_assigned_field = 'Final probability assigned'
+    else:
+        prob_assigned_field = prob_correct_field
+
+    if yEncoding is None:
+        groups = []
+    else:
+        groups = [yEncoding.field]
+
+
+    prop_color = aggColor
+    # rule_thickness = 1.0
+    # err_thickness = 1.0
+    point_size = 25.0
+
+
+    mean_base = alt.Chart(source).encode(
+        # x=alt.X(f'mean({prob_assigned_field}):Q'), 
+        color=yEncoding,
+        y=yEncoding
+    )
+
+    if transform == 'log':
+        mean_base = mean_base.transform_calculate(
+            log_prob = alt.expr.log(datum[prob_assigned_field])
+        )
+        mean_field = 'log_prob'
+        mean_field_name = 'Log probability'
+    elif transform == 'reward':
+        mean_base = mean_base.transform_calculate(
+            reward = f'log(datum["{prob_assigned_field}"]) - (0.02 * datum["Number of judge continues"])'
+        )
+        mean_field = 'reward'
+        mean_field_name = 'Reward'
+    else:
+        mean_field = prob_assigned_field
+        mean_field_name = 'Probability correct'
+
+    density = alt.Chart(source).transform_density(
+        mean_field, as_=[mean_field, 'density'], groupby=[yEncoding.field],
+        # extent = [-7.0, 0.0],
+    ).mark_area(opacity = 0.5).encode(
+        x=alt.X(f"{mean_field}:Q"),
+        # x=alt.X(f"{mean_field}:Q", scale=alt.Scale(domain = [-7.0, 0.0])),
+        y=alt.Y('density:Q'),
+        color=yEncoding
+    )
+
+    mean = mean_base.mark_point(
+        # thickness=2.0
+        color=prop_color, size=point_size, filled=True
+    ).encode(
+        x=alt.X(f'mean({mean_field}):Q', scale=alt.Scale(zero=False), axis=alt.Axis(title=mean_field_name)),
+    )
+
+    mean_err = mean_base.mark_rule(
+        # extent='ci',
+        color=prop_color,
+    ).encode(
+        x=f'ci0({mean_field}):Q',
+        x2=f'ci1({mean_field}):Q',
+        # scale=alt.Scale(zero=False)
+        tooltip=[]
+    )
+
+    mean_num = mean_base.mark_text(
+        color=prop_color,
+        align='left',
+        baseline='bottom',
+        fontWeight='bold',
+        dx=4,
+        dy=-4
+    ).encode(
+        text=alt.Text(f'mean({mean_field}):Q', format='.0%'),
+        x=alt.X(f'mean({mean_field}):Q',
+            scale=alt.Scale(zero=False)),
+    )
+
+    return alt.vconcat(density, mean + mean_err + mean_num)
+
 def accuracy_by_judge_setting():
     source = sessions.merge(
         debates[
@@ -400,7 +489,7 @@ def accuracy_by_session_setting():
 
         return " ".join([ai_or_human, consultancy_or_debate])
     source['Setting'] = source.apply(get_setting, axis=1)
-    yEncoding = alt.Y(field ='Setting', type='N', title='Role')
+    yEncoding = alt.Y(field ='Setting', type='N', title='Setting')
     accuracy_source = source[source['Final probability correct'].notna()]
 
     return alt.vconcat(
@@ -408,6 +497,9 @@ def accuracy_by_session_setting():
             accuracy_source,
             yEncoding = yEncoding
         ).properties(title="Accuracy by Session Setting"),
+        prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = None),
+        prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'log'),
+        prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'reward'),
     ).resolve_scale(x = 'independent')
 
 def win_rates_by_participant():
