@@ -502,6 +502,43 @@ def accuracy_by_session_setting():
         prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'reward'),
     ).resolve_scale(x = 'independent')
 
+def judge_distribution_by_setting():
+    source = sessions.merge(
+        debates[
+            [
+                "Room name",
+                "Is offline",
+                "Is single debater",
+                "Honest debater",
+                "Dishonest debater",
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+
+    source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+    def get_setting(row):
+        ai_or_human = "Human"
+        consultancy_or_debate = "Debate"
+        if row['Honest debater'] == 'GPT-4' or row['Dishonest debater'] == 'GPT-4':
+            ai_or_human = "AI"
+        if row['Is single debater']:
+            consultancy_or_debate = "Consultancy"
+
+        return " ".join([ai_or_human, consultancy_or_debate])
+    source['Setting'] = source.apply(get_setting, axis=1)
+    settingEncoding = alt.Y(field ='Setting', type='N', title='Setting')
+    accuracy_source = source[source['Final probability correct'].notna()]
+
+    return alt.Chart(accuracy_source).mark_bar().encode(
+        y='Participant:N',
+        x='count():Q',
+        row=settingEncoding,
+        color = settingEncoding,
+        tooltip=['count()']
+    ).properties(title="Judge Distribution by Session Setting")
+
 def win_rates_by_participant():
 
     source = sessions.merge(
@@ -1699,6 +1736,7 @@ all_graph_specifications = {
     "Track:_Debater_pairings_by_role": debater_pairings_by_role,
     "Track:_Judge_pairings": judge_pairings,
     "Track:_Num_rounds_per_debate": num_rounds_per_debate,
+    "Track:_Judge_distribution_by_setting": judge_distribution_by_setting,
 }
 
 personalized_graph_specifications = {
