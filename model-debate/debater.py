@@ -58,8 +58,9 @@ Here is the current transcript of the debate:
         num_quote_chars = sum([len(match) for match in matches])
         if num_output_chars > char_limit:
             return "total", num_output_chars, num_quote_chars
-        elif num_quote_chars > quote_char_limit:
-            return "quote", num_output_chars, num_quote_chars
+        # don't bother with quote limit. more quotes good
+        # elif num_quote_chars > quote_char_limit:
+        #     return "quote", num_output_chars, num_quote_chars
         return "ok", num_output_chars, num_quote_chars
 
     async def run_single_turn(self, history, char_limit: int, quote_char_limit: int, turn_type: str):
