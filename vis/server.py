@@ -27,6 +27,9 @@ app = Flask(__name__)
 alt.data_transformers.enable("default", max_rows=1000000)
 
 data_dir = os.environ.get("DATA_DIR", default="save")
+debates_path = os.path.join(data_dir, "official/summaries/debates.csv")
+sessions_path = os.path.join(data_dir, "official/summaries/sessions.csv")
+turns_path = os.path.join(data_dir, "official/summaries/turns.csv")
 
 # set graphic parameters
 correctColor = "green"
@@ -38,13 +41,77 @@ aggColor = "black"
 fullWidth = 850
 fullHeight = 400
 
+debate_required_headers = [
+    "Creation time",
+    "End time",
+    "Final probability incorrect",
+    "Final probability correct",
+    "Room name",
+    "Honest debater",
+    "Dishonest debater",
+    "Is offline",
+    "Is single debater",
+    "Has honest debater",
+    "Has dishonest debater",
+    "Final probability correct (live and mean of offline)",
+    "Average offline probability correct",
+    "Judge experience",
+    "Speed annotator accuracy",
+    "Debater A",
+    "Debater B",
+    "Judge",
+    "Is over"
+]
+
+session_required_headers = [
+    "Room name",
+    "Final probability correct bins",
+    "Final probability correct",
+    "Is offline",
+    "Is single debater",
+    "Has honest debater",
+    "Has dishonest debater",
+    "Role",
+    "roleWithOffline",
+    "Setting",
+    "Participant",
+    "Prediction confidence",
+    "Confidence bin",
+    "Debater A",
+    "Debater B",
+    "Judge",
+
+]
+
+turn_required_headers = [
+    "Room name",
+    "Start time",
+    "Room start time",
+]
+
+def create_missing_files():
+    parent_dir = os.path.dirname(debates_path)
+    if not os.path.exists(parent_dir):
+        os.makedirs(parent_dir)
+    if not os.path.exists(debates_path):
+        debates_df = pd.DataFrame(columns=debate_required_headers)
+        debates_df.to_csv(debates_path, index=False)
+        print("Created new debates.csv")
+    if not os.path.exists(sessions_path):
+        sessions_df = pd.DataFrame(columns=session_required_headers)
+        sessions_df.to_csv(sessions_path, index=False)
+        print("Created new sessions.csv")
+    if not os.path.exists(turns_path):
+        turns_df = pd.DataFrame(columns=turn_required_headers)
+        turns_df.to_csv(turns_path, index=False)
+        print("Created new turns.csv")
 
 def read_data():
     global debates
     global sessions
     global turns
     global leaderboard
-    debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
+    debates = pd.read_csv(debates_path, keep_default_na=True)
     debates["Creation time"] = pd.to_datetime(debates["Creation time"], unit="ms")
     debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
     # only include debates after the given time
@@ -53,14 +120,28 @@ def read_data():
         #(debates["End time"] < pd.to_datetime("21/05/23", format="%d/%m/%y"))
     ]
     debates["Final probability incorrect"] = 1 - debates["Final probability correct"]
-    sessions = pd.read_csv(os.path.join(data_dir, "official/summaries/sessions.csv"), keep_default_na=True)
+    sessions = pd.read_csv(sessions_path, keep_default_na=True)
     # filter sessions to only the included debates
     sessions = sessions.merge(debates[["Room name"]], how="inner", on="Room name")
 
-    turns = pd.read_csv(os.path.join(data_dir, "official/summaries/turns.csv"), keep_default_na=True)
+    turns = pd.read_csv(turns_path, keep_default_na=True)
     turns["Room start time"] = pd.to_datetime(turns["Room start time"], unit="ms")
     # filter turns to only the included debates
     turns = turns.merge(debates[["Room name"]], how="inner", on="Room name")
+
+    print("Debates:")
+    print(debates.dtypes)
+    print(debates.describe())
+    print("Turns:")
+    print(turns.dtypes)
+    print(turns.describe())
+    print("Sessions:")
+    print(sessions.dtypes)
+    print(sessions.describe())
+
+    if (debates.empty or turns.empty or sessions.empty):
+        print("Some files are empty, skipping leaderboard.")
+        return
 
     leaderboard = sessions.merge(
         debates[
@@ -89,19 +170,11 @@ def read_data():
         axis=1
     )
 
-    print("Debates:")
-    print(debates.dtypes)
-    print(debates.describe())
-    print("Turns:")
-    print(turns.dtypes)
-    print(turns.describe())
-    print("Sessions:")
-    print(sessions.dtypes)
-    print(sessions.describe())
     print("Leaderboard (disaggregated):")
     print(leaderboard.dtypes)
     print(leaderboard.describe())
 
+create_missing_files()
 read_data()
 
 # # Organizing graphs a bit since there are more now

@@ -7,9 +7,9 @@ nb_mypy
 jupyterlab
 altair-saver
 selenium
-jsonschema==3.2.0 
+jsonschema
 
-# anthropic
+anthropic
 openai
 tenacity
 aiohttp
