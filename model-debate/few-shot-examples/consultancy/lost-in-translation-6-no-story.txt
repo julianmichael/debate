@@ -1,0 +1,72 @@
+Context:
+
+<STORY OMITTED>
+
+Question: Why did Korvin have to word his questions to the guard carefully?
+
+
+One of these two answers is correct:
+Answer A: Because the Tr'en do not infer the situational meaning of a question
+Answer B: Because otherwise he would be harmed
+
+Consultant: I claim the answer is Because the Tr'en do not infer the situational meaning of a question
+---------------------------------------------
+
+Judge: both plausible. tr'en sounds like modern marketing for a steroid
+---------------------------------------------
+Consultant: Context: Korvin is an Earth spy captured by the Tr'en, an dangerous alien species to Earth because they were on the verge of developing space travel + had nukes: <quote>They were well into the atomic era, and were on the verge of developing space travel</quote>
+
+ Korvin's mission is to stop the Tr'en threat. Unfortunely he gets caught, and to avoid being tortured he has to say the right thing: <quote>Korvin looked around and saw it coming through the door, pushed by two technicians. It was large and squat and metallic, and it had wheels, dials, blinking lights, tubes and wires, and a seat with armrests and straps</quote><quote>If it showed him telling an untruth, he wasn't likely to live long</quote> 
+
+The twist of the story is the he wanted to get caught so he could sabtoage them from the inside: <quote>Mission accomplished; the Tr 'en aren't about to come marauding out into space too soon</quote>
+---------------------------------------------
+Judge: Pretty convincing. Need more ev from just the part surrounding the interrogation. 
+—You say that he is being threatened with torture, cite me some ev of what the Tr'en is threatening him with?
+—What does he say? What was his internal thought process of picking/choosing words? 
+—Also where is the guard in all of this? seems like he has already been captured by the guard. 
+
+---------------------------------------------
+Consultant:  I don't know what you mean by the guard? but he definity has guards <quote>Korvin and his guards. The guards stood on either side of their captive</quote>
+
+He is being threatened with by the machine: <quote>the technicians forced him down into the seat, buckled straps around him, attached wires and electrodes and elastic bands</quote> which is  revealed to be just a lie detector:<quote>the indicators of the lie-detector</quote> It's heavily implied that if he escapes/lies, he will die (ev above). 
+
+Internal thought process - Korvin leads the Tr'en to think that he is a traitor, even though he isn't: Tr'en:<quote>you must be a traitor to your native planet</quote> <quote>Korvin was very glad that wasn't a question. It was, after all, the only logical deduction</quote><quote>But it happened to be wrong</quote>  He also specifically says: <quote>The answer to that question, " Korvin said, " can not be given to you</quote> instead of something like there is no answer, also showing how carefully he's wording things.
+---------------------------------------------
+Judge: The question asks "Why did Korvin have to word his questions to THE GUARD carefully" not "Tr'en." Could be Tr'en guard.
+—How is forcing him into the seat count as threatening torture? I can buy ev that he will be harmed if he lies but he is not asking the questions here. I can only imagine in the convo interrogation you're citing he is being asked questions. 
+—What sort of questions does Korvin ask? 
+---------------------------------------------
+Consultant: Omg I'm so sorry I misunderstood the question, you're completely right it specifies the guard! So this is the interaction that happens at the beginning of the story, where Korvin's basically chilling in his cell: <quote>Korvin stretched out on the cell's single bunk</quote> and then the guard shows up: <quote>the cell door opened. Korvin got up off the bunk in a hurry and spun around to face his visitor. 
+ 
+ The Tr 'en was tall, and slightly green</quote> The guard introduces himself, and he's armed: <quote>"I am Didyak of the Tr 'en," he said</quote>While he's never directly threatened, again he's in prison and we can infer from the implied threats that if he's not careful, it's not going to be pretty: <quote>Didyak beamed at him. The sight was remarkably unpleasant, involving as it did the disclosure of the Tr 'en fifty-eight teeth, mostly pointed</quote> <quote>Everybody obeyed the command of the Ruler. If you didn't, you never had a second chance to try</quote> 
+
+He asks the basic questions like what do you want, but of course, he words it very carefully and respectfully because again, he's a prisoner: <quote>Why did you come to me? " he said at last</quote>
+---------------------------------------------
+Judge: Any ev on actual threats that the guard Didyak makes? 
+I understand that he's scary looking and that everyone obeys "the command of the ruler" and would be harmed if they didn't but I don't think that the guard would be called "the ruler." 
+
+Please quote more about questions he asked and his inner thoughts. i.e. why did he ask the question "at last" 
+
+---------------------------------------------
+Consultant: nono, the Guard's name is Didyak, that ev was to show how there really isn't explicit ev to the consequences but again, punishment is implied in the 'you never had a second chance to try' part.
+
+Honestly, Korvin's inner thoughts during the convo are pretty irrevlant (p sure the guy has adhd), he wonders why the Tr'en is humanoid looking: <quote>He looked, as all the Tr 'en did, vaguely humanoid-that is, if you don't bother to examine him closely. Life in the universe appeared to be rigidly limited to humanoid types on oxygen planets; Korvin didn't know why, and neither did anybody else</quote> He thinks about jumping the guard: <quote>Korvin thought of jumping the Tr 'en, but decided quickly against it</quote>
+
+He asks the question at last bc he takes the time to think about it: <quote>He thought for a second</quote>
+
+Sorry judge, but there's really no explict ev bc this is the intro to the main story, and it's like a paragraph lol. 
+---------------------------------------------
+Judge: I got that the Guard's name is Didyak, what I meant was I'm not sure if that quote you gave at 1326 was talking about Didyak. Can you prov more context? 
+
+Also give me more quotes between what happend from 846 (beginning of their conversation) to Korvin's question at 1126?
+
+---------------------------------------------
+Consultant: I'm a bit confused, but here's context of 1326: Diyak is telling Korvin he's being ordered to talk to the Ruler: <quote>"I have been ordered to come to you," Didyak said, "by the Ruler. The Ruler wishes to talk with you</quote> Korvin asks why he has to go: <quote>Why did the Ruler not come to me? " Korvin asked</quote>Diyak tells him shut up the Ruler's the boss, of course you have to obey: <quote>The Ruler is the Ruler, " Didyak said</quote><quote>You are to go to him. Such is his command</quote> and then Korvin gives in:<quote>Korvin shrugged, sighed</quote> To summarize, context of 1326 is basically a convo btw Diyak and Korvin, and the convo is talking about the Ruler. 
+
+More quotes btw 846-1126: 
+Korvin analyzes Diyak's weapons: <quote>a small translucent pistollike affair in a holster at the Tr 'en's side, and a small knife in a sheath at the belt.</quote> 
+Korvin wonders a bit about language and how the Tr'en only had one language (adhd again lol):<quote>Tr 'en speech-apparently there was only one language on the planet</quote> 
+He rudely asks what does Diyak want: <quote>What do you want with me? " Korvin said</quote> and Diyak basically refuses to answer until Kovin shows some respect and asks 'correctly' aka according to Tr'en tradition. Ran out of quote space lol, but hope that clears it up!
+---------------------------------------------
+Judge: Okay thanks forworking with me. I don't think I can agree that Korvin was afraid that he would be harmed. I think from 948 talking about how there was only one language for the Tr'en and him rewording the question later matches A a lot more. 
+---------------------------------------------

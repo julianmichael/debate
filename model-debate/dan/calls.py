@@ -1,4 +1,7 @@
 import asyncio
+import os
+from datetime import datetime
+import time
 import json
 from utils import load_secrets
 import logging
@@ -9,19 +12,21 @@ from tenacity import (
     retry,
     stop_after_attempt,
     wait_random_exponential,
-    retry_if_exception_type
+    retry_if_exception_type,
 )
 
 LOGGER = logging.getLogger(__name__)
+
 
 class RateLimitError(Exception):
     def __init__(self, message="Rate limit exceeded"):
         super().__init__(message)
 
+
 @retry(
     wait=wait_random_exponential(min=1, max=60),
     stop=stop_after_attempt(3),
-    retry=retry_if_exception_type(RateLimitError)
+    retry=retry_if_exception_type(RateLimitError),
 )
 async def completion(
     messages: List,
@@ -32,14 +37,17 @@ async def completion(
     timeout: int = 120,
 ) -> str:
     secrets = load_secrets("SECRETS")
+    start = time.time()
+    filename = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}_prompt.txt"
     if "gpt" in model:
         openai.organization = secrets["NYU_ORG"]
         openai.api_key = secrets["API_KEY"]
         print("Sending openai request")
         print(messages)
-        with open("last_prompt.txt", "w") as f:
+
+        with open(os.path.join("prompt_history", filename), "w") as f:
             json_str = json.dumps(messages, indent=4)
-            json_str = json_str.replace('\\n', '\n')
+            json_str = json_str.replace("\\n", "\n")
             f.write(json_str)
 
         response = await asyncio.wait_for(
@@ -59,6 +67,7 @@ async def completion(
         )
     elif "claude" in model:
         from anthropic import AI_PROMPT, HUMAN_PROMPT, AsyncAnthropic
+
         model = "claude-v1.3" if model == "claude" else model
         anthropic = AsyncAnthropic(api_key=secrets["ANTHROPIC_API_KEY"])
         prompt = ""
@@ -71,7 +80,7 @@ async def completion(
             prompt += f"{AI_PROMPT}"
         prompt = prompt.strip()
         print("Sending Anthropic request")
-        with open("last_prompt.txt", "w") as f:
+        with open(os.path.join("prompt_history", filename), "w") as f:
             f.write(prompt)
         print(prompt)
         response = await anthropic.completions.create(
@@ -85,6 +94,6 @@ async def completion(
         completion = response.completion
     else:
         raise ValueError(f"Unknown model: {model}")
+    end = time.time()
+    print(f"Time elapsed: {end - start}s")
     return completion
-
-

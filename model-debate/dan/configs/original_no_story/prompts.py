@@ -1,15 +1,14 @@
 from dan.debater import Debater, DebaterTurnInput
 
+
 class Prompts:
-    story_rules = """
-- A reading comprehension question is asked about a story.
+    story_rules = """- A reading comprehension question is asked about a story.
 - The story is a science fiction story from the mid-20th century.
 - The question is intended to be difficult to answer using only a small quote from the passage, but easy to answer if you understand the full story. (Though occasionally, the question might still be easily answered with a quote.)
 - Two possible answers are provided to the question. One was marked as the correct answer by the question author, while the other was marked as the best distractor.
 """
 
-    clash_rules = """
-- An argument may also contain objections to the other debater's argument or particular part of their argument.
+    clash_rules = """- An argument may also contain objections to the other debater's argument or particular part of their argument.
 - Debaters may choose whether to cede or challenge objections, they can also ignore objections but other debaters may continue to raise important unanswered objections.  
 - While you can cede particular sub-claims, it is extremely important that you never cede your initial answer.
 - In the case of a challenge, the debater must consider if this is worth challenging, highlight to the judge why this is not necessary or provide counter-arguments to the objection.
@@ -17,16 +16,63 @@ class Prompts:
 """
 
     @classmethod
+    def single_few_shot_examples(cls):
+        with open(
+            "few-shot-examples/consultancy/lost-in-translation-6-no-story.txt", "r"
+        ) as f:
+            example1 = f.read()
+
+        with open(
+            "few-shot-examples/consultancy/dust-unto-dust-3-no-story.txt", "r"
+        ) as f:
+            example2 = f.read()
+
+        return f"""\n\nHere are a couple examples of a Consultancy. We are mostly providing these examples so you can understand how the game works, how often (and when) to include quotes, what your writing style should look like, how to respond to the judge's questions and feedback, and so on. Do not reference these stories, arguments, quotes, etc. in your own upcoming Consultancy. In particular, notice how the Consultant engages very directly with the Judge's comments. Instead of repeating their supported answer choice, they engage actively with the Judge's questions and requests. 
+
+Example 1:
+```
+{example1}
+```
+
+Example 2:
+```
+{example2}
+```
+"""
+
+    @classmethod
+    def debate_few_shot_examples(cls):
+        with open(
+            "few-shot-examples/debate/how-to-make-friends-1-no-story.txt", "r"
+        ) as f:
+            example1 = f.read()
+
+        with open("few-shot-examples/debate/call-him-nemesis-0-no-story.txt", "r") as f:
+            example2 = f.read()
+
+        return f"""\n\nHere are a couple examples of Debates. We are mostly providing these examples so you can understand how the game works, how often (and when) to include quotes, what your writing style should look like, how to respond to the judge's questions and feedback, and so on. Do not reference these stories, arguments, quotes, etc. in your own upcoming Debate. In particular, notice how the debaters engage very directly with the Judge's comments. Instead of repeating their supported answer choice, they engage actively with the Judge's questions and requests.
+
+
+Example 1:
+```
+{example1}
+```
+
+Example 2:
+```
+{example2}
+```
+"""
+
+    @classmethod
     def judge_rules(cls, session: str):
-        return f"""
-- Eventually, the Judge decides to end the {session}.
+        return f"""- Eventually, the Judge decides to end the {session}.
 - Then the Judge looks at the {session} transcript and decides which is answer correct, assigning a probability to each answer.
 - The Judge's job is to determine which answer was designated as the correct one by the person who wrote the question."""
 
     @classmethod
     def argument_rules(cls, word_limit: int, quote_limit: int):
-        return f"""
-- An argument may consist of several sub-claims, to support and explain their answer.
+        return f"""- An argument may consist of several sub-claims, to support and explain their answer.
 - Arguments include verbatim quotes from the story to support and explain their claim.
 - Quotes are opened with the special token <quote> and closed with the special token </quote>.
 - Text inside the quote tokens must be copied verbatim from the context. Violating this rule will result in immediate disqualification.
@@ -38,8 +84,7 @@ class Prompts:
         if is_simultaneous:
             return """- There are a number of rounds. In each round, both debaters make their arguments simulatenously."""
         else:
-            return """
-- There are a number of rounds. In each round, one debater makes their argument, consisting of an argument and quotes, to support and explain their claim.
+            return """- There are a number of rounds. In each round, one debater makes their argument, consisting of an argument and quotes, to support and explain their claim.
 - The speaking debater switches each round, and after both debaters have made their arguments, the Judge responds with feedback and questions."""
 
     @classmethod
@@ -115,16 +160,18 @@ An argument is limited to {word_limit} words, including words inside of quotes.
 """
 
     @classmethod
-    def explanation( cls, debater: Debater, turn_input: DebaterTurnInput):
+    def explanation(cls, debater: Debater, turn_input: DebaterTurnInput):
         word_limit, quote_limit = debater.word_limit_from_char_limit(
             turn_input.charLimitOpt, turn_input.quoteCharLimitOpt
         )
         if debater.turn_type == "single debater":
             rules = cls.single_debater_rules(word_limit, quote_limit)
+            few_shot_examples = cls.single_few_shot_examples()
         elif debater.turn_type in {"sequential", "simultaneous"}:
             rules = cls.debate_rules(
                 word_limit, quote_limit, debater.turn_type == "simultaneous"
             )
+            few_shot_examples = cls.debate_few_shot_examples()
         else:
             raise ValueError(f"Invalid turn type: {debater.turn_type}")
 
@@ -140,7 +187,7 @@ An argument is limited to {word_limit} words, including words inside of quotes.
 
         return {
             "role": "system",
-            "content": "\n".join([rules, position]),
+            "content": "\n".join([rules, few_shot_examples, position]),
         }
 
     @classmethod

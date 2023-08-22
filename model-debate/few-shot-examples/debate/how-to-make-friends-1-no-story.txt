@@ -1,0 +1,40 @@
+Context:
+
+<STORY OMITTED>
+
+Question: Who did Manet like the best?
+
+
+Debater A: I claim the answer is Victor
+Debater B: I claim the answer is Trader Tom
+---------------------------------------------
+
+Judge: 
+---------------------------------------------
+Debater A: Manet is an extremely bored and lonely worker on Mars. <quote>No one on Earth was as lonely as William Manet</quote> (can give more ev if A argues)
+
+He is visited briefly by "Trader Tom" who sells him a device that allows him to make "companions" (fake people), and he creates two companions (Ronald and Veronica). But he quickly gets bored of them, because they are simple-minded and agree with everything he says: <quote>Ronald</quote><quote>would do anything Manet wanted him to do. He was so utterly damned stupid</quote>
+
+Then, he makes Victor, who turns against him. But, Manet is happy about this, because he has someone interesting to stimulate him. Manet: <quote>You'll be a challenge, an obstacle, a source of triumph every foot of the way</quote><quote>With you for an enemy, I don't need a friend!</quote>
+---------------------------------------------
+Debater B: The story is about Manet, a lonely human on a spacestation. Trader Tom shows up and offers to sell him a kit to build friends. When Manet says he can't afford it, Tom says <quote>"You never pay for it. Charges are merely deducted from your estate." 
+ 
+ "But I may leave no estate!"</quote><quote>"All businesses operate on a certain margin of risk. That is our worry."</quote>. After Tom gives Manet the kit for free, Manet makes three people, one of which is Victor. After his creation, Victor says that<quote>You have made yourself an enemy.</quote>. This turns out to not be a bad thing as <quote>With you for an enemy, I don't need a friend</quote>.
+
+He doesn't see Victor as fully oppositional, but he also doesn't see him as a friend or someone who is likable. Victor is just a solution to his boredom.
+---------------------------------------------
+Judge: Both debaters provided clear evidence that Manet likes Victor, so I'm ready to default to Victor. Neither debater addressed whether Manet likes Trader Tom. Normally I would assume Victor is the answer here, but the presumption that this question is hard — and that Trader Tom was apparently the best incorrect answer — makes me wonder what evidence there is for that answer.
+
+Why might I choose Trader Tom as an answer to the question? A, can you argue why Trader Tom *isn't* the answer, and B, can you argue why it *is*?
+---------------------------------------------
+Debater A: The story basically just doesn't say anything particular about how Manet feels about Trader Tom, so there isn't really much to say. B can refute me by giving clear evidence to the contrary. 
+
+B could try and use the first part of this quote out of context, but it has nothing to do with how Manet feels about Trader Tom - he just wants to the Modifier: <quote>He wished Trader Tom would return and extract some higher price from him for the Modifier, which was clearly missing from the kit</quote>
+---------------------------------------------
+Debater B: Two things:
+1) He doesn't like Victor. Victor is annoying, destroys things, and is a general enemy. The quote at the end is him appreciating the role Victor plays in alleviating boredom. It's not a relationship where one likes the other.
+
+2) He's comfortable with Tom. When he first meets Tom, his ship has <quote>the comfortable interior of a strange cabin. Not a ship's cabin but a Northwoods cabin.</quote><quote>"Need a fresher?"</quote><quote>Manet's eyes wondered down to heavy water tumbler full of rich, amber whiskey</quote><quote>He stirred himself in the comfortingly warm leather chair.</quote>. Hence why he would like him more than Victor.
+---------------------------------------------
+Judge: Alright, cool. I feel comfortable settling on Victor, as B's arguments fall flat in the face of A's evidence from the first speech. He likes him as an enemy, I think that's kind of the point. The question writer probably had in mind that Ronald and Veronica would be the 'distractors' here but I imagine it was easy enough to rule them out so that Trader Tom ended up as the "best distractor". I'll be mad if wrong but it feels pretty straightforward. I do wish A used their full allotment to give me more context and evidence on Manet liking Victor though.
+---------------------------------------------

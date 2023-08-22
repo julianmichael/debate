@@ -11,7 +11,12 @@ secrets = load_secrets("SECRETS")
 ORG_KEY = secrets["NYU_ORG"]
 OPEN_API_KEY = secrets["API_KEY"]
 ANTHROPIC_API_KEY = secrets["ANTHROPIC_API_KEY"]
-MAX_CONTEXT_LENGTH = {'gpt-4': 8192, 'gpt-3.5-turbo-16k': 16384, 'gpt-4-32k': 32768, 'claude-2': 100000}
+MAX_CONTEXT_LENGTH = {
+    "gpt-4": 8192,
+    "gpt-3.5-turbo-16k": 16384,
+    "gpt-4-32k": 32768,
+    "claude-2": 100000,
+}
 
 app = FastAPI()
 
@@ -39,6 +44,7 @@ class DebateRequestInput(BaseModel):
 @app.post("/debate")
 async def debate(input: DebateRequestInput):
     # set the model & config on the command line when starting the server - defaults to gpt-4 original
+    print(input)
     model = os.getenv("DEBATE_MODEL", "gpt-4")
     config = os.getenv("DEBATE_CONFIG", "original")
     debater = Debater(config, model, input.debaterIndex, input.turnType)

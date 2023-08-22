@@ -53,11 +53,13 @@ def load_secrets(file_path):
             secrets[key] = value
     return secrets
 
+
 def replace_quotes(string):
     pattern = r"```(.*?)```"
     repl = r"<quote>\1</quote>"
     result = re.sub(pattern, repl, string)
     return result
+
 
 def load_yaml(file_path):
     with open(file_path) as f:

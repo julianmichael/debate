@@ -9,10 +9,12 @@ from pydantic import BaseModel
 from dan.calls import completion
 from dan.utils import load_yaml, replace_quotes
 
+
 class Turn(BaseModel):
     index: Optional[int]
     role: str
     text: str
+
 
 class DebaterTurnInput(BaseModel):
     story: str
@@ -22,6 +24,7 @@ class DebaterTurnInput(BaseModel):
     charLimitOpt: int
     quoteCharLimitOpt: int
 
+
 class DebaterConfig(BaseModel):
     names: List[str]
     consultant_name: str
@@ -29,60 +32,60 @@ class DebaterConfig(BaseModel):
     top_p: float = 1.0
     timeout: int = 120
 
-class Debater():
+
+class Debater:
     def __init__(self, config_name: str, model: str, position: int, turn_type: str):
         current_directory = os.path.dirname(os.path.abspath(__file__))
-        config_dir = os.path.join(current_directory, 'configs', config_name)
-        self.config = DebaterConfig(**load_yaml(os.path.join(config_dir, "config.yaml")))
+        config_dir = os.path.join(current_directory, "configs", config_name)
+        self.config = DebaterConfig(
+            **load_yaml(os.path.join(config_dir, "config.yaml"))
+        )
         self.model = model
-        prompts_module = SourceFileLoader('prompts', os.path.join(config_dir, "prompts.py")).load_module()
+        prompts_module = SourceFileLoader(
+            "prompts", os.path.join(config_dir, "prompts.py")
+        ).load_module()
         self.prompts = prompts_module.Prompts
         self.position = position
         self.opponent_position = 1 - position
         self.turn_type = turn_type
-        self.name = self.config.names[position] if turn_type != "single debater" else self.config.consultant_name
-        self.opponent_name = self.config.names[self.opponent_position] if turn_type != "single debater" else None
+        self.name = (
+            self.config.names[position]
+            if turn_type != "single debater"
+            else self.config.consultant_name
+        )
+        self.opponent_name = (
+            self.config.names[self.opponent_position]
+            if turn_type != "single debater"
+            else None
+        )
 
     def word_limit_from_char_limit(self, char_limit: int, quote_char_limit: int):
         word_limit = char_limit / 8
         quote_limit = quote_char_limit / 8
         return word_limit, quote_limit
 
-
     async def run_single_turn(self, turn_input: DebaterTurnInput):
         # for turn in turn_input.turns:
         #     turn.text = replace_quotes(turn.text)
 
-        explanation = self.prompts.explanation(self, turn_input)
-        transcript = self.prompts.transcript(self, turn_input)
 
-        output_length_check = ""
-        num_output_chars, num_quote_chars = 0, 0
-        num_length_retries = 0
         response = ""
-        while output_length_check != "ok" and num_length_retries < 3:
-            if output_length_check == "total":
-                new_turn_prompt = self.prompts.response_too_long(self.name, response, output_length_check, num_output_chars, turn_input.charLimitOpt)
-            elif output_length_check == "quote":
-                new_turn_prompt = self.prompts.response_too_long(self.name, response, output_length_check, num_quote_chars, turn_input.charQuoteLimitOpt)
-            else:
-                new_turn_prompt = self.prompts.new_turn(self, turn_input)
 
-            try:
-                response = await completion(
-                    messages=[explanation, transcript, new_turn_prompt],
-                    model=self.model,
-                    temperature=self.config.temperature,
-                    top_p=self.config.top_p,
-                    max_tokens=turn_input.charLimitOpt,
-                    timeout=self.config.timeout,
-                )
-            except RetryError:
-                raise HTTPException(status_code=429, detail="Rate limit exceeded from OpenAI API")
-            output_length_check, num_output_chars, num_quote_chars = self.check_output_length(
-                response, turn_input.charLimitOpt, turn_input.quoteCharLimitOpt)
-            num_length_retries += 1
-            time.sleep(0.3)
+        messages = self.prompts.construct_messages(self, turn_input)
+        try:
+            response = await completion(
+                messages=messages,
+                model=self.model,
+                temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                max_tokens=turn_input.charLimitOpt,
+                timeout=self.config.timeout,
+            )
+        except RetryError:
+            raise HTTPException(
+                status_code=429, detail="Rate limit exceeded from OpenAI API"
+            )
+        time.sleep(0.3)
         return response
 
     def check_output_length(self, output: str, char_limit: int, quote_char_limit: int):
@@ -147,15 +150,14 @@ Your argument:
             messages.append({"role": role, "content": content})
         return messages
 
-
     def construct_messages(self, turn_input: DebaterTurnInput):
         # Fill in the content of the prompts
         messages = []
-        messages.append(self.parse_messages(self.config.messages["explanation"], turn_input))
+        messages.append(
+            self.parse_messages(self.config.messages["explanation"], turn_input)
+        )
         return messages
-
 
     async def take_turn(self, turn_input: DebaterTurnInput):
         response = await self.get_completion(transcript)
         return response
-

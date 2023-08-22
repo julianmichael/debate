@@ -139,9 +139,9 @@ def read_data():
     print(sessions.dtypes)
     print(sessions.describe())
 
-    if (debates.empty or turns.empty or sessions.empty):
-        print("Some files are empty, skipping leaderboard.")
-        return
+    # if (debates.empty or turns.empty or sessions.empty):
+    #     print("Some files are empty, skipping leaderboard.")
+    #     return
 
     leaderboard = sessions.merge(
         debates[
@@ -157,18 +157,23 @@ def read_data():
     # filter to sessions corresponding to a judge
     leaderboard = leaderboard[leaderboard['Final probability correct'].notna()]
     from math import log
-    leaderboard['Judge reward'] = leaderboard.apply(
-        lambda row: log(row['Final probability correct']) - (0.05 * row['Number of judge continues']),
-        axis=1
-    )
-    leaderboard['Honest debater reward'] = leaderboard.apply(
-        lambda row: log(row['Final probability correct']),
-        axis=1
-    )
-    leaderboard['Dishonest debater reward'] = leaderboard.apply(
-        lambda row: log(1 - row['Final probability correct']),
-        axis=1
-    )
+    if not leaderboard.empty:
+        leaderboard['Judge reward'] = leaderboard.apply(
+            lambda row: log(row['Final probability correct']) - (0.05 * row['Number of judge continues']),
+            axis=1
+        )
+        leaderboard['Honest debater reward'] = leaderboard.apply(
+            lambda row: log(row['Final probability correct']),
+            axis=1
+        )
+        leaderboard['Dishonest debater reward'] = leaderboard.apply(
+            lambda row: log(1 - row['Final probability correct']),
+            axis=1
+        )
+    else:
+        leaderboard['Judge reward'] = []
+        leaderboard['Honest debater reward'] = []
+        leaderboard['Dishonest debater reward'] = []
 
     print("Leaderboard (disaggregated):")
     print(leaderboard.dtypes)
