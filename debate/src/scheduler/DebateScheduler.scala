@@ -179,6 +179,7 @@ object DebateScheduler {
     judges: Set[String],
     question: String,
     isLive: Boolean,
+    enforceJudgingConstraints: Boolean,
     rand: Random
   ): Option[String] = {
     val roleStringForLoadCalc =
@@ -211,6 +212,9 @@ object DebateScheduler {
                   name
               }
               .toSet
+              .filter(_ =>
+                enforceJudgingConstraints
+              ) // only remove these if we're using judging constraints
         ).toVector
       )
       .map { candidates =>
@@ -290,6 +294,7 @@ object DebateScheduler {
     qa: QASpec,
     debaters: Set[String],
     judges: Set[String],
+    enforceJudgingConstraints: Boolean,
     creationTime: Long,
     rand: Random
   ): Either[String, DebateSetup] = {
@@ -344,6 +349,7 @@ object DebateScheduler {
             judges,
             qa.question,
             true,
+            enforceJudgingConstraints,
             rand
           ).toRight("Couldn't sample judge.").map(_.some)
         } else
@@ -361,6 +367,7 @@ object DebateScheduler {
                 judges -- curJudges,
                 qa.question,
                 false,
+                enforceJudgingConstraints,
                 rand
               )
             )
@@ -410,6 +417,7 @@ object DebateScheduler {
     qas: Vector[QASpec],
     numDebatesPerQuestion: Int,
     dontAssignNewReading: Boolean,
+    enforceJudgingConstraints: Boolean,
     numUniqueDebatersConstraint: Option[Int],
     // debaters: Map[String, DebaterLoadConstraint],
     creationTime: Long,
@@ -479,6 +487,7 @@ object DebateScheduler {
                       qa,
                       chosenDebaters,
                       canJudge -- chosenDebaters,
+                      enforceJudgingConstraints,
                       creationTime,
                       rand
                     )
@@ -496,7 +505,9 @@ object DebateScheduler {
           //   }
           // )
           .flatMap(schedule =>
-            if (Constraints.doesScheduleMeetJudgingConstraints(schedule)) {
+            if (
+              enforceJudgingConstraints --> Constraints.doesScheduleMeetJudgingConstraints(schedule)
+            ) {
               Right(schedule)
             } else {
               Left("Schedule does not meet judging constraints")
@@ -582,8 +593,9 @@ object DebateScheduler {
                     SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial),
                     judges -- curJudges,
                     debate.setup.question,
-                    false,
-                    rand
+                    isLive = false,
+                    enforceJudgingConstraints = true,
+                    rand = rand
                   )
                 )
                 _ <- StateT.modify[Option, Set[String]](_ + newJudge)
