@@ -43,7 +43,6 @@ async def completion(
         openai.organization = secrets["NYU_ORG"]
         openai.api_key = secrets["API_KEY"]
         print("Sending openai request")
-        print(messages)
 
         with open(os.path.join("prompt_history", filename), "w") as f:
             json_str = json.dumps(messages, indent=4)
@@ -82,7 +81,6 @@ async def completion(
         print("Sending Anthropic request")
         with open(os.path.join("prompt_history", filename), "w") as f:
             f.write(prompt)
-        print(prompt)
         response = await anthropic.completions.create(
             prompt=prompt,
             model=model,
