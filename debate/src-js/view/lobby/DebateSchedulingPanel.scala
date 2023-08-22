@@ -90,6 +90,7 @@ object DebateSchedulingPanel {
     ruleDist: SparseDistribution[RuleConfig],
     numDebatesPerQuestion: Int,
     dontAssignNewReading: Boolean,
+    enforceJudgingConstraints: Boolean,
     numUniqueDebatersConstraint: Option[Int],
     articleMetadataOpt: Option[QuALITYStoryMetadata],
     questionIds: Set[String]
@@ -100,6 +101,7 @@ object DebateSchedulingPanel {
       ruleConfigs: NonEmptySet[RuleConfig],
       numDebatesPerQuestion: Int,
       dontAssignNewReading: Boolean,
+      enforceJudgingConstraints: Boolean,
       numUniqueDebatersConstraint: Option[Int]
     ) = SchedulingSpec(
       canJudge = people.toSortedSet,
@@ -108,6 +110,7 @@ object DebateSchedulingPanel {
       SparseDistribution.uniform(ruleConfigs),
       numDebatesPerQuestion,
       dontAssignNewReading,
+      enforceJudgingConstraints,
       numUniqueDebatersConstraint,
       None,
       Set()
@@ -226,7 +229,7 @@ object DebateSchedulingPanel {
           case Some(ruleConfigs) =>
             Local[SchedulingSpec].syncedWithLocalStorage(
               "scheduling-specification",
-              SchedulingSpec.init(people, ruleConfigs, 2, false, None)
+              SchedulingSpec.init(people, ruleConfigs, 1, false, true, None)
             ) { schedulingSpec =>
               Local[Option[Either[String, Vector[DebateSetup]]]]
                 .syncedWithSessionStorage("candidate-schedule", None) { scheduleAttemptOpt =>
@@ -271,9 +274,42 @@ object DebateSchedulingPanel {
                     <.div(c"card")(
                       <.div(c"card-body")(
                         <.h4(c"card-title")("Participants"),
-                        <.p(
-                          <.span(^.color := "green", "(can judge) "),
-                          <.span(^.color := "red", "(can debate) ")
+                        <.div(
+                          <.p(
+                            <.span(^.color := "green", "can judge: "),
+                            <.a(
+                              "check all",
+                              ^.href := "#",
+                              ^.onClick -->
+                                schedulingSpec
+                                  .modState(SchedulingSpec.canJudge.set(people.toSortedSet))
+                            ),
+                            <.span(" "),
+                            <.a(
+                              "uncheck all",
+                              ^.href := "#",
+                              ^.onClick -->
+                                schedulingSpec.modState(SchedulingSpec.canJudge.set(Set()))
+                            )
+                          ),
+                          <.p(
+                            <.span(^.color := "red", "can debate: "),
+                            <.a(
+                              "check all",
+                              ^.href := "#",
+                              ^.onClick -->
+                                schedulingSpec
+                                  .modState(SchedulingSpec.canDebate.set(people.toSortedSet))
+                            ),
+                            <.span(" "),
+                            <.a(
+                              "uncheck all",
+                              ^.href := "#",
+                              ^.onClick -->
+                                schedulingSpec.modState(SchedulingSpec.canDebate.set(Set()))
+                            )
+                          )
+                          // <.p(^.color := "red", "(can debate) ")
                         ),
                         ProbabilitySliders2[String](
                           schedulingSpec.zoomStateL(SchedulingSpec.workloadDist)
@@ -308,6 +344,12 @@ object DebateSchedulingPanel {
                           Checkbox2(
                             schedulingSpec.zoomStateL(SchedulingSpec.dontAssignNewReading),
                             Some("Don't assign new reading")
+                          )
+                        ),
+                        <.div(S.row, c"mt-1")(
+                          Checkbox2(
+                            schedulingSpec.zoomStateL(SchedulingSpec.enforceJudgingConstraints),
+                            Some("Enforce judging constraints")
                           )
                         ),
                         DebateRulesPanel.optionalIntInput(
@@ -411,6 +453,7 @@ object DebateSchedulingPanel {
                                 schedulingSpec.value.questionIds,
                                 schedulingSpec.value.numDebatesPerQuestion,
                                 schedulingSpec.value.dontAssignNewReading,
+                                schedulingSpec.value.enforceJudgingConstraints,
                                 schedulingSpec.value.numUniqueDebatersConstraint
                               )
                               .completeWith {

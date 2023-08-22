@@ -114,6 +114,7 @@ case class Server(
         questionIds: Set[String],
         numDebatesPerQuestion: Int,
         dontAssignNewReading: Boolean,
+        enforceJudgingConstraints: Boolean,
         numUniqueDebatersConstraint: Option[Int]
       ): IO[Either[String, Vector[DebateSetup]]] =
         for {
@@ -142,6 +143,7 @@ case class Server(
             qas = qas.filter(qa => questionIds.contains(qa.questionId)),
             numDebatesPerQuestion = numDebatesPerQuestion,
             dontAssignNewReading = dontAssignNewReading,
+            enforceJudgingConstraints = enforceJudgingConstraints,
             numUniqueDebatersConstraint = numUniqueDebatersConstraint,
             // debaters = Map(), // people.mapVals(_ => DebaterLoadConstraint(None, None)),
             creationTime = creationTime,
