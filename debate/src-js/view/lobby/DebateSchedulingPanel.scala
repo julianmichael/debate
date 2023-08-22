@@ -274,9 +274,42 @@ object DebateSchedulingPanel {
                     <.div(c"card")(
                       <.div(c"card-body")(
                         <.h4(c"card-title")("Participants"),
-                        <.p(
-                          <.span(^.color := "green", "(can judge) "),
-                          <.span(^.color := "red", "(can debate) ")
+                        <.div(
+                          <.p(
+                            <.span(^.color := "green", "can judge: "),
+                            <.a(
+                              "check all",
+                              ^.href := "#",
+                              ^.onClick -->
+                                schedulingSpec
+                                  .modState(SchedulingSpec.canJudge.set(people.toSortedSet))
+                            ),
+                            <.span(" "),
+                            <.a(
+                              "uncheck all",
+                              ^.href := "#",
+                              ^.onClick -->
+                                schedulingSpec.modState(SchedulingSpec.canJudge.set(Set()))
+                            )
+                          ),
+                          <.p(
+                            <.span(^.color := "red", "can debate: "),
+                            <.a(
+                              "check all",
+                              ^.href := "#",
+                              ^.onClick -->
+                                schedulingSpec
+                                  .modState(SchedulingSpec.canDebate.set(people.toSortedSet))
+                            ),
+                            <.span(" "),
+                            <.a(
+                              "uncheck all",
+                              ^.href := "#",
+                              ^.onClick -->
+                                schedulingSpec.modState(SchedulingSpec.canDebate.set(Set()))
+                            )
+                          )
+                          // <.p(^.color := "red", "(can debate) ")
                         ),
                         ProbabilitySliders2[String](
                           schedulingSpec.zoomStateL(SchedulingSpec.workloadDist)
