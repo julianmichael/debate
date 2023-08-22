@@ -261,36 +261,30 @@ case class DebateStateManager(
                   s"You've been assigned to read the story \"${setup.sourceMaterial.title}\". Check your debates. " +
                     MotivationalQuotes.newMaterial.sample()
                 )
-              } >>
-              debate
-                .currentTransitions
-                .giveSpeech
-                .toVector
-                .traverse { case (role, turn) =>
-                  role
-                    .asLiveDebateRoleOpt
-                    .traverse(liveRole =>
-                      debate
-                        .setup
-                        .roles
-                        .get(liveRole)
-                        .traverse(debater =>
-                          profiles
-                            .get(debater)
-                            .traverse_ {
-                              case Profile.Human(_, _) =>
-                                slack.sendMessage(
-                                  profiles,
-                                  debater,
-                                  s"It's your turn in the new room `$roomName`! " +
-                                    MotivationalQuotes.yourTurn.sample()
-                                )
-                              case profile @ Profile.AI(_, _) =>
-                                doAITurn(roomName, debate, profile, role, turn)
-                            }
-                        )
-                    )
-                }
+              } >> {
+              val operations =
+                for {
+                  (role, turn) <- debate.currentTransitions.giveSpeech.toVector
+                  liveRole     <- role.asLiveDebateRoleOpt
+                  debater      <- debate.setup.roles.get(liveRole)
+                  profile      <- profiles.get(debater)
+                } yield profile ->
+                  (profile match {
+                    case Profile.Human(_, _) =>
+                      slack.sendMessage(
+                        profiles,
+                        debater,
+                        s"It's your turn in the new room `$roomName`! " +
+                          MotivationalQuotes.yourTurn.sample()
+                      )
+                    case profile @ Profile.AI(_, _) =>
+                      doAITurn(roomName, debate, profile, role, turn)
+                  })
+              val humanOps = operations.filter(_._1.isHuman).map(_._2)
+              // only trigger the first AI's turn
+              val aiOps = operations.filter(_._1.isAI).map(_._2).headOption
+              humanOps.sequence_ >> aiOps.getOrElse(IO.unit)
+            }
           }
       }
     } yield ()
@@ -361,53 +355,55 @@ case class DebateStateManager(
               } else
                 Set.empty[String]
 
-            debate
-              .currentTransitions
-              .giveSpeech
-              .toVector
-              .traverse { case (role, turn) =>
-                role
-                  .asLiveDebateRoleOpt
-                  .traverse(liveRole =>
-                    debate
-                      .setup
-                      .roles
-                      .get(liveRole)
-                      .traverse(debater =>
-                        profiles
-                          .get(debater)
-                          .traverse_ {
-                            case Profile.Human(name, _) =>
-                              if (!debateState.participants.contains(name)) {
-                                slackClientOpt.traverse(
-                                  _.sendMessage(
-                                    profiles,
-                                    debater,
-                                    s"It's your turn in the room `$roomName`! " +
-                                      MotivationalQuotes.yourTurn.sample()
-                                  )
-                                )
-                              } else
-                                IO.unit
-                            case profile @ Profile.AI(_, _) =>
-                              doAITurn(roomName, debate, profile, role, turn).start.void
-                          }
-                      )
-                  ) >>
-                  offlineJudgesToNotify
-                    .toVector
-                    .traverse_ { debater =>
-                      slackClientOpt.traverse_(
+            val operations =
+              for {
+                (role, turn) <- debate.currentTransitions.giveSpeech.toVector
+                liveRole     <- role.asLiveDebateRoleOpt
+                debater      <- debate.setup.roles.get(liveRole)
+                profile      <- profiles.get(debater)
+              } yield profile ->
+                (profile match {
+                  // case Profile.Human(_, _) =>
+                  //   slack.sendMessage(
+                  //     profiles,
+                  //     debater,
+                  //     s"It's your turn in the new room `$roomName`! " +
+                  //       MotivationalQuotes.yourTurn.sample()
+                  //   )
+                  // case profile @ Profile.AI(_, _) =>
+                  //   doAITurn(roomName, debate, profile, role, turn)
+
+                  case Profile.Human(name, _) =>
+                    if (!debateState.participants.contains(name)) {
+                      slackClientOpt.traverse(
                         _.sendMessage(
                           profiles,
                           debater,
-                          s"You can now judge in the room `$roomName`! " +
-                            MotivationalQuotes.newJudging.sample()
+                          s"It's your turn in the room `$roomName`! " +
+                            MotivationalQuotes.yourTurn.sample()
                         )
                       )
-                    }
-
-              }
+                    } else
+                      IO.unit
+                  case profile @ Profile.AI(_, _) =>
+                    doAITurn(roomName, debate, profile, role, turn).start.void
+                })
+            val humanOps = operations.filter(_._1.isHuman).map(_._2)
+            // only trigger the first AI's turn
+            val aiOps = operations.filter(_._1.isAI).map(_._2).headOption
+            humanOps.sequence_ >> aiOps.getOrElse(IO.unit) >>
+              offlineJudgesToNotify
+                .toVector
+                .traverse_ { debater =>
+                  slackClientOpt.traverse_(
+                    _.sendMessage(
+                      profiles,
+                      debater,
+                      s"You can now judge in the room `$roomName`! " +
+                        MotivationalQuotes.newJudging.sample()
+                    )
+                  )
+                }
           }
           _ <- debateState
             .debate
