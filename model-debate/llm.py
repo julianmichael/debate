@@ -5,7 +5,7 @@ import time
 import json
 from utils import load_secrets
 import logging
-from typing import Dict, List, Optional
+from typing import List
 
 import openai
 from tenacity import (
@@ -55,7 +55,7 @@ async def completion(
                 model=model,
                 temperature=temperature,
                 top_p=top_p,
-                max_tokens=max_tokens,
+                max_tokens=1000,
             ),
             timeout=timeout,
         )
@@ -75,6 +75,7 @@ async def completion(
             content = message["content"]
             tag = AI_PROMPT if role == "assistant" else HUMAN_PROMPT
             prompt += f"{tag} {content}"
+        # If the last message is not an AI prompt, add one
         if tag != AI_PROMPT:
             prompt += f"{AI_PROMPT}"
         prompt = prompt.strip()

@@ -19,7 +19,7 @@ scratch/
 node_modules/
 node_modules/
 /env
-
+prompt_history/*
 /slack-token.txt
 *.pyc
 

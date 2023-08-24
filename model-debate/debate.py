@@ -1,48 +1,16 @@
 # Adapted from: https://github.com/akbir/debate
-
 import argparse
+import random
+from collections import Counter
 import asyncio
 import json
-import os
-from datetime import datetime
-from typing import List, Tuple
+from typing import List
+from debaters.base import DebaterTurnInput, Turn
+from debaters.select_debater import select_debater
 
-import pandas as pd
-import tiktoken
+DATASET_PATH = "../data/QuALITY.v1.0.1/QuALITY.v1.0.1.htmlstripped.dev"
 
-from chat_client import ChatClient
-from debater import Debater
-from utils import load_secrets
-
-secrets = load_secrets("SECRETS")
-ORG_KEY = secrets["NYU_ORG"]
-OPEN_API_KEY = secrets["API_KEY"]
-ANTHROPIC_API_KEY = secrets["ANTHROPIC_API_KEY"]
-ARTICLE_LEN_LIMIT = {
-    "gpt-4": 6000,
-    "gpt-3.5-turbo": 2000,
-    "gpt-3.5-turbo-16k": 12000,
-    "gpt-4-32k": 24000,
-    "claude-2": 80000,
-}
-MAX_CONTEXT_LENGTH = {
-    "gpt-4": 8192,
-    "gpt-3.5-turbo-16k": 16384,
-    "gpt-4-32k": 32768,
-    "claude-2": 100000,
-}
-
-
-def filter_on_story_length(story, model):
-    encoding = tiktoken.encoding_for_model("gpt-4")
-    article_len = len(encoding.encode(story))
-    if article_len >= ARTICLE_LEN_LIMIT[model]:
-        raise ValueError(
-            f"Article length {article_len} is too long for model {model} with limit {ARTICLE_LEN_LIMIT[model]}"
-        )
-
-
-def load_story_and_question(story_idx, question_idx, model):
+def load_story_and_question(story_idx, question_idx):
     def read_jsonl(path):
         # Manually open because .splitlines is different from iterating over lines
         ls = []
@@ -51,20 +19,28 @@ def load_story_and_question(story_idx, question_idx, model):
                 ls.append(json.loads(line))
         return ls
 
-    val_dataset = read_jsonl("data/QuALITY.v1.0.1/QuALITY.v1.0.1.htmlstripped.dev")
+    val_dataset = read_jsonl(DATASET_PATH)
     story = val_dataset[story_idx]["article"]
-    filter_on_story_length(story, model)
 
-    question = val_dataset[story_idx]["questions"][question_idx]["question"]
-    answer_choices = val_dataset[story_idx]["questions"][question_idx]["options"]
-    gold_label = val_dataset[story_idx]["questions"][question_idx]["gold_label"]
-    print(
-        f"Difficult: {val_dataset[story_idx]['questions'][question_idx]['difficult']}"
-    )
+    question_data = val_dataset[story_idx]["questions"][question_idx]
+    question = question_data["question"]
+    answer_choices = question_data["options"]
+    gold_label = question_data["gold_label"]
+    distractors = [
+        item["untimed_best_distractor"]
+        for item in question_data["validation"]
+        if "untimed_best_distractor" in item
+    ]
+    # labels are 1-indexed!
+    correct_answer = answer_choices[gold_label - 1]
 
-    correct_answer = answer_choices[gold_label]
-    incorrect_answer = answer_choices[0 if gold_label != 0 else 1]
+    if distractors:
+        most_common_distractor = Counter(distractors).most_common(1)[0][0]
+        incorrect_answer = answer_choices[most_common_distractor - 1]
+    else:
+        incorrect_answer = answer_choices[0 if gold_label - 1 != 0 else 1]
 
+    print(f"Difficult: {question_data['difficult']}")
     return {
         "story": story,
         "question": question,
@@ -75,58 +51,43 @@ def load_story_and_question(story_idx, question_idx, model):
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--transcript", help="filename of transcript")
-    parser.add_argument("--output", help="filename of output")
-    parser.add_argument("--model", help="model to use")
-    parser.add_argument("--num_steps", default=2, type=int)
-    parser.add_argument("--temperature", default=0.7, type=float)
-    parser.add_argument("--model_role", help="role of model: debater_a, debater_b")
+    parser.add_argument("--debater", help="Name of debater to use")
+    parser.add_argument("--model", help="Name of model to use", default="gpt-4")
     parser.add_argument("--story", help="story to use", default=1, type=int)
     parser.add_argument("--question", help="question to use", default=0, type=int)
-
-    args = parser.parse_args()
-    # add the current datetime to the filename
-    now = datetime.now().strftime("%Y-%m-%d-%H-%M")
-    output_filename = os.path.join("data", "outputs", f"{now}_{args.output}.txt")
-    MODEL = args.model
-    NUM_STEPS = args.num_steps
-    TEMPERATURE = args.temperature
-    MODEL_ROLE = args.model_role
-
-    # load story, question, answer choices
-    data = load_story_and_question(args.story, args.question, MODEL)
-    print(f"Question: {data['question']}")
-    print(f"Correct answer: {data['correct answer']}")
-    print(f"Negative answer: {data['negative answer']}")
-
-    story = f"\n\nContext:\n\n{data['story']}\n\nQuestion: {data['question']}\n\n"
-    answers = [data["correct answer"], data["negative answer"]]
-
-    api_key = ANTHROPIC_API_KEY if MODEL.startswith("claude") else OPEN_API_KEY
-    client = ChatClient(
-        model=MODEL,
-        api_key=api_key,
-        org_key=ORG_KEY,
-        max_context_length=MAX_CONTEXT_LENGTH[MODEL],
+    parser.add_argument(
+        "--turn_type", help="turn role", default="simultaneous", type=str
     )
-    debater = Debater(story, answers, TEMPERATURE, 0, "simultaneous", client)
+    parser.add_argument("--position", help="position in debate", default=0, type=int)
+    args = parser.parse_args()
+    debater = select_debater(args.debater, args.model, args.position, args.turn_type)
 
-    # mutable
-    history: List[Tuple[str, str]] = []
+    data = load_story_and_question(args.story, args.question)
+    answers = [data["correct answer"], data["negative answer"]]
+    random.shuffle(answers)  # in-place mod
+    print(f"Question: {data['question']}")
+    print(f"A: {answers[0]}")
+    print(f"B: {answers[1]}")
 
-    if args.model_role == "debater_a":
-        response = await debater.run_single_turn(history, 4000, 1000, "sequential")
-        history.append((debater.name, response))
-        print(response)
+    turns: List[Turn] = []
+    index = 0
     while True:
         try:
-            human_response = input("Your response: ")
-            history.append(("Human", human_response))
-            model_response = await debater.run_single_turn(
-                history, 4000, 1000, "sequential"
+            if len(turns) > 0:
+                human_input = input("Judge: ")
+                turns.append(Turn(role="Judge", text=human_input, index=index))
+            turn_input = DebaterTurnInput(
+                story=data["story"],
+                question=data["question"],
+                answers=answers,
+                turns=turns,
+                charLimitOpt=4000,
+                quoteCharLimitOpt=1000,
             )
-            history.append((debater.name, response))
-            print(model_response)
+            response = await debater.take_turn(turn_input)
+            turns.append(Turn(role=debater.name, text=response, index=index))
+            print(response)
+            index += 1
         except KeyboardInterrupt:
             break
 
