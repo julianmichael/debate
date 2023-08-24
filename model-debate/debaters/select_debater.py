@@ -1,5 +1,6 @@
 from debaters.ansh import DebaterAnsh
 from debaters.bon import DebaterBON
+from debaters.claude import DebaterClaude
 from debaters.original import DebaterOriginal
 from debaters.scratchpad import DebaterScratchpad
 from debaters.simple import DebaterSimple
@@ -20,6 +21,8 @@ def select_debater(name: str, model: str, position: int, turn_type: str, custom_
             return DebaterScratchpad(model=model, position=position, turn_type=turn_type, custom_config=custom_config)
         case "bon":
             return DebaterBON(model=model, position=position, turn_type=turn_type, custom_config=custom_config)
+        case "claude":
+            return DebaterClaude(model=model, position=position, turn_type=turn_type, custom_config=custom_config)
         case _:
             raise ValueError(f"Invalid debater name: {name}")
 

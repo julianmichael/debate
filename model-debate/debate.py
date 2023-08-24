@@ -8,9 +8,9 @@ from typing import List
 from debaters.base import DebaterTurnInput, Turn
 from debaters.select_debater import select_debater
 
-DATASET_PATH = "../data/QuALITY.v1.0.1/QuALITY.v1.0.1.htmlstripped.dev"
+DATASET_PATH = "../data/QuALITY.v1.0.1/QuALITY.v1.0.1.htmlstripped.train"
 
-def load_story_and_question(story_idx, question_idx):
+def load_story_and_question(story_id, question_idx):
     def read_jsonl(path):
         # Manually open because .splitlines is different from iterating over lines
         ls = []
@@ -19,10 +19,11 @@ def load_story_and_question(story_idx, question_idx):
                 ls.append(json.loads(line))
         return ls
 
-    val_dataset = read_jsonl(DATASET_PATH)
-    story = val_dataset[story_idx]["article"]
-
-    question_data = val_dataset[story_idx]["questions"][question_idx]
+    dataset = read_jsonl(DATASET_PATH)
+    matches = [s for s in dataset if int(s["article_id"]) == int(story_id)]
+    item = matches[-1]
+    story = item["article"]
+    question_data = item["questions"][question_idx]
     question = question_data["question"]
     answer_choices = question_data["options"]
     gold_label = question_data["gold_label"]

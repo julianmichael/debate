@@ -1,10 +1,11 @@
 from llm import completion
+import asyncio
 import time
 from debaters.base import DebaterBase, DebaterTurnInput
 
-
 class DebaterBON(DebaterBase):
     separator = "\n---------------------------------------------\n"
+    bon = 5
 
     def debate_rules(self):
         return """We're going to play a game of Debate. Here's how the game works:
@@ -33,7 +34,7 @@ class DebaterBON(DebaterBase):
 
     def confirm_rules(self, turn_input):
         request = self.request_confirmation()
-        confirmation = self.debate_confirmation(self)
+        confirmation = self.debate_confirmation(turn_input)
 
         return [
             {"role": "user", "content": request},
@@ -129,8 +130,6 @@ Let's go step by step:
     async def take_turn(self, turn_input: DebaterTurnInput):
         # for turn in turn_input.turns:
         #     turn.text = replace_quotes(turn.text)
-        response = ""
-
         explanation = self.explanation()
         story_qa = self.story_qa(turn_input)
         confirm_rules = self.confirm_rules(turn_input)
@@ -138,13 +137,16 @@ Let's go step by step:
         new_turn_prompt = self.new_turn(turn_input)
 
         messages = explanation + story_qa + confirm_rules + transcript + new_turn_prompt
-        response = await completion(
+        completions = [completion(
             messages=messages,
             model=self.model,
             temperature=self.config.temperature,
             top_p=self.config.top_p,
             max_tokens=turn_input.charLimitOpt,
             timeout=self.config.timeout,
-        )
+        ) for _ in range(self.bon)]
+
+        responses = await asyncio.gather(*completions)
+        print("\n\n+++++++++++++++++++++++\n\n".join(responses))
         time.sleep(0.3)
-        return response
+        return responses[0]

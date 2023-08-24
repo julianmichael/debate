@@ -20,9 +20,10 @@ class DebaterTurnInput(BaseModel):
 class DebaterConfig(BaseModel):
     names: List[str]
     consultant_name: str
-    temperature: float = 0.2
-    top_p: float = 1.0
-    timeout: int = 120
+    temperature: float
+    top_p: float
+    timeout: int
+    bon: int
 
 
 class DebaterBase:
@@ -31,7 +32,8 @@ class DebaterBase:
         "consultant_name": "Consultant",
         "temperature": 0.7,
         "top_p": 1.0,
-        "timeout": 120
+        "timeout": 120,
+        "bon": 1
     }
 
     def __init__(self,  model: str, position: int, turn_type: str, custom_config: dict = {}):
@@ -66,3 +68,30 @@ class DebaterBase:
         answer_defending = turn_input.answers[self.position]
         answer_opposing = turn_input.answers[self.opponent_position]
         return answer_defending, answer_opposing
+
+    # def extract_history(self, turn_input: DebaterTurnInput):
+
+    
+    def group_turns(self, turn_input: DebaterTurnInput):
+        # takes a flat list of turns and groups them into simultaneous rounds
+        rounds = []
+        current_round = []
+
+        for turn in turn_input.turns:
+            if turn.text.strip() == "":
+                continue
+            
+            # Judge is None, Debaters are 0 and 1
+            index = turn.index
+            existing = [i for i in current_round if i.index == index]
+            if len(existing) > 0:
+                rounds.append(current_round)
+                current_round = []
+
+            current_round.append(turn)
+
+        if len(current_round) > 0:
+            rounds.append(current_round)
+
+        return rounds
+

@@ -95,4 +95,7 @@ async def completion(
         raise ValueError(f"Unknown model: {model}")
     end = time.time()
     print(f"Time elapsed: {end - start}s")
+    with open(os.path.join("prompt_history", filename), "a") as f:
+        f.write("\n\n=====RESPONSE======\n\n")
+        f.write(completion)
     return completion
