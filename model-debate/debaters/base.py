@@ -67,7 +67,7 @@ class DebaterBase:
     def answers_from_turn_input(self, turn_input: DebaterTurnInput):
         answer_defending = turn_input.answers[self.position]
         answer_opposing = turn_input.answers[self.opponent_position]
-        return answer_defending, answer_opposing
+        return answer_defending.strip(), answer_opposing.strip()
 
     # def extract_history(self, turn_input: DebaterTurnInput):
 
@@ -95,3 +95,5 @@ class DebaterBase:
 
         return rounds
 
+    def is_first_round(self, turn_input: DebaterTurnInput):
+        return len(self.group_turns(turn_input)) == 0

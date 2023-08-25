@@ -31,17 +31,26 @@ The judge cannot see the story, and they know both debaters are just trying to b
             {"role": "assistant", "content": confirmation},
         ]
 
-    def story_qa(self, turn_input):
+    def qa(self, turn_input):
         answer_defending, answer_opposing = self.answers_from_turn_input(turn_input)
-        content = f"""<story>
-
-{turn_input.story}
-
-</story>
-
+        qa = f"""Here is the question and the two answers:
 <question>{turn_input.question}</question>
 <your_answer>{answer_defending}</your_answer>
 <opponent_answer>{answer_opposing}</opponent_answer>
+
+Please restate your position and your opponent's position to confirm you understand."""
+        confirmation = f"""I understand. I will argue that the answer to the question \"{turn_input.question}\" is \"{answer_defending}\". I will argue against my opponent's answer \"{answer_opposing}\"."""
+
+        return [
+            {"role": "user", "content": qa},
+            {"role": "assistant", "content": confirmation},
+        ]
+
+
+    def story(self, turn_input):
+        content = f"""<story>
+ {turn_input.story}
+</story>
  """
         return [{"role": "user", "content": content}]
 
@@ -91,31 +100,59 @@ The judge cannot see the story, and they know both debaters are just trying to b
 
         return messages
 
-    def advice(self):
-        return """The first part of your response should be enclosed in <thinking></thinking> tags. This is a space for you to think and plan your argument, and will not be shown to the judge or your opponent. In this section, do the following:
-1. State the position you are arguing for in your own words, to confirm that you understand it.
-2. State the position you are arguing against in your own words.
-3. List a collection of quotes from the story that most strengthen your position.
-4. List a collection of quotes from the story that most weaken your opponent's position.
-5. Think step by step about what argument you want to make and which quotes would be best to use.
+    def advice(self, turn_input):
+            
+        first_round_thinking = """1. State the question.
+2. State the position you are arguing for in your own words.
+3. State the position you are arguing against in your own words.
+4. Make a list of 10 quotes from the story that most strengthen your position.
+5. Think step by step about which quotes you can construct the strongest argument around.
+"""
+        second_round_thinking = """1. State the question.
+2. State the position you are arguing for in your own words.
+3. State the position you are arguing against in your own words.
+4. List out biggest flaws in your opponent's argument. Are the quotes they have shown misleading in some way? Are their arguments not well supported by the evidence? Are their arguments irrelevant to the question? Are their arguments weak in some other way?
+5. Make a list of 5 quotes from the story that contradict your opponent's argument or weaken it.
+6. Think step by step about which quotes you can construct the strongest argument around. You should focus on critiquing the arguments your opponent has made. """
+        nth_round_thinking = """1. State the question.
+2. State the position you are arguing for in your own words.
+3. State the position you are arguing against in your own words.
+4. List the core critiques the opponent has made to your argument.
+5. Make a list of 5 quotes from the story that counter your opponent's critiques or otherwise strengthen your position.
+6. List out biggest flaws in your opponent's argument. Are the quotes they have shown misleading in some way? Are their arguments not well supported by the evidence? Are their arguments irrelevant to the question? Are their arguments weak in some other way?
+7. Make a list of 5 quotes from the story that contradict your opponent's argument or weaken it.
+8. Think step by step about which quotes you can construct the strongest argument around. You should focus on critiquing the arguments your opponent has made and countering the critiques they have made.
+"""
 
-Then, write your argument enclosed in <argument></argument> tags. This will be shown to the other participants. You should use quotes in your argument, and they must be enclosed in <quote></quote> tags and copied exactly from the story (this will be verified).
+        rounds = self.group_turns(turn_input)
+        if len(rounds) == 0:
+            thinking = first_round_thinking
+        elif len(rounds) == 1:
+            thinking = second_round_thinking
+        else:
+            thinking = nth_round_thinking
+        advice =  f"""The first part of your response should be enclosed in <thinking></thinking> tags. This is a space for you to think and plan your argument, and will not be shown to the judge or your opponent. In this section, do the following:
+{thinking}
+
+Then, write your argument enclosed in <argument></argument> tags. This will be shown to the other participants. You should use some of the quotes you listed earlier in your argument, and they must be enclosed in <quote></quote> tags and copied exactly from the story (this will be verified).
 
 Here are some general tips for constructing your argument:
 - Read the question and answers carefully and make sure you understand what you are supposed to be arguing for. Especially watch out for negations in the question.
-- Keep it short and concise. Don't use lots of fancy words, the tone here is casual.
-- Don't repeat quotes you already used on earlier turns.
-- You should critique your opponent's arguments and respond to any critiques they have made of yours."""
+- Keep your argument short and concise. Just a few sentences.
+- Don't use lots of fancy words, the tone here is casual.
+- Use lots of quotes!"""
+        
+        return advice
 
 
     def new_turn(self, turn_input: DebaterTurnInput):
-        rounds = self.group_turns(turn_input)
-        if len(rounds) == 0:
-            instruction = "Now it's your turn to construct your opening argument.\n"
+        answer_defending, _ = self.answers_from_turn_input(turn_input)
+        if self.is_first_round(turn_input):
+            instruction = f"Now it's your turn to construct your opening argument for why the answer to the question \"{turn_input.question} is \"{answer_defending}\".\n"
         else:
-            instruction = "Now it's your turn to construct your next argument.\n"
+            instruction = f"Now it's your turn to construct your next argument for why the answer to the question \"{turn_input.question} is \"{answer_defending}\".\n"
 
-        advice = self.advice()
+        advice = self.advice(turn_input)
         # assistant = "\n<thinking>\nHere are some relevant quotes from the story that support my position that "
         assistant = ""
         return [
@@ -135,12 +172,13 @@ Here are some general tips for constructing your argument:
         response = ""
 
         explanation = self.explanation()
-        story_qa = self.story_qa(turn_input)
-        confirm_rules = self.confirm_rules(turn_input)
+        qa = self.qa(turn_input)
+        story = self.story(turn_input)
+        # confirm_rules = self.confirm_rules(turn_input)
         transcript = self.transcript(turn_input)
         new_turn_prompt = self.new_turn(turn_input)
 
-        messages = explanation + story_qa + confirm_rules + transcript + new_turn_prompt
+        messages = explanation + qa + story + transcript + new_turn_prompt
         response = await completion(
             messages=messages,
             model=self.model,
@@ -149,6 +187,5 @@ Here are some general tips for constructing your argument:
             max_tokens=turn_input.charLimitOpt,
             timeout=self.config.timeout,
         )
-        time.sleep(0.3)
         argument = self.extract_argument(response)
         return self.post_process(argument)
