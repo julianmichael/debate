@@ -40,12 +40,7 @@ object ReadableDebate {
       debate
         .visibleRounds(userName, role)
         .flatMap { visibleRound =>
-          constructTurnsForRound(
-            debate,
-            visibleRound.roundType,
-            visibleRound.round,
-            quoteDelimiters
-          )
+          constructTurnsForRound(debate, visibleRound, quoteDelimiters)
         }
         .toList
     ReadableDebate(
@@ -78,9 +73,9 @@ object ReadableDebate {
             (
               constructTurnsForLiveJudge(
                 debate,
-                debate.setup.rules.roundTypes.zip(debate.rounds).toList,
+                debate.visibleRounds("Judge", Judge), // user name doesn't matter
                 quoteDelimiters
-              ),
+              ).toList,
               debate.setup.roles(Judge),
               judgingInfo.finalJudgement(debate.setup.correctAnswerIndex) > 0.5
             )
@@ -101,16 +96,11 @@ object ReadableDebate {
                       constructTurnsForSteppedOfflineJudge(
                         debate,
                         offlineJudgment.judgments.toList,
-                        debate.setup.rules.roundTypes.zip(debate.rounds).toList,
                         quoteDelimiters
-                      )
+                      ).toList
                     case OfflineJudgingMode.Timed =>
-                      constructTurnsForTimedOfflineJudge(
-                        debate,
-                        finalJudgment,
-                        debate.setup.rules.roundTypes.zip(debate.rounds).toList,
-                        quoteDelimiters
-                      )
+                      constructTurnsForTimedOfflineJudge(debate, finalJudgment, quoteDelimiters)
+                        .toList
                   }
 
                 (
@@ -143,93 +133,57 @@ object ReadableDebate {
     }
   }
 
+  def getRoleIndex(role: Role): Option[Int] =
+    role match {
+      case Debater(i) =>
+        Some(i)
+      case _ =>
+        None
+    }
+
   def constructTurnsForRound(
     debate: Debate,
-    roundType: DebateRoundType,
-    round: DebateRound,
+    visibleRound: Debate.VisibleRound,
     quoteDelimiters: (String, String)
-  ): List[ReadableTurn] =
-    round match {
-      case SimultaneousSpeeches(speeches) =>
-        speeches
-          .toList
-          .sortBy(_._1)
-          .map { case (index, speech) =>
-            ReadableTurn(
-              role = "Debater",
-              index = Some(index),
-              text = SpeechSegments.getSpeechString(
-                debate.setup.sourceMaterial.contents,
-                speech.content,
-                quoteDelimiters
-              ),
-              None,
-              chars = SpeechSegments
-                .getSpeechLength(debate.setup.sourceMaterial.contents, speech.content),
-              charLimit = roundType.charLimitOpt,
-              quoteChars = SpeechSegments
-                .getQuoteCoverage(debate.setup.sourceMaterial.contents, speech.content),
-              quoteCharLimit = roundType.quoteLimitOpt.flatten
-            )
-          }
-      case SequentialSpeeches(speeches) =>
-        speeches
-          .toList
-          .sortBy(_._1)
-          .map { case (index, speech) =>
-            ReadableTurn(
-              role = "Debater",
-              index = Some(index),
-              text = SpeechSegments.getSpeechString(
-                debate.setup.sourceMaterial.contents,
-                speech.content,
-                quoteDelimiters
-              ),
-              None,
-              chars = SpeechSegments
-                .getSpeechLength(debate.setup.sourceMaterial.contents, speech.content),
-              charLimit = roundType.charLimitOpt,
-              quoteChars = SpeechSegments
-                .getQuoteCoverage(debate.setup.sourceMaterial.contents, speech.content),
-              quoteCharLimit = roundType.quoteLimitOpt.flatten
-            )
-          }
-      case JudgeFeedback(dist, feedback, _) =>
-        List(
-          ReadableTurn(
-            role = "Judge",
-            index = None,
-            text = SpeechSegments.getSpeechString(
-              debate.setup.sourceMaterial.contents,
-              feedback.content,
-              quoteDelimiters
-            ),
-            Some(dist),
-            chars = SpeechSegments
-              .getSpeechLength(debate.setup.sourceMaterial.contents, feedback.content),
-            charLimit = roundType.charLimitOpt,
-            quoteChars = SpeechSegments
-              .getQuoteCoverage(debate.setup.sourceMaterial.contents, feedback.content),
-            quoteCharLimit = roundType.quoteLimitOpt.flatten
-          )
-        )
-      case NegotiateEnd(_) =>
-        Nil
-      case OfflineJudgments(_) =>
-        Nil
+  ): List[ReadableTurn] = visibleRound
+    .visibleSpeeches
+    .toList
+    .sortBy(p => getRoleIndex(p._1))
+    .map { case (role, speech) =>
+      val roleStr =
+        role match {
+          case Debater(i) =>
+            "Debater"
+          case _ =>
+            role.toString
+        }
+      val distOpt = DebateRound.judgeFeedback.getOption(visibleRound.round).map(_.distribution)
+      ReadableTurn(
+        role = roleStr,
+        index = getRoleIndex(role),
+        text = SpeechSegments
+          .getSpeechString(debate.setup.sourceMaterial.contents, speech.content, quoteDelimiters),
+        distOpt,
+        chars = SpeechSegments
+          .getSpeechLength(debate.setup.sourceMaterial.contents, speech.content),
+        charLimit = visibleRound.roundType.charLimitOpt,
+        quoteChars = SpeechSegments
+          .getQuoteCoverage(debate.setup.sourceMaterial.contents, speech.content),
+        quoteCharLimit = visibleRound.roundType.quoteLimitOpt.flatten
+      )
     }
+
   def constructTurnsForLiveJudge(
     debate: Debate,
-    rounds: List[(DebateRoundType, DebateRound)],
+    rounds: Vector[Debate.VisibleRound],
     quoteDelimiters: (String, String)
-  ): List[ReadableTurn] = rounds.flatMap { case (roundType, round) =>
-    constructTurnsForRound(debate, roundType, round, quoteDelimiters)
+  ): Vector[ReadableTurn] = rounds.flatMap { round =>
+    constructTurnsForRound(debate, round, quoteDelimiters)
   }
 
   def constructTurnsForSteppedOfflineJudge(
     debate: Debate,
     judgments: List[JudgeFeedback],
-    rounds: List[(DebateRoundType, DebateRound)],
     quoteDelimiters: (String, String)
   ): List[ReadableTurn] =
     judgments.map { case JudgeFeedback(distribution, feedback, _) =>
@@ -251,35 +205,42 @@ object ReadableDebate {
         Nil
       case head :: nonFirstJudgeTurns =>
         head ::
-          (rounds
-            .filter {
-              case (_, SimultaneousSpeeches(_)) | (_, SequentialSpeeches(_)) =>
-                true;
-              case _ =>
-                false
-            }
-            .map { case (roundType, round) =>
-              constructTurnsForRound(debate, roundType, round, quoteDelimiters)
+          debate
+            .visibleRounds("Offline Judge", OfflineJudge)
+            .filter(
+              _.round match {
+
+                case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
+                  true
+                case _ =>
+                  false
+              }
+            )
+            .map { case round =>
+              constructTurnsForRound(debate, round, quoteDelimiters)
             }
             .zip(nonFirstJudgeTurns)
-            .flatMap(Function.tupled(_ :+ _)))
+            .flatMap(Function.tupled(_ :+ _))
+            .toList
     }
 
   def constructTurnsForTimedOfflineJudge(
     debate: Debate,
     judgment: JudgeFeedback,
-    rounds: List[(DebateRoundType, DebateRound)],
     quoteDelimiters: (String, String)
-  ): List[ReadableTurn] =
-    rounds
-      .filter {
-        case (_, SimultaneousSpeeches(_)) | (_, SequentialSpeeches(_)) =>
-          true;
-        case _ =>
-          false
-      }
-      .flatMap { case (roundType, round) =>
-        constructTurnsForRound(debate, roundType, round, quoteDelimiters)
+  ): Vector[ReadableTurn] =
+    debate
+      .visibleRounds("Offline Judge", OfflineJudge)
+      .filter(
+        _.round match {
+          case SimultaneousSpeeches(_) | SequentialSpeeches(_) =>
+            true
+          case _ =>
+            false
+        }
+      )
+      .flatMap { round =>
+        constructTurnsForRound(debate, round, quoteDelimiters)
       } :+
       ReadableTurn(
         role = "Offline Judge (Timed)",
