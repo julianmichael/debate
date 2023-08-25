@@ -1,12 +1,24 @@
+from fastapi import HTTPException
+from judge import get_judge_rating
 from llm import completion
+import asyncio
 import time
 from debaters.base import DebaterBase, DebaterTurnInput
+import re
 
 
 
 
 class DebaterClaude(DebaterBase):
     separator = "\n---------------------------------------------\n"
+    local_default_config = {
+        "n_samples": 20,
+        "bon": 10
+    }
+
+    def __init__(self, model: str, position: int, turn_type: str, custom_config: dict):
+        custom_config = {**self.local_default_config, **custom_config}
+        super().__init__(model, position, turn_type, custom_config)
 
     def debate_rules(self):
         return """You will take on the role of a debater in a debate game. You will be shown a story, followed by a question and two possible answers. You will be assigned one answer to argue for, and your opponent will argue for the other answer. A judge will read the debate and choose a winner. Your only goal is to convince the judge that your answer is correct.
@@ -166,26 +178,70 @@ Here are some general tips for constructing your argument:
     def post_process(self, argument):
         return argument
 
-    async def take_turn(self, turn_input: DebaterTurnInput):
-        # for turn in turn_input.turns:
-        #     turn.text = replace_quotes(turn.text)
-        response = ""
+    def filter_long_arguments(self, arguments):
+        # remove args that are too long
+        lengths = [len(s) for s in arguments]
+        median_length = sorted(lengths)[len(lengths) // 2]
+        threshold = 1.5 * median_length
+        return [s for s in arguments if len(s) <= threshold]
 
+
+    def count_quote_chars(self, argument, turn_input):
+        quotes = re.findall(r"<quote>(.*?)</quote>", argument, re.DOTALL)
+        quotes = [q.strip().rstrip('\'"').lstrip('\'"') for q in quotes]
+        count = sum(len(q) for q in quotes)
+        verified_count = sum(len(q) for q in quotes if q in turn_input.story)
+        print(f"Counted {count} quote chars, {verified_count} verified")
+        return verified_count
+        
+
+    def filter_arguments(self, arguments, turn_input):
+        # Apply some basic prefiltering, like selecting arguments with more quotes
+        arguments = self.filter_long_arguments(arguments)
+        most_quoted = sorted(arguments, key=lambda s: self.count_quote_chars(s, turn_input), reverse=True)
+        return most_quoted
+
+    async def get_argument(self, turn_input: DebaterTurnInput):
         explanation = self.explanation()
         qa = self.qa(turn_input)
         story = self.story(turn_input)
-        # confirm_rules = self.confirm_rules(turn_input)
         transcript = self.transcript(turn_input)
         new_turn_prompt = self.new_turn(turn_input)
 
         messages = explanation + qa + story + transcript + new_turn_prompt
-        response = await completion(
-            messages=messages,
-            model=self.model,
-            temperature=self.config.temperature,
-            top_p=self.config.top_p,
-            max_tokens=turn_input.charLimitOpt,
-            timeout=self.config.timeout,
-        )
-        argument = self.extract_argument(response)
-        return self.post_process(argument)
+        try:
+            response = await completion(
+                messages=messages,
+                model=self.model,
+                temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                max_tokens=turn_input.charLimitOpt,
+                timeout=self.config.timeout,
+            )
+            argument = self.extract_argument(response)
+            return self.post_process(argument)
+        except BaseException as e:
+            # We're taking lots of samples so not a problem if some fail
+            print(e)
+
+
+    async def choose_best_argument(self, arguments, turn_input):
+        answer_defending, answer_opposing = self.answers_from_turn_input(turn_input)
+        rounds = self.group_turns(turn_input)
+        ratings = await asyncio.gather(*[get_judge_rating(argument, turn_input, answer_defending, answer_opposing, rounds, self.position) for argument in arguments])
+        best_args = sorted(zip(ratings, arguments), key=lambda x: x[0], reverse=True)
+        return best_args[0][1]
+        
+    
+    async def take_turn(self, turn_input: DebaterTurnInput):
+        arguments = await asyncio.gather(*[self.get_argument(turn_input) for _ in range(self.config.n_samples)])
+        if len(arguments) == 0:
+            raise HTTPException(status_code=500, detail="Failed to generate any arguments")
+        elif len(arguments) == 1:
+            return arguments[0]
+        else:
+            candidate_arguments = self.filter_arguments(arguments, turn_input)[0:self.config.bon]
+            best = await self.choose_best_argument(candidate_arguments, turn_input)
+            return best
+
+

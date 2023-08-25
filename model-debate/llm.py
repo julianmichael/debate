@@ -1,4 +1,5 @@
 import asyncio
+import numpy as np
 import os
 from datetime import datetime
 import time
@@ -98,4 +99,69 @@ async def completion(
     with open(os.path.join("prompt_history", filename), "a") as f:
         f.write("\n\n=====RESPONSE======\n\n")
         f.write(completion)
+    print(completion)
     return completion
+
+def softmax(x):
+    return np.exp(x) / np.sum(np.exp(x), axis=0)
+
+@retry(
+    wait=wait_random_exponential(min=1, max=60),
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(RateLimitError),
+)
+async def logprobs(
+    prompt: str,
+    model: str = "text-davinci-002",
+    temperature: float = 0.0,
+    top_p: float = 1.0,
+    max_tokens: int = 2,
+    timeout: int = 60,
+    answer_tokens: List = ["A", "B"]
+) -> str:
+    print("Sending logprob request")
+    start = time.time()
+    secrets = load_secrets("SECRETS")
+    openai.organization = secrets["NYU_ORG"]
+    openai.api_key = secrets["API_KEY"]
+    filename = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}_prompt.txt"
+    # 003 is not well calibrated due to RL training
+    if model == "text-davinci-002":
+        with open(os.path.join("prompt_history", filename), "w") as f:
+            f.write(prompt)
+        response = await asyncio.wait_for(
+            openai.Completion.acreate(
+                prompt=prompt,
+                model=model,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
+                logprobs=5,
+            ),
+            timeout=timeout,
+        )
+        log_prob = response.choices[0].logprobs
+        end = time.time()
+        print(f"Time elapsed: {end - start}s")
+        with open(os.path.join("prompt_history", filename), "a") as f:
+            f.write("\n\n=====RESPONSE======\n\n")
+            f.write(json.dumps(response))
+
+        logit1 = log_prob["top_logprobs"][0].get(answer_tokens[0], None)
+        logit2 = log_prob["top_logprobs"][0].get(answer_tokens[1], None)
+
+        if logit1 is None and logit2 is None:
+            prob1 = 0.0
+        elif logit1 is None:
+            prob1 = 0.0
+        elif logit2 is None:
+            prob1 = 0.5
+        else:
+            x = [logit1, logit2]
+            probs = softmax(x)
+            LOGGER.debug(f"probs: {probs}")
+            prob1 = probs[0]
+        return prob1
+    else:
+        raise ValueError(f"Unknown model: {model}")
+

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 
@@ -24,15 +24,17 @@ class DebaterConfig(BaseModel):
     top_p: float
     timeout: int
     bon: int
+    n_samples: int
 
 
 class DebaterBase:
     default_config = {
-        "names": ["Debater B", "Debater B"],
+        "names": ["Debater A", "Debater B"],
         "consultant_name": "Consultant",
-        "temperature": 0.7,
+        "temperature": 1,
         "top_p": 1.0,
-        "timeout": 120,
+        "timeout": 60,
+        "n_samples":1,
         "bon": 1
     }
 
