@@ -6,6 +6,7 @@ import jjm.ling.Text
 @JsonCodec
 case class ReadableTurn(
   role: String,
+  speaker: String,
   index: Option[Int],
   text: String,
   probabilities: Option[Vector[Double]],
@@ -17,6 +18,7 @@ case class ReadableTurn(
 
 @JsonCodec
 case class ReadableDebate(
+  roomName: String,
   storyId: String,
   storyTitle: String,
   story: String,
@@ -30,6 +32,7 @@ case class ReadableDebate(
 object ReadableDebate {
 
   def fromDebate(
+    roomName: String,
     debate: Debate,
     userName: String,
     role: Role,
@@ -44,6 +47,7 @@ object ReadableDebate {
         }
         .toList
     ReadableDebate(
+      roomName = roomName,
       storyId =
         sourceMaterialId match {
           case SourceMaterialId.QuALITYStory(id, _) =>
@@ -62,7 +66,12 @@ object ReadableDebate {
     )
   }
 
-  def sessionsFromDebate(debate: Debate, quoteDelimiters: (String, String)) = {
+  def sessionsFromDebate(
+    roomName: String,
+    debate: Debate,
+    quoteDelimiters: (String, String),
+    liveOnly: Boolean
+  ) = {
     val sourceMaterialId = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial)
     val turnLists: List[(List[ReadableTurn], String, Boolean)] =
       List(
@@ -110,10 +119,12 @@ object ReadableDebate {
                 )
               }
           )
+          .filter(_ => !liveOnly)
       ).flatten
 
     turnLists.map { case (turnList, judge, isJudgeCorrect) =>
       ReadableDebate(
+        roomName = roomName,
         storyId =
           sourceMaterialId match {
             case SourceMaterialId.QuALITYStory(id, _) =>
@@ -160,6 +171,7 @@ object ReadableDebate {
       val distOpt = DebateRound.judgeFeedback.getOption(visibleRound.round).map(_.distribution)
       ReadableTurn(
         role = roleStr,
+        speaker = speech.speaker,
         index = getRoleIndex(role),
         text = SpeechSegments
           .getSpeechString(debate.setup.sourceMaterial.contents, speech.content, quoteDelimiters),
@@ -189,6 +201,7 @@ object ReadableDebate {
     judgments.map { case JudgeFeedback(distribution, feedback, _) =>
       ReadableTurn(
         role = "Offline Judge (Stepped)",
+        speaker = feedback.speaker,
         index = None,
         text = SpeechSegments
           .getSpeechString(debate.setup.sourceMaterial.contents, feedback.content, quoteDelimiters),
@@ -224,6 +237,7 @@ object ReadableDebate {
             .toList
     }
 
+  // TODO: missing the turns apparently
   def constructTurnsForTimedOfflineJudge(
     debate: Debate,
     judgment: JudgeFeedback,
@@ -244,6 +258,7 @@ object ReadableDebate {
       } :+
       ReadableTurn(
         role = "Offline Judge (Timed)",
+        speaker = judgment.feedback.speaker,
         index = None,
         text = SpeechSegments.getSpeechString(
           debate.setup.sourceMaterial.contents,

@@ -112,6 +112,7 @@ object AIDebateService {
   )
   object DebateTurnPrompt {
     def fromDebate[Speech](
+      roomName: String,
       debate: Debate,
       role: DebateRole,
       turnType: DebateTurnType {
@@ -120,7 +121,8 @@ object AIDebateService {
     ): DebateTurnPrompt = {
       val readableDebate = {
         val userName = role.asLiveDebateRoleOpt.flatMap(debate.setup.roles.get).getOrElse("N/A")
-        ReadableDebate.fromDebate(debate, userName, role, quoteDelimiters = ("<quote>", "</quote>"))
+        ReadableDebate
+          .fromDebate(roomName, debate, userName, role, quoteDelimiters = ("<quote>", "</quote>"))
       }
       println(s"Turns: ${readableDebate.turns}")
       DebateTurnPrompt(
@@ -398,7 +400,7 @@ object AIDebateService {
           type Input = Speech
         }
       ) = {
-        val entity = DebateTurnPrompt.fromDebate(debate, role, turn)
+        val entity = DebateTurnPrompt.fromDebate("", debate, role, turn)
         // TODO modify endpoint as necessary (if necessary)
         // TODO compile-time uri handling
         val endpoint = Uri.unsafeFromString(s"http://localhost:$localPort/debate")
