@@ -6,6 +6,7 @@ import cats.implicits._
 import io.circe.generic.JsonCodec
 
 import jjm.metrics._
+import jjm.implicits._
 
 @JsonCodec
 case class DebateStats(wins: Proportion.Stats, rewards: Numbers[Double])
@@ -13,6 +14,12 @@ case class DebateStats(wins: Proportion.Stats, rewards: Numbers[Double])
 object DebateStats {
 
   implicit val debateStatsMonoid: Monoid[DebateStats] = cats.derived.semiauto.monoid[DebateStats]
+
+  implicit val debateStatsHasMetrics: HasMetrics[DebateStats] =
+    new HasMetrics[DebateStats] {
+      def getMetrics(stats: DebateStats): MapTree[String, Metric] =
+        MapTree.Fork(Map("wins" -> stats.wins.getMetrics, "rewards" -> stats.rewards.getMetrics))
+    }
 
   private def bool2int(b: Boolean) =
     if (b)

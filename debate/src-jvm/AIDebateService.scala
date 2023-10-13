@@ -90,7 +90,7 @@ object AIDebateService {
             }
           Decoder
             .decodeJson
-            .flatMap { response =>
+            .flatMap { _ =>
               res.asInstanceOf[Decoder[req.Out]]
             }
         }
@@ -124,6 +124,42 @@ object AIDebateService {
         ReadableDebate
           .fromDebate(roomName, debate, userName, role, quoteDelimiters = ("<quote>", "</quote>"))
       }
+
+      val turnTypeStr =
+        (
+          turnType match {
+            case _: DebateTurnType.SimultaneousSpeechesTurn =>
+              Some("simultaneous")
+            case _ =>
+              None
+          }
+        ).orElse(
+            turnType match {
+              case _: DebateTurnType.DebaterSpeechTurn =>
+                if (
+                  debate
+                    .setup
+                    .roles
+                    .keySet
+                    .collect { case Debater(i) =>
+                      i
+                    }
+                    .size == 1
+                ) {
+                  // technically we would want to check the round type for assignedDebatersOnly,
+                  // but in practice this will work as long as everyone is assigned who needs to be.
+                  Some("single debater")
+                } else {
+                  Some("sequential")
+                }
+              case _ =>
+                None
+            }
+          )
+          .get
+      // shouldn't be empty since we're only having the model do debating in the presence
+      // of a live judge
+
       println(s"Turns: ${readableDebate.turns}")
       DebateTurnPrompt(
         storyId = readableDebate.storyId,
@@ -140,33 +176,7 @@ object AIDebateService {
             .get, // debaters only
         charLimitOpt = turnType.charLimitOpt,
         quoteCharLimitOpt = turnType.quoteLimit,
-        turnType =
-          turnType match {
-            case DebateTurnType.SimultaneousSpeechesTurn(_, _, _) =>
-              "simultaneous"
-            case DebateTurnType.DebaterSpeechTurn(_, _, _) =>
-              if (
-                debate
-                  .setup
-                  .roles
-                  .keySet
-                  .collect { case Debater(i) =>
-                    i
-                  }
-                  .size == 1
-              ) {
-                // technically we would want to check the round type for assignedDebatersOnly,
-                // but in practice this will work as long as everyone is assigned who needs to be.
-                "single debater"
-              } else {
-                "sequential"
-              }
-            case _ =>
-              // shouldn't happen since we're only having the model do debating in the presence
-              // of a live judge
-              ???
-
-          }
+        turnType = turnTypeStr
       )
     }
   }
