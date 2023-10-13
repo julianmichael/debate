@@ -321,14 +321,14 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             }
             .mkString(" [[input text]] ")
         },
-        "Participant quote span midpoint" -> { info =>
+        "Participant quote span" -> { info =>
           info
             .speech
             .content
             .collect { case SpeechSegment.Quote(span) =>
-              (span.begin+span.end)/2
+              s"<<${span.begin}-${span.end}>>"
             }
-            .mkString(" [[input text]] ")
+            .mkString(" ")
         },
         "Text length" -> { info =>
           info
