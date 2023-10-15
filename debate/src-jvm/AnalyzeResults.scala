@@ -317,123 +317,131 @@ object AnalyzeResults
 
   import java.time.Instant
 
+  def getDebatesFilteredForTime(
+    allDebates: List[(String, Debate)],
+    quality: Map[String, QuALITYStory]
+  ) = allDebates
+    .flatMap { case (roomName, debate) =>
+      debate
+        .result
+        .filter(res =>
+          Instant
+            .ofEpochMilli(debate.setup.creationTime)
+            .isAfter(java.time.Instant.parse("2023-02-10T00:00:00Z")) &&
+            Instant
+              .ofEpochMilli(res.timestamp)
+              .isBefore(java.time.Instant.parse("2023-09-01T00:00:00Z"))
+        )
+        .as(roomName -> debate)
+    }
+    .map { case (roomName, debate) =>
+      val questionDifficultyOpt =
+        for {
+          source      <- SourceMaterial.quality.getOption(debate.setup.sourceMaterial)
+          story       <- quality.get(source.articleId)
+          question    <- story.questions.values.toList.find(_.question == debate.setup.question)
+          annotations <- question.annotations
+          score       <- annotations.context.meanOpt.map(math.round(_))
+        } yield score.toInt
+
+      AnalyzedDebate(roomName, debate, questionDifficultyOpt)
+    }
+
+  def balanceDebates(unbalancedDebates: List[AnalyzedDebate]) =
+    unbalancedDebates
+      .flatMap { d =>
+        val judges =
+          d.debate.offlineJudgingResults.filter(_._2.result.nonEmpty).keySet ++
+            d.debate.setup.roles.get(Judge)
+        judges.toList.map(j => (j -> getArticleId(d.debate)) -> d)
+      }
+      .groupByNel(_._1) // group by (judge, article)
+      .values
+      .map(
+        _.minimumBy(_._2.debate.result.map(_.timestamp).getOrElse(Long.MaxValue))
+      ) // only include the first judgment that each judge made on each article
+      .filter(p =>
+        p._2.debate.setup.roles.get(Judge).exists(_ == p._1._1)
+      ) // only include the debate if this first judgment was done as an online judge
+      .map(_._2)
+      .toList
+      .flatMap(_.filtered) // do debate-specific filtering: is over, is online, is not too easy
+      .groupBy(_.setting)
+      .transform { case (setting, debates) =>
+        if (setting.isDebate)
+          debates
+        else {
+          // balance consultancies
+          val numHonest     = debates.count(isConsultantHonest)
+          val numDishonest  = debates.size - numHonest
+          val difference    = math.abs(numHonest - numDishonest)
+          val hasMoreHonest = numHonest > numDishonest
+
+          // deterministically (randomly) shuffle debates
+          val debatesByQuestion = debates.groupBy(d => getQuestionId(d.debate))
+          val rand              = new scala.util.Random(876)
+          // val rand = new scala.util.Random(2395726)
+          val commonDebates = rand.shuffle(
+            debatesByQuestion
+              .filter(p =>
+                p._2.exists(isConsultantHonest) && p._2.exists(d => !isConsultantHonest(d))
+              )
+              .toList
+              .sortBy(_._1)
+              .map(p => p.copy(_2 = p._2.sortBy(_.endTime))) // prefer later debates
+          )
+
+          // first, balance by removing consultancies from questions that have both honest and dishonest consultancies
+          // this will get us to end up with a larger number of total questions covered in the data,
+          // which makes it closer to i.i.d.
+          val (filteredCommonDebates, remainingDifference) =
+            commonDebates.foldLeft((Vector.empty[AnalyzedOnlineDebate], difference)) {
+              case ((acc, remainingDifference), (_, debates)) =>
+                if (remainingDifference <= 0)
+                  (acc ++ debates, 0)
+                else {
+                  val (honest, dishonest) = debates.partition(isConsultantHonest)
+                  val (more, less) =
+                    if (hasMoreHonest)
+                      (honest, dishonest)
+                    else
+                      (dishonest, honest)
+
+                  val numMoreToRemove = math.min(remainingDifference, more.size)
+                  val debatesToAdd    = more.drop(numMoreToRemove) ++ less
+                  (acc ++ debatesToAdd, remainingDifference - numMoreToRemove)
+                }
+            }
+          require(remainingDifference >= 0)
+          val honest = rand.shuffle(debatesByQuestion.filter(_._2.forall(isConsultantHonest)))
+          val dishonest = rand
+            .shuffle(debatesByQuestion.filter(_._2.forall(d => !isConsultantHonest(d))))
+          val (more, less) =
+            if (hasMoreHonest)
+              (honest, dishonest)
+            else
+              (dishonest, honest)
+
+          require(remainingDifference < more.size)
+          // now, if it's still imbalanced, filter from the remainder of questions
+          // which only have honest or dishonest consultancies
+          val balancedUniques =
+            more.drop(remainingDifference).values.flatten.toList ++ less.values.flatten.toList
+
+          filteredCommonDebates ++ balancedUniques
+        }
+      }
+      .values
+      .flatten
+      .toList
+
   def analyzeDebates(
     allDebates: List[(String, Debate)],
     quality: Map[String, QuALITYStory]
   ): IO[Unit] = IO {
-    val unbalancedDebates = allDebates
-      .flatMap { case (roomName, debate) =>
-        debate
-          .result
-          .filter(res =>
-            Instant
-              .ofEpochMilli(debate.setup.creationTime)
-              .isAfter(java.time.Instant.parse("2023-02-10T00:00:00Z")) &&
-              Instant
-                .ofEpochMilli(res.timestamp)
-                .isBefore(java.time.Instant.parse("2023-09-01T00:00:00Z"))
-          )
-          .as(roomName -> debate)
-      }
-      .map { case (roomName, debate) =>
-        val questionDifficultyOpt =
-          for {
-            source      <- SourceMaterial.quality.getOption(debate.setup.sourceMaterial)
-            story       <- quality.get(source.articleId)
-            question    <- story.questions.values.toList.find(_.question == debate.setup.question)
-            annotations <- question.annotations
-            score       <- annotations.context.meanOpt.map(math.round(_))
-          } yield score.toInt
 
-        AnalyzedDebate(roomName, debate, questionDifficultyOpt)
-      }
-
-    val debates =
-      unbalancedDebates
-        .flatMap { d =>
-          val judges =
-            d.debate.offlineJudgingResults.filter(_._2.result.nonEmpty).keySet ++
-              d.debate.setup.roles.get(Judge)
-          judges.toList.map(j => (j -> getArticleId(d.debate)) -> d)
-        }
-        .groupByNel(_._1) // group by (judge, article)
-        .values
-        .map(
-          _.minimumBy(_._2.debate.result.map(_.timestamp).getOrElse(Long.MaxValue))
-        ) // only include the first judgment that each judge made on each article
-        .filter(p =>
-          p._2.debate.setup.roles.get(Judge).exists(_ == p._1._1)
-        ) // only include the debate if this first judgment was done as an online judge
-        .map(_._2)
-        .toList
-        .flatMap(_.filtered) // do debate-specific filtering: is over, is online, is not too easy
-        .groupBy(_.setting)
-        .transform { case (setting, debates) =>
-          if (setting.isDebate)
-            debates
-          else {
-            // balance consultancies
-            val numHonest     = debates.count(isConsultantHonest)
-            val numDishonest  = debates.size - numHonest
-            val difference    = math.abs(numHonest - numDishonest)
-            val hasMoreHonest = numHonest > numDishonest
-
-            // deterministically (randomly) shuffle debates
-            val debatesByQuestion = debates.groupBy(d => getQuestionId(d.debate))
-            val rand              = new scala.util.Random(876)
-            val commonDebates = rand.shuffle(
-              debatesByQuestion
-                .filter(p =>
-                  p._2.exists(isConsultantHonest) && p._2.exists(d => !isConsultantHonest(d))
-                )
-                .toList
-                .sortBy(_._1)
-                .map(p => p.copy(_2 = p._2.sortBy(_.endTime))) // prefer later debates
-            )
-
-            // first, balance by removing consultancies from questions that have both honest and dishonest consultancies
-            // this will get us to end up with a larger number of total questions covered in the data,
-            // which makes it closer to i.i.d.
-            val (filteredCommonDebates, remainingDifference) =
-              commonDebates.foldLeft((Vector.empty[AnalyzedOnlineDebate], difference)) {
-                case ((acc, remainingDifference), (_, debates)) =>
-                  if (remainingDifference <= 0)
-                    (acc ++ debates, 0)
-                  else {
-                    val (honest, dishonest) = debates.partition(isConsultantHonest)
-                    val (more, less) =
-                      if (hasMoreHonest)
-                        (honest, dishonest)
-                      else
-                        (dishonest, honest)
-
-                    val numMoreToRemove = math.min(remainingDifference, more.size)
-                    val debatesToAdd    = more.drop(numMoreToRemove) ++ less
-                    (acc ++ debatesToAdd, remainingDifference - numMoreToRemove)
-                  }
-              }
-            require(remainingDifference >= 0)
-            val honest = rand.shuffle(debatesByQuestion.filter(_._2.forall(isConsultantHonest)))
-            val dishonest = rand
-              .shuffle(debatesByQuestion.filter(_._2.forall(d => !isConsultantHonest(d))))
-            val (more, less) =
-              if (hasMoreHonest)
-                (honest, dishonest)
-              else
-                (dishonest, honest)
-
-            require(remainingDifference < more.size)
-            // now, if it's still imbalanced, filter from the remainder of questions
-            // which only have honest or dishonest consultancies
-            val balancedUniques =
-              more.drop(remainingDifference).values.flatten.toList ++ less.values.flatten.toList
-
-            filteredCommonDebates ++ balancedUniques
-          }
-        }
-        .values
-        .flatten
-        .toList
+    val unbalancedDebates = getDebatesFilteredForTime(allDebates, quality)
+    val debates           = balanceDebates(unbalancedDebates)
 
     def printInitialMetrics(debates: List[AnalyzedDebate]) = {
       val initialMetrics = debates.foldMap { debate =>
@@ -559,7 +567,10 @@ object AnalyzeResults
     import java.io.File
     CSVWriter
       .open(new File("sample-rooms.csv"))
-      .writeAll(debates.map(d => List(d.roomName, d.debate.setup.roles(Judge))))
+      .writeAll(
+        List("Room name", "Judge") ::
+          debates.map(d => List(d.roomName, d.debate.setup.roles(Judge)))
+      )
   }
 
 }

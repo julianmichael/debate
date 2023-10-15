@@ -42,6 +42,7 @@ fullHeight = 400
 def read_data():
     global debates
     global sessions
+    global filtered_sessions
     global turns
     global leaderboard
     debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
@@ -89,6 +90,9 @@ def read_data():
         axis=1
     )
 
+    sessions_to_keep = pd.read_csv(os.path.join(data_dir, "official/summaries/sample-rooms.csv"), keep_default_na=True)
+    filtered_sessions = sessions_to_keep.merge(sessions, how="left", left_on=["Room name", "Judge"], right_on=["Room name", "Participant"])
+
     print("Debates:")
     print(debates.dtypes)
     print(debates.describe())
@@ -98,6 +102,9 @@ def read_data():
     print("Sessions:")
     print(sessions.dtypes)
     print(sessions.describe())
+    print("Filtered sessions:")
+    print(filtered_sessions.dtypes)
+    print(filtered_sessions.describe())
     print("Leaderboard (disaggregated):")
     print(leaderboard.dtypes)
     print(leaderboard.describe())
@@ -268,7 +275,11 @@ def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = 
             ),
             scale=alt.Scale(domain=[0.0, 1.0])
         ),
-        color=alt.Color(f'{prob_correct_field}:Q', scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0])),
+        color=alt.Color(
+            f'{prob_correct_field}:Q',
+            scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0]),
+            axis=alt.Axis(title='Probability correct')
+            ),
         order=alt.Order(
             f'{prob_assigned_field}:Q',
             sort='descending' if not invert else 'ascending'
@@ -463,8 +474,9 @@ def accuracy_by_judge_setting():
     ).resolve_scale(x = 'independent')
 
 
-def accuracy_by_session_setting():
-    source = sessions.merge(
+def accuracy_by_session_setting(for_paper: bool = False):
+    base_source = filtered_sessions if for_paper else sessions
+    source = base_source.merge(
         debates[
             [
                 "Room name",
@@ -496,10 +508,54 @@ def accuracy_by_session_setting():
         accuracy_by_field(
             accuracy_source,
             yEncoding = yEncoding
-        ).properties(title="Accuracy by Session Setting"),
-        prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = None),
-        prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'log'),
-        prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'reward'),
+        ).properties(title="Judge Accuracy"),
+        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = None),
+        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'log'),
+        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'reward'),
+    ).resolve_scale(x = 'independent')
+
+def accuracy_by_consultancy_split(for_paper: bool = False):
+    base_source = filtered_sessions if for_paper else sessions
+    source = base_source.merge(
+        debates[
+            [
+                "Room name",
+                "Is offline",
+                "Is single debater",
+                "Honest debater",
+                "Dishonest debater",
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+
+    source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+    source = source[source['Is single debater']]
+    def get_setting(row):
+        ai_or_human = "Human"
+        if row['Honest debater'] == 'GPT-4':
+            return "AI Consultancy (honest)"
+        elif row['Dishonest debater'] == 'GPT-4':
+            return "AI Consultancy (dishonest)"
+        elif str(row['Honest debater']) != 'nan':
+            print(row['Honest debater'])
+            return "Human Consultancy (honest)"
+        else:
+            return "Human Consultancy (dishonest)"
+
+    source['Setting'] = source.apply(get_setting, axis=1)
+    yEncoding = alt.Y(field ='Setting', type='N', title='Setting')
+    accuracy_source = source[source['Final probability correct'].notna()]
+
+    return alt.vconcat(
+        accuracy_by_field(
+            accuracy_source,
+            yEncoding = yEncoding
+        ).properties(title="Judge Accuracy"),
+        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = None),
+        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'log'),
+        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'reward'),
     ).resolve_scale(x = 'independent')
 
 def judge_distribution_by_setting():
@@ -1712,8 +1768,10 @@ def personal_calibration_simple(user: str):
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
     #"Main_results:_An_overview_of_counts": an_overview_of_counts,
+    "Final_results:_Accuracy_by_session_setting": (lambda: accuracy_by_session_setting(for_paper=True)),
+    "Final_results:_Accuracy_by_consultancy_(split)": (lambda: accuracy_by_consultancy_split(for_paper=True)),
     "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
-    "Main_results:_Accuracy_by_session_setting": accuracy_by_session_setting,
+    "Main_results:_Accuracy_by_session_setting": (lambda: accuracy_by_session_setting(for_paper=False)),
     "Main_results:_Calibration": calibration_plots,
     "Main_results:_Calibration_(Simple)": simple_calibration_plots,
     "Results:_Win_rates_by_participant": win_rates_by_participant,

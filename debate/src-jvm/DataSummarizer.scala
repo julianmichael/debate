@@ -469,7 +469,7 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
               ""
           }
         },
-        //TO ask: stepped? is this the final?
+        // TO ask: stepped? is this the final?
         "Offline judging end time" -> { info =>
           info.role match {
             case OfflineJudge =>
@@ -483,7 +483,7 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             case _ =>
               ""
           }
-        },
+        }
 
         // Q: how many times debated / judged could possibly be derived from making a timeline of the debates in .py
         // But there might be cases where times overlap.. let's decide def first?
@@ -642,6 +642,19 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
         } yield DebateSessionInfo(roomName, debate, role, participant)
 
       sessionsCSV.writeToPath(sessionInfos, summaryDir)
+    } >> {
+      val filteredDebates = AnalyzeResults.getDebatesFilteredForTime(debates.toList, qualityDataset)
+      val balancedDebates = AnalyzeResults.balanceDebates(filteredDebates)
+
+      import java.io.File
+      IO(
+        CSVWriter
+          .open(new File(summaryDir.resolve("sample-rooms.csv").toString))
+          .writeAll(
+            List("Room name", "Judge") ::
+              balancedDebates.map(d => List(d.roomName, d.debate.setup.roles(Judge)))
+          )
+      )
     }
 
 }
