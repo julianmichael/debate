@@ -239,16 +239,21 @@ object AnalyzeResults
       Chosen(
         Map(
           d.setting ->
-            ("1. aggregate accuracy variance" ->> Numbers(math.round(d.probabilityCorrect)) ::
-              "2. per-story accuracy variance" ->>
-              Chosen(Map(getArticleId(d.debate) -> Numbers(math.round(d.probabilityCorrect)))) ::
-              "3. per-question accuracy variance" ->>
-              Chosen(
-                Map(
-                  s"${getArticleId(d.debate)}: ${d.debate.setup.question}" ->
-                    Numbers(math.round(d.probabilityCorrect))
-                )
-              ) :: HNil)
+            (
+              "1. aggregate accuracy variance" ->> Numbers(math.round(d.probabilityCorrect)) ::
+                "2. per-story accuracy variance" ->>
+                Chosen(Map(getArticleId(d.debate) -> Numbers(math.round(d.probabilityCorrect)))) ::
+                "2.5. debates per story" ->> Count(getArticleId(d.debate)) ::
+                "3. per-question accuracy variance" ->>
+                Chosen(
+                  Map(
+                    s"${getArticleId(d.debate)}: ${d.debate.setup.question}" ->
+                      Numbers(math.round(d.probabilityCorrect))
+                  )
+                ) ::
+                "3.5. debates per question" ->>
+                Count(getArticleId(d.debate) -> d.debate.setup.question) :: HNil
+            )
         )
       )
     )
@@ -288,7 +293,10 @@ object AnalyzeResults
           d.setting ->
             ("accuracy" ->> correctIf(d, d.probabilityCorrect > 0.5) ::
               "length" ->> Numbers(d.debate.numDebateRounds) ::
-              "reward" ->> Numbers(d.result.judgeReward) :: HNil)
+              "reward" ->> Numbers(d.result.judgeReward) ::
+              "correct speaker" ->> FewClassCount(d.result.correctAnswerIndex) ::
+              "winning speaker" ->>
+              FewClassCount(d.result.finalJudgement.zipWithIndex.maxBy(_._1)._2) :: HNil)
         )
       )
     )
@@ -348,30 +356,44 @@ object AnalyzeResults
               d.debate.setup.roles.get(Judge)
           judges.toList.map(j => (j -> getArticleId(d.debate)) -> d)
         }
-        .groupByNel(_._1)
+        .groupByNel(_._1) // group by (judge, article)
         .values
-        .map(_.minimumBy(_._2.debate.result.map(_.timestamp).getOrElse(Long.MaxValue)))
-        .filter(p => p._2.debate.setup.roles.get(Judge).exists(_ == p._1._1))
+        .map(
+          _.minimumBy(_._2.debate.result.map(_.timestamp).getOrElse(Long.MaxValue))
+        ) // only include the first judgment that each judge made on each article
+        .filter(p =>
+          p._2.debate.setup.roles.get(Judge).exists(_ == p._1._1)
+        ) // only include the debate if this first judgment was done as an online judge
         .map(_._2)
         .toList
-        .flatMap(_.filtered)
+        .flatMap(_.filtered) // do debate-specific filtering: is over, is online, is not too easy
         .groupBy(_.setting)
         .transform { case (setting, debates) =>
           if (setting.isDebate)
             debates
           else {
+            // balance consultancies
             val numHonest     = debates.count(isConsultantHonest)
             val numDishonest  = debates.size - numHonest
             val difference    = math.abs(numHonest - numDishonest)
             val hasMoreHonest = numHonest > numDishonest
 
+            // deterministically (randomly) shuffle debates
             val debatesByQuestion = debates.groupBy(d => getQuestionId(d.debate))
-            val commonDebates =
+            val rand              = new scala.util.Random(876)
+            val commonDebates = rand.shuffle(
               debatesByQuestion
                 .filter(p =>
                   p._2.exists(isConsultantHonest) && p._2.exists(d => !isConsultantHonest(d))
                 )
                 .toList
+                .sortBy(_._1)
+                .map(p => p.copy(_2 = p._2.sortBy(_.endTime))) // prefer later debates
+            )
+
+            // first, balance by removing consultancies from questions that have both honest and dishonest consultancies
+            // this will get us to end up with a larger number of total questions covered in the data,
+            // which makes it closer to i.i.d.
             val (filteredCommonDebates, remainingDifference) =
               commonDebates.foldLeft((Vector.empty[AnalyzedOnlineDebate], difference)) {
                 case ((acc, remainingDifference), (_, debates)) =>
@@ -391,8 +413,9 @@ object AnalyzeResults
                   }
               }
             require(remainingDifference >= 0)
-            val honest    = debatesByQuestion.filter(_._2.forall(isConsultantHonest))
-            val dishonest = debatesByQuestion.filter(_._2.forall(d => !isConsultantHonest(d)))
+            val honest = rand.shuffle(debatesByQuestion.filter(_._2.forall(isConsultantHonest)))
+            val dishonest = rand
+              .shuffle(debatesByQuestion.filter(_._2.forall(d => !isConsultantHonest(d))))
             val (more, less) =
               if (hasMoreHonest)
                 (honest, dishonest)
@@ -400,6 +423,8 @@ object AnalyzeResults
                 (dishonest, honest)
 
             require(remainingDifference < more.size)
+            // now, if it's still imbalanced, filter from the remainder of questions
+            // which only have honest or dishonest consultancies
             val balancedUniques =
               more.drop(remainingDifference).values.flatten.toList ++ less.values.flatten.toList
 
@@ -529,8 +554,12 @@ object AnalyzeResults
     println(getMetricsString(workContributions))
     println(getMetricsString(workContributions.map(_.data.values.toList.foldMap(Numbers(_)))))
 
-    // write a CSV with room names and judge names for the final filtered debates
-
+    // write a CSV with room names and judge names to get the repeatable sample of the final filtered debates
+    import com.github.tototoshi.csv._
+    import java.io.File
+    CSVWriter
+      .open(new File("sample-rooms.csv"))
+      .writeAll(debates.map(d => List(d.roomName, d.debate.setup.roles(Judge))))
   }
 
 }
