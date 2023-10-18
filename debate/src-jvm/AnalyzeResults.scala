@@ -12,7 +12,89 @@ import io.circe.generic.JsonCodec
 import monocle.macros.Lenses
 import debate.quality.QuALITYStory
 import debate.JudgingResult
-import cats.kernel.Monoid
+import cats.Monoid
+
+import jjm.ling.Text
+import jjm.metrics._
+import jjm.implicits._
+
+import shapeless._
+import shapeless.syntax.singleton._
+import shapeless.record._
+import cats.kernel.CommutativeMonoid
+import jjm.ling.ESpan
+
+case class Confidences(data: Vector[Confidences.Prediction] = Vector()) {
+  import Confidences.Prediction
+  def stats(numBins: Int) = Confidences.Stats(
+    (0 until numBins)
+      .map { binNum =>
+        val binMin = binNum / numBins.toDouble
+        val binMax = (binNum + 1) / numBins.toDouble
+        (binMin, binMax) -> {
+          val bin = data.filter { case Prediction(confidence, _) =>
+            (confidence >= binMin && confidence < binMax) || binMax == 1.0 && confidence == 1.0
+          }
+          Confidences.BinStats(numCorrect = bin.foldMap(_.correctness), numPredictions = bin.size)
+        }
+      }
+      .toMap
+  )
+}
+object Confidences {
+  case class Prediction(confidence: Double, correctness: Double)
+  case class BinStats(numCorrect: Double, numPredictions: Int) {
+    def accuracy = numCorrect / numPredictions
+  }
+  object BinStats {
+    implicit val confidencesBinStatsMonoid: CommutativeMonoid[BinStats] =
+      cats.derived.semiauto.commutativeMonoid
+  }
+
+  def apply(ds: Prediction*): Confidences = Confidences(ds.toVector)
+  case class Stats(bins: Map[(Double, Double), BinStats]) {
+    def accuracy = bins.unorderedFold.accuracy
+    def ece =
+      bins
+        .toList
+        .filter(_._2.numPredictions > 0)
+        .foldMap { case ((min, max), acc) =>
+          val confidence = (min + max) / 2
+          WeightedNumbers(math.abs(acc.accuracy - confidence), weight = acc.numPredictions)
+        }
+        .stats
+        .weightedMean
+
+    def getTree: MapTree[String, Metric] = MapTree.fork(
+      "accuracy" -> MapTree.leaf(Metric.double(accuracy)),
+      "calibration" ->
+        MapTree.fork(
+          bins.map { case ((lb, ub), stats) =>
+            s"$lb-$ub" ->
+              MapTree.fromPairs(
+                "accuracy"        -> Metric.double(stats.accuracy),
+                "num predictions" -> Metric.int(stats.numPredictions)
+              )
+          }
+        ),
+      "expected calibration error" -> MapTree.leaf(Metric.double(ece))
+    )
+  }
+  object Stats {
+    implicit val confidencesStatsHasMetrics =
+      new HasMetrics[Confidences.Stats] {
+        def getMetrics(conf: Confidences.Stats) = conf.getTree
+      }
+  }
+  implicit val confidencesMonoid: Monoid[Confidences] = {
+    import cats.derived.auto.monoid._
+    cats.derived.semiauto.monoid
+  }
+  implicit val confidencesHasMetrics =
+    new HasMetrics[Confidences] {
+      def getMetrics(conf: Confidences) = conf.stats(10).getTree
+    }
+}
 
 /** Main object for running the debate webserver. Uses the decline-effect
   * package for command line arg processing / app entry point.
@@ -135,12 +217,6 @@ object AnalyzeResults
           .filter(_ => isOnline && isNotTooLittleContextRequired)
       )
   }
-
-  import jjm.metrics._
-  import jjm.implicits._
-  import shapeless._
-  import shapeless.syntax.singleton._
-  import shapeless.record._
 
   def includeIf[A](a: A, include: Boolean) =
     if (include)
@@ -284,19 +360,189 @@ object AnalyzeResults
 
     println("===== Variance metrics =====")
     println(getMetricsString(varianceMetrics))
+
+    println("===== Question/debate count metrics =====")
+    val questionCountMetrics = debates
+      .groupBy(d => d.setting -> getConsultancySetting(d.original) -> getQuestionId(d.debate))
+      .values
+      .toList
+      .map(_.size)
+      .foldMap(Counts(_))
+    println(questionCountMetrics.histogramString(40))
+    println("===== Offline judgment count metrics =====")
+    val offlineCountMetrics = debates
+      .map(_.debate.offlineJudgingResults.values.flatMap(_.result).size + 1)
+      .foldMap(Counts(_))
+    println(offlineCountMetrics.histogramString(40))
+
+    println("===== Info-theoretic metrics =====")
+
+    def getMutualInformationBits[I, A](conf: Confusion[I, A]) = {
+      val total   = conf.matrix.values.toList.foldMap(_.values.toList.foldMap(_.size))
+      val xTotals = conf.matrix.mapVals(_.values.toList.foldMap(_.size.toDouble))
+      val yTotals = conf.matrix.values.toList.combineAll.mapVals(_.size.toDouble)
+      // val px = rowTotals.map(_.toDouble / total)
+      // val py = colTotals.map(_.toDouble / total)
+
+      val mi =
+        conf
+          .matrix
+          .toList
+          .foldMap { case (x, ys) =>
+            ys.toList
+              .foldMap { case (y, items) =>
+                val count = items.size.toDouble
+                count *
+                  math
+                    .log(count * total / (xTotals.getOrElse(x, 0.0) * yTotals.getOrElse(y, 0.0))) /
+                  math.log(2.0)
+              }
+          } / total
+      mi
+    }
+    val debateSelfConf = debates
+      .foldMap { d =>
+        val c = d.probabilityCorrect > 0.5
+        Chosen(
+          Map(
+            (d.setting -> getConsultancySetting(d.original)) ->
+              Confusion(Map(c -> Map(c -> List(()))))
+          )
+        )
+      }
+      .map(getMutualInformationBits)
+    println(s"Self-information: ${getMetricsString(debateSelfConf)}")
+
+    def getConfs[I](setting: I, corrects: List[Boolean]): Chosen[I, Confusion[Boolean, Unit]] =
+      corrects.headOption match {
+        case Some(c1) =>
+          corrects
+            .tail
+            .foldMap(c2 => Chosen(Map(setting -> Confusion(Map(c1 -> Map(c2 -> List(()))))))) |+|
+            getConfs(setting, corrects.tail)
+        case None =>
+          Chosen(Map())
+      }
+
+    // how debates vary on the same question
+    val sameQuestionConfMatrix = debates
+      .groupBy(d => (d.setting -> getConsultancySetting(d.original)) -> getQuestionId(d.debate))
+      .toVector
+      .foldMap { case ((setting, _), debatesForQuestion) =>
+        getConfs(setting, debatesForQuestion.map(_.probabilityCorrect > 0.5))
+      }
+    println("===== Confusion matrices for same question debates =====")
+    println(
+      getMetricsString(
+        sameQuestionConfMatrix.map(x => Vector(x.stats.prettyString(classFreqBound = 0)))
+      )
+    )
+    println(
+      s"Mutual information (w/o replacement): ${getMetricsString(sameQuestionConfMatrix.map(getMutualInformationBits))}"
+    )
+
+    val sameDebateConfMatrix = debates.foldMap { d =>
+      val liveJudgeWasCorrect = d.probabilityCorrect > 0.5
+      d.debate
+        .offlineJudgingResults
+        .values
+        .toList
+        .flatMap(_.result)
+        .map(_.distribution(d.debate.setup.correctAnswerIndex) > 0.5)
+        .foldMap(offlineJudgeWasCorrect =>
+          Chosen(
+            Map(
+              (d.setting -> getConsultancySetting(d.original)) ->
+                Confusion(Map(liveJudgeWasCorrect -> Map(offlineJudgeWasCorrect -> List(()))))
+            )
+          )
+        )
+    }
+    println("===== Confusion matrices for same debate judgments =====")
+    println(
+      getMetricsString(
+        sameDebateConfMatrix.map(x => Vector(x.stats.prettyString(classFreqBound = 0)))
+      )
+    )
+    println(
+      s"Mutual information (w/o replacement): ${getMetricsString(sameDebateConfMatrix.map(getMutualInformationBits))}"
+    )
+
+    def binaryPoE(x: Double, y: Double) = {
+      val unnormPTrue  = x * y
+      val unnormPFalse = (1 - x) * (1 - y)
+      unnormPTrue / (unnormPTrue + unnormPFalse)
+    }
+
+    def offlineEnsembledAccuracy(numOfflineJudges: Int) = debates.foldMap { d =>
+      // val liveJudgeWasCorrect = d.probabilityCorrect > 0.5
+      d.debate
+        .offlineJudgingResults
+        .values
+        .toList
+        .flatMap(_.result)
+        .grouped(numOfflineJudges)
+        .filter(_.size == numOfflineJudges)
+        .toList
+        .map(_.map(_.distribution(d.debate.setup.correctAnswerIndex)))
+        .foldMap(offlinePCorrects =>
+          Chosen(
+            Map(
+              (d.setting -> getConsultancySetting(d.original)) ->
+                correctIf((), offlinePCorrects.foldLeft(d.probabilityCorrect)(binaryPoE) > 0.5)
+            )
+          )
+        )
+    }
+    println("===== Offline judge accuracy PoE ensemble accuracies =====")
+    println(
+      getMetricsString(
+        "1 offline judge" ->> offlineEnsembledAccuracy(1) ::
+          "2 offline judges" ->> offlineEnsembledAccuracy(2) ::
+          "3 offline judges" ->> offlineEnsembledAccuracy(3) :: HNil
+      )
+    )
+
   }
 
   def analyzePerformance(debates: List[AnalyzedOnlineDebate]) = {
+    def accAtThreshold(d: AnalyzedOnlineDebate, threshold: Double) = {
+      val p       = d.probabilityCorrect
+      val correct = p > 0.5
+      if (math.max(p, 1.0 - p) >= threshold)
+        correctIf(d, correct)
+      else
+        Accuracy[AnalyzedOnlineDebate]()
+    }
     val metrics = debates.foldMap(d =>
       Chosen(
         Map(
           d.setting ->
-            ("accuracy" ->> correctIf(d, d.probabilityCorrect > 0.5) ::
-              "length" ->> Numbers(d.debate.numDebateRounds) ::
-              "reward" ->> Numbers(d.result.judgeReward) ::
-              "correct speaker" ->> FewClassCount(d.result.correctAnswerIndex) ::
-              "winning speaker" ->>
-              FewClassCount(d.result.finalJudgement.zipWithIndex.maxBy(_._1)._2) :: HNil)
+            (
+              "accuracy" ->> correctIf(d, d.probabilityCorrect > 0.5) ::
+                "length" ->> Numbers(d.debate.numDebateRounds) ::
+                "reward" ->> Numbers(d.result.judgeReward) ::
+                "correct speaker" ->> FewClassCount(d.result.correctAnswerIndex) ::
+                "winning speaker" ->>
+                FewClassCount(d.result.finalJudgement.zipWithIndex.maxBy(_._1)._2) ::
+                "accuracy at confidence thresholds" ->>
+                (".60" ->> accAtThreshold(d, 0.6) :: ".70" ->> accAtThreshold(d, 0.7) ::
+                  ".80" ->> accAtThreshold(d, 0.8) :: ".90" ->> accAtThreshold(d, 0.9) ::
+                  ".95" ->> accAtThreshold(d, 0.95) :: ".99" ->> accAtThreshold(d, 0.99) :: HNil) ::
+                "calibration" ->>
+                Confidences(
+                  Confidences.Prediction(
+                    confidence = math.max(d.probabilityCorrect, 1 - d.probabilityCorrect),
+                    correctness =
+                      if (d.probabilityCorrect > 0.5)
+                        1.0
+                      else if (d.probabilityCorrect < 0.5)
+                        0.0
+                      else
+                        0.5
+                  )
+                ) :: HNil
+            )
         )
       )
     )
@@ -367,10 +613,15 @@ object AnalyzeResults
       .toList
       .flatMap(_.filtered) // do debate-specific filtering: is over, is online, is not too easy
       .groupBy(_.setting)
-      .transform { case (setting, debates) =>
+      .transform { case (setting, _debates) =>
         if (setting.isDebate)
-          debates
+          _debates
         else {
+          val debates = _debates
+          // .groupByNel(d => getQuestionId(d.debate) -> isConsultantHonest(d))
+          // .mapVals(_.minimumBy(_.endTime))
+          // .values
+          // .toList
           // balance consultancies
           val numHonest     = debates.count(isConsultantHonest)
           val numDishonest  = debates.size - numHonest
@@ -380,7 +631,7 @@ object AnalyzeResults
           // deterministically (randomly) shuffle debates
           val debatesByQuestion = debates.groupBy(d => getQuestionId(d.debate))
           val rand              = new scala.util.Random(876)
-          // val rand = new scala.util.Random(2395726)
+          // val rand = new scala.util.Random(10971420)
           val commonDebates = rand.shuffle(
             debatesByQuestion
               .filter(p =>
@@ -388,7 +639,9 @@ object AnalyzeResults
               )
               .toList
               .sortBy(_._1)
-              .map(p => p.copy(_2 = p._2.sortBy(_.endTime))) // prefer later debates
+              .map(p =>
+                p.copy(_2 = rand.shuffle(p._2))
+              ) // randomize order of consultancies for each question
           )
 
           // first, balance by removing consultancies from questions that have both honest and dishonest consultancies
@@ -475,39 +728,39 @@ object AnalyzeResults
 
     analyzePerformance(debates)
 
-    println("Longest debates:")
-    println(
-      getMetricsString(
-        debates
-          .foldMap(d => Chosen(Map(d.setting -> Vector(d))))
-          .map(
-            _.sortBy(-_.debate.numDebateRounds)
-              .take(5)
-              .map(d => s"${d.roomName} (${d.debate.numDebateRounds})")
-              .toVector
-          )
-      )
-    )
+    // println("Longest debates:")
+    // println(
+    //   getMetricsString(
+    //     debates
+    //       .foldMap(d => Chosen(Map(d.setting -> Vector(d))))
+    //       .map(
+    //         _.sortBy(-_.debate.numDebateRounds)
+    //           .take(5)
+    //           .map(d => s"${d.roomName} (${d.debate.numDebateRounds})")
+    //           .toVector
+    //       )
+    //   )
+    // )
 
-    println("Highest-confidence turn-0 debates:")
-    println(
-      getMetricsString(
-        debates
-          .foldMap(d =>
-            Chosen(
-              Map(
-                d.debate
-                  .rounds
-                  .collect { case JudgeFeedback(dist, _, _) =>
-                    dist(d.debate.setup.correctAnswerIndex)
-                  }
-                  .head -> Vector(d.roomName)
-              )
-            )
-          )
-          .map(_.take(5))
-      )
-    )
+    // println("Highest-confidence turn-0 debates:")
+    // println(
+    //   getMetricsString(
+    //     debates
+    //       .foldMap(d =>
+    //         Chosen(
+    //           Map(
+    //             d.debate
+    //               .rounds
+    //               .collect { case JudgeFeedback(dist, _, _) =>
+    //                 dist(d.debate.setup.correctAnswerIndex)
+    //               }
+    //               .head -> Vector(d.roomName)
+    //           )
+    //         )
+    //       )
+    //       .map(_.take(5))
+    //   )
+    // )
 
     println("Rounded/binned confidences for turn 0:")
     println(
@@ -527,8 +780,6 @@ object AnalyzeResults
           .map(_.take(5))
       )
     )
-
-    import jjm.ling.Text
 
     println("Story lengths:")
     println(
@@ -553,24 +804,111 @@ object AnalyzeResults
       )
     )
 
-    println("Work contributions:")
-    val workContributions = debates
-      .map(_.debate)
-      .foldMap(DebateStats.fromDebate)
-      .mapKeys(_.toString)
-      .map(_.map(_.wins.total))
-    println(getMetricsString(workContributions))
-    println(getMetricsString(workContributions.map(_.data.values.toList.foldMap(Numbers(_)))))
+    // println("Work contributions:")
+    // val workContributions = debates
+    //   .map(_.debate)
+    //   .foldMap(DebateStats.fromDebate)
+    //   .mapKeys(_.toString)
+    //   .map(_.map(_.wins.total))
+    // println(getMetricsString(workContributions))
+    // println(getMetricsString(workContributions.map(_.data.values.toList.foldMap(Numbers(_)))))
 
-    // write a CSV with room names and judge names to get the repeatable sample of the final filtered debates
-    import com.github.tototoshi.csv._
-    import java.io.File
-    CSVWriter
-      .open(new File("sample-rooms.csv"))
-      .writeAll(
-        List("Room name", "Judge") ::
-          debates.map(d => List(d.roomName, d.debate.setup.roles(Judge)))
+    println("Data statistics")
+    println(
+      getMetricsString(
+        debates.foldMap { d =>
+          val story = d.debate.setup.sourceMaterial.contents
+          Chosen(
+            Map(
+              d.setting ->
+                ("debater chars per round" ->>
+                  d.debate
+                    .rounds
+                    .collect {
+                      case SimultaneousSpeeches(speeches) =>
+                        Numbers(
+                          speeches.unorderedFoldMap(speech =>
+                            SpeechSegments.getSpeechLength(story, speech.content)
+                          )
+                        )
+                      case SequentialSpeeches(speeches) =>
+                        Numbers(
+                          speeches.unorderedFoldMap(speech =>
+                            SpeechSegments.getSpeechLength(story, speech.content)
+                          )
+                        )
+                    }
+                    .combineAll ::
+                  "new quoted tokens per round" ->>
+                  d.debate
+                    .rounds
+                    .collect {
+                      case SimultaneousSpeeches(speeches) =>
+                        speeches
+                      case SequentialSpeeches(speeches) =>
+                        speeches
+                    }
+                    .foldLeft(Set.empty[Int] -> Numbers[Int](Vector())) {
+                      case ((coveredTokens, prevData), speeches) =>
+                        val newTokens =
+                          speeches
+                            .values
+                            .toVector
+                            .foldMap(speech =>
+                              speech
+                                .content
+                                .foldMap {
+                                  case SpeechSegment.Quote(span) =>
+                                    (span.begin until span.endExclusive).toSet
+                                  case _ =>
+                                    Set[Int]()
+                                }
+                            ) -- coveredTokens
+
+                        (coveredTokens ++ newTokens, prevData |+| Numbers(newTokens.size.toInt))
+                    }
+                    ._2 ::
+                  "new quoted chars per round" ->>
+                  d.debate
+                    .rounds
+                    .collect {
+                      case SimultaneousSpeeches(speeches) =>
+                        speeches
+                      case SequentialSpeeches(speeches) =>
+                        speeches
+                    }
+                    .foldLeft(Set.empty[ESpan] -> Numbers[Int](Vector())) {
+                      case ((coveredSpans, prevData), speeches) =>
+                        val newQuotes = speeches
+                          .values
+                          .toVector
+                          .flatMap(speech =>
+                            SpeechSegments.getNewQuotes(coveredSpans, speech.content)
+                          )
+                        val newQuotedAmount = newQuotes
+                          .foldMap(q => Utils.renderSpan(story, q).size.toInt)
+
+                        val newCoveredSpans = (coveredSpans ++ newQuotes)
+                          .foldLeft(Set.empty[ESpan]) { case (acc, span) =>
+                            acc.find(_.overlaps(span)) match {
+                              case None =>
+                                acc + span
+                              case Some(overlapper) =>
+                                acc - overlapper + (span |+| overlapper)
+                            }
+                          }
+
+                        (newCoveredSpans, prevData |+| Numbers(newQuotedAmount))
+                    }
+                    ._2 :: HNil)
+            )
+          )
+        }
       )
+    )
+
+    // analysis section
+
   }
 
 }

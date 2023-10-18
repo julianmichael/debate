@@ -278,7 +278,7 @@ def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = 
         color=alt.Color(
             f'{prob_correct_field}:Q',
             scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0]),
-            axis=alt.Axis(title='Probability correct')
+            legend=alt.Legend(title='Probability correct')
             ),
         order=alt.Order(
             f'{prob_assigned_field}:Q',
@@ -501,7 +501,7 @@ def accuracy_by_session_setting(for_paper: bool = False):
 
         return " ".join([ai_or_human, consultancy_or_debate])
     source['Setting'] = source.apply(get_setting, axis=1)
-    yEncoding = alt.Y(field ='Setting', type='N', title='Setting')
+    yEncoding = alt.Y(field ='Setting', type='nominal', title='Setting')
     accuracy_source = source[source['Final probability correct'].notna()]
 
     return alt.vconcat(
@@ -539,7 +539,6 @@ def accuracy_by_consultancy_split(for_paper: bool = False):
         elif row['Dishonest debater'] == 'GPT-4':
             return "AI Consultancy (dishonest)"
         elif str(row['Honest debater']) != 'nan':
-            print(row['Honest debater'])
             return "Human Consultancy (honest)"
         else:
             return "Human Consultancy (dishonest)"

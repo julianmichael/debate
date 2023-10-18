@@ -106,6 +106,50 @@ object SpeechSegments {
   //       Utils.renderSpan(source, span).size
   //   }
 
+  implicit class RichESpan(span: ESpan) {
+    def -(other: ESpan): Vector[ESpan] = {
+      val (begin, end)           = (span.begin, span.endExclusive)
+      val (otherBegin, otherEnd) = (other.begin, other.endExclusive)
+      if (begin >= otherEnd || end <= otherBegin) {
+        Vector(span)
+      } else if (begin < otherBegin && end > otherEnd) {
+        Vector(ESpan(begin, otherBegin), ESpan(otherEnd, end))
+      } else if (begin < otherBegin) {
+        Vector(ESpan(begin, otherBegin))
+      } else if (end > otherEnd) {
+        Vector(ESpan(otherEnd, end))
+      } else {
+        Vector.empty
+      }
+    }
+  }
+
+  def getNewQuotes(
+    coveredSpans: Set[ESpan],
+    // source: Vector[String],
+    speechSegments: Vector[SpeechSegment]
+  ) = {
+
+    val allNewSpans = speechSegments
+      .collect { case SpeechSegment.Quote(span) =>
+        span
+      }
+      .flatMap(span =>
+        coveredSpans.foldLeft(Vector(span))((acc, coveredSpan) => acc.flatMap(_ - coveredSpan))
+      )
+    val collapsedSpans =
+      allNewSpans.foldLeft(Set.empty[ESpan]) { case (acc, span) =>
+        acc.find(_.overlaps(span)) match {
+          case None =>
+            acc + span
+          case Some(overlapper) =>
+            acc - overlapper + (span |+| overlapper)
+        }
+      }
+    collapsedSpans
+    // .unorderedFoldMap(Utils.renderSpan(source, _).size)
+  }
+
   def getQuoteCoverage(source: Vector[String], speechSegments: Vector[SpeechSegment]) = {
 
     val allSpans = speechSegments.collect { case SpeechSegment.Quote(span) =>
