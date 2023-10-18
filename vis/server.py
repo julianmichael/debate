@@ -111,70 +111,6 @@ def read_data():
 
 read_data()
 
-# # Organizing graphs a bit since there are more now
-# Main results: important for the paper/us to easily see
-# Results: possibly in the paper
-# Track: for us to make sure the system/debaters is/are working, possibly in Appendix or not in the paper
-# # A bit silly, but for things to show up in the order of a possible paper outline,
-# # first letter of sections or graph names take to account server's alphabetical dropdown for now
-
-
-# MAIN RESULTS
-# 1. An overview of counts | 2. ??? not sure yet what our main results are, considering setup comparison (off/live)
-# might prove less interesting than we thought, and we haven't formally analyzed effect of other variations
-
-# 1. An overview of counts
-# The following graph is what would probably be a 2 x 2 table or a sentence or two in the paper
-# ex "We did 75 offline debates and 75 live debates.
-# The offline debates were 50% correct, and the live debates were 60% correct." (Copilot, 2023)
-
-
-# def an_overview_of_counts():  # TO maybe DO: un-average offline
-#     # debates["Final probability correct (live and mean of offline)"] = debates.apply(
-#     #     lambda row: row["Final probability correct"]
-#     #     if row["Is offline"] == False
-#     #     else row["Average offline probability correct"],
-#     #     axis=1,
-#     # )
-#     bins = [0, 0.491, 0.509, 1]
-#     labels = ["0-49%", "0.5", "51-100%"]
-#     sessions["Final probability correct bins"] = pd.cut(
-#         sessions["Final probability correct"],
-#         bins=bins,
-#         labels=labels,
-#     )
-#     counts_bar = (
-#         alt.Chart(sessions).transform_filter(
-#             alt.FieldOneOfPredicate(field='Role', oneOf=["Judge", "Offline Judge"])
-#         )
-#         .mark_bar()
-#         .encode(
-#             x=alt.X("count()", stack="zero", title="Number of judgements"),
-#             y=alt.Y("Final probability correct bins:O"),
-#             color=alt.Color(
-#                 "Final probability correct bins:O",
-#                 sort="descending",
-#                 scale=alt.Scale(range=[correctColor, "white", incorrectColor, nullColor]),
-#             ),
-#             row=alt.Row(
-#                 "Role:N",
-#                 # header=alt.Header(
-#                 #     title="Debates categorized by correctness, setup, and status",
-#                 #     titleFontSize=18,
-#                 #     titleFontWeight="bold",
-#                 #     titleOrient="top",
-#                 #     labelExpr='datum.value ? "Offline (averaged)" : "Live"',
-#                 #     labelOrient="top",
-#                 #     labelAnchor="start",
-#                 #     labelFontSize=14,
-#                 #     labelFontWeight="bold",
-#                 # ),
-#             ),
-#             tooltip=["count()", "Final probability correct bins:O"],
-#         )
-#     )
-#     return counts_bar.properties(width=fullWidth - 100, height=fullHeight / 4)
-
 def outcomes_by_field(source, rowEncoding = None):
 
     source['outcome'] = source.apply(
@@ -544,7 +480,7 @@ def accuracy_by_consultancy_split(for_paper: bool = False):
             return "Human Consultancy (dishonest)"
 
     source['Setting'] = source.apply(get_setting, axis=1)
-    yEncoding = alt.Y(field ='Setting', type='N', title='Setting')
+    yEncoding = alt.Y(field ='Setting', type='N', title=None)
     accuracy_source = source[source['Final probability correct'].notna()]
 
     return alt.vconcat(

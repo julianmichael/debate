@@ -11,6 +11,7 @@ import com.github.tototoshi.csv._
 import jjm.metrics.Numbers
 
 import debate.quality.QuALITYStory
+import jjm.ling.Text
 
 class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
 
@@ -77,10 +78,18 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
               ""
           }
         },
-        "Story length" -> { info =>
+        "Story length (tok)" -> { info =>
           info.debate.setup.sourceMaterial match {
             case QuALITYSourceMaterial(_, _, contents) =>
-              contents.mkString.length.toString
+              contents.size.toString()
+            case _ =>
+              ""
+          }
+        },
+        "Story length (char)" -> { info =>
+          info.debate.setup.sourceMaterial match {
+            case QuALITYSourceMaterial(_, _, contents) =>
+              Text.render(contents).size.toString()
             case _ =>
               ""
           }
@@ -334,25 +343,33 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
           info
             .speech
             .content
-            .collect { case SpeechSegment.Text(text) =>
-              text
+            .collect {
+              case SpeechSegment.Text(text) =>
+                text
+              case _ =>
+                ""
             }
             .foldMap(_.size)
             .toString
         },
-        "Quote length" -> { info =>
+        "Quote length (tok)" -> { info =>
           info
             .speech
             .content
-            .collect { case SpeechSegment.Quote(span) =>
-              Utils.renderSpan(info.debate.setup.sourceMaterial.contents, span)
+            .collect {
+              case SpeechSegment.Quote(span) =>
+                Utils.renderSpan(info.debate.setup.sourceMaterial.contents, span)
+              case _ =>
+                ""
             }
             .foldMap(_.size)
             .toString
         },
-        // Q: saw you had a function for this but wasnt sure how or if I should use it
-        // "Textlength" -> { info => info.round.allSpeeches(info.role).content.flatMap(_.getSpeechLength).toString }, ??
-
+        // "Quote length (char)" -> { info =>
+        //   SpeechSegments
+        //     .getQuoteCoverage(info.debate.setup.sourceMaterial.contents, info.speech.content)
+        //     .toString()
+        // },
         "Probability correct" -> { info =>
           info.round match {
             case JudgeFeedback(distribution, _, _) =>
