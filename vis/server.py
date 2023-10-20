@@ -966,7 +966,7 @@ def final_simple_calibration_plot(all_turns: bool = False):
     def make_bin(x: float):
         bot = math.floor(x / bin_size)
         top = bot + 1
-        return f'{bot * bin_size:.2f} – {top * bin_size:.2f}'
+        return f'{bot * bin_size:.0%} – {top * bin_size:.0%}'
 
     if all_turns:
         source = filtered_turns
