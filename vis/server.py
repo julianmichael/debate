@@ -43,6 +43,7 @@ def read_data():
     global debates
     global sessions
     global filtered_sessions
+    global filtered_turns
     global turns
     global leaderboard
     debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
@@ -92,6 +93,10 @@ def read_data():
 
     sessions_to_keep = pd.read_csv(os.path.join(data_dir, "official/summaries/sample-rooms.csv"), keep_default_na=True)
     filtered_sessions = sessions_to_keep.merge(sessions, how="left", left_on=["Room name", "Judge"], right_on=["Room name", "Participant"])
+    filtered_turns = sessions_to_keep.merge(
+        turns, how="inner", left_on=["Room name"], right_on=["Room name"]
+    )
+    filtered_turns = filtered_turns[filtered_turns['Role'] == 'Judge']
 
     print("Debates:")
     print(debates.dtypes)
@@ -104,7 +109,13 @@ def read_data():
     print(sessions.describe())
     print("Filtered sessions:")
     print(filtered_sessions.dtypes)
+    print("num judge continues")
+    print(filtered_sessions['Number of judge continues'].sum())
+    print(filtered_sessions['Number of judge continues'].describe())
     print(filtered_sessions.describe())
+    print("Filtered turns:")
+    print(filtered_turns.dtypes)
+    print(filtered_turns.describe())
     print("Leaderboard (disaggregated):")
     print(leaderboard.dtypes)
     print(leaderboard.describe())
@@ -484,6 +495,8 @@ def accuracy_by_session_setting(for_paper: bool = False):
                 "Is single debater",
                 "Honest debater",
                 "Dishonest debater",
+                "Untimed annotator context (rounded)",
+                "Number of debate rounds"
             ]
         ],
         how="left",
@@ -504,17 +517,14 @@ def accuracy_by_session_setting(for_paper: bool = False):
     yEncoding = alt.Y(field ='Setting', type='nominal', title='Setting')
     accuracy_source = source[source['Final probability correct'].notna()]
 
-    return alt.vconcat(
-        accuracy_by_field(
-            accuracy_source,
-            yEncoding = yEncoding
-        ).properties(title="Judge Accuracy"),
-        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = None),
-        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'log'),
-        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'reward'),
-    ).resolve_scale(x = 'independent')
+    return accuracy_by_field(
+        accuracy_source,
+        yEncoding = yEncoding
+    ).properties(title="Judge Accuracy").facet(
+        row = "Untimed annotator context (rounded):N",
+    )
 
-def accuracy_by_consultancy_split(for_paper: bool = False):
+def accuracy_by_consultancy_split(for_paper: bool = False, with_context_requirement=False):
     base_source = filtered_sessions if for_paper else sessions
     source = base_source.merge(
         debates[
@@ -524,6 +534,8 @@ def accuracy_by_consultancy_split(for_paper: bool = False):
                 "Is single debater",
                 "Honest debater",
                 "Dishonest debater",
+                "Untimed annotator context (rounded)",
+                "Number of debate rounds"
             ]
         ],
         how="left",
@@ -534,6 +546,7 @@ def accuracy_by_consultancy_split(for_paper: bool = False):
     source = source[source['Is single debater']]
     def get_setting(row):
         ai_or_human = "Human"
+        # if row['Is single debater']:
         if row['Honest debater'] == 'GPT-4':
             return "AI Consultancy (honest)"
         elif row['Dishonest debater'] == 'GPT-4':
@@ -542,20 +555,101 @@ def accuracy_by_consultancy_split(for_paper: bool = False):
             return "Human Consultancy (honest)"
         else:
             return "Human Consultancy (dishonest)"
+        # else:
+        #     if row['Honest debater'] == 'GPT-4' or row['Dishonest debater'] == 'GPT-4':
+        #         return "AI Debate"
+        #     else:
+        #         return "Human Debate"
 
+    def bin_num_rounds(row):
+        num_rounds = row['Number of debate rounds']
+        if num_rounds == 1:
+            return '1'
+        elif num_rounds == 2:
+            return '2'
+        elif num_rounds in [3, 4]:
+            return '3-4'
+        else:
+            return '5+'
+    source['Number of debate rounds (binned)'] = source.apply(bin_num_rounds, axis=1)
     source['Setting'] = source.apply(get_setting, axis=1)
     yEncoding = alt.Y(field ='Setting', type='N', title='Setting')
     accuracy_source = source[source['Final probability correct'].notna()]
 
-    return alt.vconcat(
-        accuracy_by_field(
-            accuracy_source,
-            yEncoding = yEncoding
-        ).properties(title="Judge Accuracy"),
-        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = None),
-        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'log'),
-        # prob_correct_by_field(accuracy_source, yEncoding = yEncoding, transform = 'reward'),
-    ).resolve_scale(x = 'independent')
+    chart = accuracy_by_field(
+        accuracy_source,
+        yEncoding = yEncoding
+    ).properties(title="Judge Accuracy")
+
+    if with_context_requirement:
+        return chart.facet(
+            row='Untimed annotator context (rounded):N'
+            # column='Number of debate rounds (binned):N',
+        )
+    else: return chart
+
+# def accuracy_by_consultancy_and_context_split(for_paper: bool = False):
+#     base_source = filtered_sessions if for_paper else sessions
+#     source = base_source.merge(
+#         debates[
+#             [
+#                 "Room name",
+#                 "Is offline",
+#                 "Is single debater",
+#                 "Honest debater",
+#                 "Dishonest debater",
+#                 "Untimed annotator context (rounded)",
+#                 "Number of debate rounds"
+#             ]
+#         ],
+#         how="left",
+#         on="Room name",
+#     )
+
+#     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+#     # source = source[source['Is single debater']]
+#     source = source[source['Honest debater'] != 'GPT-4']
+#     source = source[source['Dishonest debater'] != 'GPT-4']
+#     def get_setting(row):
+#         ai_or_human = "Human"
+#         if row['Is single debater']:
+#             if row['Honest debater'] == 'GPT-4':
+#                 return "AI Consultancy (honest)"
+#             elif row['Dishonest debater'] == 'GPT-4':
+#                 return "AI Consultancy (dishonest)"
+#             elif str(row['Honest debater']) != 'nan':
+#                 return "Human Consultancy (honest)"
+#             else:
+#                 return "Human Consultancy (dishonest)"
+#         else:
+#             return "Human Debate"
+
+#     def bin_num_rounds(row):
+#         num_rounds = row['Number of debate rounds']
+#         if num_rounds == 1:
+#             return '1'
+#         elif num_rounds == 2:
+#             return '2'
+#         elif num_rounds in [3, 4]:
+#             return '3-4'
+#         else:
+#             return '5+'
+#     source['Number of debate rounds (binned)'] = source.apply(bin_num_rounds, axis=1)
+#     source['Setting'] = source.apply(get_setting, axis=1)
+#     yEncoding = alt.Y(field ='Setting', type='N', title='Setting')
+#     accuracy_source = source[source['Final probability correct'].notna()]
+
+#     chart = accuracy_by_field(
+#         accuracy_source,
+#         yEncoding = yEncoding
+#     ).properties(title="Judge Accuracy")
+
+#     if with_context_requirement:
+#         return chart.facet(
+#             row='Untimed annotator context (rounded):N',
+#             # column='Number of debate rounds (binned):N',
+#             )
+#     else: return chart
 
 def judge_distribution_by_setting():
     source = sessions.merge(
@@ -702,7 +796,7 @@ def calibration_plot(bin_size, by_turn: bool = False, participant: Optional[str]
         yEncoding = binY
     ) + calibration_reference_graph
 
-def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, invert = False):
+def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, invert = False, width=fullWidth - 200, height = None, include_text=True, yAxisTitle=None, yDomain=[0.0, 1.0]):
 
     if by_turn:
         prob_correct_field = 'Probability correct'
@@ -727,27 +821,28 @@ def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, in
     if xEncoding is not None:
         base = base.encode(x=xEncoding)
 
-
     prop_color = aggColor
     # rule_thickness = 1.0
     # err_thickness = 1.0
     point_size = 25.0
     mean_field = 'is_correct' if not invert else 'is_not_correct'
 
-    main_bar = base.mark_bar().encode(
+    main_bar = base.mark_line().encode(
         y=alt.Y(f'mean({mean_field}):Q',
             axis=alt.Axis(
-                title=None,
+                title=yAxisTitle,
                 format='.0%',
                 labelExpr="(datum.value * 5) % 1 ? null : datum.label",
             ),
-            scale=alt.Scale(domain=[0.0, 1.0])
+            scale=alt.Scale(domain=yDomain, clamp=True)
         ),
         tooltip = [
             'count():Q',
             f'mean({mean_field}):Q'
-        ]
-    ).properties(width=fullWidth - 200)
+        ],
+    ).properties(width=width)
+    if height is not None:
+        main_bar = main_bar.properties(height = height)
 
     gold_err = (base
     ).mark_rule(
@@ -782,7 +877,10 @@ def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, in
     )
 
     # return main_bar
-    return main_bar + gold_err + gold_mean + gold_mean_num
+    if include_text:
+        return main_bar + gold_err + gold_mean + gold_mean_num
+    else:
+        return main_bar + gold_err + gold_mean
 
 def simple_calibration_plot(bin_size, by_turn: bool = False, participant: Optional[str] = None):
     def get_confidence(x: float):
@@ -855,6 +953,96 @@ def calibration_plots():
         calibration_plot(bin_size = 0.1).facet(row='Participant:N').properties(title="Calibration by Judge"),
         calibration_plot(bin_size = 0.05, by_turn = True).facet(row='Num previous debating rounds:O').properties(title="Calibration by Turn"),
     )
+
+def final_simple_calibration_plot(all_turns: bool = False):
+    bin_size = 0.1
+
+    def get_confidence(x: float):
+        if x < 0.5:
+            return 1 - x
+        else:  
+            return x
+
+    def make_bin(x: float):
+        bot = math.floor(x / bin_size)
+        top = bot + 1
+        return f'{bot * bin_size:.2f} – {top * bin_size:.2f}'
+
+    if all_turns:
+        source = filtered_turns
+        prob_correct_field = 'Probability correct'
+    else:
+        source = filtered_sessions
+        prob_correct_field = 'Final probability correct'
+
+    source = source[source[prob_correct_field].notna()].copy()
+
+    source = source.merge(
+        debates[
+            [
+                "Room name",
+                "Is offline",
+                "Is single debater",
+                "Honest debater",
+                "Dishonest debater",
+            ]
+        ],
+        how="left",
+        on="Room name",
+    )
+
+    source['Prediction confidence'] = source.apply(
+        lambda row: get_confidence(row[prob_correct_field]),
+        axis=1
+    )
+
+    source['Confidence'] = source.apply(
+        lambda row: make_bin(row['Prediction confidence']),
+        axis=1
+    )
+
+    def get_setting(row):
+        ai_or_human = "Human"
+        consultancy_or_debate = "Debate"
+        if row['Honest debater'] == 'GPT-4' or row['Dishonest debater'] == 'GPT-4':
+            ai_or_human = "AI"
+        if row['Is single debater']:
+            consultancy_or_debate = "Consultancy"
+
+        return " ".join([ai_or_human, consultancy_or_debate])
+    source['Setting'] = source.apply(get_setting, axis=1)
+
+    binX = alt.X(field ='Confidence', type='O'
+        # sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
+    )
+
+    calibration_reference = pd.DataFrame([
+        {'Confidence': make_bin(start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
+        for start in range(int(.5 / bin_size), int(1.0 / bin_size))
+    ])
+    calibration_reference_graph = alt.Chart(
+        calibration_reference
+    ).mark_line(
+        color='black',
+        strokeDash=[5, 5],
+    ).encode(
+        y = alt.Y(f'{prob_correct_field}:Q'),
+        x = alt.X('Confidence:O')
+    )
+
+    return (simple_accuracy_by_field(
+        source,
+        by_turn = all_turns,
+        xEncoding = binX,
+        width = 200,
+        height = 200,
+        include_text = False,
+        yAxisTitle = "Accuracy",
+        yDomain = [0.4, 1.0]
+    ) + calibration_reference_graph).facet(
+        column=alt.Column('Setting:N', title=None), title="Calibration (all turns)"
+    ).configure_title(anchor='middle')
+
 
 
 # RESULTS
@@ -1769,6 +1957,9 @@ all_graph_specifications = {
     #"Main_results:_An_overview_of_counts": an_overview_of_counts,
     "Final_results:_Accuracy_by_session_setting": (lambda: accuracy_by_session_setting(for_paper=True)),
     "Final_results:_Accuracy_by_consultancy_(split)": (lambda: accuracy_by_consultancy_split(for_paper=True)),
+    # "Final_results:_Accuracy_by_consultancy_(split)_with_context_requirement": (lambda: accuracy_by_consultancy_split(for_paper=True, with_context_requirement=True)),
+    "Final_results:_Calibration": (lambda: final_simple_calibration_plot(all_turns=False)),
+    "Final_results:_Calibration_(all_turns)": (lambda: final_simple_calibration_plot(all_turns=True)),
     "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
     "Main_results:_Accuracy_by_session_setting": (lambda: accuracy_by_session_setting(for_paper=False)),
     "Main_results:_Calibration": calibration_plots,

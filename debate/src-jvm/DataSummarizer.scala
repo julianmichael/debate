@@ -135,6 +135,23 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
               ""
           }
         },
+        "Untimed annotator context (rounded)" -> { info =>
+          info.debate.setup.sourceMaterial match {
+            case QuALITYSourceMaterial(articleId, _, _) =>
+              val story = qualityDataset(articleId)
+              story
+                .questions
+                .find(_._2.question == info.debate.setup.question)
+                .map(_._2)
+                .flatMap(_.annotations)
+                .map(annotation =>
+                  math.round(Numbers(annotation.context).stats.mean).toInt.toString
+                )
+                .getOrElse("")
+            case _ =>
+              ""
+          }
+        },
         // TO maybe DO: more setup parameters? But we've stuck to the same scoring rule & char limit etc for this semester right...
         "Correct answer" -> { info =>
           info.debate.setup.answers(info.debate.setup.correctAnswerIndex)
@@ -654,7 +671,27 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
             List("Room name", "Judge") ::
               balancedDebates.map(d => List(d.roomName, d.debate.setup.roles(Judge)))
           )
-      )
+      ) >>
+        IO(
+          CSVWriter
+            .open(new File(summaryDir.resolve("sample-error-cases.csv").toString))
+            .writeAll(
+              List("Setting", "Room name", "Reason") ::
+                balancedDebates
+                  .filter(_.probabilityCorrect <= .5)
+                  .map(d =>
+                    List(
+                      d.setting.show,
+                      d.roomName,
+                      d.debate
+                        .feedback
+                        .get(d.debate.setup.roles(Judge))
+                        .flatMap(_.answers.get(Feedback.Key.FreeText("reason for outcome")))
+                        .combineAll
+                    )
+                  )
+            )
+        )
     }
 
 }

@@ -21,8 +21,75 @@ import jjm.implicits._
 import shapeless._
 import shapeless.syntax.singleton._
 import shapeless.record._
-import cats.kernel.CommutativeMonoid
 import jjm.ling.ESpan
+
+@JsonCodec
+case class Quartiles2(
+  min: Double,
+  firstQuartile: Double,
+  median: Double,
+  thirdQuartile: Double,
+  max: Double
+) {
+  def getMetrics: MapTree[String, Metric] = MapTree.fromPairs(
+    "min"            -> Metric.double(min),
+    "first quartile" -> Metric.double(firstQuartile),
+    "median"         -> Metric.double(median),
+    "third quartile" -> Metric.double(thirdQuartile),
+    "max"            -> Metric.double(max)
+  )
+}
+object Quartiles2 {
+  def fromValues(values: Vector[Double]) = {
+    val sortedValues = values.sorted
+    def get(frac: Double) = sortedValues
+      .lift(math.max(0, (frac * values.size).toInt - 1))
+      .getOrElse(Double.NaN)
+    Quartiles2(get(0.0), get(0.25), get(0.5), get(0.75), get(1.00))
+  }
+  implicit val quartiles2HasMetrics: HasMetrics[Quartiles2] =
+    new HasMetrics[Quartiles2] {
+      def getMetrics(q: Quartiles2) = q.getMetrics
+    }
+}
+
+case class Numbers2[N](values: Vector[N])(implicit N: Numeric[N]) {
+  def stats = {
+    val dValues = values.map(N.toDouble)
+    val sum     = dValues.sum
+    val mean    = sum / values.size
+    Numbers2.Stats(
+      values.size,
+      sum,
+      mean,
+      dValues.iterator.map(x => math.pow(x - mean, 2)).sum / values.size,
+      Quartiles2.fromValues(dValues)
+    )
+  }
+}
+object Numbers2 {
+  def apply[N: Numeric](n: N): Numbers2[N] = Numbers2(Vector(n))
+  case class Stats(count: Int, sum: Double, mean: Double, variance: Double, quartiles: Quartiles2) {
+    def stdev = math.sqrt(variance)
+    def getMetrics: MapTree[String, Metric] = MapTree.fork(
+      "count"     -> MapTree.leaf[String](Metric.int(count)),
+      "sum"       -> MapTree.leaf[String](Metric.double(sum)),
+      "mean"      -> MapTree.leaf[String](Metric.double(mean)),
+      "variance"  -> MapTree.leaf[String](Metric.double(variance)),
+      "stdev"     -> MapTree.leaf[String](Metric.double(stdev)),
+      "quartiles" -> quartiles.getMetrics
+    )
+  }
+
+  implicit def numbers2Monoid[A: Numeric]: Monoid[Numbers2[A]] = {
+    import cats.derived.auto.monoid._
+    cats.derived.semiauto.monoid
+  }
+  implicit def numbers2HasMetrics[A] =
+    new HasMetrics[Numbers2[A]] {
+      def getMetrics(nums: Numbers2[A]) = nums.stats.getMetrics
+    }
+}
 
 case class Confidences(data: Vector[Confidences.Prediction] = Vector()) {
   import Confidences.Prediction
@@ -35,7 +102,10 @@ case class Confidences(data: Vector[Confidences.Prediction] = Vector()) {
           val bin = data.filter { case Prediction(confidence, _) =>
             (confidence >= binMin && confidence < binMax) || binMax == 1.0 && confidence == 1.0
           }
-          Confidences.BinStats(numCorrect = bin.foldMap(_.correctness), numPredictions = bin.size)
+          Confidences.BinStats(
+            numCorrect = bin.foldMap(_.correctness),
+            confidences = Numbers(bin.map(_.confidence))
+          )
         }
       }
       .toMap
@@ -43,24 +113,27 @@ case class Confidences(data: Vector[Confidences.Prediction] = Vector()) {
 }
 object Confidences {
   case class Prediction(confidence: Double, correctness: Double)
-  case class BinStats(numCorrect: Double, numPredictions: Int) {
-    def accuracy = numCorrect / numPredictions
+  case class BinStats(numCorrect: Double, confidences: Numbers[Double]) {
+    def numPredictions = confidences.values.size
+    def accuracy       = numCorrect / numPredictions
+    def confidence     = confidences.stats.mean
   }
   object BinStats {
-    implicit val confidencesBinStatsMonoid: CommutativeMonoid[BinStats] =
-      cats.derived.semiauto.commutativeMonoid
+    implicit val confidencesBinStatsMonoid: Monoid[BinStats] = {
+      import cats.derived.auto.monoid._
+      cats.derived.semiauto.monoid
+    }
   }
 
   def apply(ds: Prediction*): Confidences = Confidences(ds.toVector)
   case class Stats(bins: Map[(Double, Double), BinStats]) {
-    def accuracy = bins.unorderedFold.accuracy
+    def accuracy = bins.values.toList.combineAll.accuracy
     def ece =
       bins
         .toList
         .filter(_._2.numPredictions > 0)
-        .foldMap { case ((min, max), acc) =>
-          val confidence = (min + max) / 2
-          WeightedNumbers(math.abs(acc.accuracy - confidence), weight = acc.numPredictions)
+        .foldMap { case (_, acc) =>
+          WeightedNumbers(math.abs(acc.accuracy - acc.confidence), weight = acc.numPredictions)
         }
         .stats
         .weightedMean
@@ -529,7 +602,7 @@ object AnalyzeResults
                 (".60" ->> accAtThreshold(d, 0.6) :: ".70" ->> accAtThreshold(d, 0.7) ::
                   ".80" ->> accAtThreshold(d, 0.8) :: ".90" ->> accAtThreshold(d, 0.9) ::
                   ".95" ->> accAtThreshold(d, 0.95) :: ".99" ->> accAtThreshold(d, 0.99) :: HNil) ::
-                "calibration" ->>
+                "calibration (final judgment)" ->>
                 Confidences(
                   Confidences.Prediction(
                     confidence = math.max(d.probabilityCorrect, 1 - d.probabilityCorrect),
@@ -541,7 +614,28 @@ object AnalyzeResults
                       else
                         0.5
                   )
-                ) :: HNil
+                ) ::
+                "calibration (all turns)" ->>
+                d.debate
+                  .rounds
+                  .collect { case JudgeFeedback(dist, _, _) =>
+                    dist
+                  }
+                  .foldMap { dist =>
+                    val probabilityCorrect = dist(d.debate.setup.correctAnswerIndex)
+                    Confidences(
+                      Confidences.Prediction(
+                        confidence = math.max(probabilityCorrect, 1 - probabilityCorrect),
+                        correctness =
+                          if (probabilityCorrect > 0.5)
+                            1.0
+                          else if (probabilityCorrect < 0.5)
+                            0.0
+                          else
+                            0.5
+                      )
+                    )
+                  } :: HNil
             )
         )
       )
@@ -806,8 +900,7 @@ object AnalyzeResults
 
     // println("Work contributions:")
     // val workContributions = debates
-    //   .map(_.debate)
-    //   .foldMap(DebateStats.fromDebate)
+    //   .foldMap(d => d.setting -> DebateStats.fromDebate(d.debate))
     //   .mapKeys(_.toString)
     //   .map(_.map(_.wins.total))
     // println(getMetricsString(workContributions))
@@ -816,91 +909,228 @@ object AnalyzeResults
     println("Data statistics")
     println(
       getMetricsString(
-        debates.foldMap { d =>
-          val story = d.debate.setup.sourceMaterial.contents
-          Chosen(
-            Map(
-              d.setting ->
-                ("debater chars per round" ->>
-                  d.debate
-                    .rounds
-                    .collect {
-                      case SimultaneousSpeeches(speeches) =>
-                        Numbers(
-                          speeches.unorderedFoldMap(speech =>
-                            SpeechSegments.getSpeechLength(story, speech.content)
+        debates
+          .foldMap { d =>
+            val story = d.debate.setup.sourceMaterial.contents
+            Chosen(
+              Map(
+                d.setting ->
+                  ("debater chars per round" ->>
+                    d.debate
+                      .rounds
+                      .collect {
+                        case SimultaneousSpeeches(speeches) =>
+                          Numbers(
+                            speeches.unorderedFoldMap(speech =>
+                              SpeechSegments.getSpeechLength(story, speech.content)
+                            )
                           )
-                        )
-                      case SequentialSpeeches(speeches) =>
-                        Numbers(
-                          speeches.unorderedFoldMap(speech =>
-                            SpeechSegments.getSpeechLength(story, speech.content)
+                        case SequentialSpeeches(speeches) =>
+                          Numbers(
+                            speeches.unorderedFoldMap(speech =>
+                              SpeechSegments.getSpeechLength(story, speech.content)
+                            )
                           )
-                        )
-                    }
-                    .combineAll ::
-                  "new quoted tokens per round" ->>
-                  d.debate
-                    .rounds
-                    .collect {
-                      case SimultaneousSpeeches(speeches) =>
-                        speeches
-                      case SequentialSpeeches(speeches) =>
-                        speeches
-                    }
-                    .foldLeft(Set.empty[Int] -> Numbers[Int](Vector())) {
-                      case ((coveredTokens, prevData), speeches) =>
-                        val newTokens =
+                      }
+                      .combineAll ::
+                    // "total quoted tokens per debate" ->>
+                    // Numbers(
+                    //   d.debate
+                    //     .rounds
+                    //     .collect {
+                    //       case SimultaneousSpeeches(speeches) =>
+                    //         speeches
+                    //       case SequentialSpeeches(speeches) =>
+                    //         speeches
+                    //     }
+                    //     .foldMap { speeches =>
+                    //       speeches
+                    //         .values
+                    //         .toVector
+                    //         .foldMap(speech =>
+                    //           speech
+                    //             .content
+                    //             .foldMap {
+                    //               case SpeechSegment.Quote(span) =>
+                    //                 (span.begin until span.endExclusive).toSet
+                    //               case _ =>
+                    //                 Set[Int]()
+                    //             }
+                    //         )
+                    //     }
+                    //     .size
+                    // ) ::
+                    // "new quoted tokens per round" ->>
+                    // d.debate
+                    //   .rounds
+                    //   .collect {
+                    //     case SimultaneousSpeeches(speeches) =>
+                    //       speeches
+                    //     case SequentialSpeeches(speeches) =>
+                    //       speeches
+                    //   }
+                    //   .foldLeft(Set.empty[Int] -> Numbers[Int](Vector())) {
+                    //     case ((coveredTokens, prevData), speeches) =>
+                    //       val newTokens =
+                    //         speeches
+                    //           .values
+                    //           .toVector
+                    //           .foldMap(speech =>
+                    //             speech
+                    //               .content
+                    //               .foldMap {
+                    //                 case SpeechSegment.Quote(span) =>
+                    //                   (span.begin until span.endExclusive).toSet
+                    //                 case _ =>
+                    //                   Set[Int]()
+                    //               }
+                    //           ) -- coveredTokens
+
+                    //       (coveredTokens ++ newTokens, prevData |+| Numbers(newTokens.size.toInt))
+                    //   }
+                    //   ._2 ::
+                    "all quoted chars per round" ->>
+                    d.debate
+                      .rounds
+                      .collect {
+                        case SimultaneousSpeeches(speeches) =>
+                          speeches
+                        case SequentialSpeeches(speeches) =>
+                          speeches
+                      }
+                      .foldMap(speeches =>
+                        Numbers(
                           speeches
                             .values
-                            .toVector
+                            .toList
                             .foldMap(speech =>
                               speech
                                 .content
                                 .foldMap {
                                   case SpeechSegment.Quote(span) =>
-                                    (span.begin until span.endExclusive).toSet
+                                    Utils.renderSpan(story, span).size
                                   case _ =>
-                                    Set[Int]()
+                                    0
                                 }
-                            ) -- coveredTokens
+                            )
+                        )
+                      ) ::
+                    "new quoted chars per round" ->>
+                    d.debate
+                      .rounds
+                      .collect {
+                        case SimultaneousSpeeches(speeches) =>
+                          speeches
+                        case SequentialSpeeches(speeches) =>
+                          speeches
+                      }
+                      .foldLeft(Set.empty[ESpan] -> Numbers[Int](Vector())) {
+                        case ((coveredSpans, prevData), speeches) =>
+                          val newQuotes = speeches
+                            .values
+                            .toVector
+                            .flatMap(speech =>
+                              SpeechSegments.getNewQuotes(coveredSpans, speech.content)
+                            )
+                          val newQuotedAmount = newQuotes
+                            .foldMap(q => Utils.renderSpan(story, q).size.toInt)
 
-                        (coveredTokens ++ newTokens, prevData |+| Numbers(newTokens.size.toInt))
-                    }
-                    ._2 ::
-                  "new quoted chars per round" ->>
-                  d.debate
-                    .rounds
-                    .collect {
-                      case SimultaneousSpeeches(speeches) =>
-                        speeches
-                      case SequentialSpeeches(speeches) =>
-                        speeches
-                    }
-                    .foldLeft(Set.empty[ESpan] -> Numbers[Int](Vector())) {
-                      case ((coveredSpans, prevData), speeches) =>
-                        val newQuotes = speeches
-                          .values
-                          .toVector
-                          .flatMap(speech =>
-                            SpeechSegments.getNewQuotes(coveredSpans, speech.content)
-                          )
-                        val newQuotedAmount = newQuotes
-                          .foldMap(q => Utils.renderSpan(story, q).size.toInt)
-
-                        val newCoveredSpans = (coveredSpans ++ newQuotes)
-                          .foldLeft(Set.empty[ESpan]) { case (acc, span) =>
-                            acc.find(_.overlaps(span)) match {
-                              case None =>
-                                acc + span
-                              case Some(overlapper) =>
-                                acc - overlapper + (span |+| overlapper)
+                          val newCoveredSpans = (coveredSpans ++ newQuotes)
+                            .foldLeft(Set.empty[ESpan]) { case (acc, span) =>
+                              acc.find(_.overlaps(span)) match {
+                                case None =>
+                                  acc + span
+                                case Some(overlapper) =>
+                                  acc - overlapper + (span |+| overlapper)
+                              }
                             }
-                          }
 
-                        (newCoveredSpans, prevData |+| Numbers(newQuotedAmount))
-                    }
-                    ._2 :: HNil)
+                          (newCoveredSpans, prevData |+| Numbers(newQuotedAmount))
+                      }
+                      ._2 ::
+                    "information gain per round (bits)" ->>
+                    d.debate
+                      .finalJudgement
+                      .foldMap { dist =>
+                        def getInfo(distribution: Vector[Double]) =
+                          math.log(distribution(d.debate.setup.correctAnswerIndex)) / math.log(2)
+                        val priorInfo =
+                          d.debate
+                            .rounds
+                            .collect { case JudgeFeedback(dist, _, _) =>
+                              getInfo(dist)
+                            }
+                            .head
+                        val finalInfo = getInfo(dist)
+                        val infoGain  = finalInfo - priorInfo
+                        val numRounds = d.debate.numDebateRounds
+                        ExpectedCount(infoGain, numRounds)
+                      } ::
+                    "Judge reward" ->>
+                    d.debate
+                      .result
+                      .foldMap(r => r.judgingInfo.foldMap(i => Numbers(i.judgeReward))) :: HNil)
+              )
+            )
+          }
+          .map(r =>
+            r.updated(
+              "proportion of quoted material redundant",
+              1.0 -
+                (r("new quoted chars per round").stats.mean /
+                  r("all quoted chars per round").stats.mean)
+            )
+          )
+      )
+    )
+
+    println("Feedback statistics")
+    println(
+      getMetricsString(
+        debates.foldMap { d =>
+          Chosen(
+            Map(
+              d.setting ->
+                d.debate
+                  .setup
+                  .roles
+                  .get(Judge)
+                  .flatMap(d.debate.feedback.get)
+                  .foldMap(feedback =>
+                    "evidence in debate (avg)" ->>
+                      feedback
+                        .answers
+                        .get(Feedback.Key.ComparativeLikert("evidence in debate"))
+                        .foldMap { case Feedback.ComparativeJudgment(first, second) =>
+                          Numbers2((first + second) / 2.0)
+                        } ::
+                      "factual informativeness (total)" ->>
+                      feedback
+                        .answers
+                        .get(Feedback.Key.Likert("factual informativeness (total)"))
+                        .foldMap(Numbers2(_)) ::
+                      "clarity (avg)" ->>
+                      feedback
+                        .answers
+                        .get(Feedback.Key.ComparativeLikert("clarity"))
+                        .foldMap { case Feedback.ComparativeJudgment(first, second) =>
+                          Numbers2((first + second) / 2.0)
+                        } ::
+                      "clash (avg)" ->>
+                      feedback
+                        .answers
+                        .get(Feedback.Key.ComparativeLikert("clash"))
+                        .foldMap { case Feedback.ComparativeJudgment(first, second) =>
+                          Numbers2((first + second) / 2.0)
+                        } ::
+                      "judge adaptation (avg)" ->>
+                      feedback
+                        .answers
+                        .get(Feedback.Key.ComparativeLikert("judge adaptation"))
+                        .foldMap { case Feedback.ComparativeJudgment(first, second) =>
+                          Numbers2((first + second) / 2.0)
+                        } :: HNil
+                  )
             )
           )
         }
