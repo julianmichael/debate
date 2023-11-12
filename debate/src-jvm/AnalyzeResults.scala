@@ -9,7 +9,6 @@ import cats.implicits._
 import com.monovore.decline._
 import com.monovore.decline.effect._
 import io.circe.generic.JsonCodec
-import monocle.macros.Lenses
 import debate.quality.QuALITYStory
 import debate.JudgingResult
 import cats.Monoid
@@ -221,41 +220,6 @@ object AnalyzeResults
     }
   }
 
-  @JsonCodec
-  @Lenses
-  case class DebateSetting(isHuman: Boolean, isDebate: Boolean)
-  object DebateSetting {
-    implicit def debateSettingShow = cats
-      .Show
-      .show[DebateSetting] { setting =>
-        val human =
-          if (setting.isHuman)
-            "Human"
-          else
-            "AI"
-        val debate =
-          if (setting.isDebate)
-            "debate"
-          else
-            "consultancy"
-        s"$human $debate"
-      }
-  }
-
-  def getSetting(debate: Debate): DebateSetting = {
-    val isAI = debate.setup.roles.values.toList.exists(_ == "GPT-4")
-    val isDebate =
-      debate
-        .setup
-        .roles
-        .keySet
-        .collect { case Debater(i) =>
-          i
-        }
-        .size > 1
-    DebateSetting(isHuman = !isAI, isDebate = isDebate)
-  }
-
   case class AnalyzedOnlineDebate(
     roomName: String,
     debate: Debate,
@@ -264,7 +228,7 @@ object AnalyzeResults
     questionDifficultyOpt: Option[Int]
   ) {
     def probabilityCorrect     = result.finalJudgement(debate.setup.correctAnswerIndex)
-    val setting: DebateSetting = getSetting(debate)
+    val setting: DebateSetting = DebateSetting.fromDebate(debate)
     def original               = AnalyzedDebate(roomName, debate, questionDifficultyOpt)
   }
 
@@ -272,7 +236,7 @@ object AnalyzeResults
     def isNotTooLittleContextRequired = questionDifficultyOpt.forall(_ > 1)
     val onlineJudgment                = debate.result.flatMap(_.judgingInfo)
     val isOnline               = onlineJudgment.exists(_ => debate.setup.roles.contains(Judge))
-    val setting: DebateSetting = getSetting(debate)
+    val setting: DebateSetting = DebateSetting.fromDebate(debate)
     def filtered = debate
       .result
       .flatMap(result =>

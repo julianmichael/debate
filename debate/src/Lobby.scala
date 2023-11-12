@@ -56,7 +56,7 @@ object Lobby {
     Set(),
     Set(),
     Set(),
-    Leaderboard(Map(), Elo.Ratings.empty, Elo.Ratings.empty),
+    Leaderboard(Map(), Elo.Ratings.empty, Map(), Map()),
     Map(),
     Vector()
   )

@@ -26,7 +26,7 @@ object HardQuestionsPanel {
       <.tbody(
         lobby
           .leaderboard
-          .ratings
+          .globalRatings
           .questionEase
           .sortBy(_._2)
           .toVdomArray { case (QuestionId(sourceId, question), ease) =>

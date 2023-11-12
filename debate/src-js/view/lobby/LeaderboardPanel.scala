@@ -276,24 +276,32 @@ object LeaderboardPanel {
   )
 
   def makeRatingsLeaderboard(
+    setting: Option[DebateSetting],
     debaters: Set[String],
     leaderboard: Leaderboard,
     refreshLeaderboard: Callback
   ) = {
+    val board = setting
+      .map(s => leaderboard.data.get(s).combineAll)
+      .getOrElse(leaderboard.data.values.toList.combineAll)
+    val ratings = setting.flatMap(leaderboard.ratings.get).getOrElse(leaderboard.globalRatings)
+    val oneWeekOldRatings = setting
+      .flatMap(leaderboard.oneWeekOldRatings.get)
+      .getOrElse(leaderboard.globalRatings)
     val honestStats = List(LeaderboardCategory.HonestDebater)
-      .flatMap(leaderboard.data.get)
+      .flatMap(board.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
 
     val dishonestStats = List(LeaderboardCategory.DishonestDebater)
-      .flatMap(leaderboard.data.get)
+      .flatMap(board.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
 
     val liveJudgingStats = List(LeaderboardCategory.Judge)
-      .flatMap(leaderboard.data.get)
+      .flatMap(board.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
 
     val allJudgingStats = List(LeaderboardCategory.Judge, LeaderboardCategory.OfflineJudge)
-      .flatMap(leaderboard.data.get)
+      .flatMap(board.get)
       .foldMap(data => debaters.map(d => d -> data.get(d).combineAll).toMap)
 
     Local[Boolean].make(false) { showRatingsAsWinPercentage =>
@@ -325,7 +333,7 @@ object LeaderboardPanel {
                     " the difficulty of arguing for an incorrect answer, the difficulty of particular questions, ",
                     " and the difficulty of offline versus online judging. ",
                     " For example, a debater with a skill rating of 2.0 gets a 2x higher probability assigned to their answer ",
-                    " than their opponent in the average case. Your judging skill is split into two scores: \"Steer\" ",
+                    " than the average participant in their position. Your judging skill is split into two scores: \"Steer\" ",
                     " measures how effectively you steer the debate as a live judge, and \"Judge\" measures how well you judge ",
                     " the correct answer given a debate's contents. "
                   ),
@@ -348,37 +356,32 @@ object LeaderboardPanel {
                 ),
                 <.span(c"card-link")(
                   f"Global bias: ",
-                  Column
-                    .showRating(showRatingsAsWinPercentage.value)(leaderboard.ratings.globalBias)
+                  Column.showRating(showRatingsAsWinPercentage.value)(ratings.globalBias)
                 ),
                 <.span(c"card-link")(
                   f"Offline judging adjustment: ",
-                  Column.showRating(showRatingsAsWinPercentage.value)(
-                    leaderboard.ratings.noLiveJudgeAdjustment
-                  )
+                  Column.showRating(showRatingsAsWinPercentage.value)(ratings.noLiveJudgeAdjustment)
                 ),
                 <.span(c"card-link")(
                   f"No opponent adjustment: ",
-                  Column.showRating(showRatingsAsWinPercentage.value)(
-                    leaderboard.ratings.noOpponentAdjustment
-                  )
+                  Column.showRating(showRatingsAsWinPercentage.value)(ratings.noOpponentAdjustment)
                 )
               ),
               renderRows(
                 rows = debaters
                   .toVector
                   .filter(name =>
-                    leaderboard.ratings.averageSkills.contains(name)
+                    ratings.averageSkills.contains(name)
                   ) // to avoid bugs with debaters who have no debates
                   .map(debater =>
                     makeRatingsRowData(
                       debater,
-                      honestStats(debater),
-                      dishonestStats(debater),
-                      liveJudgingStats(debater),
-                      allJudgingStats(debater),
-                      leaderboard.ratings,
-                      leaderboard.oneWeekOldRatings,
+                      honestStats.get(debater).combineAll,
+                      dishonestStats.get(debater).combineAll,
+                      liveJudgingStats.get(debater).combineAll,
+                      allJudgingStats.get(debater).combineAll,
+                      ratings,
+                      oneWeekOldRatings,
                       showRatingsAsWinPercentage.value
                     )
                   ),
@@ -393,43 +396,73 @@ object LeaderboardPanel {
   }
 
   def makeSingleRoleLeaderboard(
+    setting: DebateSetting,
     debaters: Set[String],
     leaderboard: Leaderboard,
     category: LeaderboardCategory
   ) = leaderboard
     .data
-    .get(category)
-    .map { data =>
-      val stats = debaters.map(d => d -> data.get(d).combineAll).toMap
-      Local[SortingOrder].make(defaultRoleSortingOrder) { sortOrder =>
-        <.div(
-          ^.key := s"leaderboard-$category",
-          <.h3(category.toString),
-          renderRows(
-            rows = stats
-              .toVector
-              .map { case (name, stats) =>
-                makeRoleRowData(name, stats)
-              },
-            columns = Column.allForRoleLeaderboard,
-            rankColumn = Column.reward,
-            sortOrder = sortOrder
-          )
-        )
-      }
-    }
+    .get(setting)
+    .flatMap(
+      _.get(category)
+        .map { data =>
+          val stats = debaters.map(d => d -> data.get(d).combineAll).toMap
+          Local[SortingOrder].make(defaultRoleSortingOrder) { sortOrder =>
+            <.div(
+              ^.key := s"leaderboard-$category",
+              <.h3(category.toString),
+              renderRows(
+                rows = stats
+                  .toVector
+                  .map { case (name, stats) =>
+                    makeRoleRowData(name, stats)
+                  },
+                columns = Column.allForRoleLeaderboard,
+                rankColumn = Column.reward,
+                sortOrder = sortOrder
+              )
+            )
+          }
+        }
+    )
 
   def apply(lobby: Lobby, refreshLeaderboard: Callback) = {
-    def makeRatingsTab = TabNav.tab(
-      <.div(c"card-body", S.spaceySubcontainer)(
-        makeRatingsLeaderboard(lobby.profiles.keySet, lobby.leaderboard, refreshLeaderboard)
+    def makeRatingsTab = {
+      def makeLeaderboard(setting: Option[DebateSetting]) = TabNav.tab(
+        <.div(c"card-body", S.spaceySubcontainer)(
+          makeRatingsLeaderboard(
+            setting,
+            lobby.profiles.keySet,
+            lobby.leaderboard,
+            refreshLeaderboard
+          )
+        )
       )
-    )
-    def makeRoleTab(category: LeaderboardCategory) = TabNav.tab(
-      <.div(c"card-body", S.spaceySubcontainer)(
-        makeSingleRoleLeaderboard(lobby.profiles.keySet, lobby.leaderboard, category)
+      TabNav.tab(
+        TabNav("ratings-tab", 0)(
+          "All Settings"      -> makeLeaderboard(None),
+          "Human Debate"      -> makeLeaderboard(Some(DebateSetting(true, true))),
+          "Human Consultancy" -> makeLeaderboard(Some(DebateSetting(true, false))),
+          "AI Debate"         -> makeLeaderboard(Some(DebateSetting(false, true))),
+          "AI Consultancy"    -> makeLeaderboard(Some(DebateSetting(false, false)))
+        )
       )
-    )
+    }
+    def makeRoleTab(category: LeaderboardCategory) = {
+      def makeLeaderboard(setting: DebateSetting) = TabNav.tab(
+        <.div(c"card-body", S.spaceySubcontainer)(
+          makeSingleRoleLeaderboard(setting, lobby.profiles.keySet, lobby.leaderboard, category)
+        )
+      )
+      TabNav.tab(
+        TabNav(s"leaderboard-subtab", 0)(
+          "Human Debate"      -> makeLeaderboard(DebateSetting(true, true)),
+          "Human Consultancy" -> makeLeaderboard(DebateSetting(true, false)),
+          "AI Debate"         -> makeLeaderboard(DebateSetting(false, true)),
+          "AI Consultancy"    -> makeLeaderboard(DebateSetting(false, false))
+        )
+      )
+    }
     TabNav("leaderboard-tab", 0)(
       "Skill Ratings"     -> makeRatingsTab,
       "Live Judge"        -> makeRoleTab(LeaderboardCategory.Judge),

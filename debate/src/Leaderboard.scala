@@ -17,8 +17,8 @@ object DebateStats {
 
   implicit val debateStatsHasMetrics: HasMetrics[DebateStats] =
     new HasMetrics[DebateStats] {
-      def getMetrics(stats: DebateStats): MapTree[String, Metric] =
-        MapTree.Fork(Map("wins" -> stats.wins.getMetrics, "rewards" -> stats.rewards.getMetrics))
+      def getMetrics(stats: DebateStats): MapTree[String, Metric] = MapTree
+        .Fork(Map("wins" -> stats.wins.getMetrics, "rewards" -> stats.rewards.getMetrics))
     }
 
   private def bool2int(b: Boolean) =
@@ -67,7 +67,9 @@ object DebateStats {
     Chosen(Map(leaderboardCategory -> Chosen(Map(name -> stats))))
   }
 
-  def fromDebate(d: Debate): Chosen[LeaderboardCategory, Chosen[String, DebateStats]] = {
+  def fromDebate(
+    d: Debate
+  ): Chosen[DebateSetting, Chosen[LeaderboardCategory, Chosen[String, DebateStats]]] = {
     val liveParticipantStats = d
       .setup
       .roles
@@ -123,7 +125,7 @@ object DebateStats {
             getJudgeStats(result, OfflineJudge, user)
           }
       }
-    liveParticipantStats |+| offlineJudgingStats
+    Chosen(Map(DebateSetting.fromDebate(d) -> (liveParticipantStats |+| offlineJudgingStats)))
   }
 }
 
@@ -172,9 +174,10 @@ object LeaderboardCategory {
 
 @JsonCodec
 case class Leaderboard(
-  data: Map[LeaderboardCategory, Map[String, DebateStats]],
-  ratings: Elo.Ratings,
-  oneWeekOldRatings: Elo.Ratings
+  data: Map[DebateSetting, Map[LeaderboardCategory, Map[String, DebateStats]]],
+  globalRatings: Elo.Ratings,
+  ratings: Map[DebateSetting, Elo.Ratings],
+  oneWeekOldRatings: Map[DebateSetting, Elo.Ratings]
 ) {
   def allDebaters = data.unorderedFoldMap(_.keySet)
 }
@@ -186,14 +189,29 @@ object Leaderboard {
     val debates = _debates
       .toList
       .filter(_.setup.creationTime > timeBeforeWhichToIgnoreMissingFeedback)
-    val data     = debates.foldMap(DebateStats.fromDebate).data.view.mapValues(_.data).toMap
-    val debaters = debates.foldMap(_.setup.participants) ++ _debaters
-    val ratings  = Elo.computeRatings(debates.toList.toVector, debaters)
-    val oneWeekOldRatings = Elo.computeRatings(
-      debates.toList.toVector,
-      debaters,
-      timeCutoff = Some(System.currentTimeMillis() - oneWeekMillis)
-    )
-    Leaderboard(data, ratings, oneWeekOldRatings)
+    val data =
+      debates
+        .foldMap(DebateStats.fromDebate)
+        .data
+        .view
+        .mapValues(_.data.view.mapValues(_.data).toMap)
+        .toMap
+    val debaters      = debates.foldMap(_.setup.participants) ++ _debaters
+    val globalRatings = Elo.computeRatings(debates.toVector, debaters)
+    val ratings = debates
+      .toVector
+      .groupBy(DebateSetting.fromDebate)
+      .mapVals(Elo.computeRatings(_, debaters))
+    val oneWeekOldRatings = debates
+      .toVector
+      .groupBy(DebateSetting.fromDebate)
+      .mapVals(
+        Elo.computeRatings(
+          _,
+          debaters,
+          timeCutoff = Some(System.currentTimeMillis() - oneWeekMillis)
+        )
+      )
+    Leaderboard(data, globalRatings, ratings, oneWeekOldRatings)
   }
 }
