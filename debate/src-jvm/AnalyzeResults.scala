@@ -595,6 +595,8 @@ object AnalyzeResults
               "accuracy" ->> correctIf(d, d.probabilityCorrect > 0.5) ::
                 "length" ->> Numbers(d.debate.numDebateRounds) ::
                 "reward" ->> Numbers(d.result.judgeReward) ::
+                "confidence" ->>
+                Numbers(math.max(d.probabilityCorrect, 1 - d.probabilityCorrect)) ::
                 "correct speaker" ->> FewClassCount(d.result.correctAnswerIndex) ::
                 "winning speaker" ->>
                 FewClassCount(d.result.finalJudgement.zipWithIndex.maxBy(_._1)._2) ::
@@ -836,25 +838,25 @@ object AnalyzeResults
     //   )
     // )
 
-    // println("Highest-confidence turn-0 debates:")
-    // println(
-    //   getMetricsString(
-    //     debates
-    //       .foldMap(d =>
-    //         Chosen(
-    //           Map(
-    //             d.debate
-    //               .rounds
-    //               .collect { case JudgeFeedback(dist, _, _) =>
-    //                 dist(d.debate.setup.correctAnswerIndex)
-    //               }
-    //               .head -> Vector(d.roomName)
-    //           )
-    //         )
-    //       )
-    //       .map(_.take(5))
-    //   )
-    // )
+    println("Highest-confidence turn-0 debates:")
+    println(
+      getMetricsString(
+        debates
+          .foldMap(d =>
+            Chosen(
+              Map(
+                d.debate
+                  .rounds
+                  .collect { case JudgeFeedback(dist, _, _) =>
+                    dist(d.debate.setup.correctAnswerIndex)
+                  }
+                  .head -> Vector(d.roomName)
+              )
+            )
+          )
+          .map(_.take(5))
+      )
+    )
 
     println("Rounded/binned confidences for turn 0:")
     println(
@@ -1084,58 +1086,130 @@ object AnalyzeResults
       )
     )
 
-    println("Feedback statistics")
-    println(
-      getMetricsString(
-        debates.foldMap { d =>
-          Chosen(
-            Map(
-              d.setting ->
-                d.debate
-                  .setup
-                  .roles
-                  .get(Judge)
-                  .flatMap(d.debate.feedback.get)
-                  .foldMap(feedback =>
-                    "evidence in debate (avg)" ->>
-                      feedback
-                        .answers
-                        .get(Feedback.Key.ComparativeLikert("evidence in debate"))
-                        .foldMap { case Feedback.ComparativeJudgment(first, second) =>
-                          Numbers2((first + second) / 2.0)
-                        } ::
-                      "factual informativeness (total)" ->>
-                      feedback
-                        .answers
-                        .get(Feedback.Key.Likert("factual informativeness (total)"))
-                        .foldMap(Numbers2(_)) ::
-                      "clarity (avg)" ->>
-                      feedback
-                        .answers
-                        .get(Feedback.Key.ComparativeLikert("clarity"))
-                        .foldMap { case Feedback.ComparativeJudgment(first, second) =>
-                          Numbers2((first + second) / 2.0)
-                        } ::
-                      "clash (avg)" ->>
-                      feedback
-                        .answers
-                        .get(Feedback.Key.ComparativeLikert("clash"))
-                        .foldMap { case Feedback.ComparativeJudgment(first, second) =>
-                          Numbers2((first + second) / 2.0)
-                        } ::
-                      "judge adaptation (avg)" ->>
-                      feedback
-                        .answers
-                        .get(Feedback.Key.ComparativeLikert("judge adaptation"))
-                        .foldMap { case Feedback.ComparativeJudgment(first, second) =>
-                          Numbers2((first + second) / 2.0)
-                        } :: HNil
-                  )
-            )
-          )
-        }
-      )
-    )
+    // println("Judge feedback statistics")
+    // println(
+    //   getMetricsString(
+    //     debates.foldMap { d =>
+    //       Chosen(
+    //         Map(
+    //           d.setting ->
+    //             d.debate
+    //               .setup
+    //               .roles
+    //               .get(Judge)
+    //               .flatMap(d.debate.feedback.get)
+    //               .foldMap(feedback =>
+    //                 "evidence in debate (avg)" ->>
+    //                   feedback
+    //                     .answers
+    //                     .get(Feedback.Key.ComparativeLikert("evidence in debate"))
+    //                     .foldMap { case Feedback.ComparativeJudgment(first, second) =>
+    //                       Numbers2((first + second) / 2.0)
+    //                     } ::
+    //                   "factual informativeness (total)" ->>
+    //                   feedback
+    //                     .answers
+    //                     .get(Feedback.Key.Likert("factual informativeness (total)"))
+    //                     .foldMap(Numbers2(_)) ::
+    //                   "clarity (avg)" ->>
+    //                   feedback
+    //                     .answers
+    //                     .get(Feedback.Key.ComparativeLikert("clarity"))
+    //                     .foldMap { case Feedback.ComparativeJudgment(first, second) =>
+    //                       Numbers2((first + second) / 2.0)
+    //                     } ::
+    //                   "clash (avg)" ->>
+    //                   feedback
+    //                     .answers
+    //                     .get(Feedback.Key.ComparativeLikert("clash"))
+    //                     .foldMap { case Feedback.ComparativeJudgment(first, second) =>
+    //                       Numbers2((first + second) / 2.0)
+    //                     } ::
+    //                   "judge adaptation (avg)" ->>
+    //                   feedback
+    //                     .answers
+    //                     .get(Feedback.Key.ComparativeLikert("judge adaptation"))
+    //                     .foldMap { case Feedback.ComparativeJudgment(first, second) =>
+    //                       Numbers2((first + second) / 2.0)
+    //                     } :: HNil
+    //               )
+    //         )
+    //       )
+    //     }
+    //   )
+    // )
+
+    // println("Debater feedback statistics")
+    // println(
+    //   getMetricsString(
+    //     debates.foldMap { d =>
+    //       Chosen(
+    //         Map(
+    //           d.setting ->
+    //             d.debate
+    //               .setup
+    //               .roles
+    //               .toList
+    //               .collect { case (Debater(_), participant) =>
+    //                 participant
+    //               }
+    //               .flatMap(d.debate.feedback.get)
+    //               .foldMap(feedback =>
+    //                 "question subjectivity" ->>
+    //                   feedback
+    //                     .answers
+    //                     .get(Feedback.Key.Likert("subjective correctness"))
+    //                     .foldMap(FewClassCount(_)) :: HNil
+    //               )
+    //         )
+    //       )
+    //     }
+    //   )
+    // )
+
+    // println("Judge reward statistics")
+    // println(
+    //   getMetricsString(
+    //     debates.foldMap { d =>
+    //       Chosen(
+    //         Map(
+    //           d.setting ->
+    //             d.debate
+    //               .setup
+    //               .roles
+    //               .get(Judge)
+    //               .foldMap { judge =>
+    //                 d.debate
+    //                   .result
+    //                   .foldMap(result =>
+    //                     result
+    //                       .judgingInfo
+    //                       .foldMap(info => Chosen(Map(judge -> Numbers2(info.judgeReward))))
+    //                   )
+    //               }
+    //         )
+    //       )
+    //     }
+    //     .map(_.map(_.stats.mean))
+    //   )
+    // )
+
+    // println("Time spent judging:")
+    // println(
+    //   getMetricsString(
+    //     debates.foldMap { d =>
+    //       val judgeTimestamps = d
+    //         .debate
+    //         .rounds
+    //         .collect { case JudgeFeedback(_, speech, _) =>
+    //           speech.timestamp
+    //         }
+    //       val timeTakenMillis  = judgeTimestamps.max - judgeTimestamps.min
+    //       val timeTakenMinutes = (timeTakenMillis / 1000L).toDouble / 60
+    //       Chosen(Map(d.setting -> Numbers(timeTakenMinutes)))
+    //     }
+    //   )
+    // )
 
     // analysis section
 

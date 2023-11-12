@@ -693,13 +693,14 @@ class DataSummarizer(qualityDataset: Map[String, QuALITYStory]) {
           CSVWriter
             .open(new File(summaryDir.resolve("sample-error-cases.csv").toString))
             .writeAll(
-              List("Setting", "Room name", "Reason") ::
+              List("Setting", "Room name", "Confidence", "Reason") ::
                 balancedDebates
                   .filter(_.probabilityCorrect <= .5)
                   .map(d =>
                     List(
                       d.setting.show,
                       d.roomName,
+                      f"${math.max(d.probabilityCorrect, 1 - d.probabilityCorrect)}%.2f",
                       d.debate
                         .feedback
                         .get(d.debate.setup.roles(Judge))
