@@ -90,12 +90,14 @@ object SpeechSegments {
   def getSpeechString(
     source: Vector[String],
     speechSegments: Vector[SpeechSegment],
-    quoteDelimiters: (String, String) // = ("```", "```")
+    quoteDelimiters: (String, String), // = ("```", "```")
+    renderQuoteIndices: ESpan => String
   ) = speechSegments.foldMap {
     case SpeechSegment.Text(text) =>
       text
     case SpeechSegment.Quote(span) =>
-      quoteDelimiters._1 + Utils.renderSpan(source, span) + quoteDelimiters._2
+      quoteDelimiters._1 + Utils.renderSpan(source, span) + quoteDelimiters._2 +
+        renderQuoteIndices(span)
   }
 
   // def getQuoteLength(source: Vector[String], speechSegments: Vector[SpeechSegment]) = speechSegments

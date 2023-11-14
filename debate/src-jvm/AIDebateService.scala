@@ -121,8 +121,14 @@ object AIDebateService {
     ): DebateTurnPrompt = {
       val readableDebate = {
         val userName = role.asLiveDebateRoleOpt.flatMap(debate.setup.roles.get).getOrElse("N/A")
-        ReadableDebate
-          .fromDebate(roomName, debate, userName, role, quoteDelimiters = ("<quote>", "</quote>"))
+        ReadableDebate.fromDebate(
+          roomName,
+          debate,
+          userName,
+          role,
+          quoteDelimiters = ("<quote>", "</quote>"),
+          renderQuoteIndices = _ => "" // don't include indices in AI prompts
+        )
       }
 
       val turnTypeStr =

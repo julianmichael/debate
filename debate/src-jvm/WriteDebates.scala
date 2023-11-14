@@ -64,7 +64,9 @@ object WriteDebates
                 ReadableDebate.sessionsFromDebate(
                   roomName,
                   room.debate.debate,
-                  ("<quote>", "</quote>"),
+                  quoteDelimiters = ("<quote>", "</quote>"),
+                  renderQuoteIndices =
+                    span => s"<indices> (${span.begin}-${span.endExclusive})</indices>",
                   liveOnly = true
                 )
               }

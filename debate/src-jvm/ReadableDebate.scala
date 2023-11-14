@@ -2,6 +2,7 @@ package debate
 
 import io.circe.generic.JsonCodec
 import jjm.ling.Text
+import jjm.ling.ESpan
 
 @JsonCodec
 case class ReadableTurn(
@@ -36,14 +37,15 @@ object ReadableDebate {
     debate: Debate,
     userName: String,
     role: Role,
-    quoteDelimiters: (String, String)
+    quoteDelimiters: (String, String),
+    renderQuoteIndices: ESpan => String
   ) = {
     val sourceMaterialId = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial)
     val turnList =
       debate
         .visibleRounds(userName, role)
         .flatMap { visibleRound =>
-          constructTurnsForRound(debate, visibleRound, quoteDelimiters)
+          constructTurnsForRound(debate, visibleRound, quoteDelimiters, renderQuoteIndices)
         }
         .toList
     ReadableDebate(
@@ -70,6 +72,7 @@ object ReadableDebate {
     roomName: String,
     debate: Debate,
     quoteDelimiters: (String, String),
+    renderQuoteIndices: ESpan => String,
     liveOnly: Boolean
   ) = {
     val sourceMaterialId = SourceMaterialId.fromSourceMaterial(debate.setup.sourceMaterial)
@@ -83,7 +86,8 @@ object ReadableDebate {
               constructTurnsForLiveJudge(
                 debate,
                 debate.visibleRounds("Judge", Judge), // user name doesn't matter
-                quoteDelimiters
+                quoteDelimiters,
+                renderQuoteIndices
               ).toList,
               debate.setup.roles(Judge),
               judgingInfo.finalJudgement(debate.setup.correctAnswerIndex) > 0.5
@@ -105,11 +109,16 @@ object ReadableDebate {
                       constructTurnsForSteppedOfflineJudge(
                         debate,
                         offlineJudgment.judgments.toList,
-                        quoteDelimiters
+                        quoteDelimiters,
+                        renderQuoteIndices
                       ).toList
                     case OfflineJudgingMode.Timed =>
-                      constructTurnsForTimedOfflineJudge(debate, finalJudgment, quoteDelimiters)
-                        .toList
+                      constructTurnsForTimedOfflineJudge(
+                        debate,
+                        finalJudgment,
+                        quoteDelimiters,
+                        renderQuoteIndices
+                      ).toList
                   }
 
                 (
@@ -155,7 +164,8 @@ object ReadableDebate {
   def constructTurnsForRound(
     debate: Debate,
     visibleRound: Debate.VisibleRound,
-    quoteDelimiters: (String, String)
+    quoteDelimiters: (String, String),
+    renderQuoteIndices: ESpan => String
   ): List[ReadableTurn] = visibleRound
     .visibleSpeeches
     .toList
@@ -173,8 +183,12 @@ object ReadableDebate {
         role = roleStr,
         speaker = speech.speaker,
         index = getRoleIndex(role),
-        text = SpeechSegments
-          .getSpeechString(debate.setup.sourceMaterial.contents, speech.content, quoteDelimiters),
+        text = SpeechSegments.getSpeechString(
+          debate.setup.sourceMaterial.contents,
+          speech.content,
+          quoteDelimiters,
+          renderQuoteIndices
+        ),
         distOpt,
         chars = SpeechSegments
           .getSpeechLength(debate.setup.sourceMaterial.contents, speech.content),
@@ -188,23 +202,29 @@ object ReadableDebate {
   def constructTurnsForLiveJudge(
     debate: Debate,
     rounds: Vector[Debate.VisibleRound],
-    quoteDelimiters: (String, String)
+    quoteDelimiters: (String, String),
+    renderQuoteIndices: ESpan => String
   ): Vector[ReadableTurn] = rounds.flatMap { round =>
-    constructTurnsForRound(debate, round, quoteDelimiters)
+    constructTurnsForRound(debate, round, quoteDelimiters, renderQuoteIndices)
   }
 
   def constructTurnsForSteppedOfflineJudge(
     debate: Debate,
     judgments: List[JudgeFeedback],
-    quoteDelimiters: (String, String)
+    quoteDelimiters: (String, String),
+    renderQuoteIndices: ESpan => String
   ): List[ReadableTurn] =
     judgments.map { case JudgeFeedback(distribution, feedback, _) =>
       ReadableTurn(
         role = "Offline Judge (Stepped)",
         speaker = feedback.speaker,
         index = None,
-        text = SpeechSegments
-          .getSpeechString(debate.setup.sourceMaterial.contents, feedback.content, quoteDelimiters),
+        text = SpeechSegments.getSpeechString(
+          debate.setup.sourceMaterial.contents,
+          feedback.content,
+          quoteDelimiters,
+          renderQuoteIndices
+        ),
         Some(distribution),
         chars = SpeechSegments
           .getSpeechLength(debate.setup.sourceMaterial.contents, feedback.content),
@@ -230,7 +250,7 @@ object ReadableDebate {
               }
             )
             .map { case round =>
-              constructTurnsForRound(debate, round, quoteDelimiters)
+              constructTurnsForRound(debate, round, quoteDelimiters, renderQuoteIndices)
             }
             .zip(nonFirstJudgeTurns)
             .flatMap(Function.tupled(_ :+ _))
@@ -241,7 +261,8 @@ object ReadableDebate {
   def constructTurnsForTimedOfflineJudge(
     debate: Debate,
     judgment: JudgeFeedback,
-    quoteDelimiters: (String, String)
+    quoteDelimiters: (String, String),
+    renderQuoteIndices: ESpan => String
   ): Vector[ReadableTurn] =
     debate
       .visibleRounds("Offline Judge", OfflineJudge)
@@ -254,7 +275,7 @@ object ReadableDebate {
         }
       )
       .flatMap { round =>
-        constructTurnsForRound(debate, round, quoteDelimiters)
+        constructTurnsForRound(debate, round, quoteDelimiters, renderQuoteIndices)
       } :+
       ReadableTurn(
         role = "Offline Judge (Timed)",
@@ -263,7 +284,8 @@ object ReadableDebate {
         text = SpeechSegments.getSpeechString(
           debate.setup.sourceMaterial.contents,
           judgment.feedback.content,
-          quoteDelimiters
+          quoteDelimiters,
+          renderQuoteIndices
         ),
         Some(judgment.distribution),
         chars = SpeechSegments
