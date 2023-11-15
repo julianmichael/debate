@@ -1,5 +1,5 @@
 # Debate
-Web interface for information-asymmetric debates.
+Web interface for information-asymmetric debates. Data collected for the paper coming soon.
 
 ## Usage
 
