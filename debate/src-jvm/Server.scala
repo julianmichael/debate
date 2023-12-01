@@ -667,7 +667,7 @@ object Server {
       practiceRooms <- practiceDebates.getRoomMetadata
       // channel to update all clients on the lobby state
       leaderboard <- officialDebates.leaderboard.get
-      allDebaters = officialRooms.unorderedFoldMap(_.roleAssignments.values.toSet)
+      allDebaters = officialRooms.unorderedFoldMap(_.participants)
       _ <- profilesRef
         .get
         .map(_.isEmpty)

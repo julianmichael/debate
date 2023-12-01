@@ -11,8 +11,10 @@ Publication artifacts are in the `pub/` directory:
 * `pub/debates/`: the full data for all debates, formatted for the debate data collection webserver.
 * `pub/debates-filtered.jsonl`: a JSON-lines formatted file containing the subset of debates
    used for the paper analysis in a more readable format.
-* `pub/debates-all.jsonl`: a JSON-lines formatted file containing all of the debates
-  in a the same format.
+* `pub/debates-all.jsonl`: a JSON-lines formatted file containing all of the debates we collected
+  in the same format.
+* `pub/debates-metadata.jsonl`: a JSON-lines formatted file with metadata for all debates, usable
+  for browsing and searching.
 * `pub/README.md`: Details on the data filtering and formatting.
 
 The rest of this repository contains code for running our experiments and analyzing the results.

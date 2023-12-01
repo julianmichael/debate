@@ -66,6 +66,8 @@ case class RoomMetadata(
 ) {
   def result = RoomStatus.complete.getOption(status).map(_.result)
 
+  def participants = roleAssignments.values.toSet ++ offlineJudgeAssignments.keySet
+
   def matchesQuery(query: String, anonymize: Boolean) = {
     val itemTerms =
       Set(name, storyTitle) ++
