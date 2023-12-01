@@ -1,5 +1,29 @@
-# Debate
-Web interface for information-asymmetric debates. Data collected for the paper coming soon.
+# Debate Helps Supervise Unreliable Experts
+
+This is the repository for the paper
+[Debate Helps Supervise Unreliable Experts](https://arxiv.org/abs/2311.08702)
+by Julian Michael,* Salsabila Mahdi,* David Rein,*
+Jackson Petty, Julien Dirani, Vishakh Padmakumar,
+and Samuel R. Bowman.
+
+Publication artifacts are in the `pub/` directory:
+
+* `pub/debates/`: the full data for all debates, formatted for the debate data collection webserver.
+* `pub/debates-filtered.jsonl`: a JSON-lines formatted file containing the subset of debates
+   used for the paper analysis in a more readable format.
+* `pub/debates-all.jsonl`: a JSON-lines formatted file containing all of the debates
+  in a the same format.
+* `pub/README.md`: Details on the data filtering and formatting.
+
+The rest of this repository contains code for running our experiments and analyzing the results.
+To peruse the debates using the annotation interface, install the [requirements](#requirements)
+and start the webserver using the following command:
+```
+mill debate.dev.serve --save pub/debates
+```
+Then visit [http://localhost:8080] and choose any profile to see the interface from their perspective.
+Follow the instructions in [Running the webapp](#running-the-webapp) to start up the analytics server
+if you want to see the full details in the analytics pane on the webapp.
 
 ## Usage
 
@@ -69,7 +93,7 @@ FLASK_APP=vis/server.py DATA_DIR=scratch/save-server python -m flask run --port 
 ```
 The value you pass in for `DATA_DIR` should match that of `--save` for the main webapp.
 
-## Contents
+## Code
 
 * `build.sc`: Mill build file.
 * `debate/src{,-jvm,-js}`: Scala source for all platforms.

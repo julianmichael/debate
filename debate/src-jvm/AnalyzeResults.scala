@@ -899,6 +899,24 @@ object AnalyzeResults
                           )
                       }
                       .combineAll ::
+                    ("total chars per debate" ->>
+                      Numbers(
+                        d.debate
+                          .rounds
+                          .collect {
+                            case SimultaneousSpeeches(speeches) =>
+                              speeches.unorderedFoldMap(speech =>
+                                SpeechSegments.getSpeechLength(story, speech.content)
+                              )
+                            case SequentialSpeeches(speeches) =>
+                              speeches.unorderedFoldMap(speech =>
+                                SpeechSegments.getSpeechLength(story, speech.content)
+                              )
+                            case JudgeFeedback(_, speech, _) =>
+                              SpeechSegments.getSpeechLength(story, speech.content)
+                          }
+                          .combineAll
+                      )) ::
                     // "total quoted tokens per debate" ->>
                     // Numbers(
                     //   d.debate
@@ -1103,33 +1121,33 @@ object AnalyzeResults
     //   )
     // )
 
-    // println("Debater feedback statistics")
-    // println(
-    //   getMetricsString(
-    //     debates.foldMap { d =>
-    //       Chosen(
-    //         Map(
-    //           d.setting ->
-    //             d.debate
-    //               .setup
-    //               .roles
-    //               .toList
-    //               .collect { case (Debater(_), participant) =>
-    //                 participant
-    //               }
-    //               .flatMap(d.debate.feedback.get)
-    //               .foldMap(feedback =>
-    //                 "question subjectivity" ->>
-    //                   feedback
-    //                     .answers
-    //                     .get(Feedback.Key.Likert("subjective correctness"))
-    //                     .foldMap(FewClassCount(_)) :: HNil
-    //               )
-    //         )
-    //       )
-    //     }
-    //   )
-    // )
+    println("Debater feedback statistics")
+    println(
+      getMetricsString(
+        debates.foldMap { d =>
+          Chosen(
+            Map(
+              d.setting ->
+                d.debate
+                  .setup
+                  .roles
+                  .toList
+                  .collect { case (Debater(_), participant) =>
+                    participant
+                  }
+                  .flatMap(d.debate.feedback.get)
+                  .foldMap(feedback =>
+                    "question subjectivity" ->>
+                      feedback
+                        .answers
+                        .get(Feedback.Key.Likert("subjective correctness"))
+                        .foldMap(FewClassCount(_)) :: HNil
+                  )
+            )
+          )
+        }
+      )
+    )
 
     // println("Judge reward statistics")
     // println(
@@ -1175,7 +1193,21 @@ object AnalyzeResults
     //   )
     // )
 
-    // analysis section
+    println("Questions where debate did better than consultancy:")
+    debates
+      .groupBy(d => getQuestionId(d.debate))
+      .mapVals(ds => ds.groupBy(d => DebateSetting.fromDebate(d.debate)))
+      .filter(_._2.keySet.size == 4)
+      .map { case (qid, dsBySetting) =>
+        val avgHumanDebateCorrect =
+          dsBySetting(DebateSetting(true, true)).map(_.probabilityCorrect).meanOpt.get
+        val avgHumanConsultancyCorrect =
+          dsBySetting(DebateSetting(true, false)).map(_.probabilityCorrect).meanOpt.get
+        qid -> (avgHumanDebateCorrect - avgHumanConsultancyCorrect)
+      }
+      .toVector
+      .sortBy(-_._2)
+      .foreach(println)
 
   }
 

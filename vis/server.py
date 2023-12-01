@@ -46,21 +46,29 @@ def read_data():
     global filtered_turns
     global turns
     global leaderboard
-    debates = pd.read_csv(os.path.join(data_dir, "official/summaries/debates.csv"), keep_default_na=True)
-    debates["Creation time"] = pd.to_datetime(debates["Creation time"], unit="ms")
+    debates = pd.read_csv(os.path.join(
+        data_dir, "official/summaries/debates.csv"), keep_default_na=True)
+    debates["Creation time"] = pd.to_datetime(
+        debates["Creation time"], unit="ms")
     debates["End time"] = pd.to_datetime(debates["End time"], unit="ms")
     # only include debates after the given time
     debates = debates[
-        (debates["Creation time"] > pd.to_datetime("10/02/23", format="%d/%m/%y"))# &
-        #(debates["End time"] < pd.to_datetime("21/05/23", format="%d/%m/%y"))
+        (debates["Creation time"] > pd.to_datetime(
+            "10/02/23", format="%d/%m/%y"))  # &
+        # (debates["End time"] < pd.to_datetime("21/05/23", format="%d/%m/%y"))
     ]
-    debates["Final probability incorrect"] = 1 - debates["Final probability correct"]
-    sessions = pd.read_csv(os.path.join(data_dir, "official/summaries/sessions.csv"), keep_default_na=True)
+    debates["Final probability incorrect"] = 1 - \
+        debates["Final probability correct"]
+    sessions = pd.read_csv(os.path.join(
+        data_dir, "official/summaries/sessions.csv"), keep_default_na=True)
     # filter sessions to only the included debates
-    sessions = sessions.merge(debates[["Room name"]], how="inner", on="Room name")
+    sessions = sessions.merge(
+        debates[["Room name"]], how="inner", on="Room name")
 
-    turns = pd.read_csv(os.path.join(data_dir, "official/summaries/turns.csv"), keep_default_na=True)
-    turns["Room start time"] = pd.to_datetime(turns["Room start time"], unit="ms")
+    turns = pd.read_csv(os.path.join(
+        data_dir, "official/summaries/turns.csv"), keep_default_na=True)
+    turns["Room start time"] = pd.to_datetime(
+        turns["Room start time"], unit="ms")
     # filter turns to only the included debates
     turns = turns.merge(debates[["Room name"]], how="inner", on="Room name")
 
@@ -79,7 +87,8 @@ def read_data():
     leaderboard = leaderboard[leaderboard['Final probability correct'].notna()]
     from math import log
     leaderboard['Judge reward'] = leaderboard.apply(
-        lambda row: log(row['Final probability correct']) - (0.05 * row['Number of judge continues']),
+        lambda row: log(row['Final probability correct']) -
+        (0.05 * row['Number of judge continues']),
         axis=1
     )
     leaderboard['Honest debater reward'] = leaderboard.apply(
@@ -91,8 +100,10 @@ def read_data():
         axis=1
     )
 
-    sessions_to_keep = pd.read_csv(os.path.join(data_dir, "official/summaries/sample-rooms.csv"), keep_default_na=True)
-    filtered_sessions = sessions_to_keep.merge(sessions, how="left", left_on=["Room name", "Judge"], right_on=["Room name", "Participant"])
+    sessions_to_keep = pd.read_csv(os.path.join(
+        data_dir, "official/summaries/sample-rooms.csv"), keep_default_na=True)
+    filtered_sessions = sessions_to_keep.merge(sessions, how="left", left_on=[
+                                               "Room name", "Judge"], right_on=["Room name", "Participant"])
     filtered_turns = sessions_to_keep.merge(
         turns, how="inner", left_on=["Room name"], right_on=["Room name"]
     )
@@ -120,9 +131,11 @@ def read_data():
     print(leaderboard.dtypes)
     print(leaderboard.describe())
 
+
 read_data()
 
-def outcomes_by_field(source, rowEncoding = None):
+
+def outcomes_by_field(source, rowEncoding=None):
 
     source['outcome'] = source.apply(
         lambda row: "incomplete" if math.isnan(row['Final probability correct'])
@@ -155,7 +168,8 @@ def outcomes_by_field(source, rowEncoding = None):
         groupby=groups,
         group_count='count()'
     ).encode(
-        y=alt.Y('outcome:N', scale=alt.Scale(domain=['correct', 'incorrect', 'tie', 'incomplete']))
+        y=alt.Y('outcome:N', scale=alt.Scale(
+            domain=['correct', 'incorrect', 'tie', 'incomplete']))
     )
 
     if rowEncoding is not None:
@@ -163,26 +177,28 @@ def outcomes_by_field(source, rowEncoding = None):
 
     main_bar = base.mark_bar().encode(
         x=alt.X('count():Q'),
-        color = alt.Color(
+        color=alt.Color(
             'Final probability correct (with imputation):Q',
-            scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0]),
+            scale=alt.Scale(
+                range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0]),
             title='Final probability correct'
         ),
         order=alt.Order(
             'Final probability correct (dist from half):Q',
             sort='ascending'
         ),
-        tooltip = [
+        tooltip=[
             'outcome:N',
             alt.Tooltip('group_count:Q', title="Judgments"),
-            alt.Tooltip('count():Q', title = 'Judgments with this probability'),
+            alt.Tooltip('count():Q', title='Judgments with this probability'),
             'Final probability correct:Q'
         ]
     ).properties(width=fullWidth - 200)
 
     return main_bar
 
-def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = False):
+
+def accuracy_by_field(source, by_turn: bool = False, yEncoding=None, invert=False):
 
     if by_turn:
         prob_correct_field = 'Probability correct'
@@ -200,14 +216,14 @@ def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = 
         groups = [yEncoding.field]
 
     base = alt.Chart(source).transform_joinaggregate(
-        total = "count()",
-        groupby = groups
+        total="count()",
+        groupby=groups
     ).transform_calculate(
-        proportion = '1 / datum.total'
+        proportion='1 / datum.total'
     ).transform_calculate(
-        is_correct = f'datum["{prob_correct_field}"] > 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0',
-        is_win = f'datum["{prob_assigned_field}"] > 0.5 ? 1 : datum["{prob_assigned_field}"] == 0.5 ? 0.5 : 0',
-        is_not_correct = f'datum["{prob_correct_field}"] <= 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0'
+        is_correct=f'datum["{prob_correct_field}"] > 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0',
+        is_win=f'datum["{prob_assigned_field}"] > 0.5 ? 1 : datum["{prob_assigned_field}"] == 0.5 ? 0.5 : 0',
+        is_not_correct=f'datum["{prob_correct_field}"] <= 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0'
     )
 
     if yEncoding is not None:
@@ -215,23 +231,24 @@ def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = 
 
     main_bar = base.mark_bar().encode(
         x=alt.X('sum(proportion):Q',
-            axis=alt.Axis(
-                title=None,
-                format='.0%',
-                labelExpr="(datum.value * 5) % 1 ? null : datum.label",
-            ),
-            scale=alt.Scale(domain=[0.0, 1.0])
-        ),
+                axis=alt.Axis(
+                    title=None,
+                    format='.0%',
+                    labelExpr="(datum.value * 5) % 1 ? null : datum.label",
+                ),
+                scale=alt.Scale(domain=[0.0, 1.0])
+                ),
         color=alt.Color(
             f'{prob_correct_field}:Q',
-            scale=alt.Scale(range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0]),
+            scale=alt.Scale(
+                range=[incorrectColor, nullColor, correctColor], domain=[0.0, 1.0]),
             legend=alt.Legend(title='Probability correct')
-            ),
+        ),
         order=alt.Order(
             f'{prob_assigned_field}:Q',
             sort='descending' if not invert else 'ascending'
         ),
-        tooltip = [
+        tooltip=[
             'count():Q',
             'total:Q',
             'sum(proportion):Q',
@@ -248,7 +265,7 @@ def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = 
     mean_field = 'is_win' if not invert else 'is_not_correct'
 
     gold_err = (base
-    ).mark_rule(
+                ).mark_rule(
         # extent='ci',
         color=prop_color,
     ).encode(
@@ -262,7 +279,7 @@ def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = 
         color=prop_color, size=point_size, filled=True
     ).encode(
         x=alt.X(f'mean({mean_field}):Q',
-            scale=alt.Scale(zero=False)),
+                scale=alt.Scale(zero=False)),
     )
 
     gold_mean_num = base.mark_text(
@@ -275,13 +292,15 @@ def accuracy_by_field(source, by_turn: bool = False, yEncoding = None, invert = 
     ).encode(
         text=alt.Text(f'mean({mean_field}):Q', format='.0%'),
         x=alt.X(f'mean({mean_field}):Q',
-            scale=alt.Scale(zero=False)),
+                scale=alt.Scale(zero=False)),
     )
 
     return main_bar + gold_err + gold_mean + gold_mean_num
 
 # transform can be None, 'log' or 'reward'
-def prob_correct_by_field(source, by_turn: bool = False, yEncoding = None, invert = False, transform = None):
+
+
+def prob_correct_by_field(source, by_turn: bool = False, yEncoding=None, invert=False, transform=None):
 
     if by_turn:
         prob_correct_field = 'Probability correct'
@@ -298,28 +317,26 @@ def prob_correct_by_field(source, by_turn: bool = False, yEncoding = None, inver
     else:
         groups = [yEncoding.field]
 
-
     prop_color = aggColor
     # rule_thickness = 1.0
     # err_thickness = 1.0
     point_size = 25.0
 
-
     mean_base = alt.Chart(source).encode(
-        # x=alt.X(f'mean({prob_assigned_field}):Q'), 
+        # x=alt.X(f'mean({prob_assigned_field}):Q'),
         color=yEncoding,
         y=yEncoding
     )
 
     if transform == 'log':
         mean_base = mean_base.transform_calculate(
-            log_prob = alt.expr.log(datum[prob_assigned_field])
+            log_prob=alt.expr.log(datum[prob_assigned_field])
         )
         mean_field = 'log_prob'
         mean_field_name = 'Log probability'
     elif transform == 'reward':
         mean_base = mean_base.transform_calculate(
-            reward = f'log(datum["{prob_assigned_field}"]) - (0.02 * datum["Number of judge continues"])'
+            reward=f'log(datum["{prob_assigned_field}"]) - (0.02 * datum["Number of judge continues"])'
         )
         mean_field = 'reward'
         mean_field_name = 'Reward'
@@ -330,7 +347,7 @@ def prob_correct_by_field(source, by_turn: bool = False, yEncoding = None, inver
     density = alt.Chart(source).transform_density(
         mean_field, as_=[mean_field, 'density'], groupby=[yEncoding.field],
         # extent = [-7.0, 0.0],
-    ).mark_area(opacity = 0.5).encode(
+    ).mark_area(opacity=0.5).encode(
         x=alt.X(f"{mean_field}:Q"),
         # x=alt.X(f"{mean_field}:Q", scale=alt.Scale(domain = [-7.0, 0.0])),
         y=alt.Y('density:Q'),
@@ -341,7 +358,8 @@ def prob_correct_by_field(source, by_turn: bool = False, yEncoding = None, inver
         # thickness=2.0
         color=prop_color, size=point_size, filled=True
     ).encode(
-        x=alt.X(f'mean({mean_field}):Q', scale=alt.Scale(zero=False), axis=alt.Axis(title=mean_field_name)),
+        x=alt.X(f'mean({mean_field}):Q', scale=alt.Scale(
+            zero=False), axis=alt.Axis(title=mean_field_name)),
     )
 
     mean_err = mean_base.mark_rule(
@@ -364,10 +382,11 @@ def prob_correct_by_field(source, by_turn: bool = False, yEncoding = None, inver
     ).encode(
         text=alt.Text(f'mean({mean_field}):Q', format='.0%'),
         x=alt.X(f'mean({mean_field}):Q',
-            scale=alt.Scale(zero=False)),
+                scale=alt.Scale(zero=False)),
     )
 
     return alt.vconcat(density, mean + mean_err + mean_num)
+
 
 def accuracy_by_judge_setting():
     source = sessions.merge(
@@ -385,6 +404,7 @@ def accuracy_by_judge_setting():
     )
 
     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+
     def get_setting(row):
         if row['Is offline']:
             return row['Role'] + ' (no live judge)'
@@ -397,8 +417,8 @@ def accuracy_by_judge_setting():
             return row['Role']
     source['roleWithOffline'] = source.apply(get_setting, axis=1)
 
-    rowEncoding = alt.Row(field ='roleWithOffline', type='N', title='Role')
-    yEncoding = alt.Y(field ='roleWithOffline', type='N', title='Role')
+    rowEncoding = alt.Row(field='roleWithOffline', type='N', title='Role')
+    yEncoding = alt.Y(field='roleWithOffline', type='N', title='Role')
 
     outcomes_source = source
     accuracy_source = source[source['Final probability correct'].notna()]
@@ -406,19 +426,19 @@ def accuracy_by_judge_setting():
     return alt.vconcat(
         outcomes_by_field(
             outcomes_source,
-            rowEncoding = rowEncoding
+            rowEncoding=rowEncoding
         ).properties(title="Outcomes by Judge Setting"),
         outcomes_by_field(outcomes_source).properties(
             title="Aggregate Outcomes (All Settings)"
         ),
         accuracy_by_field(
             accuracy_source,
-            yEncoding = yEncoding
+            yEncoding=yEncoding
         ).properties(title="Accuracy by Judge Setting"),
         accuracy_by_field(accuracy_source).properties(
             title="Aggregate Accuracy (All Settings)"
         )
-    ).resolve_scale(x = 'independent')
+    ).resolve_scale(x='independent')
 
 
 def accuracy_by_session_setting(for_paper: bool = False):
@@ -440,6 +460,7 @@ def accuracy_by_session_setting(for_paper: bool = False):
     )
 
     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+
     def get_setting(row):
         ai_or_human = "Human"
         consultancy_or_debate = "Debate"
@@ -450,15 +471,16 @@ def accuracy_by_session_setting(for_paper: bool = False):
 
         return " ".join([ai_or_human, consultancy_or_debate])
     source['Setting'] = source.apply(get_setting, axis=1)
-    yEncoding = alt.Y(field ='Setting', type='nominal', title='Setting')
+    yEncoding = alt.Y(field='Setting', type='nominal', title='Setting')
     accuracy_source = source[source['Final probability correct'].notna()]
 
     return accuracy_by_field(
         accuracy_source,
-        yEncoding = yEncoding
+        yEncoding=yEncoding
     ).properties(title="Judge Accuracy").facet(
-        row = "Untimed annotator context (rounded):N",
+        row="Untimed annotator context (rounded):N",
     )
+
 
 def accuracy_by_consultancy_split(for_paper: bool = False, with_context_requirement=False):
     base_source = filtered_sessions if for_paper else sessions
@@ -480,6 +502,7 @@ def accuracy_by_consultancy_split(for_paper: bool = False, with_context_requirem
 
     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
     source = source[source['Is single debater']]
+
     def get_setting(row):
         ai_or_human = "Human"
         # if row['Is single debater']:
@@ -507,14 +530,15 @@ def accuracy_by_consultancy_split(for_paper: bool = False, with_context_requirem
             return '3-4'
         else:
             return '5+'
-    source['Number of debate rounds (binned)'] = source.apply(bin_num_rounds, axis=1)
+    source['Number of debate rounds (binned)'] = source.apply(
+        bin_num_rounds, axis=1)
     source['Setting'] = source.apply(get_setting, axis=1)
-    yEncoding = alt.Y(field ='Setting', type='N', title=None)
+    yEncoding = alt.Y(field='Setting', type='N', title=None)
     accuracy_source = source[source['Final probability correct'].notna()]
 
     chart = accuracy_by_field(
         accuracy_source,
-        yEncoding = yEncoding
+        yEncoding=yEncoding
     ).properties(title="Judge Accuracy")
 
     if with_context_requirement:
@@ -522,7 +546,8 @@ def accuracy_by_consultancy_split(for_paper: bool = False, with_context_requirem
             row='Untimed annotator context (rounded):N'
             # column='Number of debate rounds (binned):N',
         )
-    else: return chart
+    else:
+        return chart
 
 # def accuracy_by_consultancy_and_context_split(for_paper: bool = False):
 #     base_source = filtered_sessions if for_paper else sessions
@@ -587,6 +612,7 @@ def accuracy_by_consultancy_split(for_paper: bool = False, with_context_requirem
 #             )
 #     else: return chart
 
+
 def judge_distribution_by_setting():
     source = sessions.merge(
         debates[
@@ -603,6 +629,7 @@ def judge_distribution_by_setting():
     )
 
     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+
     def get_setting(row):
         ai_or_human = "Human"
         consultancy_or_debate = "Debate"
@@ -613,16 +640,17 @@ def judge_distribution_by_setting():
 
         return " ".join([ai_or_human, consultancy_or_debate])
     source['Setting'] = source.apply(get_setting, axis=1)
-    settingEncoding = alt.Y(field ='Setting', type='N', title='Setting')
+    settingEncoding = alt.Y(field='Setting', type='N', title='Setting')
     accuracy_source = source[source['Final probability correct'].notna()]
 
     return alt.Chart(accuracy_source).mark_bar().encode(
         y='Participant:N',
         x='count():Q',
         row=settingEncoding,
-        color = settingEncoding,
+        color=settingEncoding,
         tooltip=['count()']
     ).properties(title="Judge Distribution by Session Setting")
+
 
 def win_rates_by_participant():
 
@@ -644,15 +672,18 @@ def win_rates_by_participant():
         axis=1
     )
 
-    judgeY = alt.Y(field ='Participant', type='N', title='Participant',
-        sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='descending')
-    )
-    honestY = alt.Y(field ='Honest debater', type='N', title='Honest debater',
-        sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='descending')
-    )
-    dishonestY = alt.Y(field ='Dishonest debater', type='N', title='Dishonest debater',
-        sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
-    )
+    judgeY = alt.Y(field='Participant', type='N', title='Participant',
+                   sort=alt.EncodingSortField(
+                       field='Log final probability correct', op='mean', order='descending')
+                   )
+    honestY = alt.Y(field='Honest debater', type='N', title='Honest debater',
+                    sort=alt.EncodingSortField(
+                        field='Log final probability correct', op='mean', order='descending')
+                    )
+    dishonestY = alt.Y(field='Dishonest debater', type='N', title='Dishonest debater',
+                       sort=alt.EncodingSortField(
+                           field='Log final probability correct', op='mean', order='ascending')
+                       )
 
     accuracy_source = source[source['Final probability correct'].notna()]
 
@@ -662,24 +693,25 @@ def win_rates_by_participant():
         ),
         accuracy_by_field(
             accuracy_source,
-            yEncoding = judgeY
+            yEncoding=judgeY
         ).properties(title="Accuracy by Judge (sorted by mean log prob)"),
         accuracy_by_field(
             accuracy_source,
-            yEncoding = honestY
+            yEncoding=honestY
         ).properties(title="Win Rate by Honest Debater (sorted by mean log prob)"),
         accuracy_by_field(
             accuracy_source,
-            yEncoding = dishonestY,
+            yEncoding=dishonestY,
             invert=True
         ).properties(title="Win Rate by Dishonest Debater (sorted by mean log prob)"),
-    ).resolve_scale(x = 'independent')
+    ).resolve_scale(x='independent')
+
 
 def calibration_plot(bin_size, by_turn: bool = False, participant: Optional[str] = None):
     def get_confidence(x: float):
         if x < 0.5:
             return 1 - x
-        else:  
+        else:
             return x
 
     def make_bin(x: float):
@@ -708,12 +740,13 @@ def calibration_plot(bin_size, by_turn: bool = False, participant: Optional[str]
         axis=1
     )
 
-    binY = alt.Y(field ='Confidence bin', type='O'
-        # sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
-    )
+    binY = alt.Y(field='Confidence bin', type='O'
+                 # sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
+                 )
 
     calibration_reference = pd.DataFrame([
-        {'Confidence bin': make_bin(start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
+        {'Confidence bin': make_bin(
+            start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
         for start in range(int(.5 / bin_size), int(1.0 / bin_size))
     ])
     calibration_reference_graph = alt.Chart(
@@ -722,17 +755,18 @@ def calibration_plot(bin_size, by_turn: bool = False, participant: Optional[str]
         color='black',
         strokeDash=[5, 5],
     ).encode(
-        x = alt.X(f'{prob_correct_field}:Q'),
-        y = alt.Y('Confidence bin:O')
+        x=alt.X(f'{prob_correct_field}:Q'),
+        y=alt.Y('Confidence bin:O')
     )
 
     return accuracy_by_field(
         source,
-        by_turn = by_turn,
-        yEncoding = binY
+        by_turn=by_turn,
+        yEncoding=binY
     ) + calibration_reference_graph
 
-def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, invert = False, width=fullWidth - 200, height = None, include_text=True, yAxisTitle=None, yDomain=[0.0, 1.0]):
+
+def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding=None, invert=False, width=fullWidth - 200, height=None, include_text=True, yAxisTitle=None, yDomain=[0.0, 1.0]):
 
     if by_turn:
         prob_correct_field = 'Probability correct'
@@ -745,13 +779,13 @@ def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, in
         groups = [xEncoding.field]
 
     base = alt.Chart(source).transform_joinaggregate(
-        total = "count()",
-        groupby = groups
+        total="count()",
+        groupby=groups
     ).transform_calculate(
-        proportion = '1 / datum.total'
+        proportion='1 / datum.total'
     ).transform_calculate(
-        is_correct = f'datum["{prob_correct_field}"] > 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0',
-        is_not_correct = f'datum["{prob_correct_field}"] <= 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0'
+        is_correct=f'datum["{prob_correct_field}"] > 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0',
+        is_not_correct=f'datum["{prob_correct_field}"] <= 0.5 ? 1 : datum["{prob_correct_field}"] == 0.5 ? 0.5 : 0'
     )
 
     if xEncoding is not None:
@@ -765,23 +799,23 @@ def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, in
 
     main_bar = base.mark_line().encode(
         y=alt.Y(f'mean({mean_field}):Q',
-            axis=alt.Axis(
-                title=yAxisTitle,
-                format='.0%',
-                labelExpr="(datum.value * 5) % 1 ? null : datum.label",
-            ),
-            scale=alt.Scale(domain=yDomain, clamp=True)
-        ),
-        tooltip = [
+                axis=alt.Axis(
+                    title=yAxisTitle,
+                    format='.0%',
+                    labelExpr="(datum.value * 5) % 1 ? null : datum.label",
+                ),
+                scale=alt.Scale(domain=yDomain, clamp=True)
+                ),
+        tooltip=[
             'count():Q',
             f'mean({mean_field}):Q'
         ],
     ).properties(width=width)
     if height is not None:
-        main_bar = main_bar.properties(height = height)
+        main_bar = main_bar.properties(height=height)
 
     gold_err = (base
-    ).mark_rule(
+                ).mark_rule(
         # extent='ci',
         color=prop_color,
     ).encode(
@@ -795,7 +829,7 @@ def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, in
         color=prop_color, size=point_size, filled=True
     ).encode(
         y=alt.Y(f'mean({mean_field}):Q',
-            scale=alt.Scale(zero=False)),
+                scale=alt.Scale(zero=False)),
     )
 
     gold_mean_num = base.mark_text(
@@ -808,8 +842,8 @@ def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, in
     ).encode(
         text=alt.Text(f'mean({mean_field}):Q', format='.0%'),
         y=alt.Y(f'mean({mean_field}):Q',
-            scale=alt.Scale(zero=False)),
-        
+                scale=alt.Scale(zero=False)),
+
     )
 
     # return main_bar
@@ -818,11 +852,12 @@ def simple_accuracy_by_field(source, by_turn: bool = False, xEncoding = None, in
     else:
         return main_bar + gold_err + gold_mean
 
+
 def simple_calibration_plot(bin_size, by_turn: bool = False, participant: Optional[str] = None):
     def get_confidence(x: float):
         if x < 0.5:
             return 1 - x
-        else:  
+        else:
             return x
 
     def make_bin(x: float):
@@ -851,12 +886,13 @@ def simple_calibration_plot(bin_size, by_turn: bool = False, participant: Option
         axis=1
     )
 
-    binX = alt.X(field ='Confidence bin', type='O'
-        # sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
-    )
+    binX = alt.X(field='Confidence bin', type='O'
+                 # sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
+                 )
 
     calibration_reference = pd.DataFrame([
-        {'Confidence bin': make_bin(start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
+        {'Confidence bin': make_bin(
+            start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
         for start in range(int(.5 / bin_size), int(1.0 / bin_size))
     ])
     calibration_reference_graph = alt.Chart(
@@ -865,30 +901,38 @@ def simple_calibration_plot(bin_size, by_turn: bool = False, participant: Option
         color='black',
         strokeDash=[5, 5],
     ).encode(
-        y = alt.Y(f'{prob_correct_field}:Q'),
-        x = alt.X('Confidence bin:O')
+        y=alt.Y(f'{prob_correct_field}:Q'),
+        x=alt.X('Confidence bin:O')
     )
 
     return simple_accuracy_by_field(
         source,
-        by_turn = by_turn,
-        xEncoding = binX
+        by_turn=by_turn,
+        xEncoding=binX
     ) + calibration_reference_graph
+
 
 def simple_calibration_plots():
 
     return alt.vconcat(
-        simple_calibration_plot(bin_size = 0.05).properties(title="Calibration (Aggregate)"),
-        simple_calibration_plot(bin_size = 0.05, by_turn = True).facet(row='Num previous debating rounds:O').properties(title="Calibration by Turn"),
+        simple_calibration_plot(bin_size=0.05).properties(
+            title="Calibration (Aggregate)"),
+        simple_calibration_plot(bin_size=0.05, by_turn=True).facet(
+            row='Num previous debating rounds:O').properties(title="Calibration by Turn"),
     )
+
 
 def calibration_plots():
 
     return alt.vconcat(
-        calibration_plot(bin_size = 0.05).properties(title="Calibration (Aggregate)"),
-        calibration_plot(bin_size = 0.1).facet(row='Participant:N').properties(title="Calibration by Judge"),
-        calibration_plot(bin_size = 0.05, by_turn = True).facet(row='Num previous debating rounds:O').properties(title="Calibration by Turn"),
+        calibration_plot(bin_size=0.05).properties(
+            title="Calibration (Aggregate)"),
+        calibration_plot(bin_size=0.1).facet(
+            row='Participant:N').properties(title="Calibration by Judge"),
+        calibration_plot(bin_size=0.05, by_turn=True).facet(
+            row='Num previous debating rounds:O').properties(title="Calibration by Turn"),
     )
+
 
 def final_simple_calibration_plot(all_turns: bool = False):
     bin_size = 0.1
@@ -896,7 +940,7 @@ def final_simple_calibration_plot(all_turns: bool = False):
     def get_confidence(x: float):
         if x < 0.5:
             return 1 - x
-        else:  
+        else:
             return x
 
     def make_bin(x: float):
@@ -948,12 +992,13 @@ def final_simple_calibration_plot(all_turns: bool = False):
         return " ".join([ai_or_human, consultancy_or_debate])
     source['Setting'] = source.apply(get_setting, axis=1)
 
-    binX = alt.X(field ='Confidence', type='O'
-        # sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
-    )
+    binX = alt.X(field='Confidence', type='O'
+                 # sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
+                 )
 
     calibration_reference = pd.DataFrame([
-        {'Confidence': make_bin(start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
+        {'Confidence': make_bin(
+            start * bin_size), prob_correct_field: f'{(start + 0.5) * bin_size:.2f}'}
         for start in range(int(.5 / bin_size), int(1.0 / bin_size))
     ])
     calibration_reference_graph = alt.Chart(
@@ -962,23 +1007,116 @@ def final_simple_calibration_plot(all_turns: bool = False):
         color='black',
         strokeDash=[5, 5],
     ).encode(
-        y = alt.Y(f'{prob_correct_field}:Q'),
-        x = alt.X('Confidence:O')
+        y=alt.Y(f'{prob_correct_field}:Q'),
+        x=alt.X('Confidence:O')
     )
 
     return (simple_accuracy_by_field(
         source,
-        by_turn = all_turns,
-        xEncoding = binX,
-        width = 200,
-        height = 200,
-        include_text = False,
-        yAxisTitle = "Accuracy",
-        yDomain = [0.4, 1.0]
+        by_turn=all_turns,
+        xEncoding=binX,
+        width=200,
+        height=200,
+        include_text=False,
+        yAxisTitle="Accuracy",
+        yDomain=[0.4, 1.0]
     ) + calibration_reference_graph).facet(
         column=alt.Column('Setting:N', title=None), title="Calibration (all turns)"
     ).configure_title(anchor='middle')
 
+
+def skill_distribution():
+
+    source = filtered_sessions
+    # source = source.merge(
+    #     debates[
+    #         [
+    #             "Room name",
+    #             "Is offline",
+    #             "Is single debater",
+    #             "Honest debater",
+    #             "Dishonest debater",
+    #         ]
+    #     ],
+    #     how="left",
+    #     on="Room name",
+    # )
+
+    source['Is correct'] = source.apply(
+        lambda row: row['Final probability correct'] > 0.5,
+        axis=1
+    )
+
+    # def get_setting(row):
+    #     ai_or_human = "Human"
+    #     consultancy_or_debate = "Debate"
+    #     if row['Honest debater'] == 'GPT-4' or row['Dishonest debater'] == 'GPT-4':
+    #         ai_or_human = "AI"
+    #     if row['Is single debater']:
+    #         consultancy_or_debate = "Consultancy"
+
+    #     return " ".join([ai_or_human, consultancy_or_debate])
+    # source['Setting'] = source.apply(get_setting, axis=1)
+
+    return alt.Chart(filtered_sessions).mark_line(color='green').transform_filter(
+        datum['Role'] == 'Judge'
+        # ).transform_filter(
+        #     datum['Setting'] == 'Human Debate'
+    ).transform_joinaggregate(
+        judge_total="count()",
+        judge_correct="sum(Is correct)",
+        groupby=["Participant"]
+    ).transform_calculate(
+        judge_acc="datum['judge_correct'] / datum['judge_total']"
+    ).transform_window(
+        # op='average',
+        # field='judge_acc',
+        sort=[{'field': 'judge_acc', 'order': 'descending'}],
+        frame=[None, 0],
+        window=[
+            {'op': 'average', 'field': 'judge_acc', 'as': 'cumulative_acc'},
+            {'op': 'count', 'as': 'cumulative_count'}
+        ]
+        # cumulative_acc='mean(judge_acc):Q',
+        # cumulative_count='count(*):Q',
+    ).encode(
+        # x=alt.X('Participant:N'),
+        # y=alt.Y('judge_acc:Q'),
+        x=alt.X('cumulative_count:Q'),
+        y=alt.Y('cumulative_acc:Q', axis=alt.Axis(format='.0%')),
+    )
+    # if all_turns:
+    #     source = filtered_turns
+    #     prob_correct_field = 'Probability correct'
+    # else:
+    #     source = filtered_sessions
+    #     prob_correct_field = 'Final probability correct'
+
+    # source = source[source[prob_correct_field].notna()].copy()
+
+    # source = source.merge(
+    #     debates[
+    #         [
+    #             "Room name",
+    #             "Is offline",
+    #             "Is single debater",
+    #             "Honest debater",
+    #             "Dishonest debater",
+    #         ]
+    #     ],
+    #     how="left",
+    #     on="Room name",
+    # )
+
+    # source['Prediction confidence'] = source.apply(
+    #     lambda row: get_confidence(row[prob_correct_field]),
+    #     axis=1
+    # )
+
+    # source['Confidence'] = source.apply(
+    #     lambda row: make_bin(row['Prediction confidence']),
+    #     axis=1
+    # )
 
 
 # RESULTS
@@ -1067,7 +1205,7 @@ def evidence_by_rounds():
     ).configure_axis(labelAngle=0)
 
 
-def evidence_by_rounds_and_participant(): #TO maybe DO add error bars
+def evidence_by_rounds_and_participant():  # TO maybe DO add error bars
     evidence_line = (
         alt.Chart(turns)
         .mark_line()
@@ -1193,7 +1331,7 @@ def final_probability_by_debaters():  # I feel like there should be a shorter wa
     )
 
 
-def final_probability_correct_by_judge(): # TODO remove null
+def final_probability_correct_by_judge():  # TODO remove null
     judge_avg = (
         alt.Chart(debates)
         .mark_circle(color=nullColor)
@@ -1269,7 +1407,8 @@ def final_probability_correct_by_judge_experience():  # TODO: add other judge se
     )
 
 
-def final_probability_correct_by_judge_experience_and_participant():  # TODO: add other judge setups # TO maybe DO categorize judge patterns # TODO fix "tooltip"
+# TODO: add other judge setups # TO maybe DO categorize judge patterns # TODO fix "tooltip"
+def final_probability_correct_by_judge_experience_and_participant():
     debates.sort_values(by=["End time"], inplace=True)
     debates["Judge experience"] = debates.groupby("Judge")["End time"].transform(
         "cumcount"
@@ -1305,6 +1444,7 @@ def final_probability_correct_by_judge_experience_and_participant():  # TODO: ad
     return alt.layer(judge_ex, selectors, text, data=debates).properties(
         width=fullWidth, height=fullHeight
     )
+
 
 def make_mean_lines_with_scatter(
         base_chart,
@@ -1352,25 +1492,30 @@ def make_mean_lines_with_scatter(
     )
     return (points + err + mean)
 
+
 def final_probability_correct_by_num_judge_continues():
-    source = sessions.merge(debates[["Room name", "Is offline"]], how="left", on="Room name")
+    source = sessions.merge(
+        debates[["Room name", "Is offline"]], how="left", on="Room name")
     base = (
         alt.Chart(source)
         .transform_filter((datum['Role'] == 'Judge') | (datum['Role'] == 'Offline Judge'))
-        .transform_calculate(roleWithOffline = "datum['Role'] + ' ' + (datum['Is offline'] ? '(no live judge)' : '')")
+        .transform_calculate(roleWithOffline="datum['Role'] + ' ' + (datum['Is offline'] ? '(no live judge)' : '')")
         .encode(
-            x=alt.X("Number of judge continues:Q", axis = alt.Axis(tickMinStep=1), title="Number of judge continues"),
-            color=alt.Color('roleWithOffline:N', legend=alt.Legend(title="Role", orient="bottom")),
+            x=alt.X("Number of judge continues:Q", axis=alt.Axis(
+                tickMinStep=1), title="Number of judge continues"),
+            color=alt.Color('roleWithOffline:N', legend=alt.Legend(
+                title="Role", orient="bottom")),
         )
         .properties(width=fullWidth)
     )
     return make_mean_lines_with_scatter(
         base,
-        x = "Number of judge continues",
-        y = "Final probability correct",
-        series = 'roleWithOffline',
-        tooltip = ["Room name", 'Participant']
+        x="Number of judge continues",
+        y="Final probability correct",
+        series='roleWithOffline',
+        tooltip=["Room name", 'Participant']
     )
+
 
 def intermediate_probability_correct_by_num_debate_rounds():
     source = turns.merge(
@@ -1386,36 +1531,40 @@ def intermediate_probability_correct_by_num_debate_rounds():
     base = (
         alt.Chart(source)
         .transform_filter((datum['Role'] == 'Judge') | (datum['Role'] == 'Offline Judge'))
-        .transform_calculate(roleWithOffline = "datum['Role'] + ' ' + (datum['Is offline'] ? '(no live judge)' : '')")
+        .transform_calculate(roleWithOffline="datum['Role'] + ' ' + (datum['Is offline'] ? '(no live judge)' : '')")
         .encode(
-            x=alt.X("Num previous debating rounds:Q", axis = alt.Axis(tickMinStep=1), title="Num previous debating rounds"),
-            color=alt.Color('roleWithOffline:N', legend=alt.Legend(title="Role", orient="bottom")),
+            x=alt.X("Num previous debating rounds:Q", axis=alt.Axis(
+                tickMinStep=1), title="Num previous debating rounds"),
+            color=alt.Color('roleWithOffline:N', legend=alt.Legend(
+                title="Role", orient="bottom")),
         )
         .properties(width=fullWidth)
     )
     return make_mean_lines_with_scatter(
         base,
-        x = "Num previous debating rounds",
-        y = "Probability correct",
-        series = 'roleWithOffline',
-        tooltip = ["Room name", 'Participant']
+        x="Num previous debating rounds",
+        y="Probability correct",
+        series='roleWithOffline',
+        tooltip=["Room name", 'Participant']
     )
+
 
 def final_probability_correct_by_information_progress():
     base = (
         alt.Chart(sessions)
         .encode(
-            x=alt.X("factual informativeness (total):Q", axis = alt.Axis(tickMinStep=1), title="Factual informativeness"),
+            x=alt.X("factual informativeness (total):Q", axis=alt.Axis(
+                tickMinStep=1), title="Factual informativeness"),
         )
         .properties(width=fullWidth)
     )
 
     return make_mean_lines_with_scatter(
         base,
-        x = "factual informativeness (total)",
-        y = "Final probability correct",
-        series = None,
-        tooltip = ["Room name", 'Participant']
+        x="factual informativeness (total)",
+        y="Final probability correct",
+        series=None,
+        tooltip=["Room name", 'Participant']
     )
 
 
@@ -1429,17 +1578,18 @@ def final_probability_correct_by_question_subjectivity():
         )
         .transform_filter((datum['Role'] == 'Judge') | (datum['Role'] == 'Offline Judge'))
         .encode(
-            x=alt.X("avg_subjective_correctness:Q", axis = alt.Axis(tickMinStep=1), title="Subjective correctness"),
+            x=alt.X("avg_subjective_correctness:Q", axis=alt.Axis(
+                tickMinStep=1), title="Subjective correctness"),
         )
         .properties(width=fullWidth)
     )
 
     return make_mean_lines_with_scatter(
         base,
-        x = "avg_subjective_correctness",
-        y = "Final probability correct",
-        series = None,
-        tooltip = ["Room name", "Participant"]
+        x="avg_subjective_correctness",
+        y="Final probability correct",
+        series=None,
+        tooltip=["Room name", "Participant"]
     )
 
 
@@ -1468,7 +1618,8 @@ def final_probability_correct_by_speed_annotator_accuracy():
                 stack="center",
                 title=None,
                 impute=None,
-                axis=alt.Axis(labels=False, values=[0], grid=False, ticks=True),
+                axis=alt.Axis(labels=False, values=[
+                              0], grid=False, ticks=True),
             ),
             # column=alt.Column(
             #     "Speed annotator accuracy:N",
@@ -1543,8 +1694,10 @@ def num_rounds_per_debate():
     )
 
     num_rounds = base.mark_bar().encode(
-        x=alt.X("Number of debate rounds:O", axis=alt.Axis(title="# debate rounds")),
-        y=alt.Y("sum(proportion):Q", axis=alt.Axis(format="%", title="% of debates")),
+        x=alt.X("Number of debate rounds:O",
+                axis=alt.Axis(title="# debate rounds")),
+        y=alt.Y("sum(proportion):Q", axis=alt.Axis(
+            format="%", title="% of debates")),
         column="Is offline:N",
         # color='Judge:N',
         tooltip=["count()", "sum(proportion):Q", "mean_numrounds:Q"],
@@ -1673,7 +1826,8 @@ def debates_completed_per_week():
     )
 
     def convert_time(x):
-        start_date = datetime.datetime.strptime(f"{x.year}-{x.week}-1", "%Y-%W-%w")
+        start_date = datetime.datetime.strptime(
+            f"{x.year}-{x.week}-1", "%Y-%W-%w")
         end_date = start_date + pd.Timedelta(days=6)
         return f'{start_date.strftime("%b%d")}|{end_date.strftime("%b%d")}'
 
@@ -1696,7 +1850,8 @@ def debates_completed_per_week():
         .encode(
             x=alt.X(
                 "End week label:O",
-                sort=alt.EncodingSortField(field="End week", order="ascending"),
+                sort=alt.EncodingSortField(
+                    field="End week", order="ascending"),
             ),
             y="count():Q",
         )
@@ -1713,6 +1868,7 @@ def debates_completed_per_week():
 
     return all_bar  # + all_line
 
+
 def personal_accuracy(user: str):
     source = sessions.merge(
         debates[
@@ -1727,6 +1883,7 @@ def personal_accuracy(user: str):
     )
 
     source = source[source['Role'].isin(['Judge', 'Offline Judge'])]
+
     def get_setting(row):
         if row['Is offline']:
             return row['Role'] + ' (no live judge)'
@@ -1736,8 +1893,8 @@ def personal_accuracy(user: str):
             return row['Role']
     source['roleWithOffline'] = source.apply(get_setting, axis=1)
 
-    rowEncoding = alt.Row(field ='roleWithOffline', type='N', title='Role')
-    yEncoding = alt.Y(field ='roleWithOffline', type='N', title='Role')
+    rowEncoding = alt.Row(field='roleWithOffline', type='N', title='Role')
+    yEncoding = alt.Y(field='roleWithOffline', type='N', title='Role')
 
     source = source[source['Final probability correct'].notna()]
     source = source[source['Participant'] == user]
@@ -1745,12 +1902,13 @@ def personal_accuracy(user: str):
     return alt.vconcat(
         accuracy_by_field(
             source,
-            yEncoding = yEncoding
+            yEncoding=yEncoding
         ).properties(title="Accuracy by Judge Setting"),
         accuracy_by_field(source).properties(
             title="Aggregate Accuracy (All Settings)"
         )
-    ).resolve_scale(x = 'independent')
+    ).resolve_scale(x='independent')
+
 
 def personal_win_rates(user):
 
@@ -1771,6 +1929,7 @@ def personal_win_rates(user):
         lambda row: np.log(row['Final probability correct']),
         axis=1
     )
+
     def get_role(row):
         if row['Participant'] == user:
             return 'Judge'
@@ -1780,30 +1939,31 @@ def personal_win_rates(user):
             return 'Dishonest debater'
         else:
             return 'None'
-    source['Your Role'] = source.apply(get_role, axis = 1)
+    source['Your Role'] = source.apply(get_role, axis=1)
     source = source[source['Your Role'] != 'None']
 
-    yourRoleY = alt.Y(field ='Your Role', type='N', title='Your Role')
+    yourRoleY = alt.Y(field='Your Role', type='N', title='Your Role')
     # dishonestY = alt.Y(field ='Dishonest debater', type='N', title='Dishonest debater',
     #     sort=alt.EncodingSortField(field='Log final probability correct', op='mean', order='ascending')
     # )
 
     accuracy_source = source[source['Final probability correct'].notna()]
     accuracy_source['Final probability assigned'] = source.apply(
-        lambda row: 1 - row['Final probability correct'] if row['Your Role'] == 'Dishonest debater' else row['Final probability correct'],
-        axis = 1
+        lambda row: 1 -
+        row['Final probability correct'] if row['Your Role'] == 'Dishonest debater' else row['Final probability correct'],
+        axis=1
     )
 
     return accuracy_by_field(
         accuracy_source,
-        yEncoding = yourRoleY
+        yEncoding=yourRoleY
     ).properties(title=f"Win rates ({user})", height=50)
 
 # def personal_calibration_plot(bin_size, by_turn: bool = False):
 #     def get_confidence(x: float):
 #         if x < 0.5:
 #             return 1 - x
-#         else:  
+#         else:
 #             return x
 
 #     def make_bin(x: float):
@@ -1853,49 +2013,53 @@ def personal_win_rates(user):
 #         yEncoding = binY
 #     ) + calibration_reference_graph
 
+
 def personal_calibration(user: str):
 
     return alt.vconcat(
         calibration_plot(
-            bin_size = 0.10, participant = user
+            bin_size=0.10, participant=user
         ).properties(
             title=f"Final Round Calibration ({user})",
-            height = 50
+            height=50
         ),
         # personal_calibration_plot(bin_size = 0.1).facet(row='Participant:N').properties(title="Calibration by Judge"),
         calibration_plot(
-            bin_size = 0.10, by_turn = True, participant = user
-        # ).facet(
-        #     column='Num previous debating rounds:O'
-        ).properties(title=f"All Rounds Calibration ({user})", height = 50)
+            bin_size=0.10, by_turn=True, participant=user
+            # ).facet(
+            #     column='Num previous debating rounds:O'
+        ).properties(title=f"All Rounds Calibration ({user})", height=50)
     )
+
 
 def personal_calibration_simple(user: str):
 
     return alt.vconcat(
         simple_calibration_plot(
-            bin_size = 0.10, participant = user
+            bin_size=0.10, participant=user
         ).properties(
             title=f"Final Round Calibration ({user})",
-            height = 100
+            height=100
         ),
         # personal_calibration_plot(bin_size = 0.1).facet(row='Participant:N').properties(title="Calibration by Judge"),
         simple_calibration_plot(
-            bin_size = 0.10, by_turn = True, participant = user
-        # ).facet(
-        #     column='Num previous debating rounds:O'
-        ).properties(title=f"All Rounds Calibration ({user})", height = 100)
+            bin_size=0.10, by_turn=True, participant=user
+            # ).facet(
+            #     column='Num previous debating rounds:O'
+        ).properties(title=f"All Rounds Calibration ({user})", height=100)
     )
+
 
 # Keys must be valid URL paths. I'm not URL-encoding them.
 # Underscores will be displayed as spaces in the debate webapp analytics pane.
 all_graph_specifications = {
-    #"Main_results:_An_overview_of_counts": an_overview_of_counts,
+    # "Main_results:_An_overview_of_counts": an_overview_of_counts,
     "Final_results:_Accuracy_by_session_setting": (lambda: accuracy_by_session_setting(for_paper=True)),
     "Final_results:_Accuracy_by_consultancy_(split)": (lambda: accuracy_by_consultancy_split(for_paper=True)),
     # "Final_results:_Accuracy_by_consultancy_(split)_with_context_requirement": (lambda: accuracy_by_consultancy_split(for_paper=True, with_context_requirement=True)),
     "Final_results:_Calibration": (lambda: final_simple_calibration_plot(all_turns=False)),
     "Final_results:_Calibration_(all_turns)": (lambda: final_simple_calibration_plot(all_turns=True)),
+    "Final_results:_Skill_distribution": (lambda: skill_distribution()),
     "Main_results:_Accuracy_by_judge_setting": accuracy_by_judge_setting,
     "Main_results:_Accuracy_by_session_setting": (lambda: accuracy_by_session_setting(for_paper=False)),
     "Main_results:_Calibration": calibration_plots,
@@ -1936,6 +2100,7 @@ def all_graphs():
     result = sorted(list(all_graph_specifications.keys()))
     return Response(json.dumps(result), mimetype="application/json")
 
+
 @app.get("/graph/<name>")
 def graph(name: str):
     chart_fn = all_graph_specifications.get(name)
@@ -1944,10 +2109,12 @@ def graph(name: str):
     else:
         return chart_fn().to_json(0)
 
+
 @app.get("/personalized_graphs")
 def personalized_graphs():
     result = sorted(list(personalized_graph_specifications.keys()))
     return Response(json.dumps(result), mimetype="application/json")
+
 
 @app.get("/personalized_graph/<user>/<name>")
 def personalized_graph(user: str, name: str):
