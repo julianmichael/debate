@@ -1,0 +1,84 @@
+.label-judge {
+    font-weight: bold;
+    color: #000000;
+}
+
+.label-honest-debater {
+    font-weight: bold;
+    color: green;
+}
+
+.label-dishonest-debater {
+    font-weight: bold;
+    color: crimson;
+}
+
+.filtering-row {
+    animation-duration: 0.5s;
+    animation-name: animate-fade;
+    /* animation-delay: 0.5s; */
+    /* animation-fill-mode: backwards; */
+}
+
+@keyframes animate-fade {
+    0% {
+        /* background-color: green; */
+        opacity: 0;
+    }
+
+    100% {
+        /* background-color: none; */
+        opacity: 1;
+    }
+}
+
+.table-row-anim-enter {
+    opacity: 0.01;
+}
+
+.table-row-anim-enter.table-row-anim-enter-active {
+    opacity: 1;
+    transition: opacity 500ms ease-in;
+}
+
+.table-row-anim-leave {
+    opacity: 1;
+}
+
+.table-row-anim-leave.table-row-anim-leave-active {
+    opacity: 0.01;
+    transition: opacity 300ms ease-in;
+}
+
+.judgment-bar {
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    font-size: 0.5rem;
+    height: 0.7rem;
+    border-radius: 0.5rem;
+}
+
+.judgment-bar-correct {
+    background-color: green;
+    color: white;
+}
+
+.judgment-bar-incorrect {
+    background-color: crimson;
+    color: white;
+}
+
+.status-display-cell {
+    vertical-align: middle;
+}
+
+.unfinished-label {
+    font-style: italic;
+    color: orange
+}
+
+.no-live-judge-label {
+    font-style: italic;
+    color: gray;
+}
