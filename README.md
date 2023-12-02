@@ -8,14 +8,16 @@ and Samuel R. Bowman.
 
 Publication artifacts are in the `pub/` directory:
 
-* `pub/debates/`: the full data for all debates, formatted for the debate data collection webserver.
-* `pub/debates-filtered.jsonl`: a JSON-lines formatted file containing the subset of debates
-   used for the paper analysis in a more readable format.
-* `pub/debates-all.jsonl`: a JSON-lines formatted file containing all of the debates we collected
-  in the same format.
+* `pub/debates/`: the full data for all debates, formatted for the debate data collection and browsing webapps.
 * `pub/debates-metadata.jsonl`: a JSON-lines formatted file with metadata for all debates, usable
   for browsing and searching.
+* `pub/debates-readable.jsonl`: a JSON-lines formatted file with all debates in a more directly-readable format.
 * `pub/README.md`: Details on the data filtering and formatting.
+
+Note that there are more debates in the full dataset than we used in the analysis in the paper.
+The `includedInPaper` boolean field in `debates-metadata.jsonl` indicates which debates were included in our
+analysis. Many of the debates have offline judgments, where a second judge came in and judged the debate without
+the opportunity to interact with the debaters. None of these judgments were included in our analysis either. 
 
 The rest of this repository contains code for running our experiments and analyzing the results.
 To peruse the debates using the annotation interface, install the [requirements](#requirements)
