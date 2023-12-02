@@ -39,6 +39,10 @@ interface Filters {
   included: boolean;
   excluded: boolean;
   searchQuery: string;
+  sortColumn: string;
+  setSortColumn: (sortColumn: string) => void;
+  sortReversed: boolean;
+  setSortReversed: (sortReversed: boolean) => void;
 }
 
 interface DebateSetting {
@@ -90,21 +94,6 @@ interface DebateMetadata {
   // currentSpeakers: Set[LiveDebateRole];
   // currentParticipants: Set[String];
   includedInPaper: Boolean;
-}
-
-function getSettingString(setting: DebateSetting) {
-  var res = "";
-  if (setting.isHuman) {
-    res += "Human ";
-  } else {
-    res += "AI ";
-  }
-  if (setting.isDebate) {
-    res += "Debate";
-  } else {
-    res += "Consultancy";
-  }
-  return res;
 }
 
 function getRoleLabelClass(role: string) {
@@ -238,32 +227,123 @@ function roleLabel(role: string, debate: DebateMetadata) {
   }
 }
 
+function makeHeaderCell(
+  name: string,
+  sortColumn: string, setSortColumn: (sortColumn: string) => void,
+  sortReversed: boolean, setSortReversed: (sortReversed: boolean) => void
+) {
+  var className = "table-header";
+  if (sortColumn === name) {
+    className += " table-header-selected";
+  }
+  return (
+    <th className={className} scope="col" onClick={(event) => {
+      if (sortColumn === name) {
+        setSortReversed(!sortReversed);
+      } else {
+        setSortReversed(false);
+      }
+      setSortColumn(name);
+    }}>
+      <div className="flex-row">
+        <span className="flex-grow">{name}</span>
+        <span className={sortColumn === name ? "" : "hidden"}>
+          {(sortReversed ? " ▼" : " ▲")}
+        </span>
+      </div>
+    </th >
+  )
+}
+
+function getStringField(column: string) {
+  if (column === "Room Name") {
+    return (debate: DebateMetadata) => debate.name.toString();
+  } else if (column === "Debaters") {
+    return (debate: DebateMetadata) => debate.setting.isHuman ? "Human" : "Consultancy"
+  } else if (column === "Format") {
+    return (debate: DebateMetadata) => debate.setting.isDebate ? "Debate" : "Consultancy";
+  } else if (column === "Outcome") {
+    return (debate: DebateMetadata) => getStatusLabel(debate.status);
+  } else if (column === "Judge") {
+    return (debate: DebateMetadata) => debate.ultimateRoles.Judge;
+  } else if (column === "Honest") {
+    return (debate: DebateMetadata) => debate.ultimateRoles['Honest Debater'];
+  } else if (column === "Dishonest") {
+    return (debate: DebateMetadata) => debate.ultimateRoles['Dishonest Debater'];
+  } else {
+    return (debate: DebateMetadata) => debate.name.toString();
+  }
+}
+
+function compareDebatesByColumn(debate1: DebateMetadata, debate2: DebateMetadata, column: string) {
+  if (column == "Outcome") {
+    var status1 = debate1.status;
+    var status2 = debate2.status;
+    var judgingInfo1 = status1.Complete?.result.judgingInfo
+    var judgingInfo2 = status2.Complete?.result.judgingInfo
+    var judgment1 = judgingInfo1?.finalJudgement
+    var judgment2 = judgingInfo2?.finalJudgement
+    var probCorrect1 = judgment1?.[(judgingInfo1 as JudgingResult).correctAnswerIndex];
+    var probCorrect2 = judgment2?.[(judgingInfo2 as JudgingResult).correctAnswerIndex];
+    if (probCorrect1 === undefined) {
+      if (probCorrect2 === undefined) {
+        return 0;
+      } else {
+        return 1;
+      }
+    } else {
+      if (probCorrect2 === undefined) {
+        return -1;
+      } else {
+        return probCorrect2 - probCorrect1;
+      }
+    }
+  } else {
+    var getField = getStringField(column)
+    var field1 = (getField(debate1) || "").toString()
+    var field2 = (getField(debate2) || "").toString()
+    if (field1 === null) {
+      if (field2 === null) {
+        return 0;
+      } else {
+        return 1;
+      }
+    } else {
+      if (field2 === null) {
+        return -1;
+      } else {
+        return field1.localeCompare(field2);
+      }
+    }
+  }
+}
+
 function LoadedDebatesTable(filters: Filters, debates: DebateMetadata[]) {
-  var includedDebates = debates.filter((debate) => includeDebate(filters, debate));
+  var includedDebates = debates.filter((debate) => includeDebate(filters, debate)).sort(
+    (debate1, debate2) => compareDebatesByColumn(debate1, debate2, filters.sortColumn) * (filters.sortReversed ? -1 : 1)
+  )
   return (
     <div>
-      Showing {numLabel("session", includedDebates.length)}.
+      Showing {numLabel("room", includedDebates.length)}.
       <table className="table">
         <thead><tr>
-          <th scope="col">Room Name</th>
-          <th scope="col">Setting</th>
-          <th scope="col"></th>
-          <th scope="col">Outcome</th>
-          <th scope="col">Judge</th>
-          <th scope="col">Honest</th>
-          <th scope="col">Dishonest</th>
-          {/* <th scope="col">
-            Participants
-            (<span className="label-judge">Judge</span>, <span className="label-honest-debater">Honest</span>, <span className="label-dishonest-debater">Dishonest</span>)
-          </th> */}
+          <th className="table-header" scope="col">#</th>
+          {makeHeaderCell("Room Name", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
+          {makeHeaderCell("Debaters", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
+          {makeHeaderCell("Format", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
+          {makeHeaderCell("Outcome", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
+          {makeHeaderCell("Judge", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
+          {makeHeaderCell("Honest", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
+          {makeHeaderCell("Dishonest", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
         </tr></thead>
         <tbody>
           {/* <TransitionGroup
           transitionName="table-row-anim"
           transitionEnterTimeout={500}
           transitionLeaveTimeout={300}> */}
-          {includedDebates.map((debate) => {
+          {includedDebates.map((debate, index) => {
             return (<tr key={debate.name.toString()}>
+              <td>{index}</td>
               <td>{debate.name}</td>
               <td>{debate.setting.isHuman ? "Human" : "AI"}</td>
               <td>{debate.setting.isDebate ? "Debate" : "Consultancy"}</td>
@@ -344,6 +424,10 @@ function App() {
   // search terms hook
   const [searchQuery, setSearchQuery] = React.useState("");
 
+  // sort table by column
+  const [sortColumn, setSortColumn] = React.useState("Room Name");
+  const [sortReversed, setSortReversed] = React.useState(false);
+
   return (
     <div className="container">
       <header>
@@ -408,7 +492,11 @@ function App() {
         debate={debate} consultancy={consultancy}
         judge={judge} honest={honest} dishonest={dishonest}
         correct={correct} incorrect={incorrect} unfinished={unfinished} noLiveJudge={noLiveJudge} tied={tied}
-        included={included} excluded={excluded} searchQuery={searchQuery} />
+        included={included} excluded={excluded}
+        searchQuery={searchQuery}
+        sortColumn={sortColumn} setSortColumn={setSortColumn}
+        sortReversed={sortReversed} setSortReversed={setSortReversed}
+      />
     </div>
   );
 }
