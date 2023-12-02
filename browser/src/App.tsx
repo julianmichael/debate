@@ -1,20 +1,21 @@
 import React from 'react';
 import { useEffect, useState } from 'react';
+import { Link } from "react-router-dom";
 import './App.css';
 import Room from './Room';
 
 // import { TransitionGroup } from 'react-transition-group' // ES6
-// var CSSTransitionGroup = require('react-transition-group/CSSTransitionGroup') // ES5 with npm
+// const CSSTransitionGroup = require('react-transition-group/CSSTransitionGroup') // ES5 with npm
 
 function textField(placeholder: string, value: string, onChange: (event: React.ChangeEvent<HTMLInputElement>) => void) {
-  var id = "text-field-" + placeholder;
+  const id = "text-field-" + placeholder;
   return (
     <input className="form-control" type="text" id={id} value={value} onChange={onChange} />
   )
 }
 
 function checkbox(name: string, checked: boolean, onChange: (event: React.ChangeEvent<HTMLInputElement>) => void) {
-  var id = "checkbox-" + name;
+  const id = "checkbox-" + name;
   return (
     <div className="form-check form-check-inline">
       <input className="form-check-input" type="checkbox" id={id} value={name} checked={checked} onChange={onChange} />
@@ -43,7 +44,7 @@ interface Filters {
   setSortColumn: (sortColumn: string) => void;
   sortReversed: boolean;
   setSortReversed: (sortReversed: boolean) => void;
-  setRoom: (room: string) => void;
+  // setRoom: (room: string) => void;
 }
 
 interface DebateSetting {
@@ -79,7 +80,6 @@ interface RoomStatus {
   };
 }
 
-// TODO: status should hold outcome info
 interface DebateMetadata {
   setting: DebateSetting;
   name: String;
@@ -111,7 +111,7 @@ function getRoleLabelClass(role: string) {
 
 function shortenName(name: string) {
   // cut off at the first space
-  var spaceIndex = name.indexOf(" ");
+  const spaceIndex = name.indexOf(" ");
   if (spaceIndex === -1) {
     return name;
   } else {
@@ -120,9 +120,9 @@ function shortenName(name: string) {
 }
 
 function getStatusLabel(status: RoomStatus) {
-  var judgingInfo = status.Complete?.result.judgingInfo
-  var judgment = judgingInfo?.finalJudgement
-  var probCorrect = judgment?.[(judgingInfo as JudgingResult).correctAnswerIndex];
+  const judgingInfo = status.Complete?.result.judgingInfo
+  const judgment = judgingInfo?.finalJudgement
+  const probCorrect = judgment?.[(judgingInfo as JudgingResult).correctAnswerIndex];
   if (probCorrect === undefined) {
     if (status.Complete === undefined) {
       return "unfinished"
@@ -141,10 +141,10 @@ function getStatusLabel(status: RoomStatus) {
 }
 
 function makeProbabilityBar(probCorrect: number) {
-  var pctCorrect = probCorrect * 100;
-  var pctCorrectString = pctCorrect.toFixed(0) + "%";
-  var pctIncorrect = (1.0 - probCorrect) * 100;
-  var pctIncorrectString = pctIncorrect.toFixed(0) + "%";
+  const pctCorrect = probCorrect * 100;
+  const pctCorrectString = pctCorrect.toFixed(0) + "%";
+  const pctIncorrect = (1.0 - probCorrect) * 100;
+  const pctIncorrectString = pctIncorrect.toFixed(0) + "%";
   return (
     <div className="judgment-bar">
       <div className="judgment-bar-correct" style={{ width: pctCorrectString }}>
@@ -158,9 +158,9 @@ function makeProbabilityBar(probCorrect: number) {
 }
 
 function getStatusDisplay(status: RoomStatus) {
-  var judgingInfo = status.Complete?.result.judgingInfo
-  var judgment = judgingInfo?.finalJudgement
-  var probCorrect = judgment?.[(judgingInfo as JudgingResult).correctAnswerIndex];
+  const judgingInfo = status.Complete?.result.judgingInfo
+  const judgment = judgingInfo?.finalJudgement
+  const probCorrect = judgment?.[(judgingInfo as JudgingResult).correctAnswerIndex];
   if (probCorrect === undefined) {
     if (status.Complete === undefined) {
       return (<span className="unfinished-label">unfinished</span>)
@@ -179,7 +179,7 @@ function includesIgnoreCase(str: string, substr: string) {
 // TODO filter on outcomes
 function includeDebate(filters: Filters, debate: DebateMetadata) {
   // return (filters.human || !debate.setting.isHuman)
-  var statusLabel = getStatusLabel(debate.status);
+  const statusLabel = getStatusLabel(debate.status);
   return (
     (filters.human || !debate.setting.isHuman) &&
     (filters.ai || debate.setting.isHuman) &&
@@ -195,7 +195,7 @@ function includeDebate(filters: Filters, debate: DebateMetadata) {
     (filters.tied || !(statusLabel === "tied")) &&
     (filters.included || !debate.includedInPaper) &&
     (filters.excluded || debate.includedInPaper) &&
-    filters.searchQuery.split("\\s+").every((word) => {
+    filters.searchQuery.split(" ").every((word) => {
       return (
         includesIgnoreCase(debate.name.toString(), word) ||
         includesIgnoreCase(debate.storyTitle.toString(), word) ||
@@ -233,10 +233,7 @@ function makeHeaderCell(
   sortColumn: string, setSortColumn: (sortColumn: string) => void,
   sortReversed: boolean, setSortReversed: (sortReversed: boolean) => void
 ) {
-  var className = "table-header";
-  if (sortColumn === name) {
-    className += " table-header-selected";
-  }
+  const className = "table-header" + (sortColumn === name) ? " table-header-selected" : ""
   return (
     <th className={className} scope="col" onClick={(event) => {
       if (sortColumn === name) {
@@ -278,14 +275,14 @@ function getStringField(column: string) {
 
 function compareDebatesByColumn(debate1: DebateMetadata, debate2: DebateMetadata, column: string) {
   if (column == "Outcome") {
-    var status1 = debate1.status;
-    var status2 = debate2.status;
-    var judgingInfo1 = status1.Complete?.result.judgingInfo
-    var judgingInfo2 = status2.Complete?.result.judgingInfo
-    var judgment1 = judgingInfo1?.finalJudgement
-    var judgment2 = judgingInfo2?.finalJudgement
-    var probCorrect1 = judgment1?.[(judgingInfo1 as JudgingResult).correctAnswerIndex];
-    var probCorrect2 = judgment2?.[(judgingInfo2 as JudgingResult).correctAnswerIndex];
+    const status1 = debate1.status;
+    const status2 = debate2.status;
+    const judgingInfo1 = status1.Complete?.result.judgingInfo
+    const judgingInfo2 = status2.Complete?.result.judgingInfo
+    const judgment1 = judgingInfo1?.finalJudgement
+    const judgment2 = judgingInfo2?.finalJudgement
+    const probCorrect1 = judgment1?.[(judgingInfo1 as JudgingResult).correctAnswerIndex];
+    const probCorrect2 = judgment2?.[(judgingInfo2 as JudgingResult).correctAnswerIndex];
     if (probCorrect1 === undefined) {
       if (probCorrect2 === undefined) {
         return 0;
@@ -300,9 +297,9 @@ function compareDebatesByColumn(debate1: DebateMetadata, debate2: DebateMetadata
       }
     }
   } else {
-    var getField = getStringField(column)
-    var field1 = (getField(debate1) || "").toString()
-    var field2 = (getField(debate2) || "").toString()
+    const getField = getStringField(column)
+    const field1 = (getField(debate1) || "").toString()
+    const field2 = (getField(debate2) || "").toString()
     if (field1 === null) {
       if (field2 === null) {
         return 0;
@@ -320,7 +317,7 @@ function compareDebatesByColumn(debate1: DebateMetadata, debate2: DebateMetadata
 }
 
 function LoadedDebatesTable(filters: Filters, debates: DebateMetadata[]) {
-  var includedDebates = debates.filter((debate) => includeDebate(filters, debate)).sort(
+  const includedDebates = debates.filter((debate) => includeDebate(filters, debate)).sort(
     (debate1, debate2) => compareDebatesByColumn(debate1, debate2, filters.sortColumn) * (filters.sortReversed ? -1 : 1)
   )
   return (
@@ -345,7 +342,8 @@ function LoadedDebatesTable(filters: Filters, debates: DebateMetadata[]) {
           {includedDebates.map((debate, index) => {
             return (<tr key={debate.name.toString()}>
               <td>{index + 1}</td>
-              <td><a href="#" onClick={(event) => filters.setRoom(debate.name.toString())}>{debate.name}</a></td>
+              <td><Link to={"/debate/" + debate.name}>{debate.name}</Link></td>
+              {/* <td><a href="#" onClick={(event) => filters.setRoom(debate.name.toString())}>{debate.name}</a></td> */}
               <td>{debate.setting.isHuman ? "Human" : "AI"}</td>
               <td>{debate.setting.isDebate ? "Debate" : "Consultancy"}</td>
               <td className="status-display-cell">{getStatusDisplay(debate.status)}</td>
@@ -421,86 +419,87 @@ function App() {
   const [sortColumn, setSortColumn] = React.useState("Room Name");
   const [sortReversed, setSortReversed] = React.useState(false);
 
-  const [roomOpt, setRoomOpt] = React.useState<string | undefined>(undefined);
+  // const [roomOpt, setRoomOpt] = React.useState<string | undefined>(undefined);
 
-  if (roomOpt !== undefined) {
-    return (
-      <Room name={roomOpt} exit={() => setRoomOpt(undefined)} />
-    );
-  } else {
-    return (
-      <div className="container">
-        <header>
-          <h1>Debate Helps Supervise Unreliable Experts</h1>
-          <p>Data browser for the <a href="https://arxiv.org/abs/2311.08702">paper</a> of the above title.
-            More information about the project can be found <a href="https://github.com/julianmichael/debate">here</a>.
-          </p>
-          <h4>Filters</h4>
-          <div className="row mb-2">
-            <div className="col-sm-2">
-              Setting:
-            </div>
-            <div className="col">
-              {checkbox("Human", human, (event) => setHuman(event.target.checked))}
-              {checkbox("AI", ai, (event) => setAI(event.target.checked))}
-              {checkbox("Debate", debate, (event) => setDebate(event.target.checked))}
-              {checkbox("Consultancy", consultancy, (event) => setConsultancy(event.target.checked))}
-            </div>
+  // if (roomOpt !== undefined) {
+  //   return (
+  //     // <Room roomName={roomOpt} exit={() => setRoomOpt(undefined)} />
+  //     <Room roomName={roomOpt} />
+  //   );
+  // } else {
+  return (
+    <div className="container">
+      <header>
+        <h1>Debate Helps Supervise Unreliable Experts</h1>
+        <p>Data browser for the <a href="https://arxiv.org/abs/2311.08702">paper</a> of the above title.
+          More information about the project can be found <a href="https://github.com/julianmichael/debate">here</a>.
+        </p>
+        <h4>Filters</h4>
+        <div className="row mb-2">
+          <div className="col-sm-2">
+            Setting:
           </div>
-          <div className="row mb-2">
-            <div className="col-sm-2">
-              Outcome:
-            </div>
-            <div className="col">
-              {checkbox("Correct", correct, (event) => setCorrect(event.target.checked))}
-              {checkbox("Incorrect", incorrect, (event) => setIncorrect(event.target.checked))}
-              {checkbox("Tied", tied, (event) => setTied(event.target.checked))}
-              {checkbox("Unfinished", unfinished, (event) => setUnfinished(event.target.checked))}
-              {checkbox("No live judge", noLiveJudge, (event) => setNoLiveJudge(event.target.checked))}
-            </div>
+          <div className="col">
+            {checkbox("Human", human, (event) => setHuman(event.target.checked))}
+            {checkbox("AI", ai, (event) => setAI(event.target.checked))}
+            {checkbox("Debate", debate, (event) => setDebate(event.target.checked))}
+            {checkbox("Consultancy", consultancy, (event) => setConsultancy(event.target.checked))}
           </div>
-          <div className="row mb-2">
-            <div className="col-sm-2">
-              Roles:
-            </div>
-            <div className="col">
-              {checkbox("Judge", judge, (event) => setJudge(event.target.checked))}
-              {checkbox("Honest", honest, (event) => setHonest(event.target.checked))}
-              {checkbox("Dishonest", dishonest, (event) => setDishonest(event.target.checked))}
-            </div>
+        </div>
+        <div className="row mb-2">
+          <div className="col-sm-2">
+            Outcome:
           </div>
-          <div className="row mb-2">
-            <div className="col-sm-2">
-              Used in the paper:
-            </div>
-            <div className="col">
-              {checkbox("Yes", included, (event) => setIncluded(event.target.checked))}
-              {checkbox("No", excluded, (event) => setExcluded(event.target.checked))}
-            </div>
+          <div className="col">
+            {checkbox("Correct", correct, (event) => setCorrect(event.target.checked))}
+            {checkbox("Incorrect", incorrect, (event) => setIncorrect(event.target.checked))}
+            {checkbox("Tied", tied, (event) => setTied(event.target.checked))}
+            {checkbox("Unfinished", unfinished, (event) => setUnfinished(event.target.checked))}
+            {checkbox("No live judge", noLiveJudge, (event) => setNoLiveJudge(event.target.checked))}
           </div>
-          <div className="row mb-2">
-            <div className="col-sm-2">
-              Search terms:
-            </div>
-            <div className="col">
-              {textField("Enter keywords", searchQuery, (event) => setSearchQuery(event.target.value))}
-            </div>
+        </div>
+        <div className="row mb-2">
+          <div className="col-sm-2">
+            Roles:
           </div>
-        </header>
-        <DebatesTable
-          human={human} ai={ai}
-          debate={debate} consultancy={consultancy}
-          judge={judge} honest={honest} dishonest={dishonest}
-          correct={correct} incorrect={incorrect} unfinished={unfinished} noLiveJudge={noLiveJudge} tied={tied}
-          included={included} excluded={excluded}
-          searchQuery={searchQuery}
-          sortColumn={sortColumn} setSortColumn={setSortColumn}
-          sortReversed={sortReversed} setSortReversed={setSortReversed}
-          setRoom={setRoomOpt}
-        />
-      </div>
-    );
-  }
+          <div className="col">
+            {checkbox("Judge", judge, (event) => setJudge(event.target.checked))}
+            {checkbox("Honest", honest, (event) => setHonest(event.target.checked))}
+            {checkbox("Dishonest", dishonest, (event) => setDishonest(event.target.checked))}
+          </div>
+        </div>
+        <div className="row mb-2">
+          <div className="col-sm-2">
+            Used in the paper:
+          </div>
+          <div className="col">
+            {checkbox("Yes", included, (event) => setIncluded(event.target.checked))}
+            {checkbox("No", excluded, (event) => setExcluded(event.target.checked))}
+          </div>
+        </div>
+        <div className="row mb-2">
+          <div className="col-sm-2">
+            Search terms:
+          </div>
+          <div className="col">
+            {textField("Enter keywords", searchQuery, (event) => setSearchQuery(event.target.value))}
+          </div>
+        </div>
+      </header>
+      <DebatesTable
+        human={human} ai={ai}
+        debate={debate} consultancy={consultancy}
+        judge={judge} honest={honest} dishonest={dishonest}
+        correct={correct} incorrect={incorrect} unfinished={unfinished} noLiveJudge={noLiveJudge} tied={tied}
+        included={included} excluded={excluded}
+        searchQuery={searchQuery}
+        sortColumn={sortColumn} setSortColumn={setSortColumn}
+        sortReversed={sortReversed} setSortReversed={setSortReversed}
+      // setRoom={setRoomOpt}
+      />
+    </div>
+  );
+  // }
 }
 
 export default App;

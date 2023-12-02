@@ -1,16 +1,39 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import App from './App';
 import reportWebVitals from './reportWebVitals';
 import 'bootstrap/dist/css/bootstrap.css';
+
+import App from './App';
+import Room, { loader as roomLoader } from './Room';
+import ErrorPage from "./ErrorPage";
+
+import {
+  createBrowserRouter,
+  RouterProvider,
+} from "react-router-dom";
+
+const router = createBrowserRouter([
+  {
+    path: "/debate",
+    element: <App />,
+    errorElement: <ErrorPage />
+  },
+  {
+    path: "/debate/:roomName",
+    element: <Room />,
+    loader: roomLoader,
+    errorElement: <ErrorPage />
+  }
+]);
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
+
 root.render(
   <React.StrictMode>
-    <App />
+    <RouterProvider router={router} />
   </React.StrictMode>
 );
 
