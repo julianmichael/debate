@@ -67,13 +67,41 @@ a {
     transition: opacity 300ms ease-in;
 }
 
-.judgment-bar {
+.judgment-bar-large {
     display: flex;
     flex-direction: row;
     overflow: hidden;
+    border-radius: 0.5rem;
+
+    border: solid 1px #d0d0d0;
+}
+
+.judgment-bar-final-correct {
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    border-radius: 0.5rem;
+
+    border: solid 2px green;
+}
+
+.judgment-bar-final-incorrect {
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    border-radius: 0.5rem;
+
+    border: solid 2px crimson;
+}
+
+.judgment-bar-small {
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    border-radius: 0.5rem;
+
     font-size: 0.5rem;
     height: 0.7rem;
-    border-radius: 0.5rem;
 }
 
 .judgment-bar-correct {
@@ -112,4 +140,61 @@ a {
 
 .hidden {
     visibility: hidden;
+}
+
+.correct {
+    background-color: rgba(240, 255, 235, 1.0)
+}
+
+.incorrect {
+    background-color: rgba(255, 230, 225, 1.0)
+}
+
+.judge {
+    background-color: #21252908;
+}
+
+.debaterA {
+    background-color: rgba(240, 248, 255, 1.0);
+}
+
+.debaterB {
+    background-color: rgba(255, 230, 210, 1.0)
+}
+
+.speech-box {
+    border: 1px solid #d0d0d0;
+    border-radius: 0rem;
+    padding: .75rem;
+    margin-top: 0.5rem;
+    /* width: auto; */
+    /* flex-basis: 0;
+    flex-grow: 1; */
+}
+
+.speech-box-left {
+    flex: 1;
+    border-radius: 2rem;
+    border-top-left-radius: 0;
+    max-width: 75%;
+}
+
+.speech-box-right {
+    flex: 1;
+    border-radius: 2rem;
+    border-top-right-radius: 0;
+    max-width: 75%;
+}
+
+.speech-box-right-seq {
+    margin-left: auto;
+}
+
+hr {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.custom-card {
+    border-radius: 0;
 }

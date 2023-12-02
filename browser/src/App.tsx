@@ -4,25 +4,10 @@ import { Link } from "react-router-dom";
 import './App.css';
 import Room from './Room';
 
+import { checkbox, textField, makeProbabilityBar } from './Utils';
+
 // import { TransitionGroup } from 'react-transition-group' // ES6
 // const CSSTransitionGroup = require('react-transition-group/CSSTransitionGroup') // ES5 with npm
-
-function textField(placeholder: string, value: string, onChange: (event: React.ChangeEvent<HTMLInputElement>) => void) {
-  const id = "text-field-" + placeholder;
-  return (
-    <input className="form-control" type="text" id={id} value={value} onChange={onChange} />
-  )
-}
-
-function checkbox(name: string, checked: boolean, onChange: (event: React.ChangeEvent<HTMLInputElement>) => void) {
-  const id = "checkbox-" + name;
-  return (
-    <div className="form-check form-check-inline">
-      <input className="form-check-input" type="checkbox" id={id} value={name} checked={checked} onChange={onChange} />
-      <label className="form-check-label" htmlFor={id}>{name}</label>
-    </div>
-  )
-}
 
 interface Filters {
   human: boolean;
@@ -140,23 +125,6 @@ function getStatusLabel(status: RoomStatus) {
   }
 }
 
-function makeProbabilityBar(probCorrect: number) {
-  const pctCorrect = probCorrect * 100;
-  const pctCorrectString = pctCorrect.toFixed(0) + "%";
-  const pctIncorrect = (1.0 - probCorrect) * 100;
-  const pctIncorrectString = pctIncorrect.toFixed(0) + "%";
-  return (
-    <div className="judgment-bar">
-      <div className="judgment-bar-correct" style={{ width: pctCorrectString }}>
-        <span className="ms-1">{pctCorrectString}</span>
-      </div>
-      <div className="judgment-bar-incorrect" style={{ width: pctIncorrectString }}>
-        <span className="ms-1">{pctIncorrectString}</span>
-      </div>
-    </div>
-  )
-}
-
 function getStatusDisplay(status: RoomStatus) {
   const judgingInfo = status.Complete?.result.judgingInfo
   const judgment = judgingInfo?.finalJudgement
@@ -168,7 +136,7 @@ function getStatusDisplay(status: RoomStatus) {
       return (<span className="no-live-judge-label">no live judge</span>)
     }
   } else {
-    return makeProbabilityBar(probCorrect);
+    return makeProbabilityBar("judgment-bar-small", [probCorrect, 1.0 - probCorrect], ["judgment-bar-correct", "judgment-bar-incorrect"]);
   }
 }
 
@@ -233,7 +201,7 @@ function makeHeaderCell(
   sortColumn: string, setSortColumn: (sortColumn: string) => void,
   sortReversed: boolean, setSortReversed: (sortReversed: boolean) => void
 ) {
-  const className = "table-header" + (sortColumn === name) ? " table-header-selected" : ""
+  const className = "table-header" + ((sortColumn === name) ? " table-header-selected" : "")
   return (
     <th className={className} scope="col" onClick={(event) => {
       if (sortColumn === name) {
