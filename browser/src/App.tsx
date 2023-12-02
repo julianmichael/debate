@@ -1,9 +1,9 @@
 import React from 'react';
 import { useEffect, useState } from 'react';
 import './App.css';
+import Room from './Room';
 
-import { TransitionGroup } from 'react-transition-group' // ES6
-
+// import { TransitionGroup } from 'react-transition-group' // ES6
 // var CSSTransitionGroup = require('react-transition-group/CSSTransitionGroup') // ES5 with npm
 
 function textField(placeholder: string, value: string, onChange: (event: React.ChangeEvent<HTMLInputElement>) => void) {
@@ -43,6 +43,7 @@ interface Filters {
   setSortColumn: (sortColumn: string) => void;
   sortReversed: boolean;
   setSortReversed: (sortReversed: boolean) => void;
+  setRoom: (room: string) => void;
 }
 
 interface DebateSetting {
@@ -327,7 +328,7 @@ function LoadedDebatesTable(filters: Filters, debates: DebateMetadata[]) {
       Showing {numLabel("room", includedDebates.length)}.
       <table className="table">
         <thead><tr>
-          <th className="table-header" scope="col">#</th>
+          <th scope="col">#</th>
           {makeHeaderCell("Room Name", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
           {makeHeaderCell("Debaters", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
           {makeHeaderCell("Format", filters.sortColumn, filters.setSortColumn, filters.sortReversed, filters.setSortReversed)}
@@ -343,22 +344,14 @@ function LoadedDebatesTable(filters: Filters, debates: DebateMetadata[]) {
           transitionLeaveTimeout={300}> */}
           {includedDebates.map((debate, index) => {
             return (<tr key={debate.name.toString()}>
-              <td>{index}</td>
-              <td>{debate.name}</td>
+              <td>{index + 1}</td>
+              <td><a href="#" onClick={(event) => filters.setRoom(debate.name.toString())}>{debate.name}</a></td>
               <td>{debate.setting.isHuman ? "Human" : "AI"}</td>
               <td>{debate.setting.isDebate ? "Debate" : "Consultancy"}</td>
               <td className="status-display-cell">{getStatusDisplay(debate.status)}</td>
               <td>{roleLabel("Judge", debate)}</td>
               <td>{roleLabel("Honest Debater", debate)}</td>
               <td>{roleLabel("Dishonest Debater", debate)}</td>
-              {/* <td>
-                {['Judge', 'Honest Debater', 'Dishonest Debater'].map((role) => {
-                  if (Object(debate.ultimateRoles)[role] === undefined) {
-                    return null;
-                  } else
-                    return (<span key={role} className={getRoleLabelClass(role)}>{shortenName(Object(debate.ultimateRoles)[role])}</span>)
-                })}
-              </td> */}
             </tr>)
           })}
           {/* </TransitionGroup> */}
@@ -368,7 +361,7 @@ function LoadedDebatesTable(filters: Filters, debates: DebateMetadata[]) {
   )
 }
 
-function DebatesTable(filters: Filters) {
+function DebatesTable(props: Filters) {
   const [metadata, setMetadata] = useState<DebateMetadata[]>([]);
   const [error, setError] = useState<Error | null>(null);
   useEffect(() => {
@@ -392,7 +385,7 @@ function DebatesTable(filters: Filters) {
   } else if (metadata.length === 0) {
     return <div>Loading debate metadata...</div>;
   } else {
-    return LoadedDebatesTable(filters, metadata);
+    return LoadedDebatesTable(props, metadata);
   }
 }
 
@@ -428,77 +421,86 @@ function App() {
   const [sortColumn, setSortColumn] = React.useState("Room Name");
   const [sortReversed, setSortReversed] = React.useState(false);
 
-  return (
-    <div className="container">
-      <header>
-        <h1>Debate Helps Supervise Unreliable Experts</h1>
-        <p>Data browser for the <a href="https://arxiv.org/abs/2311.08702">paper</a> of the above title.
-          More information about the project can be found <a href="https://github.com/julianmichael/debate">here</a>.
-        </p>
-        <h4>Filters</h4>
-        <div className="row mb-2">
-          <div className="col-sm-2">
-            Setting:
+  const [roomOpt, setRoomOpt] = React.useState<string | undefined>(undefined);
+
+  if (roomOpt !== undefined) {
+    return (
+      <Room name={roomOpt} exit={() => setRoomOpt(undefined)} />
+    );
+  } else {
+    return (
+      <div className="container">
+        <header>
+          <h1>Debate Helps Supervise Unreliable Experts</h1>
+          <p>Data browser for the <a href="https://arxiv.org/abs/2311.08702">paper</a> of the above title.
+            More information about the project can be found <a href="https://github.com/julianmichael/debate">here</a>.
+          </p>
+          <h4>Filters</h4>
+          <div className="row mb-2">
+            <div className="col-sm-2">
+              Setting:
+            </div>
+            <div className="col">
+              {checkbox("Human", human, (event) => setHuman(event.target.checked))}
+              {checkbox("AI", ai, (event) => setAI(event.target.checked))}
+              {checkbox("Debate", debate, (event) => setDebate(event.target.checked))}
+              {checkbox("Consultancy", consultancy, (event) => setConsultancy(event.target.checked))}
+            </div>
           </div>
-          <div className="col">
-            {checkbox("Human", human, (event) => setHuman(event.target.checked))}
-            {checkbox("AI", ai, (event) => setAI(event.target.checked))}
-            {checkbox("Debate", debate, (event) => setDebate(event.target.checked))}
-            {checkbox("Consultancy", consultancy, (event) => setConsultancy(event.target.checked))}
+          <div className="row mb-2">
+            <div className="col-sm-2">
+              Outcome:
+            </div>
+            <div className="col">
+              {checkbox("Correct", correct, (event) => setCorrect(event.target.checked))}
+              {checkbox("Incorrect", incorrect, (event) => setIncorrect(event.target.checked))}
+              {checkbox("Tied", tied, (event) => setTied(event.target.checked))}
+              {checkbox("Unfinished", unfinished, (event) => setUnfinished(event.target.checked))}
+              {checkbox("No live judge", noLiveJudge, (event) => setNoLiveJudge(event.target.checked))}
+            </div>
           </div>
-        </div>
-        <div className="row mb-2">
-          <div className="col-sm-2">
-            Outcome:
+          <div className="row mb-2">
+            <div className="col-sm-2">
+              Roles:
+            </div>
+            <div className="col">
+              {checkbox("Judge", judge, (event) => setJudge(event.target.checked))}
+              {checkbox("Honest", honest, (event) => setHonest(event.target.checked))}
+              {checkbox("Dishonest", dishonest, (event) => setDishonest(event.target.checked))}
+            </div>
           </div>
-          <div className="col">
-            {checkbox("Correct", correct, (event) => setCorrect(event.target.checked))}
-            {checkbox("Incorrect", incorrect, (event) => setIncorrect(event.target.checked))}
-            {checkbox("Tied", tied, (event) => setTied(event.target.checked))}
-            {checkbox("Unfinished", unfinished, (event) => setUnfinished(event.target.checked))}
-            {checkbox("No live judge", noLiveJudge, (event) => setNoLiveJudge(event.target.checked))}
+          <div className="row mb-2">
+            <div className="col-sm-2">
+              Used in the paper:
+            </div>
+            <div className="col">
+              {checkbox("Yes", included, (event) => setIncluded(event.target.checked))}
+              {checkbox("No", excluded, (event) => setExcluded(event.target.checked))}
+            </div>
           </div>
-        </div>
-        <div className="row mb-2">
-          <div className="col-sm-2">
-            Roles:
+          <div className="row mb-2">
+            <div className="col-sm-2">
+              Search terms:
+            </div>
+            <div className="col">
+              {textField("Enter keywords", searchQuery, (event) => setSearchQuery(event.target.value))}
+            </div>
           </div>
-          <div className="col">
-            {checkbox("Judge", judge, (event) => setJudge(event.target.checked))}
-            {checkbox("Honest", honest, (event) => setHonest(event.target.checked))}
-            {checkbox("Dishonest", dishonest, (event) => setDishonest(event.target.checked))}
-          </div>
-        </div>
-        <div className="row mb-2">
-          <div className="col-sm-2">
-            Used in the paper:
-          </div>
-          <div className="col">
-            {checkbox("Yes", included, (event) => setIncluded(event.target.checked))}
-            {checkbox("No", excluded, (event) => setExcluded(event.target.checked))}
-          </div>
-        </div>
-        <div className="row mb-2">
-          <div className="col-sm-2">
-            Search terms:
-          </div>
-          <div className="col">
-            {textField("Enter keywords", searchQuery, (event) => setSearchQuery(event.target.value))}
-          </div>
-        </div>
-      </header>
-      <DebatesTable
-        human={human} ai={ai}
-        debate={debate} consultancy={consultancy}
-        judge={judge} honest={honest} dishonest={dishonest}
-        correct={correct} incorrect={incorrect} unfinished={unfinished} noLiveJudge={noLiveJudge} tied={tied}
-        included={included} excluded={excluded}
-        searchQuery={searchQuery}
-        sortColumn={sortColumn} setSortColumn={setSortColumn}
-        sortReversed={sortReversed} setSortReversed={setSortReversed}
-      />
-    </div>
-  );
+        </header>
+        <DebatesTable
+          human={human} ai={ai}
+          debate={debate} consultancy={consultancy}
+          judge={judge} honest={honest} dishonest={dishonest}
+          correct={correct} incorrect={incorrect} unfinished={unfinished} noLiveJudge={noLiveJudge} tied={tied}
+          included={included} excluded={excluded}
+          searchQuery={searchQuery}
+          sortColumn={sortColumn} setSortColumn={setSortColumn}
+          sortReversed={sortReversed} setSortReversed={setSortReversed}
+          setRoom={setRoomOpt}
+        />
+      </div>
+    );
+  }
 }
 
 export default App;

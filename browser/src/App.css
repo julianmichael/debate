@@ -1,3 +1,7 @@
+a {
+    text-decoration: none !important;
+}
+
 .label-judge {
     font-weight: bold;
     color: #000000;
