@@ -215,3 +215,13 @@ hr {
 .quote {
     background-color: yellow;
 }
+
+.clickable {
+    cursor: pointer;
+}
+
+.clickable:hover {
+    /* font-weight: bold; */
+    background-color: #f0f0f0;
+    /* filter: brightness(85%); */
+}

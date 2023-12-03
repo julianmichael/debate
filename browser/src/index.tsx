@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import reportWebVitals from './reportWebVitals';
 import 'bootstrap/dist/css/bootstrap.css';
+import 'bootstrap/dist/js/bootstrap.min.js'
 
 import App from './App';
 import Room, { loader as roomLoader } from './Room';
@@ -15,14 +16,14 @@ import {
 
 const router = createHashRouter([
   {
-    path: "/:roomName",
-    element: <Room />,
-    loader: roomLoader,
+    path: "/",
+    element: <App />,
     errorElement: <ErrorPage />
   },
   {
-    path: "/",
-    element: <App />,
+    path: "/:roomName",
+    element: <Room />,
+    loader: roomLoader,
     errorElement: <ErrorPage />
   }
 ]);

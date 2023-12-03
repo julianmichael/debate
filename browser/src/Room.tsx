@@ -12,9 +12,6 @@ const noSpaceBefore = ['.', ',', '!', '?', ':', ';', ')', ']', '}', '”', '’'
 const noSpaceAfter = ['(', '[', '{', '“', '‘'];
 
 function Story({ story, spans, highlightColors }: { story: Array<String>; spans: Array<[[number, number], string]>; highlightColors: Record<string, Rgba> }) {
-    console.log("story length: " + story.length);
-    console.log("spans: " + JSON.stringify(spans));
-    console.log("highlightColors: " + JSON.stringify(highlightColors));
     return (
         <div>
             <div className="card mb-2">
@@ -26,11 +23,13 @@ function Story({ story, spans, highlightColors }: { story: Array<String>; spans:
                 </div>
             </div>
             <div className="card">
-                <div className="card-header">
-                    <span className="card-title">Story</span>
+                <div className="card-header clickable" data-bs-toggle="collapse" data-bs-target="#storyBody" aria-expanded="false" aria-controls="storyBody">
+                    <span className="card-title">Story (click to show/hide)</span>
                 </div>
-                <div className="card-body">
-                    {renderStoryAsHtml(story, spans, highlightColors, false)}
+                <div className="collapse" id="storyBody">
+                    <div className="card-body">
+                        {renderStoryAsHtml(story, spans, highlightColors, false)}
+                    </div>
                 </div>
             </div>
         </div>
@@ -179,8 +178,14 @@ function renderSpeech(
             <hr />
             {speech.content.map((segment, index) => {
                 if (segment.Text !== undefined) {
+                    const subsegs = segment.Text.text.split("\n")
                     return (
-                        <span key={index}>{segment.Text.text}</span>
+                        subsegs.map((line, segIndex) => {
+                            const br = (segIndex < subsegs.length - 1) ? (<br />) : (<></>)
+                            return (
+                                <span key={index}>{line}{br}</span>
+                            );
+                        })
                     );
                 } else if (segment.Quote !== undefined) {
                     return (

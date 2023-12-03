@@ -199,8 +199,6 @@ export function renderStoryAsHtml(
 
     function processToken(token: string, index: number, highlights: Array<string>) {
         if (JSON.stringify(highlights) !== JSON.stringify(curColorStack)) {
-            console.log("highlight change");
-            console.log(curColorStack);
             if (curStr.length > 0) {
                 curElts.push(<span>{curStr}</span>);
                 curStr = "";
@@ -230,7 +228,6 @@ export function renderStoryAsHtml(
             curColorStack = highlights;
         }
         if (token === "\n") {
-            console.log("newline");
             if (curStr.length > 0) {
                 curElts.push(<span>{curStr}</span>);
                 curStr = "";
