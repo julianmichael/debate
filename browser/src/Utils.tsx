@@ -152,7 +152,8 @@ export function renderSpan(
     span: [number, number]
 ) {
     var res = "";
-    for (var i = span[0]; i < span[1]; i++) {
+    const end = Math.min(span[1], story.length);
+    for (var i = span[0]; i < end; i++) {
         if (!(i === span[0] || noSpaceBefore.includes(story[i].toString()) || noSpaceAfter.includes(story[i - 1].toString()) || story[i].startsWith("'"))) {
             res += " ";
         }
@@ -178,7 +179,10 @@ export function renderStoryAsHtml(
     highlightSpans.forEach((spanPair) => {
         const span = spanPair[0];
         const style = spanPair[1];
-        for (var i = span[0]; i < span[1]; i++) {
+        // we shouldn't have had any out-of-bounds spans, but we had someone enter the OOB span indices _manually_
+        // to show they were at the end of the story! That's actually pretty awesome strategy lol
+        const end = Math.min(span[1], storyTokens.length);
+        for (var i = span[0]; i < end; i++) {
             storyTokens[i].highlights.push(style);
             if (i > span[0]) {
                 storyTokens[i].prevSpaceHighlights.push(style);
