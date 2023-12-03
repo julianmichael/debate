@@ -310,7 +310,7 @@ function LoadedDebatesTable(filters: Filters, debates: DebateMetadata[]) {
           {includedDebates.map((debate, index) => {
             return (<tr key={debate.name.toString()}>
               <td>{index + 1}</td>
-              <td><Link to={"/debate/" + debate.name}>{debate.name}</Link></td>
+              <td><Link to={"/" + debate.name}>{debate.name}</Link></td>
               {/* <td><a href="#" onClick={(event) => filters.setRoom(debate.name.toString())}>{debate.name}</a></td> */}
               <td>{debate.setting.isHuman ? "Human" : "AI"}</td>
               <td>{debate.setting.isDebate ? "Debate" : "Consultancy"}</td>

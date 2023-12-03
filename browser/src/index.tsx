@@ -9,20 +9,20 @@ import Room, { loader as roomLoader } from './Room';
 import ErrorPage from "./ErrorPage";
 
 import {
-  createBrowserRouter,
+  createHashRouter,
   RouterProvider,
 } from "react-router-dom";
 
-const router = createBrowserRouter([
+const router = createHashRouter([
   {
-    path: "/debate",
-    element: <App />,
+    path: "/:roomName",
+    element: <Room />,
+    loader: roomLoader,
     errorElement: <ErrorPage />
   },
   {
-    path: "/debate/:roomName",
-    element: <Room />,
-    loader: roomLoader,
+    path: "/",
+    element: <App />,
     errorElement: <ErrorPage />
   }
 ]);

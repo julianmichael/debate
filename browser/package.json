@@ -1,7 +1,7 @@
 {
   "name": "browser",
   "version": "0.1.0",
-  "homepage": "https://julianmichael.github.io/debate",
+  "homepage": "https://julianmichael.github.io/debate/#",
   "private": true,
   "dependencies": {
     "@testing-library/jest-dom": "^5.17.0",

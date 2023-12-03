@@ -255,7 +255,7 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
         <div className="container">
             <div className="d-flex align-items-center flex-wrap my-2">
                 <div>
-                    <Link to="/debate"><button className="btn btn-sm"><ArrowLeft /> Back</button></Link>
+                    <Link to="/"><button className="btn btn-sm"><ArrowLeft /> Back</button></Link>
                 </div>
                 <div className="ms-2">
                     <b>Room:</b> {roomName}
