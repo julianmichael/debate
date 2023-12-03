@@ -16,7 +16,7 @@ function Story({ story, spans, highlightColors }: { story: Array<String>; spans:
         <div>
             <div className="card mb-2">
                 <div className="card-header">
-                    <span className="card-title">Quotes</span>
+                    <span className="card-title">All Quotes</span>
                 </div>
                 <div className="card-body">
                     {renderStoryAsHtml(story, spans, highlightColors, true)}
@@ -141,7 +141,8 @@ interface JudgmentInfo {
 }
 
 function renderJudgment(
-    judgment: JudgmentInfo
+    judgment: JudgmentInfo,
+    showCorrectAnswer: boolean
 ) {
     const label = judgment.endDebate ? (<b className="me-1">Final judgment:</b>) : (<b className="me-1">Current beliefs:</b>);
     var chosenIndex = -1;
@@ -150,7 +151,7 @@ function renderJudgment(
             chosenIndex = index;
         }
     });
-    const style = judgment.endDebate ? (chosenIndex === judgment.correctAnswerIndex ? "judgment-bar-final-correct" : "judgment-bar-final-incorrect") : "judgment-bar-large";
+    const style = judgment.endDebate ? (showCorrectAnswer ? (chosenIndex === judgment.correctAnswerIndex ? "judgment-bar-final-correct" : "judgment-bar-final-incorrect") : "judgment-bar-final") : "judgment-bar-large";
     return (<div className="d-flex mt-1">{label}{makeProbabilityBar(style, judgment.distribution, judgment.styles, judgment.icons)}</div>)
 }
 
@@ -159,6 +160,7 @@ function renderSpeech(
     classes: string,
     icon: string,
     speech: DebateSpeech,
+    showCorrectAnswer: boolean,
     judgment?: JudgmentInfo
 ) {
     return (
@@ -191,7 +193,7 @@ function renderSpeech(
                     );
                 }
             })}
-            {judgment !== undefined ? (renderJudgment(judgment)) : (<></>)}
+            {judgment !== undefined ? (renderJudgment(judgment, showCorrectAnswer)) : (<></>)}
         </div>
     );
 }
@@ -273,29 +275,29 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
                     <div> <b>Story:</b> {getTitle(debate.setup.sourceMaterial)} </div>
                     <div> <b>Question:</b> {debate.setup.question} </div>
                     <div className="d-flex">
-                        {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, { speaker: (debate.setup.roles['Debater A'] || "<no debater>").toString(), content: [{ Text: { text: debate.setup.answers[0].toString() } }] })}
-                        {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, { speaker: (debate.setup.roles['Debater B'] || "<no debater>").toString(), content: [{ Text: { text: debate.setup.answers[1].toString() } }] })}
+                        {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, { speaker: (debate.setup.roles['Debater A'] || "<no debater>").toString(), content: [{ Text: { text: debate.setup.answers[0].toString() } }] }, showCorrectAnswer)}
+                        {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, { speaker: (debate.setup.roles['Debater B'] || "<no debater>").toString(), content: [{ Text: { text: debate.setup.answers[1].toString() } }] }, showCorrectAnswer)}
                     </div>
                 </div>
             </div>
             <div className="mb-2">
                 {debate.rounds.map((round, index) => {
                     if (round.JudgeFeedback !== undefined) {
-                        return (<div key={index}>{renderSpeech(story, "judge", judgeIcon, round.JudgeFeedback.feedback, {
+                        return (<div key={index}>{renderSpeech(story, "judge", judgeIcon, round.JudgeFeedback.feedback, showCorrectAnswer, {
                             correctAnswerIndex: debate.setup.correctAnswerIndex, distribution: round.JudgeFeedback.distribution, endDebate: round.JudgeFeedback.endDebate, styles: judgmentStyles, icons: debaterIcons
                         })}</div>);
                     } else if (round.SimultaneousSpeeches !== undefined) {
                         return (
                             <div key={index} className="d-flex">
-                                {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, round.SimultaneousSpeeches.speeches[0])}
-                                {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, round.SimultaneousSpeeches.speeches[1])}
+                                {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, round.SimultaneousSpeeches.speeches[0], showCorrectAnswer)}
+                                {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, round.SimultaneousSpeeches.speeches[1], showCorrectAnswer)}
                             </div>
                         );
                     } else if (round.SequentialSpeeches !== undefined) {
                         return (
                             <div key={index}>
-                                {renderSpeech(story, aStyle + " speech-box-left", aIcon, round.SequentialSpeeches.speeches[0])}
-                                {renderSpeech(story, bStyle + " speech-box-right speech-box-right-seq", bIcon, round.SequentialSpeeches.speeches[1])}
+                                {renderSpeech(story, aStyle + " speech-box-left", aIcon, round.SequentialSpeeches.speeches[0], showCorrectAnswer)}
+                                {renderSpeech(story, bStyle + " speech-box-right speech-box-right-seq", bIcon, round.SequentialSpeeches.speeches[1], showCorrectAnswer)}
                             </div>
                         );
                     } else if (round.OfflineJudgments !== undefined) {

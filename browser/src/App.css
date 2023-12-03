@@ -76,6 +76,15 @@ a {
     border: solid 1px #d0d0d0;
 }
 
+.judgment-bar-final {
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    border-radius: 0.5rem;
+
+    border: solid 2px black;
+}
+
 .judgment-bar-final-correct {
     display: flex;
     flex-direction: row;

@@ -191,9 +191,9 @@ export function renderStoryAsHtml(
     var curStr: string = "";
     var curColorStack: Array<string> = [];
     // TODO: add quote indices for quotes panel
-    var curSpanBegin: number = 0;
+    var curSpanBegin: number = -1;
 
-    function processToken(token: string, highlights: Array<string>) {
+    function processToken(token: string, index: number, highlights: Array<string>) {
         if (JSON.stringify(highlights) !== JSON.stringify(curColorStack)) {
             console.log("highlight change");
             console.log(curColorStack);
@@ -206,6 +206,10 @@ export function renderStoryAsHtml(
             const styleAttr = color ? { backgroundColor: getColorStyleString(color) } : {};
             if (!quotesOnly || curColorStack.length > 0) {
                 elts.push(<span style={styleAttr}> {curElts}</span >);
+                if (quotesOnly && highlights.length === 0 && curSpanBegin > -1) {
+                    elts.push(<span className="text-faded"> ({curSpanBegin}-{index})</span>);
+                    curSpanBegin = -1
+                }
             } else if (elts.length > 0) {
                 if (curElts.length > 1) {
                     elts.push(<span><br />...<br /></span >);
@@ -215,6 +219,10 @@ export function renderStoryAsHtml(
             }
 
             curElts = [];
+
+            if (curSpanBegin === -1 && highlights.length > 0) {
+                curSpanBegin = index;
+            }
             curColorStack = highlights;
         }
         if (token === "\n") {
@@ -234,9 +242,9 @@ export function renderStoryAsHtml(
         const prevToken = storyTokens[i - 1]
         // potentially add a space before the current string
         if (!(i === 0 || noSpaceBefore.includes(curToken.token) || noSpaceAfter.includes(prevToken.token) || curToken.token.startsWith("'"))) {
-            processToken(" ", curToken.prevSpaceHighlights);
+            processToken(" ", i, curToken.prevSpaceHighlights);
         }
-        processToken(curToken.token, curToken.highlights);
+        processToken(curToken.token, i, curToken.highlights);
     }
 
     if (curStr.length > 0) {
@@ -244,11 +252,14 @@ export function renderStoryAsHtml(
         curStr = "";
     }
     // todo color the span properly
-    elts.push(<span>{curElts}</span>);
     const color = curColorStack.length > 0 ? curColorStack.reduce((acc, cur) => addColors(acc, highlightColors[cur] || transparent), transparent) : undefined
     const styleAttr = color ? { backgroundColor: getColorStyleString(color) } : {};
     if (!quotesOnly || curColorStack.length > 0) {
         elts.push(<span style={styleAttr}> {curElts}</span >);
+        if (quotesOnly && curSpanBegin > -1) {
+            elts.push(<span className="text-faded">({curSpanBegin}-{storyTokens.length})</span>);
+            curSpanBegin = -1
+        }
     }
 
     return <span>{elts}</span>;
