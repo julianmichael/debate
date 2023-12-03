@@ -6,7 +6,33 @@ import './Room.css';
 import { Form, useLoaderData } from "react-router-dom";
 import { ArrowLeft } from 'react-bootstrap-icons';
 
-import { checkbox, makeProbabilityBar } from './Utils';
+import { checkbox, makeProbabilityBar, renderSpan, renderStoryAsHtml, Rgba, makeIntoHighlight } from './Utils';
+
+const noSpaceBefore = ['.', ',', '!', '?', ':', ';', ')', ']', '}', '”', '’', '…', "n't"];
+const noSpaceAfter = ['(', '[', '{', '“', '‘'];
+
+function Story({ story, spans, highlightColors }: { story: Array<String>; spans: Array<[[number, number], string]>; highlightColors: Record<string, Rgba> }) {
+    return (
+        <div>
+            <div className="card mb-2">
+                <div className="card-header">
+                    <span className="card-title">Quotes</span>
+                </div>
+                <div className="card-body">
+                    {renderStoryAsHtml(story, spans, highlightColors, true)}
+                </div>
+            </div>
+            <div className="card">
+                <div className="card-header">
+                    <span className="card-title">Story</span>
+                </div>
+                <div className="card-body">
+                    {renderStoryAsHtml(story, spans, highlightColors, false)}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const time = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -117,7 +143,7 @@ interface JudgmentInfo {
 function renderJudgment(
     judgment: JudgmentInfo
 ) {
-    const label = judgment.endDebate ? (<b className="me-1">Final judgment:</b>) : (<b className="me-1">Current belief:</b>);
+    const label = judgment.endDebate ? (<b className="me-1">Final judgment:</b>) : (<b className="me-1">Current beliefs:</b>);
     var chosenIndex = -1;
     judgment.distribution.forEach((prob, index) => {
         if (prob > 0.5) {
@@ -129,6 +155,7 @@ function renderJudgment(
 }
 
 function renderSpeech(
+    story: Array<String>,
     classes: string,
     icon: string,
     speech: DebateSpeech,
@@ -140,7 +167,7 @@ function renderSpeech(
                 <div>
                     <b>{icon} {speech.speaker}</b>
                 </div>
-                <div className="text-muted">
+                <div className="text-faded">
                     {speech.timestamp ? time.format(speech.timestamp) : ""}
                 </div>
             </div>
@@ -148,16 +175,19 @@ function renderSpeech(
             {speech.content.map((segment, index) => {
                 if (segment.Text !== undefined) {
                     return (
-                        <div key={index}>{segment.Text.text}</div>
+                        <span key={index}>{segment.Text.text}</span>
                     );
                 } else if (segment.Quote !== undefined) {
                     return (
-                        <div key={index}>{segment.Quote.span[0]}-{segment.Quote.span[1]}</div>
+                        <React.Fragment key={index}>
+                            <span className="quote">{renderSpan(story, segment.Quote.span)}</span>
+                            <span className="text-faded"> ({segment.Quote.span[0]}-{segment.Quote.span[1]})</span>
+                        </React.Fragment>
                     );
                 } else {
                     console.log("Unknown segment type: " + JSON.stringify(segment));
                     return (
-                        <div key={index}></div>
+                        <span key={index}></span>
                     );
                 }
             })}
@@ -169,6 +199,7 @@ function renderSpeech(
 function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate }) {
     const [showOfflineJudgments, setShowOfflineJudgments] = useState<boolean>(false);
     const [showCorrectAnswer, setShowCorrectAnswer] = useState<boolean>(false);
+
     const aStyle = showCorrectAnswer ? (debate.setup.correctAnswerIndex === 0 ? "correct" : "incorrect") : "debaterA";
     const bStyle = showCorrectAnswer ? (debate.setup.correctAnswerIndex === 1 ? "correct" : "incorrect") : "debaterB";
     const judgmentStyles = [aStyle, bStyle]
@@ -181,6 +212,40 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
     const isAI = debate.setup.roles['Debater A'] === 'GPT-4' || debate.setup.roles['Debater B'] === 'GPT-4';
     const isDebate = debate.setup.roles['Debater A'] !== undefined && debate.setup.roles['Debater B'] !== undefined;
     const setting = (isAI ? 'AI' : 'Human') + ' ' + (isDebate ? 'Debate' : 'Consultancy');
+
+    const story = getContents(debate.setup.sourceMaterial);
+    const allHighlights = new Array<[[number, number], string]>();
+    debate.rounds.forEach((round) => {
+        if (round.SimultaneousSpeeches !== undefined) {
+            for (const [speaker, speech] of Object.entries(round.SimultaneousSpeeches.speeches)) {
+                const speakerLabel = speaker === "0" ? "Debater A" : "Debater B";
+                speech.content.forEach((segment) => {
+                    if (segment.Quote !== undefined) {
+                        allHighlights.push([segment.Quote.span, speakerLabel]);
+                    }
+                });
+            }
+        }
+        if (round.SequentialSpeeches !== undefined) {
+            for (const [speaker, speech] of Object.entries(round.SequentialSpeeches.speeches)) {
+                const speakerLabel = speaker === "0" ? "Debater A" : "Debater B";
+                speech.content.forEach((segment) => {
+                    if (segment.Quote !== undefined) {
+                        allHighlights.push([segment.Quote.span, speakerLabel]);
+                    }
+                });
+            }
+        }
+    })
+    const correctHighlightColor = makeIntoHighlight({ r: 240, g: 255, b: 235, a: 0.9 });
+    const incorrectHighlightColor = makeIntoHighlight({ r: 255, g: 230, b: 225, a: 0.9 });
+    const debaterAHighlightColor = makeIntoHighlight({ r: 240, g: 248, b: 255, a: 1.0 });
+    const debaterBHighlightColor = makeIntoHighlight({ r: 250, g: 230, b: 210, a: 1.0 });
+    const highlightColors = {
+        "Debater A": showCorrectAnswer ? (debate.setup.correctAnswerIndex === 0 ? correctHighlightColor : incorrectHighlightColor) : debaterAHighlightColor,
+        "Debater B": showCorrectAnswer ? (debate.setup.correctAnswerIndex === 1 ? correctHighlightColor : incorrectHighlightColor) : debaterBHighlightColor
+    }
+
     return (
         <div className="container">
             <div className="d-flex align-items-center flex-wrap my-2">
@@ -193,9 +258,9 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
                 <div className="ms-2">
                     <b>Setting:</b> {setting}
                 </div>
-                <div className="ms-2">
+                {/* <div className="ms-2">
                     {checkbox("Show offline judgments", showOfflineJudgments, (event) => setShowOfflineJudgments(event.target.checked))}
-                </div>
+                </div> */}
                 <div className="ms-2">
                     {checkbox("Show correct answer", showCorrectAnswer, (event) => setShowCorrectAnswer(event.target.checked))}
                 </div>
@@ -208,29 +273,29 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
                     <div> <b>Story:</b> {getTitle(debate.setup.sourceMaterial)} </div>
                     <div> <b>Question:</b> {debate.setup.question} </div>
                     <div className="d-flex">
-                        {renderSpeech(aStyle + " speech-box-left me-1", aIcon, { speaker: (debate.setup.roles['Debater A'] || "<no debater>").toString(), content: [{ Text: { text: debate.setup.answers[0].toString() } }] })}
-                        {renderSpeech(bStyle + " speech-box-right ms-1", bIcon, { speaker: (debate.setup.roles['Debater B'] || "<no debater>").toString(), content: [{ Text: { text: debate.setup.answers[1].toString() } }] })}
+                        {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, { speaker: (debate.setup.roles['Debater A'] || "<no debater>").toString(), content: [{ Text: { text: debate.setup.answers[0].toString() } }] })}
+                        {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, { speaker: (debate.setup.roles['Debater B'] || "<no debater>").toString(), content: [{ Text: { text: debate.setup.answers[1].toString() } }] })}
                     </div>
                 </div>
             </div>
-            <div>
+            <div className="mb-2">
                 {debate.rounds.map((round, index) => {
                     if (round.JudgeFeedback !== undefined) {
-                        return renderSpeech("judge", judgeIcon, round.JudgeFeedback.feedback, {
+                        return (<div key={index}>{renderSpeech(story, "judge", judgeIcon, round.JudgeFeedback.feedback, {
                             correctAnswerIndex: debate.setup.correctAnswerIndex, distribution: round.JudgeFeedback.distribution, endDebate: round.JudgeFeedback.endDebate, styles: judgmentStyles, icons: debaterIcons
-                        });
+                        })}</div>);
                     } else if (round.SimultaneousSpeeches !== undefined) {
                         return (
-                            <div className="d-flex">
-                                {renderSpeech(aStyle + " speech-box-left me-1", aIcon, round.SimultaneousSpeeches.speeches[0])}
-                                {renderSpeech(bStyle + " speech-box-right ms-1", bIcon, round.SimultaneousSpeeches.speeches[1])}
+                            <div key={index} className="d-flex">
+                                {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, round.SimultaneousSpeeches.speeches[0])}
+                                {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, round.SimultaneousSpeeches.speeches[1])}
                             </div>
                         );
                     } else if (round.SequentialSpeeches !== undefined) {
                         return (
-                            <div>
-                                {renderSpeech(aStyle + " speech-box-left", aIcon, round.SequentialSpeeches.speeches[0])}
-                                {renderSpeech(bStyle + " speech-box-right speech-box-right-seq", bIcon, round.SequentialSpeeches.speeches[1])}
+                            <div key={index}>
+                                {renderSpeech(story, aStyle + " speech-box-left", aIcon, round.SequentialSpeeches.speeches[0])}
+                                {renderSpeech(story, bStyle + " speech-box-right speech-box-right-seq", bIcon, round.SequentialSpeeches.speeches[1])}
                             </div>
                         );
                     } else if (round.OfflineJudgments !== undefined) {
@@ -242,6 +307,9 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
                         return (<></>);
                     }
                 })}
+            </div>
+            <div className="my-2">
+                <Story story={story} spans={allHighlights} highlightColors={highlightColors} />
             </div>
         </div>
     );

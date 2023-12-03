@@ -198,3 +198,11 @@ hr {
 .custom-card {
     border-radius: 0;
 }
+
+.text-faded {
+    color: #6c757d;
+}
+
+.quote {
+    background-color: yellow;
+}
