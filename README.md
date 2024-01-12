@@ -9,8 +9,8 @@ and Samuel R. Bowman.
 Publication artifacts are in the `pub/` directory:
 
 * `pub/debates/`: the full data for all debates, formatted for the debate data collection and browsing webapps.
-* `pub/debates-metadata.jsonl`: a JSON-lines formatted file with metadata for all debates, usable
-  for browsing and searching.
+* `pub/debates-metadata.json`: a JSON array with metadata for all debates, usable
+  for browsing and searching. (The same is also provided as a `.jsonl`.)
 * `pub/debates-readable.jsonl`: a JSON-lines formatted file with all debates in a more directly-readable format.
 * `pub/README.md`: Details on the data filtering and formatting.
 
