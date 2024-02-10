@@ -1209,6 +1209,30 @@ object AnalyzeResults
       .sortBy(-_._2)
       .foreach(println)
 
+    println("First round accuracy:")
+    println(
+      getMetricsString(
+        debates
+          .map { d =>
+            val dist =
+              d.debate
+                .rounds
+                .collect { case JudgeFeedback(dist, _, _) =>
+                  dist
+                }
+                .head
+            val answer      = d.debate.setup.correctAnswerIndex
+            val probCorrect = dist(answer)
+            if (probCorrect > 0.5)
+              "correct"
+            else if (probCorrect < 0.5)
+              "incorrect"
+            else
+              "tie"
+          }
+          .foldMap(FewClassCount(_))
+      )
+    )
   }
 
 }
