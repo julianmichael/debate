@@ -150,16 +150,20 @@ interface OfflineJudgment {
     }>;
 }
 
+interface JudgeFeedback {
+    distribution: Array<number>;
+    feedback: DebateSpeech;
+    endDebate: Boolean;
+}
+
 interface DebateRound {
     SimultaneousSpeeches?: { speeches: Record<number, DebateSpeech>; };
     SequentialSpeeches?: { speeches: Record<number, DebateSpeech>; };
-    JudgeFeedback?: {
-        distribution: Array<number>;
-        feedback: DebateSpeech;
-        endDebate: Boolean;
-    };
+    JudgeFeedback?: JudgeFeedback;
     NegotiateEnd?: Record<number, boolean>;
-    OfflineJudgments?: Record<string, OfflineJudgment>;
+    OfflineJudgments?: {
+        judgments: Record<string, OfflineJudgment>;
+    }
 }
 
 interface Debate {
@@ -197,6 +201,32 @@ function getSpeechLength(story: Array<String>, content: Array<SpeechSegment>) {
         }
     });
     return length;
+}
+
+function getSteppedOfflineJudgmentsByRound(debate: Debate): Array<Array<JudgeFeedback>> {
+    const allJudgments = debate.rounds.find((round) => round.OfflineJudgments !== undefined)?.OfflineJudgments?.judgments || {};
+    var prevJudgingIndex = -1;
+    return debate.rounds.map((round, index) => {
+        if (round.JudgeFeedback !== undefined) {
+            prevJudgingIndex += 1;
+            return Object.entries(allJudgments).filter(
+                ([judge, judgment]) => judgment.mode === "stepped"
+            ).map(([judge, judgment]) => {
+                return judgment.judgments[prevJudgingIndex];
+            });
+        } else {
+            return [];
+        }
+    });
+}
+
+function getTimedOfflineJudgments(debate: Debate): Array<JudgeFeedback> {
+    const allJudgments = debate.rounds.find((round) => round.OfflineJudgments !== undefined) || {};
+    return Object.entries(allJudgments).filter(
+        ([judge, judgment]) => judgment.mode === "timed" && judgment.judgments.length > 0
+    ).map(([judge, judgment]) => {
+        return judgment.judgments[0];
+    });
 }
 
 function getRulesForIndex(rules: DebateRules, index: number): DebateRoundRules {
@@ -257,16 +287,16 @@ function renderSpeech(
     judgment?: JudgmentInfo
 ) {
     return (
-        <div className={"speech-box " + classes}>
+        <div className={classes + " speech-box"}>
             <div className="d-flex justify-content-between">
                 <div>
-                    <b>{icon} {speech.speaker}</b>
+                    <b>{icon} {speech.speaker}</b>{classes.includes("offline-judge") ? " (offline)" : ""}
                 </div>
                 <div className="text-faded">
                     {speech.timestamp ? time.format(speech.timestamp) : ""}
                 </div>
             </div>
-            <hr />
+            <hr className={classes} />
             {speech.content.map((segment, index) => {
                 if (segment.Text !== undefined) {
                     const subsegs = segment.Text.text.split("\n")
@@ -274,7 +304,7 @@ function renderSpeech(
                         subsegs.map((line, segIndex) => {
                             const br = (segIndex < subsegs.length - 1) ? (<br />) : (<></>)
                             return (
-                                <span key={index}>{line}{br}</span>
+                                <span key={"seg-" + index + "-" + segIndex}>{line}{br}</span>
                             );
                         })
                     );
@@ -348,6 +378,37 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
         "Debater B": showCorrectAnswer ? (debate.setup.correctAnswerIndex === 1 ? correctHighlightColor : incorrectHighlightColor) : debaterBHighlightColor
     }
     const allRules = getAllRules(debate);
+    const judgmentsByRound = getSteppedOfflineJudgmentsByRound(debate);
+    const timedJudgments = getTimedOfflineJudgments(debate);
+
+    function renderRound(round: DebateRound, index: number) {
+        if (round.JudgeFeedback !== undefined) {
+            return (<div key={index}>{renderSpeech(story, "judge", judgeIcon, allRules[index], round.JudgeFeedback.feedback, showCorrectAnswer, {
+                correctAnswerIndex: debate.setup.correctAnswerIndex, distribution: round.JudgeFeedback.distribution, endDebate: round.JudgeFeedback.endDebate, styles: judgmentStyles, icons: debaterIcons
+            })}</div>);
+        } else if (round.SimultaneousSpeeches !== undefined) {
+            return (
+                <div key={index} className="d-flex">
+                    {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, allRules[index], round.SimultaneousSpeeches.speeches[0], showCorrectAnswer)}
+                    {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, allRules[index], round.SimultaneousSpeeches.speeches[1], showCorrectAnswer)}
+                </div>
+            );
+        } else if (round.SequentialSpeeches !== undefined) {
+            return (
+                <div key={index}>
+                    {round.SequentialSpeeches.speeches[0] ? renderSpeech(story, aStyle + " speech-box-left", aIcon, allRules[index], round.SequentialSpeeches.speeches[0], showCorrectAnswer) : <></>}
+                    {round.SequentialSpeeches.speeches[1] ? renderSpeech(story, bStyle + " speech-box-right speech-box-right-seq", bIcon, allRules[index], round.SequentialSpeeches.speeches[1], showCorrectAnswer) : <></>}
+                </div>
+            );
+        } else if (round.OfflineJudgments !== undefined) {
+            return (<></>); // don't render offline judgments here; we do it round-wise
+        } else if (round.NegotiateEnd !== undefined) {
+            return (<></>);
+        } else {
+            console.log("Unknown round type: " + JSON.stringify(round));
+            return (<></>);
+        }
+    }
 
     return (
         <div className="container">
@@ -383,32 +444,22 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
             </div>
             <div className="mb-2">
                 {debate.rounds.map((round, index) => {
-                    if (round.JudgeFeedback !== undefined) {
-                        return (<div key={index}>{renderSpeech(story, "judge", judgeIcon, allRules[index], round.JudgeFeedback.feedback, showCorrectAnswer, {
-                            correctAnswerIndex: debate.setup.correctAnswerIndex, distribution: round.JudgeFeedback.distribution, endDebate: round.JudgeFeedback.endDebate, styles: judgmentStyles, icons: debaterIcons
-                        })}</div>);
-                    } else if (round.SimultaneousSpeeches !== undefined) {
-                        return (
-                            <div key={index} className="d-flex">
-                                {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, allRules[index], round.SimultaneousSpeeches.speeches[0], showCorrectAnswer)}
-                                {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, allRules[index], round.SimultaneousSpeeches.speeches[1], showCorrectAnswer)}
-                            </div>
-                        );
-                    } else if (round.SequentialSpeeches !== undefined) {
-                        return (
-                            <div key={index}>
-                                {round.SequentialSpeeches.speeches[0] ? renderSpeech(story, aStyle + " speech-box-left", aIcon, allRules[index], round.SequentialSpeeches.speeches[0], showCorrectAnswer) : <></>}
-                                {round.SequentialSpeeches.speeches[1] ? renderSpeech(story, bStyle + " speech-box-right speech-box-right-seq", bIcon, allRules[index], round.SequentialSpeeches.speeches[1], showCorrectAnswer) : <></>}
-                            </div>
-                        );
-                    } else if (round.OfflineJudgments !== undefined) {
-                        return (<></>); // don't render offline judgments here; we do it round-wise
-                    } else if (round.NegotiateEnd !== undefined) {
-                        return (<></>);
-                    } else {
-                        console.log("Unknown round type: " + JSON.stringify(round));
-                        return (<></>);
-                    }
+                    return (
+                        <div key={"round-" + index}>
+                            {judgmentsByRound[index].map((judgment, judgmentIndex) => {
+                                return (
+                                    <div key={"judgment-" + judgmentIndex}>{renderSpeech(story, "offline-judge", judgeIcon, {}, judgment.feedback, showCorrectAnswer, {
+                                        correctAnswerIndex: debate.setup.correctAnswerIndex,
+                                        distribution: judgment.distribution,
+                                        endDebate: judgment.endDebate,
+                                        styles: judgmentStyles,
+                                        icons: debaterIcons
+                                    })}</div>
+                                );
+                            })}
+                            {renderRound(round, index)}
+                        </div>
+                    )
                 })}
             </div>
             <div className="my-2">

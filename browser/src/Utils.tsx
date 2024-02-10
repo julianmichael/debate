@@ -200,23 +200,23 @@ export function renderStoryAsHtml(
     function processToken(token: string, index: number, highlights: Array<string>) {
         if (JSON.stringify(highlights) !== JSON.stringify(curColorStack)) {
             if (curStr.length > 0) {
-                curElts.push(<span>{curStr}</span>);
+                curElts.push(<span key={index + "-curstr"}>{curStr}</span>);
                 curStr = "";
             }
             // todo color the span properly
             const color = curColorStack.length > 0 ? curColorStack.reduce((acc, cur) => addColors(acc, highlightColors[cur] || transparent), transparent) : undefined
             const styleAttr = color ? { backgroundColor: getColorStyleString(color) } : {};
             if (!quotesOnly || curColorStack.length > 0) {
-                elts.push(<span style={styleAttr}> {curElts}</span >);
+                elts.push(<span key={index + "-quote"} style={styleAttr}> {curElts}</span >);
                 if (quotesOnly && highlights.length === 0 && curSpanBegin > -1) {
-                    elts.push(<span className="text-faded"> ({curSpanBegin}-{index})</span>);
+                    elts.push(<span key={index + "-indices"} className="text-faded"> ({curSpanBegin}-{index})</span>);
                     curSpanBegin = -1
                 }
             } else if (elts.length > 0) {
                 if (curElts.length > 1) {
-                    elts.push(<span><br />...<br /></span >);
+                    elts.push(<span key={index + "-break"}><br />...<br /></span >);
                 } else {
-                    elts.push(<span> ... </span >);
+                    elts.push(<span key={index + "-break"}> ... </span >);
                 }
             }
 
@@ -229,10 +229,10 @@ export function renderStoryAsHtml(
         }
         if (token === "\n") {
             if (curStr.length > 0) {
-                curElts.push(<span>{curStr}</span>);
+                curElts.push(<span key={index + "-curstr-end"}>{curStr}</span>);
                 curStr = "";
             }
-            curElts.push(<br />);
+            curElts.push(<br key={index + "-break-end"} />);
         } else {
             curStr += normalizeToken(token);
         }
@@ -249,16 +249,16 @@ export function renderStoryAsHtml(
     }
 
     if (curStr.length > 0) {
-        curElts.push(<span>{curStr}</span>);
+        curElts.push(<span key="final-str">{curStr}</span>);
         curStr = "";
     }
     // todo color the span properly
     const color = curColorStack.length > 0 ? curColorStack.reduce((acc, cur) => addColors(acc, highlightColors[cur] || transparent), transparent) : undefined
     const styleAttr = color ? { backgroundColor: getColorStyleString(color) } : {};
     if (!quotesOnly || curColorStack.length > 0) {
-        elts.push(<span style={styleAttr}> {curElts}</span >);
+        elts.push(<span key="last-quote" style={styleAttr}> {curElts}</span >);
         if (quotesOnly && curSpanBegin > -1) {
-            elts.push(<span className="text-faded">({curSpanBegin}-{storyTokens.length})</span>);
+            elts.push(<span key="last-indices" className="text-faded">({curSpanBegin}-{storyTokens.length})</span>);
             curSpanBegin = -1
         }
     }

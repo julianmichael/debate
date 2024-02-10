@@ -163,6 +163,10 @@ a {
     background-color: #21252908;
 }
 
+.offline-judge {
+    border-style: dashed !important;
+}
+
 .debaterA {
     background-color: rgba(240, 248, 255, 1.0);
 }
@@ -172,8 +176,10 @@ a {
 }
 
 .speech-box {
-    border: 1px solid #d0d0d0;
+    border-width: 1px;
+    border-color: #d0d0d0;
     border-radius: 0rem;
+    border-style: solid;
     padding: .75rem;
     margin-top: 0.5rem;
     /* width: auto; */
