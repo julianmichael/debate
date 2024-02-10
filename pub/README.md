@@ -15,7 +15,7 @@ CC-BY 4.0.
   These are also included in a JSON-lines file as [debates-metadata.jsonl].
   They are formatted according to the description under
   [Metadata File Format](#metadata-file-format) below.
-* [debates/](debates/): Directory containing all debate data, as readable by the main webapp.
+* [debates/](debates/): Directory containing all debate data, as readable by the main webapp and [browser](../browser/).
   The debates themselves are contained in [debates/official/], with one debate per file,
   formatted according to the [Debate File Format](#debate-file-format).
 
