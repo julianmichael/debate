@@ -1,6 +1,7 @@
 # NYU human debate dataset
 
 In this directory are the debates we gathered in our 2023 debate experiments.
+Participant identities are anonymized to silly names chosen with the help of GPT-4.
 
 Formatting details TODO.
 
