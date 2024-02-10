@@ -44,6 +44,41 @@ export const loader: LoaderFunction = ({ params }) => {
     return { roomName: params.roomName };
 };
 
+interface DebateRoundRules {
+    charLimit?: number;
+    quoteLimit?: number;
+}
+
+interface DebateRoundType {
+    SimultaneousSpeechesRound?: DebateRoundRules
+    SequentialSpeechesRound?: DebateRoundRules
+    JudgeFeedbackRound?: DebateRoundRules
+    NegotiateEndRound?: DebateRoundRules
+    OfflineJudgingRound?: DebateRoundRules
+}
+
+function getRules(roundType: DebateRoundType): DebateRoundRules {
+    return roundType.SimultaneousSpeechesRound ||
+        roundType.SequentialSpeechesRound ||
+        roundType.JudgeFeedbackRound ||
+        roundType.NegotiateEndRound ||
+        roundType.OfflineJudgingRound ||
+        {};
+}
+
+interface ClosingArgumentRules {
+    maxRepeatCycles: number;
+    rounds: Array<DebateRoundType>;
+}
+
+interface DebateRules {
+    fixedOpening: Array<DebateRoundType>;
+    repeatingStructure: Array<DebateRoundType>;
+    fixedClosing?: ClosingArgumentRules;
+    //   globalQuoteRestriction: Option[Int],
+    //   scoringFunction: ScoringFunction
+}
+
 interface SourceMaterial {
     QuALITYSourceMaterial?: {
         articleId: string;
@@ -83,7 +118,7 @@ interface Roles {
 }
 
 interface DebateSetup {
-    //   rules: DebateRules,
+    rules: DebateRules,
     sourceMaterial: SourceMaterial,
     question: String;
     answers: Array<String>;
@@ -142,6 +177,61 @@ interface JudgmentInfo {
     icons: Array<string>;
 }
 
+function getQuoteLength(story: Array<String>, content: Array<SpeechSegment>) {
+    var length = 0;
+    content.forEach((segment) => {
+        if (segment.Quote !== undefined) {
+            length += renderSpan(story, segment.Quote.span).length;
+        }
+    });
+    return length;
+}
+
+function getSpeechLength(story: Array<String>, content: Array<SpeechSegment>) {
+    var length = 0;
+    content.forEach((segment) => {
+        if (segment.Text !== undefined) {
+            length += segment.Text.text.length;
+        } else if (segment.Quote !== undefined) {
+            length += renderSpan(story, segment.Quote.span).length;
+        }
+    });
+    return length;
+}
+
+function getRulesForIndex(rules: DebateRules, index: number): DebateRoundRules {
+    const endRepeatIndex = (rules.fixedClosing !== undefined && rules.fixedClosing !== null) ? (
+        rules.fixedOpening.length + rules.fixedClosing.maxRepeatCycles * rules.repeatingStructure.length
+    ) : undefined;
+    if (index < rules.fixedOpening.length) {
+        return getRules(rules.fixedOpening[index]);
+    } else if (rules.fixedClosing !== undefined && endRepeatIndex !== undefined && index >= endRepeatIndex) {
+        const closingIndex = index - endRepeatIndex;
+        return getRules(rules.fixedClosing.rounds[closingIndex]);
+    } else {
+        const repeatIndex = index - rules.fixedOpening.length;
+        const repeatCycle = repeatIndex % rules.repeatingStructure.length;
+        return getRules(rules.repeatingStructure[repeatCycle]);
+    }
+}
+
+function getAllRules(debate: Debate): Array<DebateRoundRules> {
+    return debate.rounds.map((round, index) => {
+        return getRulesForIndex(debate.setup.rules, index);
+    });
+}
+
+function renderLimits(story: Array<String>, rules: DebateRoundRules, speech: DebateSpeech) {
+    const speechLength = getSpeechLength(story, speech.content)
+    const speechLengthStr = (rules.charLimit && speechLength > 0) ? (speechLength + "/" + rules.charLimit) : ""
+    const quoteLength = getQuoteLength(story, speech.content)
+    const quoteLengthStr = (rules.quoteLimit) ? ("(" + quoteLength + "/" + rules.quoteLimit + ")") : ""
+
+    return (
+        <div className="speech-footer text-faded">{speechLengthStr} {quoteLengthStr}</div>
+    );
+}
+
 function renderJudgment(
     judgment: JudgmentInfo,
     showCorrectAnswer: boolean
@@ -161,6 +251,7 @@ function renderSpeech(
     story: Array<String>,
     classes: string,
     icon: string,
+    rules: DebateRoundRules,
     speech: DebateSpeech,
     showCorrectAnswer: boolean,
     judgment?: JudgmentInfo
@@ -201,6 +292,7 @@ function renderSpeech(
                     );
                 }
             })}
+            {renderLimits(story, rules, speech)}
             {judgment !== undefined ? (renderJudgment(judgment, showCorrectAnswer)) : (<></>)}
         </div>
     );
@@ -255,6 +347,7 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
         "Debater A": showCorrectAnswer ? (debate.setup.correctAnswerIndex === 0 ? correctHighlightColor : incorrectHighlightColor) : debaterAHighlightColor,
         "Debater B": showCorrectAnswer ? (debate.setup.correctAnswerIndex === 1 ? correctHighlightColor : incorrectHighlightColor) : debaterBHighlightColor
     }
+    const allRules = getAllRules(debate);
 
     return (
         <div className="container">
@@ -283,29 +376,29 @@ function DebateDisplay({ roomName, debate }: { roomName: string; debate: Debate 
                     <div> <b>Story:</b> {getTitle(debate.setup.sourceMaterial)} </div>
                     <div> <b>Question:</b> {debate.setup.question} </div>
                     <div className="d-flex">
-                        {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, { speaker: (debate.setup.roles['Debater A'] || "").toString(), content: [{ Text: { text: debate.setup.answers[0].toString() } }] }, showCorrectAnswer)}
-                        {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, { speaker: (debate.setup.roles['Debater B'] || "").toString(), content: [{ Text: { text: debate.setup.answers[1].toString() } }] }, showCorrectAnswer)}
+                        {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, {}, { speaker: (debate.setup.roles['Debater A'] || "").toString(), content: [{ Text: { text: debate.setup.answers[0].toString() } }] }, showCorrectAnswer)}
+                        {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, {}, { speaker: (debate.setup.roles['Debater B'] || "").toString(), content: [{ Text: { text: debate.setup.answers[1].toString() } }] }, showCorrectAnswer)}
                     </div>
                 </div>
             </div>
             <div className="mb-2">
                 {debate.rounds.map((round, index) => {
                     if (round.JudgeFeedback !== undefined) {
-                        return (<div key={index}>{renderSpeech(story, "judge", judgeIcon, round.JudgeFeedback.feedback, showCorrectAnswer, {
+                        return (<div key={index}>{renderSpeech(story, "judge", judgeIcon, allRules[index], round.JudgeFeedback.feedback, showCorrectAnswer, {
                             correctAnswerIndex: debate.setup.correctAnswerIndex, distribution: round.JudgeFeedback.distribution, endDebate: round.JudgeFeedback.endDebate, styles: judgmentStyles, icons: debaterIcons
                         })}</div>);
                     } else if (round.SimultaneousSpeeches !== undefined) {
                         return (
                             <div key={index} className="d-flex">
-                                {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, round.SimultaneousSpeeches.speeches[0], showCorrectAnswer)}
-                                {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, round.SimultaneousSpeeches.speeches[1], showCorrectAnswer)}
+                                {renderSpeech(story, aStyle + " speech-box-left me-1", aIcon, allRules[index], round.SimultaneousSpeeches.speeches[0], showCorrectAnswer)}
+                                {renderSpeech(story, bStyle + " speech-box-right ms-1", bIcon, allRules[index], round.SimultaneousSpeeches.speeches[1], showCorrectAnswer)}
                             </div>
                         );
                     } else if (round.SequentialSpeeches !== undefined) {
                         return (
                             <div key={index}>
-                                {round.SequentialSpeeches.speeches[0] ? renderSpeech(story, aStyle + " speech-box-left", aIcon, round.SequentialSpeeches.speeches[0], showCorrectAnswer) : <></>}
-                                {round.SequentialSpeeches.speeches[1] ? renderSpeech(story, bStyle + " speech-box-right speech-box-right-seq", bIcon, round.SequentialSpeeches.speeches[1], showCorrectAnswer) : <></>}
+                                {round.SequentialSpeeches.speeches[0] ? renderSpeech(story, aStyle + " speech-box-left", aIcon, allRules[index], round.SequentialSpeeches.speeches[0], showCorrectAnswer) : <></>}
+                                {round.SequentialSpeeches.speeches[1] ? renderSpeech(story, bStyle + " speech-box-right speech-box-right-seq", bIcon, allRules[index], round.SequentialSpeeches.speeches[1], showCorrectAnswer) : <></>}
                             </div>
                         );
                     } else if (round.OfflineJudgments !== undefined) {
