@@ -29,6 +29,13 @@ Then visit [http://localhost:8080] and choose any profile to see the interface f
 Follow the instructions in [Running the webapp](#running-the-webapp) to start up the analytics server
 if you want to see the full details in the analytics pane on the webapp.
 
+This code was used to run the experiments in the following paper:
+> [Debate Helps Supervise Unreliable Experts](https://arxiv.org/abs/2311.08702).
+> Julian Michael,* Salsabila Mahdi,* David Rein,* Jackson Petty, Julien Dirani,
+> Vishakh Padmakumar, and Samuel R. Bowman.
+See the [2023-nyu-experiments](https://github.com/julianmichael/debate/tree/2023-nyu-experiments)
+branch for full details and data.
+
 ## Usage
 
 ### Requirements
