@@ -10,12 +10,12 @@ CC-BY 4.0.
 
 ## Contents
 
-* [debates-metadata.json]: A JSON array of metadata for all of the debates we gathered,
+* [debates-metadata.json](debates-metadata.json): A JSON array of metadata for all of the debates we gathered,
   including debates which never finished or weren't included in the final analysis.
   These are also included in a JSON-lines file as [debates-metadata.jsonl].
   They are formatted according to the description under
   [Metadata File Format](#metadata-file-format) below.
-* [debates/]: Directory containing all debate data, as readable by the main webapp.
+* [debates/](debates/): Directory containing all debate data, as readable by the main webapp.
   The debates themselves are contained in [debates/official/], with one debate per file,
   formatted according to the [Debate File Format](#debate-file-format).
 
