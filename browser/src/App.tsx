@@ -469,8 +469,8 @@ function App() {
       <header>
         <h1>Debate Helps Supervised Unreliable Experts</h1>
         <p>This is the data browser for <a href="https://arxiv.org/abs/2311.08702">the paper</a> of
-          the above title (code and
-          more <a href="https://github.com/julianmichael/debate">here</a>).
+          the above title
+          (<a href="https://github.com/julianmichael/debate/tree/2023-nyu-experiments">code</a>, <a href="https://github.com/julianmichael/debate/tree/2023-nyu-experiments/pub">data</a>).
         </p>
         <p>
           <a href="/#" onClick={() => setHelpModalActive(!helpModalActive)}>» About this interface «</a>
