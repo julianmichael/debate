@@ -6,6 +6,8 @@ by Julian Michael,* Salsabila Mahdi,* David Rein,*
 Jackson Petty, Julien Dirani, Vishakh Padmakumar,
 and Samuel R. Bowman.
 
+**Browse the debate data we collected at [julianmichael.github.io/debate](https://julianmichael.github.io.debate).**
+
 Publication artifacts are in the `pub/` directory:
 
 * `pub/debates/`: the full data for all debates, formatted for the debate data collection and browsing webapps.
