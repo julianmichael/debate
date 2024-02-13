@@ -3,7 +3,7 @@
 In this directory are the debates we gathered in our 2023 debate experiments.
 Participant identities are anonymized to silly names chosen with the help of GPT-4.
 
-**You can browse the dataset online at [julianmichael.github.io/debate](https://julianmichael.github.io.debate)!**
+**You can browse the dataset online at [julianmichael.github.io/debate](https://julianmichael.github.io/debate)!**
 
 This data is released under the [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) license.
 It builds on texts available in the public domain from [Project Gutenberg](https://www.gutenberg.org)
