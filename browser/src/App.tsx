@@ -4,6 +4,9 @@ import { Link } from "react-router-dom";
 import './App.css';
 import Room from './Room';
 
+import Modal from 'react-bootstrap/Modal';
+import { useSessionStorage } from 'usehooks-ts';
+
 import { checkbox, textField, makeProbabilityBar } from './Utils';
 
 // import { TransitionGroup } from 'react-transition-group' // ES6
@@ -359,33 +362,35 @@ function App() {
   // hooks for filter state
 
   // human, AI, debate, and consultancy checkbox state hooks
-  const [human, setHuman] = React.useState(true);
-  const [ai, setAI] = React.useState(true);
-  const [debate, setDebate] = React.useState(true);
-  const [consultancy, setConsultancy] = React.useState(true);
+  const [human, setHuman] = useSessionStorage("human", true);
+  const [ai, setAI] = useSessionStorage("ai", true);
+  const [debate, setDebate] = useSessionStorage("debate", true);
+  const [consultancy, setConsultancy] = useSessionStorage("consultancy", true);
 
   // roles
-  const [judge, setJudge] = React.useState(true);
-  const [honest, setHonest] = React.useState(true);
-  const [dishonest, setDishonest] = React.useState(true);
+  const [judge, setJudge] = useSessionStorage("judge", true);
+  const [honest, setHonest] = useSessionStorage("honest", true);
+  const [dishonest, setDishonest] = useSessionStorage("dishonest", true);
 
   // correct / incorrect checkbox state hooks
-  const [correct, setCorrect] = React.useState(true);
-  const [incorrect, setIncorrect] = React.useState(true);
-  const [tied, setTied] = React.useState(true);
-  const [unfinished, setUnfinished] = React.useState(false);
-  const [noLiveJudge, setNoLiveJudge] = React.useState(false);
+  const [correct, setCorrect] = useSessionStorage("correct", true);
+  const [incorrect, setIncorrect] = useSessionStorage("incorrect", true);
+  const [tied, setTied] = useSessionStorage("tied", true);
+  const [unfinished, setUnfinished] = useSessionStorage("unfinished", false);
+  const [noLiveJudge, setNoLiveJudge] = useSessionStorage("noLiveJudge", false);
 
   // included in paper analysis
-  const [included, setIncluded] = React.useState(true);
-  const [excluded, setExcluded] = React.useState(false);
+  const [included, setIncluded] = useSessionStorage("included", true);
+  const [excluded, setExcluded] = useSessionStorage("excluded", false);
 
   // search terms hook
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchQuery, setSearchQuery] = useSessionStorage("searchQuery", "");
 
   // sort table by column
-  const [sortColumn, setSortColumn] = React.useState("Room Name");
-  const [sortReversed, setSortReversed] = React.useState(false);
+  const [sortColumn, setSortColumn] = useSessionStorage("sortColumn", "Room Name");
+  const [sortReversed, setSortReversed] = useSessionStorage("sortReversed", false);
+
+  const [helpModalActive, setHelpModalActive] = React.useState(false);
 
   // const [roomOpt, setRoomOpt] = React.useState<string | undefined>(undefined);
 
@@ -397,10 +402,78 @@ function App() {
   // } else {
   return (
     <div className="container">
+      <div id="help-modal" tabIndex={-1} role="dialog" className={"modal fade show"} style={{ display: "block", position: "initial" }}>
+        <Modal show={helpModalActive} onHide={() => setHelpModalActive(false)} size='lg'>
+          <Modal.Header closeButton>
+            <Modal.Title>About this interface</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <p>
+              This is the data browser for the paper:
+              <div className="p-3">
+                <h6 className="mb-1"><a href="https://arxiv.org/abs/2311.08702">Debate Helps Supervise Unreliable Experts</a>.</h6>
+                Julian Michael,* Salsabila Mahdi,* David Rein,* Jackson Petty, Julien Dirani,
+                Vishakh Padmakumar, and Samuel R. Bowman.
+              </div>
+              The paper is currently a preprint on arXiv and has not yet been peer-reviewed (* denotes equal contribution).
+            </p>
+
+            <p>
+              This interface allows you to browse all of the debates we collected as part of our experiments,
+              including debates which were left unfinished or filtered out of the data analysis.
+              Filters for the data are described below.
+            </p>
+            <h4>Setting</h4>
+            <p>We tested four settings: human debate, human consultancy, AI debate, and AI consultancy.</p>
+            <ul>
+              <li><b>Human/AI:</b> whether the debaters or consultant in the round were human or AI. (Judges are always humans.)</li>
+              <li><b>Debate/Consultancy:</b> whether both answers had expert advocates (debate) or just one (consultancy).</li>
+            </ul>
+            <h4>Outcome</h4>
+            <ul>
+              <li><b>Correct/Incorrect/Tied:</b> whether the judge gave more than, less than, or
+                exactly 50% probability to the correct answer at the end of the debate.</li>
+              <li><b>Unfinished:</b> some debates were never finished before our data collection wrapped up.
+                We include them for completeness.
+              </li>
+              <li><b>No live judge:</b> In some debates (not included in the final analysis),
+                we had no live judge and ended the debate by mutual agreement between the debaters.
+                Check this to include these debates as well.
+              </li>
+            </ul>
+            <h4>Roles</h4>
+            <ul>
+              <li><b>Honest:</b> includes debates (which all have an honest debater) and consultancies with an honest consultant.</li>
+              <li><b>Dishonest:</b> includes debates (which all have a dishonest debater) and consultancies with a dishonest consultant.</li>
+              <li><b>Judge:</b> includes debates with a live judge.</li>
+            </ul>
+            <h4>Used in the paper</h4>
+            <p>
+              This filter allows you to look at debates and consultancies which were filtered out of the final analysis.
+              There were a few reasons a round might have been excluded:
+            </p>
+            <ul>
+              <li>We removed rounds over questions which were marked by QuALITY annotators to
+                require very little story context to answer, as we stopped gathering data on these questions partway through
+                based on the assumption that they would be too easy.
+              </li>
+              <li>
+                We excluded some consultancies in order to make sure that honest and dishonest consultancies were
+                evenly represented in the final analysis, since the consultancy accuracy measure assumes a 50% chance of
+                the consultant being honest.
+              </li>
+            </ul>
+          </Modal.Body>
+        </Modal>
+      </div >
       <header>
-        <h1>Debate Helps Supervise Unreliable Experts</h1>
-        <p>Data browser for the <a href="https://arxiv.org/abs/2311.08702">paper</a> of the above title.
-          More information about the project can be found <a href="https://github.com/julianmichael/debate">here</a>.
+        <h1>Debate Helps Supervised Unreliable Experts</h1>
+        <p>This is the data browser for <a href="https://arxiv.org/abs/2311.08702">the paper</a> of
+          the above title (code and
+          more <a href="https://github.com/julianmichael/debate">here</a>).
+        </p>
+        <p>
+          <a href="/#" onClick={() => setHelpModalActive(!helpModalActive)}>» About this interface «</a>
         </p>
         <h4>Filters</h4>
         <div className="row mb-2">
@@ -465,7 +538,7 @@ function App() {
         sortReversed={sortReversed} setSortReversed={setSortReversed}
       // setRoom={setRoomOpt}
       />
-    </div>
+    </div >
   );
   // }
 }
