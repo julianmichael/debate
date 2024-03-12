@@ -296,32 +296,34 @@ function renderSpeech(
                     {speech.timestamp ? time.format(speech.timestamp) : ""}
                 </div>
             </div>
-            <hr className={classes} />
-            {speech.content.map((segment, index) => {
-                if (segment.Text !== undefined) {
-                    const subsegs = segment.Text.text.split("\n")
-                    return (
-                        subsegs.map((line, segIndex) => {
-                            const br = (segIndex < subsegs.length - 1) ? (<br />) : (<></>)
-                            return (
-                                <span key={"seg-" + index + "-" + segIndex}>{line}{br}</span>
-                            );
-                        })
-                    );
-                } else if (segment.Quote !== undefined) {
-                    return (
-                        <React.Fragment key={index}>
-                            <span className="quote">{renderSpan(story, segment.Quote.span)}</span>
-                            <span className="text-faded"> ({segment.Quote.span[0]}-{segment.Quote.span[1]})</span>
-                        </React.Fragment>
-                    );
-                } else {
-                    console.log("Unknown segment type: " + JSON.stringify(segment));
-                    return (
-                        <span key={index}></span>
-                    );
-                }
-            })}
+            <hr />
+            <div style={{ "flex": "1" }}>
+                {speech.content.map((segment, index) => {
+                    if (segment.Text !== undefined) {
+                        const subsegs = segment.Text.text.split("\n")
+                        return (
+                            subsegs.map((line, segIndex) => {
+                                const br = (segIndex < subsegs.length - 1) ? (<br />) : (<></>)
+                                return (
+                                    <span key={"seg-" + index + "-" + segIndex}>{line}{br}</span>
+                                );
+                            })
+                        );
+                    } else if (segment.Quote !== undefined) {
+                        return (
+                            <React.Fragment key={index}>
+                                <span className="quote">{renderSpan(story, segment.Quote.span)}</span>
+                                <span className="text-faded"> ({segment.Quote.span[0]}-{segment.Quote.span[1]})</span>
+                            </React.Fragment>
+                        );
+                    } else {
+                        console.log("Unknown segment type: " + JSON.stringify(segment));
+                        return (
+                            <span key={index}></span>
+                        );
+                    }
+                })}
+            </div>
             {renderLimits(story, rules, speech)}
             {judgment !== undefined ? (renderJudgment(judgment, showCorrectAnswer)) : (<></>)}
         </div>
